@@ -28,6 +28,7 @@ const ADMIN_PAGE_IMPORTS: Record<Exclude<AdminCatalogId, 'modules'>, ImportPage>
   'model-billing-matrix': () => import('@/routes/(main)/admin/model-billing-matrix'),
   'model-policy': () => import('@/routes/(main)/admin/model-policy'),
   'orders': () => import('@/routes/(main)/admin/orders'),
+  'payments': () => import('@/routes/(main)/admin/payments'),
   'overview': () => import('@/routes/(main)/admin/overview'),
   'plans': () => import('@/routes/(main)/admin/plans'),
   'ppt': () => import('@/routes/(main)/admin/ppt'),

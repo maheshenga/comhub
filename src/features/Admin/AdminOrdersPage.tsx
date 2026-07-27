@@ -5,7 +5,7 @@ import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
 import { Alert, Descriptions, Drawer, Input, message, Space, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
@@ -65,8 +65,19 @@ const buildOrderAuditUrl = (orderId: string) => {
   return `${ADMIN_BASE_PATH}/audit?${searchParams.toString()}`;
 };
 
+const buildTopUpPaymentUrl = (orderId: string) => {
+  const searchParams = new URLSearchParams({ orderId, tab: 'topups' });
+  return `${ADMIN_BASE_PATH}/payments?${searchParams.toString()}`;
+};
+
+const isOnlinePaymentOrder = (order: { provider?: null | string; source?: null | string }) =>
+  order.source !== 'redemption' &&
+  order.provider !== 'redemption' &&
+  ['alipay', 'wechat_pay', 'zpay'].includes(order.provider ?? '');
+
 const AdminOrdersPage = memo(() => {
   const { t } = useTranslation('subscription');
+  const navigate = useNavigate();
   const [cursorStack, setCursorStack] = useState([0]);
   const cursor = cursorStack.at(-1) ?? 0;
   const [status, setStatus] = useState<OrderStatus | undefined>();
@@ -205,7 +216,11 @@ const AdminOrdersPage = memo(() => {
           <Button size="small" onClick={() => setOrderDetailId(row.id)}>
             {t('admin.orders.viewDetail', '查看')}
           </Button>
-          {row.status === 'pending' ? (
+          {isOnlinePaymentOrder(row) ? (
+            <Button size="small" onClick={() => navigate(buildTopUpPaymentUrl(row.id))}>
+              {t('admin.orders.reconcileOnline', '前往支付中心对账')}
+            </Button>
+          ) : row.status === 'pending' ? (
             <>
               <AdminDangerousActionButton
                 danger
@@ -406,6 +421,24 @@ const AdminOrdersPage = memo(() => {
                 '如需追踪后台操作，请在审计日志中按订单 ID 检索。',
               )}
             />
+            {isOnlinePaymentOrder(orderDetail) ? (
+              <Alert
+                showIcon
+                type="warning"
+                action={
+                  <Button
+                    size="small"
+                    onClick={() => navigate(buildTopUpPaymentUrl(orderDetail.id))}
+                  >
+                    {t('admin.orders.reconcileOnline', '前往支付中心对账')}
+                  </Button>
+                }
+                message={t(
+                  'admin.orders.onlineManagedInPayments',
+                  '在线支付订单必须通过支付渠道查询结果进行对账，不能人工改为已支付。',
+                )}
+              />
+            ) : null}
           </Flexbox>
         )}
       </Drawer>

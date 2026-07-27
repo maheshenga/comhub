@@ -1,4 +1,9 @@
-import type { ModuleAppGrantSnapshot, ModuleAppInstallationReadiness } from '@lobechat/types';
+import type {
+  ModuleAppGrantSnapshot,
+  ModuleAppInstallationReadiness,
+  PaymentCreateResult,
+  PaymentMethodId,
+} from '@lobechat/types';
 import { A } from '@lobehub/ui';
 import { Button, buttonStyles, confirmModal, DropdownMenu, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
@@ -45,8 +50,6 @@ type ModuleAppDetailData = {
   updateAvailable?: boolean;
   version?: string;
 };
-
-type ModuleAppPaymentData = { body: string; outTradeNo: string };
 
 type ModuleAppLicenseData = {
   endsAt?: Date | string | null;
@@ -220,44 +223,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
-export const submitModuleAppPaymentForm = (body: string) => {
-  const parsed = new DOMParser().parseFromString(body, 'text/html');
-  const sourceForm = parsed.querySelector('form');
-  if (!sourceForm) throw new Error('module_app_payment_form_invalid');
-
-  const rawAction = sourceForm.getAttribute('action');
-  if (!rawAction || sourceForm.method.toLowerCase() !== 'post') {
-    throw new Error('module_app_payment_form_invalid');
-  }
-  const action = new URL(rawAction);
-  if (action.protocol !== 'https:' || action.username || action.password) {
-    throw new Error('module_app_payment_form_invalid');
-  }
-
-  const sourceFields = [...sourceForm.querySelectorAll<HTMLInputElement>('input[name]')];
-  if (sourceFields.length === 0 || sourceFields.length > 100) {
-    throw new Error('module_app_payment_form_invalid');
-  }
-  const form = document.createElement('form');
-  form.action = action.toString();
-  form.method = 'post';
-  form.style.display = 'none';
-  for (const sourceField of sourceFields) {
-    const name = sourceField.name;
-    const value = sourceField.value;
-    if (!/^[A-Z]\w{0,79}$/i.test(name) || value.length > 100_000) {
-      throw new Error('module_app_payment_form_invalid');
-    }
-    const field = document.createElement('input');
-    field.name = name;
-    field.type = 'hidden';
-    field.value = value;
-    form.append(field);
-  }
-  document.body.append(form);
-  form.submit();
-};
-
 const ModuleAppDetail = memo(() => {
   const { appId } = useParams();
   const [searchParams] = useSearchParams();
@@ -352,10 +317,10 @@ const ModuleAppDetail = memo(() => {
     await orders.mutate();
     return order;
   };
-  const createPayment = async (input: { orderId: string; subject: string }) => {
-    const payment = (await moduleAppService.createPayment(input)) as ModuleAppPaymentData;
-    submitModuleAppPaymentForm(payment.body);
-  };
+  const createPayment = (input: {
+    method?: PaymentMethodId;
+    orderId: string;
+  }): Promise<PaymentCreateResult> => moduleAppService.createPayment(input);
   const install = async ({
     appId: installAppId,
     workspaceId: installWorkspaceId,
@@ -651,7 +616,6 @@ const ModuleAppDetail = memo(() => {
         loading={orders.isValidating}
         open={purchaseOpen}
         order={latestOrder}
-        subject={detailData.displayName}
         workspaceId={workspaceId}
         onCancelOrder={cancelOrder}
         onClose={() => setPurchaseOpen(false)}

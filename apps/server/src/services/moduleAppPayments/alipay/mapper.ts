@@ -15,11 +15,14 @@ const parseAlipayDate = (value?: string) => {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
+export const paymentOrderIdToAlipayTradeNo = (orderId: string, purpose: 'module_app' | 'top_up') =>
+  `${purpose === 'module_app' ? 'mapp' : 'topup'}_${orderId.replaceAll('-', '').toLowerCase()}`;
+
 export const moduleAppOrderIdToAlipayTradeNo = (orderId: string) =>
-  `mapp_${orderId.replaceAll('-', '').toLowerCase()}`;
+  paymentOrderIdToAlipayTradeNo(orderId, 'module_app');
 
 export const alipayTradeNoToModuleAppOrderId = (outTradeNo: string) => {
-  const match = /^mapp_([a-f0-9]{32})$/i.exec(outTradeNo);
+  const match = /^(?:mapp|topup)_([a-f0-9]{32})$/i.exec(outTradeNo);
   if (!match) return undefined;
   const value = match[1].toLowerCase();
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;

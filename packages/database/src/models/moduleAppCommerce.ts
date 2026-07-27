@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
 import { moduleAppOrderSnapshotSchema } from '@lobechat/types';
-import { and, desc, eq, gt, isNotNull, isNull, ne, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
 
 import {
   moduleAppInstallations,
   moduleAppLicenses,
   moduleAppOrders,
+  moduleAppPaymentAttempts,
   moduleAppPrices,
   moduleAppProducts,
   moduleApps,
@@ -488,6 +489,14 @@ export class ModuleAppCommerceModel {
       if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
       if (order.status === 'cancelled') return order;
       if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_CANCELLABLE');
+      const activePaymentAttempt = await tx.query.moduleAppPaymentAttempts.findFirst({
+        columns: { id: true },
+        where: and(
+          eq(moduleAppPaymentAttempts.orderId, order.id),
+          inArray(moduleAppPaymentAttempts.status, ['created', 'pending']),
+        ),
+      });
+      if (activePaymentAttempt) throw new Error('MODULE_APP_ORDER_PAYMENT_IN_PROGRESS');
       const now = new Date();
       const [cancelled] = await tx
         .update(moduleAppOrders)

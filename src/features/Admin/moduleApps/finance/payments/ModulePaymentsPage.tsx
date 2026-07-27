@@ -51,6 +51,7 @@ type PaymentStatus = 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
 type RefundStatus = 'failed' | 'requested' | 'succeeded';
 type DiscrepancyStatus = 'open' | 'resolved';
 type PaymentFormAction = 'offlineRefund' | 'refund' | 'settle';
+type ModulePaymentsPageProps = { canWrite?: boolean; embedded?: boolean };
 
 const downloadJson = (value: unknown) => {
   const url = URL.createObjectURL(
@@ -63,7 +64,8 @@ const downloadJson = (value: unknown) => {
   URL.revokeObjectURL(url);
 };
 
-const ModulePaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOverride }) => {
+const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
+  const { canWrite: canWriteOverride, embedded = false } = props;
   const { t } = useTranslation('common');
   const [searchParams, setSearchParams] = useSearchParams();
   const role = useUserStore(
@@ -230,11 +232,17 @@ const ModulePaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOve
         (action !== 'offlineRefund' || Boolean(offlineRefundReference.trim()));
 
   return (
-    <section className={styles.page} data-testid="module-payments-page">
-      <header>
-        <h1>{t('moduleApps.admin.payments.title')}</h1>
-        <p>{t('moduleApps.admin.payments.description')}</p>
-      </header>
+    <section
+      className={styles.page}
+      data-testid="module-payments-page"
+      style={embedded ? { maxWidth: 'none' } : undefined}
+    >
+      {!embedded ? (
+        <header>
+          <h1>{t('moduleApps.admin.payments.title')}</h1>
+          <p>{t('moduleApps.admin.payments.description')}</p>
+        </header>
+      ) : null}
       <div className={styles.actions}>
         <Button
           disabled={busyAction === 'export'}
@@ -343,7 +351,6 @@ const ModulePaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOve
             labels={{
               acknowledge: t('moduleApps.admin.payments.actions.acknowledge'),
               action: t('moduleApps.admin.payments.columns.actions'),
-              alipayTrade: t('moduleApps.admin.payments.columns.alipayTrade'),
               amount: t('moduleApps.admin.payments.columns.amount'),
               app: t('moduleApps.admin.payments.columns.app'),
               audit: t('moduleApps.admin.payments.columns.audit'),
@@ -352,6 +359,8 @@ const ModulePaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOve
               latestRun: t('moduleApps.admin.payments.columns.latestRun'),
               offlineRefund: t('moduleApps.admin.payments.actions.offlineRefund'),
               order: t('moduleApps.admin.payments.columns.order'),
+              paymentMethod: t('moduleApps.admin.payments.columns.paymentMethod'),
+              providerTrade: t('moduleApps.admin.payments.columns.providerTrade'),
               refund: t('moduleApps.admin.payments.actions.refund'),
               retryPayment: t('moduleApps.admin.payments.actions.retryPayment'),
               retryRefund: t('moduleApps.admin.payments.actions.retryRefund'),
@@ -363,12 +372,14 @@ const ModulePaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOve
             onOpenSettle={(row) => openAction('settle', row)}
             onAcknowledge={(discrepancyId) =>
               runDirectAction(`acknowledge:${discrepancyId}`, () =>
-                adminCommercialService.moduleApps.acknowledgePaymentDiscrepancy({ discrepancyId }),
+                adminCommercialService.moduleApps.acknowledgePaymentDiscrepancy({
+                  discrepancyId,
+                }),
               )
             }
-            onRetryPayment={(outTradeNo) =>
+            onRetryPayment={(outTradeNo, provider) =>
               runDirectAction(`payment:${outTradeNo}`, () =>
-                adminCommercialService.moduleApps.retryPaymentQuery({ outTradeNo }),
+                adminCommercialService.moduleApps.retryPaymentQuery({ outTradeNo, provider }),
               )
             }
             onRetryRefund={(targetOrderId) =>

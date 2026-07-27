@@ -110,6 +110,7 @@ const GET_ALL_COMPATIBILITY_FIELDS = [
   'notificationSystemType',
   'operationsConfig',
   'ordersManagementEnabled',
+  'paymentConfig',
   'paymentGatewayStatus',
   'plansFaqItems',
   'pricingCreditMultiplier',

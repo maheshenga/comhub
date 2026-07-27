@@ -5,6 +5,9 @@ import {
 import {
   moduleAppNormalizedPaymentEventSchema,
   moduleAppOrderSnapshotSchema,
+  type ModuleAppPaymentProvider,
+  paymentCreateResultSchema,
+  type PaymentMethodId,
 } from '@lobechat/types';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 
@@ -19,7 +22,7 @@ import type { LobeChatDatabase } from '@/database/type';
 
 import { assertModuleAppRolloutAllowed } from '../productionControls';
 import { ModuleAppOrderRevenueService } from '../revenue';
-import type { ModuleAppPaymentAdapter } from './contracts';
+import { canRecreatePaymentCheckout, type ModuleAppPaymentAdapter } from './contracts';
 
 type ModuleAppPaymentMetrics = {
   recordOperationalAge: (kind: 'discrepancy' | 'refund', ageMs: number) => void;
@@ -48,7 +51,9 @@ const formatAmount = (value: unknown) => {
 
 const assertPaymentUrl = (value: string) => {
   const url = new URL(value);
-  if (url.protocol !== 'https:') throw new Error('MODULE_APP_PAYMENT_URL_INVALID');
+  const localHttp =
+    url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !localHttp) throw new Error('MODULE_APP_PAYMENT_URL_INVALID');
   return url.toString();
 };
 
@@ -66,6 +71,10 @@ export class ModuleAppPaymentService {
       ModuleAppOrderRevenueService,
       'refundOrder' | 'settleOrder'
     > = new ModuleAppOrderRevenueService(db),
+    private readonly adapterResolver?: (
+      provider: ModuleAppPaymentProvider,
+      method: PaymentMethodId,
+    ) => ModuleAppPaymentAdapter | Promise<ModuleAppPaymentAdapter>,
   ) {
     this.model = new ModuleAppPaymentModel(db);
   }
@@ -76,7 +85,6 @@ export class ModuleAppPaymentService {
     purchaserUserId?: string;
     returnUrl: string;
     rollout?: { appIds: string[]; publisherIds: string[] };
-    subject: string;
   }) => {
     const order = await this.db.query.moduleAppOrders.findFirst({
       where: and(
@@ -88,43 +96,80 @@ export class ModuleAppPaymentService {
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
     if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
+    const app = await this.db.query.moduleApps.findFirst({
+      columns: { displayName: true, publisherId: true },
+      where: eq(moduleApps.id, order.appId),
+    });
+    if (!app) throw new Error('MODULE_APP_NOT_FOUND');
     if (input.rollout) {
-      const app = await this.db.query.moduleApps.findFirst({
-        where: eq(moduleApps.id, order.appId),
-      });
       assertModuleAppRolloutAllowed(
-        { appId: order.appId, publisherId: app?.publisherId },
+        { appId: order.appId, publisherId: app.publisherId },
         input.rollout,
       );
     }
     const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
     const totalAmount = formatAmount(snapshot.price);
     if (Number(totalAmount) <= 0) throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
-    const subject = input.subject.trim().slice(0, 240);
+    const subject = app.displayName.trim().slice(0, 240);
     if (!subject) throw new Error('MODULE_APP_PAYMENT_SUBJECT_REQUIRED');
     const notifyUrl = assertPaymentUrl(input.notifyUrl);
     const returnUrl = assertPaymentUrl(input.returnUrl);
-    const created = await this.adapter.create({
+    const outTradeNo = this.adapter.createOutTradeNo({
+      orderId: order.id,
+      purpose: 'module_app',
+    });
+    const { attempt, created: attemptCreated } = await this.model.createPaymentAttempt({
       currency: snapshot.currency,
+      method: this.adapter.method,
       notifyUrl,
       orderId: order.id,
+      outTradeNo,
+      provider: this.adapter.provider,
       returnUrl,
       subject,
       totalAmount,
     });
-    if (!created.body || !created.outTradeNo) {
+    if (attempt.checkout) {
+      return paymentCreateResultSchema.parse({
+        checkout: attempt.checkout,
+        method: attempt.method,
+        outTradeNo: attempt.outTradeNo,
+        provider: attempt.provider,
+      });
+    }
+    if (!attemptCreated && !canRecreatePaymentCheckout(attempt.method)) {
+      throw new Error('MODULE_APP_PAYMENT_CHECKOUT_RECOVERY_REQUIRED');
+    }
+    const created = paymentCreateResultSchema.parse(
+      await this.adapter.create({
+        currency: snapshot.currency,
+        notifyUrl,
+        orderId: order.id,
+        purpose: 'module_app',
+        returnUrl,
+        subject,
+        totalAmount,
+      }),
+    );
+    if (
+      !created.checkout ||
+      created.outTradeNo !== outTradeNo ||
+      created.provider !== this.adapter.provider ||
+      created.method !== this.adapter.method
+    ) {
       throw new Error('MODULE_APP_PAYMENT_CREATE_INVALID');
     }
-    await this.model.createPaymentAttempt({
-      currency: snapshot.currency,
-      notifyUrl,
-      orderId: order.id,
+    const stored = await this.model.storePaymentCheckout({
+      checkout: created.checkout,
       outTradeNo: created.outTradeNo,
-      returnUrl,
-      subject,
-      totalAmount,
+      provider: created.provider,
     });
-    return created;
+    return paymentCreateResultSchema.parse({
+      checkout: stored.checkout,
+      method: stored.method,
+      outTradeNo: stored.outTradeNo,
+      provider: stored.provider,
+    });
   };
 
   handleNotification = async (input: { body: string; headers: Record<string, string> }) => {
@@ -156,7 +201,10 @@ export class ModuleAppPaymentService {
       providerTransactionId: event.providerTransactionId,
       totalAmount: event.totalAmount,
     });
-    const attempt = await this.model.getPaymentAttemptByOutTradeNo(event.outTradeNo);
+    const attempt = await this.model.getPaymentAttemptByOutTradeNo(
+      event.outTradeNo,
+      event.provider,
+    );
     if (!attempt) {
       await this.model.createDiscrepancy({
         actualAmount: event.totalAmount,
@@ -179,8 +227,16 @@ export class ModuleAppPaymentService {
       where: eq(moduleAppOrders.id, attempt.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    if (recorded.duplicate && order.status !== 'pending') {
-      return { duplicate: true, status: order.status };
+    if (attempt.provider !== event.provider) {
+      await this.rejectEvent({
+        eventId: event.eventId,
+        errorCode: 'MODULE_APP_PAYMENT_PROVIDER_MISMATCH',
+        kind: 'provider_mismatch',
+        orderId: order.id,
+        outTradeNo: event.outTradeNo,
+        provider: event.provider,
+      });
+      throw new Error('MODULE_APP_PAYMENT_PROVIDER_MISMATCH');
     }
     if (event.orderId && event.orderId !== order.id) {
       await this.rejectEvent({
@@ -221,7 +277,39 @@ export class ModuleAppPaymentService {
       });
       throw new Error('MODULE_APP_PAYMENT_CURRENCY_MISMATCH');
     }
+    if (recorded.duplicate && order.status !== 'pending') {
+      if (
+        order.status === 'paid' &&
+        event.eventType === 'payment_succeeded' &&
+        recorded.event.eventStatus === 'received'
+      ) {
+        if (attempt.status !== 'paid' && attempt.status !== 'refunded') {
+          await this.model.updatePaymentAttempt({
+            outTradeNo: event.outTradeNo,
+            paidAt: event.occurredAt,
+            provider: event.provider,
+            providerTransactionId: event.providerTransactionId,
+            status: 'paid',
+          });
+        }
+        await this.model.updatePaymentEvent({
+          eventId: event.eventId,
+          eventStatus: 'processed',
+          orderId: order.id,
+          processedAt: new Date(),
+          provider: event.provider,
+        });
+      }
+      return { duplicate: true, status: order.status };
+    }
     if (event.eventType !== 'payment_succeeded') {
+      if (event.eventType === 'payment_failed' && order.status === 'pending') {
+        await this.model.updatePaymentAttempt({
+          outTradeNo: event.outTradeNo,
+          provider: event.provider,
+          status: 'failed',
+        });
+      }
       await this.model.updatePaymentEvent({
         eventId: event.eventId,
         eventStatus: 'ignored',
@@ -254,6 +342,7 @@ export class ModuleAppPaymentService {
     await this.model.updatePaymentAttempt({
       outTradeNo: event.outTradeNo,
       paidAt: event.occurredAt,
+      provider: event.provider,
       providerTransactionId: event.providerTransactionId,
       status: 'paid',
     });
@@ -267,14 +356,18 @@ export class ModuleAppPaymentService {
     return { duplicate: recorded.duplicate, status: settled.status };
   };
 
-  reconcilePayment = async (input: { outTradeNo: string }) => {
-    const attempt = await this.model.getPaymentAttemptByOutTradeNo(input.outTradeNo);
+  reconcilePayment = async (input: { outTradeNo: string; provider?: ModuleAppPaymentProvider }) => {
+    const attempt = await this.model.getPaymentAttemptByOutTradeNo(
+      input.outTradeNo,
+      input.provider,
+    );
     if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
     const order = await this.db.query.moduleAppOrders.findFirst({
       where: eq(moduleAppOrders.id, attempt.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    const event = await this.adapter.query({ outTradeNo: input.outTradeNo });
+    const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
+    const event = await adapter.query({ outTradeNo: input.outTradeNo });
     if (!event) {
       if (order.status === 'paid') {
         await this.model.createDiscrepancy({
@@ -282,7 +375,7 @@ export class ModuleAppPaymentService {
           kind: 'local_paid_provider_unpaid',
           orderId: order.id,
           outTradeNo: input.outTradeNo,
-          provider: 'alipay',
+          provider: attempt.provider,
         });
       }
       return { localStatus: order.status, providerStatus: 'pending' as const };
@@ -295,7 +388,7 @@ export class ModuleAppPaymentService {
         kind: 'local_unpaid_provider_paid',
         orderId: order.id,
         outTradeNo: input.outTradeNo,
-        provider: 'alipay',
+        provider: attempt.provider,
       });
     } else if (event.eventType === 'payment_failed' && order.status === 'paid') {
       await this.model.createDiscrepancy({
@@ -303,7 +396,7 @@ export class ModuleAppPaymentService {
         kind: 'local_paid_provider_unpaid',
         orderId: order.id,
         outTradeNo: input.outTradeNo,
-        provider: 'alipay',
+        provider: attempt.provider,
       });
     }
     const result = await this.handleNormalizedEvent(event);
@@ -318,7 +411,10 @@ export class ModuleAppPaymentService {
       try {
         results.push({
           outTradeNo: attempt.outTradeNo,
-          result: await this.reconcilePayment({ outTradeNo: attempt.outTradeNo }),
+          result: await this.reconcilePayment({
+            outTradeNo: attempt.outTradeNo,
+            provider: attempt.provider,
+          }),
         });
       } catch (error) {
         results.push({
@@ -356,34 +452,42 @@ export class ModuleAppPaymentService {
   };
 
   reconcileRefund = async (input: { actorUserId: string; orderId: string }) => {
-    if (!this.adapter.queryRefund) throw new Error('MODULE_APP_PAYMENT_REFUND_QUERY_UNSUPPORTED');
     const [attempt, refund, order] = await Promise.all([
       this.model.getPaymentAttemptByOrderId(input.orderId),
       this.model.getRefundByOrderId(input.orderId),
       this.db.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, input.orderId) }),
     ]);
     if (!attempt || !refund || !order) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
-    const result = await this.adapter.queryRefund({
+    const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
+    if (!adapter.queryRefund) throw new Error('MODULE_APP_PAYMENT_REFUND_QUERY_UNSUPPORTED');
+    const result = await adapter.queryRefund({
       outRequestNo: refund.providerRefundId,
       outTradeNo: attempt.outTradeNo,
     });
-    if (result.status !== 'succeeded') {
+    if (result.status === 'pending') return result;
+    if (result.status === 'failed') {
+      await this.model.updateRefundStatus({ orderId: order.id, status: 'failed' });
       await this.model.createDiscrepancy({
         discrepancyKey: `refund:${refund.providerRefundId}:${result.status}`,
         kind: 'refund_mismatch',
         orderId: order.id,
         outTradeNo: attempt.outTradeNo,
-        provider: 'alipay',
+        provider: attempt.provider,
       });
       return result;
     }
     await this.model.updateRefundStatus({ orderId: order.id, status: 'succeeded' });
+    await this.model.updatePaymentAttempt({
+      outTradeNo: attempt.outTradeNo,
+      provider: attempt.provider,
+      status: 'refunded',
+    });
     if (order.status !== 'refunded') {
       await this.orderRevenueService.refundOrder({
         actorUserId: input.actorUserId,
         orderId: order.id,
         reason: refund.reason,
-        refundReference: `alipay:${refund.providerRefundId}`,
+        refundReference: `${attempt.provider}:${refund.providerRefundId}`,
       });
     }
     return result;
@@ -395,6 +499,9 @@ export class ModuleAppPaymentService {
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
     let refund = await this.model.getRefundByOrderId(order.id);
+    const attempt = await this.model.getPaymentAttemptByOrderId(order.id);
+    if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
+    const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
     if (order.status === 'refunded') {
       if (!refund || refund.status !== 'succeeded') {
         throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
@@ -403,43 +510,55 @@ export class ModuleAppPaymentService {
         actorUserId: input.actorUserId ?? order.purchaserUserId,
         orderId: order.id,
         reason: input.reason,
-        refundReference: `alipay:${refund.providerRefundId}`,
+        refundReference: `${attempt.provider}:${refund.providerRefundId}`,
       });
     }
     if (order.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
-    if (refund && refund.status !== 'succeeded') {
+    if (refund?.status === 'requested') {
+      return { orderId: order.id, status: 'requested' as const };
+    }
+    if (refund?.status === 'failed') {
       throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
     if (!refund) {
-      const attempt = await this.model.getPaymentAttemptByOrderId(order.id);
-      if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
       const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
-      const result = await this.adapter.refund({
+      const result = await adapter.refund({
         outTradeNo: attempt.outTradeNo,
         reason: input.reason,
         refundAmount: formatAmount(snapshot.price),
+        totalAmount: formatAmount(snapshot.price),
       });
+      const refundStatus =
+        result.status === 'succeeded'
+          ? ('succeeded' as const)
+          : result.status === 'pending'
+            ? ('requested' as const)
+            : ('failed' as const);
       const created = await this.model.createRefund({
         currency: snapshot.currency,
         orderId: order.id,
-        provider: 'alipay',
+        provider: attempt.provider,
         providerRefundId: result.providerRefundId,
         reason: input.reason,
         refundAmount: formatAmount(snapshot.price),
-        status: result.status === 'succeeded' ? 'succeeded' : 'failed',
+        status: refundStatus,
       });
       refund = created.refund;
+      if (result.status === 'pending') {
+        return { orderId: order.id, status: 'requested' as const };
+      }
+      if (result.status === 'failed') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
       await this.model.updatePaymentAttempt({
         outTradeNo: attempt.outTradeNo,
-        status: result.status === 'succeeded' ? 'refunded' : 'failed',
+        provider: attempt.provider,
+        status: 'refunded',
       });
-      if (result.status !== 'succeeded') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
     return this.orderRevenueService.refundOrder({
       actorUserId: input.actorUserId ?? order.purchaserUserId,
       orderId: order.id,
       reason: input.reason,
-      refundReference: `alipay:${refund.providerRefundId}`,
+      refundReference: `${attempt.provider}:${refund.providerRefundId}`,
     });
   };
 
@@ -453,7 +572,7 @@ export class ModuleAppPaymentService {
     kind: 'amount_mismatch' | 'currency_mismatch' | 'provider_mismatch' | 'settlement_failed';
     orderId: string;
     outTradeNo: string;
-    provider: 'alipay';
+    provider: ModuleAppPaymentProvider;
   }) => {
     await this.model.createDiscrepancy({
       actualAmount: input.actualAmount,
@@ -474,5 +593,15 @@ export class ModuleAppPaymentService {
       processedAt: new Date(),
       provider: input.provider,
     });
+  };
+
+  private resolveAdapter = async (provider: ModuleAppPaymentProvider, method: PaymentMethodId) => {
+    if (this.adapter.provider === provider && this.adapter.method === method) return this.adapter;
+    if (!this.adapterResolver) throw new Error('MODULE_APP_PAYMENT_ADAPTER_NOT_AVAILABLE');
+    const adapter = await this.adapterResolver(provider, method);
+    if (adapter.provider !== provider || adapter.method !== method) {
+      throw new Error('MODULE_APP_PAYMENT_ADAPTER_MISMATCH');
+    }
+    return adapter;
   };
 }

@@ -1,14 +1,23 @@
 'use client';
 
+import type {
+  ModuleAppPaymentAttemptStatus,
+  PaymentCheckoutAction,
+  PaymentCreateResult,
+  PaymentMethod,
+  PaymentMethodId,
+  PaymentProvider,
+} from '@lobechat/types';
 import { ActionIcon, Flexbox } from '@lobehub/ui';
-import { FloatingSheet } from '@lobehub/ui/base-ui';
-import { Alert, Button, Modal, Segmented, Tag, Typography } from 'antd';
+import { Button, FloatingSheet, Modal, Segmented } from '@lobehub/ui/base-ui';
+import { Alert, QRCode, Tag, Typography } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { X } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
+import { submitPaymentCheckout } from '@/features/Payments/checkout';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { moduleAppService } from '@/services/moduleApp';
 
@@ -42,9 +51,11 @@ type PurchaseModalProps = {
     productId: string;
     workspaceId?: string;
   }) => Promise<{ id: string } | void>;
-  onCreatePayment?: (input: { orderId: string; subject: string }) => Promise<void>;
+  onCreatePayment?: (input: {
+    method?: PaymentMethodId;
+    orderId: string;
+  }) => Promise<PaymentCreateResult>;
   onInstall?: (input: { appId: string; workspaceId?: string }) => Promise<void>;
-  subject?: string;
   workspaceId?: string;
 };
 
@@ -54,6 +65,16 @@ type ModuleAppQuote = {
   price: number;
   promotion?: ModuleAppCatalogItem['promotion'];
 };
+
+type ModuleAppPaymentStatus = {
+  method: PaymentMethodId | null;
+  paymentStatus: ModuleAppPaymentAttemptStatus | null;
+  provider: PaymentProvider | null;
+  status: string;
+};
+
+export const getPaymentStatusRefreshInterval = (data?: ModuleAppPaymentStatus) =>
+  data?.status === 'pending' && data.paymentStatus !== 'failed' ? 3000 : 0;
 
 const formatPrice = (currency?: string, price?: number) =>
   currency && typeof price === 'number'
@@ -83,7 +104,6 @@ const PurchaseModal = memo<PurchaseModalProps>(
     onCreateOrder,
     onCreatePayment,
     onInstall,
-    subject = '',
     workspaceId,
   }) => {
     const { t } = useTranslation('common');
@@ -92,6 +112,8 @@ const PurchaseModal = memo<PurchaseModalProps>(
     const [orderIdempotencyKey, setOrderIdempotencyKey] = useState(() =>
       globalThis.crypto.randomUUID(),
     );
+    const [checkout, setCheckout] = useState<PaymentCheckoutAction>();
+    const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>();
     const [selectedProductId, setSelectedProductId] = useState<string>();
     const [submitting, setSubmitting] = useState(false);
     const selected = useMemo(
@@ -107,6 +129,21 @@ const PurchaseModal = memo<PurchaseModalProps>(
           productId: selected!.productId,
         }) as Promise<ModuleAppQuote>,
     );
+    const paymentMethods = useSWR<PaymentMethod[]>(
+      open && !license ? ['moduleApp.getPaymentMethods'] : null,
+      () => moduleAppService.getPaymentMethods(),
+    );
+    const paymentStatus = useSWR<ModuleAppPaymentStatus>(
+      open && order?.status === 'pending' ? ['moduleApp.getPaymentStatus', order.id] : null,
+      () =>
+        moduleAppService.getPaymentStatus({
+          orderId: order!.id,
+        }) as Promise<ModuleAppPaymentStatus>,
+      {
+        refreshInterval: getPaymentStatusRefreshInterval,
+        revalidateOnFocus: true,
+      },
+    );
 
     useEffect(() => {
       if (!selectedProductId && catalog[0]) setSelectedProductId(catalog[0].productId);
@@ -116,20 +153,62 @@ const PurchaseModal = memo<PurchaseModalProps>(
       if (open && selected?.productId) setOrderIdempotencyKey(globalThis.crypto.randomUUID());
     }, [open, order?.id, order?.status, selected?.productId, workspaceId]);
 
+    useEffect(() => {
+      if (!selectedMethod && paymentMethods.data?.[0]) {
+        setSelectedMethod(paymentMethods.data[0].id);
+      }
+    }, [paymentMethods.data, selectedMethod]);
+
+    useEffect(() => {
+      if (paymentStatus.data?.method) setSelectedMethod(paymentStatus.data.method);
+    }, [paymentStatus.data?.method]);
+
+    useEffect(() => {
+      if (!open || order?.status === 'paid') setCheckout(undefined);
+    }, [open, order?.status]);
+
     const options = catalog.map((item) => ({
       label: item.billingPeriod ?? item.productType,
       value: item.productId,
+    }));
+    const methodOptions = (paymentMethods.data ?? []).map((item) => ({
+      label: t(`moduleApps.purchase.methods.${item.id}`, item.label),
+      value: item.id,
     }));
     const pendingOrder = order?.status === 'pending' ? order : null;
     const selectedScope = selected?.licenseScope ?? quote.data?.licenseScope;
     const requiresWorkspace = Boolean(selectedScope && selectedScope !== 'personal');
     const promotion = quote.data?.promotion ?? selected?.promotion;
     const isFree = selected?.productType === 'free';
+    const paymentMethodLocked = Boolean(paymentStatus.data?.method || checkout);
 
     const createPayment = async (orderId: string) => {
       if (!onCreatePayment) return;
-      await onCreatePayment({ orderId, subject });
+      const payment = await onCreatePayment({ method: selectedMethod, orderId });
+      const action = submitPaymentCheckout(payment.checkout);
+      setCheckout(action.type === 'qrcode' ? action : undefined);
+      void paymentStatus.mutate();
     };
+
+    const paymentMethodControl = methodOptions.length > 0 && (
+      <Segmented
+        block
+        disabled={paymentMethodLocked}
+        options={methodOptions}
+        value={selectedMethod}
+        onChange={(value) => {
+          setCheckout(undefined);
+          setSelectedMethod(value as PaymentMethodId);
+        }}
+      />
+    );
+
+    const qrCode = checkout?.type === 'qrcode' && (
+      <Flexbox align="center" gap={8}>
+        <QRCode size={220} value={checkout.url} />
+        <Typography.Text type="secondary">{t('moduleApps.purchase.scanToPay')}</Typography.Text>
+      </Flexbox>
+    );
 
     const submit = async () => {
       if (!selected) return;
@@ -172,13 +251,16 @@ const PurchaseModal = memo<PurchaseModalProps>(
           </Flexbox>
         ) : pendingOrder ? (
           <Flexbox gap={12}>
-            {error && (
+            {(error || paymentStatus.data?.paymentStatus === 'failed') && (
               <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
             )}
             <Typography.Text>{t('moduleApps.purchase.pending')}</Typography.Text>
             <Typography.Text code>{pendingOrder.id}</Typography.Text>
+            {paymentMethodControl}
+            {qrCode}
             {onCreatePayment && (
               <Button
+                disabled={Boolean(checkout)}
                 loading={submitting}
                 type="primary"
                 onClick={async () => {
@@ -216,6 +298,9 @@ const PurchaseModal = memo<PurchaseModalProps>(
             {error && (
               <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
             )}
+            {!paymentMethods.isLoading && methodOptions.length === 0 && !isFree && (
+              <Alert showIcon message={t('moduleApps.purchase.noPaymentMethods')} type="warning" />
+            )}
             {order?.status === 'refunded' && (
               <Tag color="orange">{t('moduleApps.purchase.refunded')}</Tag>
             )}
@@ -228,6 +313,8 @@ const PurchaseModal = memo<PurchaseModalProps>(
                 onChange={(value) => setSelectedProductId(String(value))}
               />
             )}
+            {!isFree && paymentMethodControl}
+            {qrCode}
             <Flexbox horizontal align="center" justify="space-between">
               <Typography.Text>{t('moduleApps.purchase.scopeLabel')}</Typography.Text>
               <Tag>
@@ -275,12 +362,16 @@ const PurchaseModal = memo<PurchaseModalProps>(
             ) : null}
             <Button
               block
-              disabled={!selected || (requiresWorkspace && !workspaceId)}
               loading={loading || quote.isLoading || submitting}
               type="primary"
+              disabled={
+                !selected ||
+                (requiresWorkspace && !workspaceId) ||
+                (!isFree && methodOptions.length === 0)
+              }
               onClick={submit}
             >
-              {t(isFree ? 'moduleApps.purchase.install' : 'moduleApps.purchase.payWithAlipay')}
+              {t(isFree ? 'moduleApps.purchase.install' : 'moduleApps.purchase.payNow')}
             </Button>
           </>
         )}

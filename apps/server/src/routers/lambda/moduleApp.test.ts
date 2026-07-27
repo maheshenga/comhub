@@ -29,9 +29,14 @@ const {
   mockRuntimeClientInvoke,
   mockRunModuleAppAction,
   mockModuleAppCommerceModel,
+  mockModuleAppPaymentModel,
   mockModuleAppPaymentService,
   mockEncryptInstallationSecret,
   mockCreateConfiguredModuleAppAlipayClient,
+  mockCreatePaymentAdapter,
+  mockGetServerPaymentConfig,
+  mockListCheckoutPaymentMethods,
+  mockResolvePaymentMethod,
   mockModuleAppModel,
   mockModuleAppDeveloperModel,
   mockModuleAppWorkflowModel,
@@ -74,8 +79,15 @@ const {
   mockModuleAppPaymentService: {
     createPayment: vi.fn(),
   },
+  mockModuleAppPaymentModel: {
+    getPaymentAttemptByOrderId: vi.fn(),
+  },
   mockEncryptInstallationSecret: vi.fn(),
   mockCreateConfiguredModuleAppAlipayClient: vi.fn(() => ({ provider: 'alipay' })),
+  mockCreatePaymentAdapter: vi.fn(() => ({ method: 'alipay', provider: 'alipay' })),
+  mockGetServerPaymentConfig: vi.fn(),
+  mockListCheckoutPaymentMethods: vi.fn(),
+  mockResolvePaymentMethod: vi.fn(),
   mockModuleAppModel: {
     assertInstallationAccess: vi.fn(),
     changeInstallationVersion: vi.fn(),
@@ -174,12 +186,28 @@ vi.mock('@/database/models/moduleAppCommerce', () => ({
   ModuleAppCommerceModel: vi.fn(() => mockModuleAppCommerceModel),
 }));
 
+vi.mock('@/database/models/moduleAppPayment', () => ({
+  ModuleAppPaymentModel: vi.fn(() => mockModuleAppPaymentModel),
+}));
+
 vi.mock('@/business/server/module-apps/payments/service', () => ({
   ModuleAppPaymentService: vi.fn(() => mockModuleAppPaymentService),
 }));
 
 vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
   createConfiguredModuleAppAlipayClient: mockCreateConfiguredModuleAppAlipayClient,
+}));
+
+vi.mock('@/server/services/payments/config', () => ({
+  buildPaymentCallbackUrl: vi.fn(() => 'https://app.example.com/api/webhooks/payments/alipay'),
+  buildPaymentReturnUrl: vi.fn(() => 'https://app.example.com/apps'),
+  getServerPaymentConfig: mockGetServerPaymentConfig,
+  listCheckoutPaymentMethods: mockListCheckoutPaymentMethods,
+  resolvePaymentMethod: mockResolvePaymentMethod,
+}));
+
+vi.mock('@/server/services/payments/factory', () => ({
+  createPaymentAdapter: mockCreatePaymentAdapter,
 }));
 
 vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
@@ -268,9 +296,28 @@ describe('moduleApp router registration', () => {
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'https://module-runtime.example.com';
     mockAppEnv.MODULE_APP_ALIPAY_ENABLED = false;
     mockAppEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED = false;
+    mockGetServerPaymentConfig.mockResolvedValue({
+      defaultProvider: 'alipay',
+      enabled: false,
+      moduleAppEnabled: false,
+      publicBaseUrl: 'https://app.example.com',
+    });
+    mockListCheckoutPaymentMethods.mockReturnValue([]);
+    mockResolvePaymentMethod.mockReturnValue({
+      id: 'alipay',
+      label: 'Alipay',
+      provider: 'alipay',
+    });
     mockModuleAppPaymentService.createPayment.mockResolvedValue({
-      body: '<form></form>',
+      checkout: {
+        fields: { sign: 'signed' },
+        method: 'POST',
+        type: 'form',
+        url: 'https://openapi.alipay.com/gateway.do',
+      },
+      method: 'alipay',
       outTradeNo: 'out-1',
+      provider: 'alipay',
     });
     mockModuleAppModel.getAppDetail.mockResolvedValue({
       actions: [],
@@ -285,8 +332,8 @@ describe('moduleApp router registration', () => {
       previousVersionId: '00000000-0000-4000-8000-000000000002',
       versionId: '00000000-0000-4000-8000-000000000003',
     });
-    mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
-    mockModuleAppModel.installWorkspaceApp.mockResolvedValue(undefined);
+    mockModuleAppModel.installPersonalApp.mockResolvedValue({ changed: true });
+    mockModuleAppModel.installWorkspaceApp.mockResolvedValue({ changed: true });
     mockModuleAppModel.uninstallWorkspaceApp.mockResolvedValue({ ok: true });
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
     mockModuleAppModel.listInstalledApps.mockResolvedValue([]);
@@ -485,6 +532,8 @@ describe('moduleApp router registration', () => {
       getDetail: { inputs: 1, type: 'query' },
       getLaunchContext: { inputs: 1, type: 'query' },
       getLicense: { inputs: 1, type: 'query' },
+      getPaymentMethods: { inputs: 0, type: 'query' },
+      getPaymentStatus: { inputs: 1, type: 'query' },
       getMyDeveloperFinance: { inputs: 0, type: 'query' },
       getMyDeveloperFinanceSummary: { inputs: 0, type: 'query' },
       getMyPublisherProfile: { inputs: 0, type: 'query' },
@@ -525,17 +574,19 @@ describe('moduleApp router registration', () => {
     const inputSchemaContract: Record<string, null | string> = {
       archiveRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
       callSdk: '842cf7a18c485cc6032081ec322bfda3918a747b24e7406e46667bbea4b36e88',
-      changeInstallationVersion: '144667b8e8ef32748fbaefed557fd62866746d58040748a183ae221242cfe085',
+      changeInstallationVersion: 'f36685e31e29d5fab8628274f9f818a6617168f71adc2f69a8c225a7438a76aa',
       cancelOrder: 'f354fb7b76ad0f6770518e7e144e89a63f82fa803356ed1315bcf88402d058df',
       cancelWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
       createOrder: '6d395f5827879b996e464493db3e38aafd7bb0d684358e16b1d92571d8211851',
       createPackageUpload: '6215d3a377a32c7184babaeb9ead827e776a6df3a83ad77e8f41904b636e8dfa',
-      createPayment: '260a265da2cc12ae853603109e7118f10f898918308faee3567422c5d9f9d086',
+      createPayment: 'f9eb0037ddaefeca7bed8a9587dc6d21a5c36b348deba4a3d2891578715f35bc',
       createRecord: '2f321b2820b2252ffcb9c9c134c652fc540cbd348579402dafd5d0a3a6d9bcf7',
       deleteInstallationSecret: '69951d4f3ebbaf044287c02aa021b3f222c70206fa728c133bf5889acd424639',
       getDetail: '071a01e07fe8fc3449788d0f354c6ff6f3ea0001462e1012814d0f676102917a',
       getLaunchContext: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
       getLicense: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
+      getPaymentMethods: null,
+      getPaymentStatus: 'f354fb7b76ad0f6770518e7e144e89a63f82fa803356ed1315bcf88402d058df',
       getMyDeveloperFinance: null,
       getMyDeveloperFinanceSummary: null,
       getMyPublisherProfile: null,
@@ -543,7 +594,7 @@ describe('moduleApp router registration', () => {
       getRuntimeManifest: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
       getWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
       installPersonal: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
-      installWorkspace: '456b6ddb3c315ab99db2e0ddd37e020b94c9914c99c42e742ad1d5416fc1baee',
+      installWorkspace: 'e102d8e2eb438941c109770451ee755dfe5680ac29e020b50c82ca41981f43f5',
       listArtifacts: '31ca6256590d548cf1378bb4c8dbc6edac446b302021647b9ade6134d2ef6bd7',
       listCatalog: '789a28a4bd88dbbb0a4fe89c2a6538c190ebf8427135cb961433cd1d341f7079',
       listInstallationSecrets: '21d355edace3fd4479dc17131bfe8844a9ba90f88cfe630d4afc9df8c8070d23',
@@ -567,8 +618,8 @@ describe('moduleApp router registration', () => {
       rollbackMyDeveloperApp: 'f34a5de1f0e2e8e20b6c8430c43949b8f2b1b5011b300adaac0add188b7db9ca',
       runAction: 'b02a2c4f1fe29489a7b4c9315e0bd3f461024e41dfb4b875cdea64b78e020c0f',
       submitUploadedPackage: '1257dbc5e374e9500f59cc034f282ba76faafaea9bf7b38fee9124b599bdf571',
-      uninstallPersonal: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
-      uninstallWorkspace: '456b6ddb3c315ab99db2e0ddd37e020b94c9914c99c42e742ad1d5416fc1baee',
+      uninstallPersonal: '79284150daa6c6b2a585054665ebb4d1c5617ccb7bd25fcb89018768a43c7707',
+      uninstallWorkspace: '62a649f11b2cb6a1a4820c118e6ffb5b28da3ea4e6833caa31c89e0c1a6c55ec',
       unpublishMyDeveloperApp: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
       updateRecord: '33347b3388f8c6500c014bb99506e2df954697674a2b8dce44264e05c20c0f5d',
       upsertInstallationSecret: 'ca13d38564530b36a90fce7005154de37f59124a9ea82265552848174ddf45d1',
@@ -997,6 +1048,7 @@ describe('moduleApp router registration', () => {
     });
     expect(mockModuleAppModel.uninstallWorkspaceApp).toHaveBeenCalledWith({
       appId: APP_ID,
+      dataPolicy: 'retain',
       workspaceId,
     });
 
@@ -1914,39 +1966,47 @@ describe('moduleApp router registration', () => {
     });
   });
 
-  it('keeps Alipay checkout disabled until the server feature flag is enabled', async () => {
-    mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
+  it('keeps module checkout disabled until unified payments are enabled', async () => {
+    mockGetServerPaymentConfig.mockResolvedValue({
+      enabled: true,
+      moduleAppEnabled: false,
+      publicBaseUrl: 'https://app.example.com',
+    });
     await expect(
       createCaller().createPayment({
         orderId: '00000000-0000-4000-8000-000000000021',
-        subject: 'Module App Pro',
       }),
     ).rejects.toMatchObject({
       code: 'PRECONDITION_FAILED',
-      message: 'module_app_alipay_payment_creation_disabled',
+      message: 'module_app_payment_disabled',
     });
     expect(mockModuleAppPaymentService.createPayment).not.toHaveBeenCalled();
   });
 
-  it('creates Alipay checkout from authenticated order and server callback URLs', async () => {
-    mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
-    mockAppEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED = true;
+  it('creates checkout from server-owned payment data and strips a legacy client subject', async () => {
+    mockGetServerPaymentConfig.mockResolvedValue({
+      enabled: true,
+      moduleAppEnabled: true,
+      publicBaseUrl: 'https://app.example.com',
+    });
     const orderId = '00000000-0000-4000-8000-000000000021';
 
     await expect(
-      createCaller().createPayment({ orderId, subject: 'Module App Pro' }),
+      createCaller().createPayment({ orderId, subject: 'Client-controlled title' } as never),
     ).resolves.toMatchObject({ outTradeNo: 'out-1' });
     expect(mockModuleAppPaymentService.createPayment).toHaveBeenCalledWith({
-      notifyUrl: mockAppEnv.MODULE_APP_ALIPAY_NOTIFY_URL,
+      notifyUrl: 'https://app.example.com/api/webhooks/payments/alipay',
       orderId,
       purchaserUserId: 'user-1',
-      returnUrl: mockAppEnv.MODULE_APP_ALIPAY_RETURN_URL,
+      returnUrl: 'https://app.example.com/apps',
       rollout: {
         appIds: [APP_ID],
         publisherIds: [],
       },
-      subject: 'Module App Pro',
     });
+    expect(mockModuleAppPaymentService.createPayment.mock.calls[0][0]).not.toHaveProperty(
+      'subject',
+    );
   });
 
   it('lists catalog items and cancels only as the authenticated purchaser', async () => {

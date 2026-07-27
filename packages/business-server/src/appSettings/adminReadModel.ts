@@ -1,10 +1,15 @@
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
 import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
+import type { AppSettingKey } from '@/const/appSettingsRegistry';
 import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
+import {
+  normalizeDesktopDownloadUrl,
+  normalizeDesktopUpdateServerUrl,
+} from '@/const/desktopUpdate';
 import {
   DEFAULT_EXPERT_PLAZA_CONFIG,
   normalizeExpertPlazaCards,
@@ -13,10 +18,6 @@ import {
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
-import {
-  normalizeDesktopDownloadUrl,
-  normalizeDesktopUpdateServerUrl,
-} from '@/const/desktopUpdate';
 import {
   APP_SETTING_KEYS,
   normalizeModelIdList,
@@ -55,12 +56,13 @@ export type AdminSettingsReadContext = {
   enabledModels?: AdminEnabledModelSource[];
 };
 
-const PAYMENT_GATEWAY_STATUS = {
-  configured: false,
-  message:
-    '支付网关尚未接入，用户自助支付会返回 PAYMENT_GATEWAY_NOT_CONFIGURED。当前可使用后台手动结算订单。',
-  provider: null,
-} as const;
+export type PaymentGatewayStatus = {
+  configured: boolean;
+  enabled: boolean;
+  message: string;
+  methods: string[];
+  provider: 'alipay' | 'wechat_pay' | 'zpay' | null;
+};
 
 const toStringList = (value: unknown): string[] => {
   const raw = Array.isArray(value)
@@ -151,7 +153,7 @@ export const mapEnabledAdminModels = (items: AdminEnabledModelSource[] = []) =>
 export type AdminSettingsSharedHealth = {
   enabledNewapiModels?: ReturnType<typeof mapEnabledAdminModels>;
   memoryUserMemoryTriggerModeEnv?: 'auto' | 'direct' | 'workflow' | null;
-  paymentGatewayStatus?: typeof PAYMENT_GATEWAY_STATUS;
+  paymentGatewayStatus?: PaymentGatewayStatus;
   qstashTokenConfigured?: boolean;
 };
 
@@ -647,6 +649,318 @@ const buildPptSettings = async (snapshot: AppSettingsSnapshot) => {
   };
 };
 
+const firstPaymentEnvironmentValue = (...names: string[]) => {
+  for (const name of names) {
+    const value = toString(process.env[name]);
+    if (value) return value;
+  }
+  return '';
+};
+
+const normalizePaymentUrl = (value: string) => {
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname);
+    if (url.username || url.password || (url.protocol !== 'https:' && !localHttp)) return '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+};
+
+const firstPaymentEnvironmentOrigin = (...names: string[]) => {
+  for (const name of names) {
+    const value = normalizePaymentUrl(toString(process.env[name]));
+    if (value) return new URL(value).origin;
+  }
+  return '';
+};
+
+const paymentText = (
+  snapshot: AppSettingsSnapshot,
+  key: AppSettingKey,
+  environmentNames: string[],
+  fallback = '',
+) => toString(snapshot.get(key)) || firstPaymentEnvironmentValue(...environmentNames) || fallback;
+
+const paymentBoolean = (
+  snapshot: AppSettingsSnapshot,
+  key: AppSettingKey,
+  environmentNames: string[],
+  fallback = false,
+) => {
+  const stored = snapshot.get(key);
+  if (typeof stored === 'boolean') return stored;
+  const environmentValue = firstPaymentEnvironmentValue(...environmentNames).toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(environmentValue)) return true;
+  if (['0', 'false', 'no', 'off'].includes(environmentValue)) return false;
+  return fallback;
+};
+
+const paymentSecret = async (
+  snapshot: AppSettingsSnapshot,
+  key: Parameters<typeof decryptAppSettingSecret>[0],
+  environmentNames: string[],
+) => {
+  const decrypted = await decryptAppSettingSecret(key, snapshot.get(key));
+  return toString(decrypted) || firstPaymentEnvironmentValue(...environmentNames);
+};
+
+export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
+  const [
+    alipayCertificate,
+    alipayMerchantPrivateKey,
+    alipayPublicKey,
+    wechatApiV3Key,
+    wechatMerchantPrivateKey,
+    wechatPlatformCertificate,
+    zpayMerchantKey,
+  ] = await Promise.all([
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentAlipayCertificate, [
+      'PAYMENT_ALIPAY_CERTIFICATE',
+      'MODULE_APP_ALIPAY_CERTIFICATE',
+    ]),
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey, [
+      'PAYMENT_ALIPAY_MERCHANT_PRIVATE_KEY',
+      'MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY',
+    ]),
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentAlipayPublicKey, [
+      'PAYMENT_ALIPAY_PUBLIC_KEY',
+      'MODULE_APP_ALIPAY_PUBLIC_KEY',
+    ]),
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentWechatApiV3Key, ['PAYMENT_WECHAT_API_V3_KEY']),
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentWechatMerchantPrivateKey, [
+      'PAYMENT_WECHAT_MERCHANT_PRIVATE_KEY',
+    ]),
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentWechatPlatformCertificate, [
+      'PAYMENT_WECHAT_PLATFORM_CERTIFICATE',
+    ]),
+    paymentSecret(snapshot, APP_SETTING_KEYS.paymentZpayMerchantKey, ['PAYMENT_ZPAY_MERCHANT_KEY']),
+  ]);
+  const alipayMode =
+    paymentText(snapshot, APP_SETTING_KEYS.paymentAlipayMode, [
+      'PAYMENT_ALIPAY_MODE',
+      'MODULE_APP_ALIPAY_MODE',
+    ]) === 'production'
+      ? ('production' as const)
+      : ('sandbox' as const);
+  const alipayCertMode =
+    paymentText(snapshot, APP_SETTING_KEYS.paymentAlipayCertMode, [
+      'PAYMENT_ALIPAY_CERT_MODE',
+      'MODULE_APP_ALIPAY_CERT_MODE',
+    ]) === 'certificate'
+      ? ('certificate' as const)
+      : ('public_key' as const);
+  const defaultProviderValue = paymentText(
+    snapshot,
+    APP_SETTING_KEYS.paymentDefaultProvider,
+    ['PAYMENT_DEFAULT_PROVIDER'],
+    'alipay',
+  );
+  const defaultProvider =
+    defaultProviderValue === 'wechat_pay' || defaultProviderValue === 'zpay'
+      ? defaultProviderValue
+      : ('alipay' as const);
+  const alipayAppId = paymentText(snapshot, APP_SETTING_KEYS.paymentAlipayAppId, [
+    'PAYMENT_ALIPAY_APP_ID',
+    'MODULE_APP_ALIPAY_APP_ID',
+  ]);
+  const alipaySellerId = paymentText(snapshot, APP_SETTING_KEYS.paymentAlipaySellerId, [
+    'PAYMENT_ALIPAY_SELLER_ID',
+    'MODULE_APP_ALIPAY_SELLER_ID',
+  ]);
+  const alipayAppCertSn = paymentText(snapshot, APP_SETTING_KEYS.paymentAlipayAppCertSn, [
+    'PAYMENT_ALIPAY_APP_CERT_SN',
+    'MODULE_APP_ALIPAY_APP_CERT_SN',
+  ]);
+  const alipayRootCertSn = paymentText(snapshot, APP_SETTING_KEYS.paymentAlipayRootCertSn, [
+    'PAYMENT_ALIPAY_ROOT_CERT_SN',
+    'MODULE_APP_ALIPAY_ROOT_CERT_SN',
+  ]);
+  const alipayConfigured = Boolean(
+    alipayAppId &&
+    alipaySellerId &&
+    alipayMerchantPrivateKey &&
+    (alipayCertMode === 'certificate'
+      ? alipayCertificate && alipayAppCertSn && alipayRootCertSn
+      : alipayPublicKey),
+  );
+  const wechatAppId = paymentText(snapshot, APP_SETTING_KEYS.paymentWechatAppId, [
+    'PAYMENT_WECHAT_APP_ID',
+  ]);
+  const wechatMchId = paymentText(snapshot, APP_SETTING_KEYS.paymentWechatMchId, [
+    'PAYMENT_WECHAT_MCH_ID',
+  ]);
+  const wechatMerchantSerialNo = paymentText(
+    snapshot,
+    APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
+    ['PAYMENT_WECHAT_MERCHANT_SERIAL_NO'],
+  );
+  const wechatConfigured = Boolean(
+    wechatAppId &&
+    wechatMchId &&
+    wechatMerchantSerialNo &&
+    wechatMerchantPrivateKey &&
+    wechatApiV3Key &&
+    Buffer.byteLength(wechatApiV3Key, 'utf8') === 32 &&
+    wechatPlatformCertificate,
+  );
+  const zpayMerchantId = paymentText(snapshot, APP_SETTING_KEYS.paymentZpayMerchantId, [
+    'PAYMENT_ZPAY_MERCHANT_ID',
+  ]);
+  const zpayConfigured = Boolean(zpayMerchantId && zpayMerchantKey);
+  const publicBaseUrl =
+    normalizePaymentUrl(
+      paymentText(snapshot, APP_SETTING_KEYS.paymentPublicBaseUrl, [
+        'PAYMENT_PUBLIC_BASE_URL',
+        'NEXT_PUBLIC_SITE_URL',
+      ]),
+    ) ||
+    firstPaymentEnvironmentOrigin('MODULE_APP_ALIPAY_NOTIFY_URL', 'MODULE_APP_ALIPAY_RETURN_URL');
+  const enabled = paymentBoolean(
+    snapshot,
+    APP_SETTING_KEYS.paymentEnabled,
+    ['PAYMENT_ENABLED', 'MODULE_APP_ALIPAY_ENABLED'],
+    false,
+  );
+  const alipayEnabled = paymentBoolean(
+    snapshot,
+    APP_SETTING_KEYS.paymentAlipayEnabled,
+    ['PAYMENT_ALIPAY_ENABLED', 'MODULE_APP_ALIPAY_ENABLED'],
+    false,
+  );
+  const wechatEnabled = paymentBoolean(
+    snapshot,
+    APP_SETTING_KEYS.paymentWechatEnabled,
+    ['PAYMENT_WECHAT_ENABLED'],
+    false,
+  );
+  const zpayEnabled = paymentBoolean(
+    snapshot,
+    APP_SETTING_KEYS.paymentZpayEnabled,
+    ['PAYMENT_ZPAY_ENABLED'],
+    false,
+  );
+  const zpayAlipayEnabled = paymentBoolean(
+    snapshot,
+    APP_SETTING_KEYS.paymentZpayAlipayEnabled,
+    ['PAYMENT_ZPAY_ALIPAY_ENABLED'],
+    true,
+  );
+  const zpayWechatEnabled = paymentBoolean(
+    snapshot,
+    APP_SETTING_KEYS.paymentZpayWechatEnabled,
+    ['PAYMENT_ZPAY_WECHAT_ENABLED'],
+    true,
+  );
+  const methods = [
+    ...(alipayEnabled && alipayConfigured ? ['alipay'] : []),
+    ...(wechatEnabled && wechatConfigured ? ['wechat_pay'] : []),
+    ...(zpayEnabled && zpayConfigured && zpayAlipayEnabled ? ['zpay_alipay'] : []),
+    ...(zpayEnabled && zpayConfigured && zpayWechatEnabled ? ['zpay_wechat'] : []),
+  ];
+  const availableProviders = methods.map((method) =>
+    method === 'wechat_pay' ? 'wechat_pay' : method.startsWith('zpay_') ? 'zpay' : 'alipay',
+  );
+  const activeProvider = availableProviders.includes(defaultProvider)
+    ? defaultProvider
+    : (availableProviders[0] ?? null);
+  const paymentGatewayStatus: PaymentGatewayStatus = {
+    configured: methods.length > 0 && Boolean(publicBaseUrl),
+    enabled,
+    message: !enabled
+      ? '统一支付已关闭。保存配置后仍需开启总开关才会对用户生效。'
+      : methods.length === 0
+        ? '统一支付已开启，但没有完整配置并启用的支付渠道。'
+        : !publicBaseUrl
+          ? '支付渠道已配置，但缺少有效的公网回调地址。'
+          : `统一支付已启用，可用渠道 ${methods.length} 个。`,
+    methods,
+    provider: activeProvider,
+  };
+
+  return {
+    paymentConfig: {
+      alipay: {
+        appCertSn: alipayAppCertSn,
+        appId: alipayAppId,
+        certMode: alipayCertMode,
+        certificateConfigured: Boolean(alipayCertificate),
+        certificateMasked: maskAppSettingSecret(alipayCertificate),
+        configured: alipayConfigured,
+        enabled: alipayEnabled,
+        gateway: paymentText(
+          snapshot,
+          APP_SETTING_KEYS.paymentAlipayGateway,
+          ['PAYMENT_ALIPAY_GATEWAY', 'MODULE_APP_ALIPAY_GATEWAY'],
+          alipayMode === 'production'
+            ? 'https://openapi.alipay.com/gateway.do'
+            : 'https://openapi-sandbox.dl.alipaydev.com/gateway.do',
+        ),
+        merchantPrivateKeyConfigured: Boolean(alipayMerchantPrivateKey),
+        merchantPrivateKeyMasked: maskAppSettingSecret(alipayMerchantPrivateKey),
+        mode: alipayMode,
+        publicKeyConfigured: Boolean(alipayPublicKey),
+        publicKeyMasked: maskAppSettingSecret(alipayPublicKey),
+        rootCertSn: alipayRootCertSn,
+        sellerId: alipaySellerId,
+      },
+      defaultProvider,
+      enabled,
+      moduleAppEnabled: paymentBoolean(
+        snapshot,
+        APP_SETTING_KEYS.paymentModuleAppEnabled,
+        ['PAYMENT_MODULE_APP_ENABLED', 'MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED'],
+        false,
+      ),
+      publicBaseUrl,
+      topUpEnabled: paymentBoolean(
+        snapshot,
+        APP_SETTING_KEYS.paymentTopUpEnabled,
+        ['PAYMENT_TOP_UP_ENABLED'],
+        false,
+      ),
+      wechat: {
+        apiBaseUrl: paymentText(
+          snapshot,
+          APP_SETTING_KEYS.paymentWechatApiBaseUrl,
+          ['PAYMENT_WECHAT_API_BASE_URL'],
+          'https://api.mch.weixin.qq.com',
+        ),
+        apiV3KeyConfigured: Boolean(wechatApiV3Key),
+        apiV3KeyMasked: maskAppSettingSecret(wechatApiV3Key),
+        appId: wechatAppId,
+        configured: wechatConfigured,
+        enabled: wechatEnabled,
+        mchId: wechatMchId,
+        merchantPrivateKeyConfigured: Boolean(wechatMerchantPrivateKey),
+        merchantPrivateKeyMasked: maskAppSettingSecret(wechatMerchantPrivateKey),
+        merchantSerialNo: wechatMerchantSerialNo,
+        platformCertificateConfigured: Boolean(wechatPlatformCertificate),
+        platformCertificateMasked: maskAppSettingSecret(wechatPlatformCertificate),
+      },
+      zpay: {
+        alipayEnabled: zpayAlipayEnabled,
+        apiBaseUrl: paymentText(
+          snapshot,
+          APP_SETTING_KEYS.paymentZpayApiBaseUrl,
+          ['PAYMENT_ZPAY_API_BASE_URL'],
+          'https://zpayz.cn',
+        ),
+        configured: zpayConfigured,
+        enabled: zpayEnabled,
+        merchantId: zpayMerchantId,
+        merchantKeyConfigured: Boolean(zpayMerchantKey),
+        merchantKeyMasked: maskAppSettingSecret(zpayMerchantKey),
+        wechatEnabled: zpayWechatEnabled,
+      },
+    },
+    paymentGatewayStatus,
+  };
+};
+
 const buildSharedHealth = (
   section: AppSettingsSection,
   context: AdminSettingsReadContext,
@@ -669,10 +983,6 @@ const buildSharedHealth = (
     };
   }
 
-  if (section === 'model-billing-matrix') {
-    return { paymentGatewayStatus: PAYMENT_GATEWAY_STATUS };
-  }
-
   return {};
 };
 
@@ -681,7 +991,16 @@ export const buildAdminSettingsSectionReadModel = async (
   snapshot: AppSettingsSnapshot,
   context: AdminSettingsReadContext = {},
 ) => {
-  const sharedHealth = buildSharedHealth(section, context);
+  const paymentSettings =
+    section === 'model-billing-matrix' || section === 'payments'
+      ? await buildPaymentSettings(snapshot)
+      : undefined;
+  const sharedHealth = {
+    ...buildSharedHealth(section, context),
+    ...(section === 'model-billing-matrix'
+      ? { paymentGatewayStatus: paymentSettings?.paymentGatewayStatus }
+      : {}),
+  };
 
   switch (section) {
     case 'desktop-update': {
@@ -734,6 +1053,9 @@ export const buildAdminSettingsSectionReadModel = async (
         sharedHealth,
       };
     }
+    case 'payments': {
+      return { ...paymentSettings, section, sharedHealth };
+    }
     case 'ppt': {
       return { ...(await buildPptSettings(snapshot)), section, sharedHealth };
     }
@@ -766,8 +1088,9 @@ export const buildAdminSettingsReadModel = async (
   snapshot: AppSettingsSnapshot,
   context: AdminSettingsReadContext = {},
 ) => {
-  const [maintenance, storage, systemDefaults] = await Promise.all([
+  const [maintenance, paymentSettings, storage, systemDefaults] = await Promise.all([
     buildMaintenanceSettings(snapshot),
+    buildPaymentSettings(snapshot),
     buildStorageSettings(snapshot),
     buildSystemDefaultsSettings(snapshot),
   ]);
@@ -780,6 +1103,7 @@ export const buildAdminSettingsReadModel = async (
     ...buildDesktopSettings(snapshot),
     ...systemDefaults,
     ...buildNotificationSettings(snapshot),
+    ...paymentSettings,
     ...storage,
     enabledNewapiModels: mapEnabledAdminModels(context.enabledModels),
     expertPlazaConfig: buildExpertPlazaSettings(snapshot),
@@ -789,7 +1113,6 @@ export const buildAdminSettingsReadModel = async (
     ),
     modelPolicyConfig: buildModelPolicySettings(snapshot),
     operationsConfig: buildOperationsSettings(snapshot),
-    paymentGatewayStatus: PAYMENT_GATEWAY_STATUS,
     qstashTokenConfigured: Boolean(process.env.QSTASH_TOKEN),
     recommendationConfig: buildRecommendationSettings(snapshot),
     referralRewardCredits: toStoredNumber(snapshot.get(APP_SETTING_KEYS.referralRewardCredits), 0),

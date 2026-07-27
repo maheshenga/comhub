@@ -7,6 +7,7 @@ import {
   moduleAppInstallations,
   moduleAppLicenses,
   moduleAppOrders,
+  moduleAppPaymentAttempts,
   moduleAppPrices,
   moduleAppProducts,
   moduleApps,
@@ -28,6 +29,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppSubscriptions);
   await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppLicenses);
+  await serverDB.delete(moduleAppPaymentAttempts);
   await serverDB.delete(moduleAppOrders);
   await serverDB.delete(moduleAppPrices);
   await serverDB.delete(moduleAppProducts);
@@ -482,6 +484,68 @@ describe('ModuleAppCommerceModel', () => {
     await expect(
       model.cancelOrder({ orderId: order.id, purchaserUserId: OTHER_USER_ID }),
     ).rejects.toThrow('MODULE_APP_ORDER_NOT_FOUND');
+    await expect(
+      model.cancelOrder({ orderId: order.id, purchaserUserId: USER_ID }),
+    ).resolves.toMatchObject({ status: 'cancelled' });
+  });
+
+  it.each(['created', 'pending'] as const)(
+    'blocks cancellation while a %s payment attempt may still settle',
+    async (status) => {
+      const model = new ModuleAppCommerceModel(serverDB);
+      const product = await model.createProduct({
+        appId: APP_ID,
+        licenseScope: 'personal',
+        price: { amount: 88, currency: 'CNY' },
+        productKey: `cancel-active-payment-${status}`,
+        productType: 'one_time',
+      });
+      const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+      await serverDB.insert(moduleAppPaymentAttempts).values({
+        currency: 'CNY',
+        method: 'alipay',
+        notifyUrl: 'https://app.example.com/api/webhooks/payments/alipay',
+        orderId: order.id,
+        outTradeNo: `cancel-active-${status}`,
+        provider: 'alipay',
+        returnUrl: 'https://app.example.com/apps',
+        status,
+        subject: 'Commerce test app',
+        totalAmount: '88.000000',
+      });
+
+      await expect(
+        model.cancelOrder({ orderId: order.id, purchaserUserId: USER_ID }),
+      ).rejects.toThrow('MODULE_APP_ORDER_PAYMENT_IN_PROGRESS');
+      await expect(
+        serverDB.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, order.id) }),
+      ).resolves.toMatchObject({ status: 'pending' });
+    },
+  );
+
+  it('allows cancellation after the payment attempt has failed', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 88, currency: 'CNY' },
+      productKey: 'cancel-failed-payment',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+    await serverDB.insert(moduleAppPaymentAttempts).values({
+      currency: 'CNY',
+      method: 'alipay',
+      notifyUrl: 'https://app.example.com/api/webhooks/payments/alipay',
+      orderId: order.id,
+      outTradeNo: 'cancel-failed-payment',
+      provider: 'alipay',
+      returnUrl: 'https://app.example.com/apps',
+      status: 'failed',
+      subject: 'Commerce test app',
+      totalAmount: '88.000000',
+    });
+
     await expect(
       model.cancelOrder({ orderId: order.id, purchaserUserId: USER_ID }),
     ).resolves.toMatchObject({ status: 'cancelled' });

@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 
 import type { ModuleAppPaymentAdapter } from '@/business/server/module-apps/payments/contracts';
 import { appEnv } from '@/envs/app';
+import { parseCnyPaymentAmount } from '@/server/services/payments/amount';
 
-import { mapAlipayTradeToPaymentEvent, moduleAppOrderIdToAlipayTradeNo } from './mapper';
+import { mapAlipayTradeToPaymentEvent, paymentOrderIdToAlipayTradeNo } from './mapper';
 import {
   signAlipayParameters,
   verifyAlipayContentSignature,
@@ -12,7 +13,7 @@ import {
 
 type FetchLike = typeof fetch;
 
-type AlipayClientOptions = {
+export type AlipayClientOptions = {
   alipayPublicKey: string;
   alipayRootCertSn?: string;
   appCertSn?: string;
@@ -23,13 +24,6 @@ type AlipayClientOptions = {
   sellerId: string;
   timeoutMs?: number;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
 
 const formatTimestamp = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -76,6 +70,8 @@ const extractResponseContent = (body: string, key: string) => {
 };
 
 export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
+  readonly method = 'alipay' as const;
+  readonly provider = 'alipay' as const;
   private readonly fetch: FetchLike;
   private readonly timeoutMs: number;
 
@@ -88,30 +84,38 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     }
   }
 
+  createOutTradeNo: ModuleAppPaymentAdapter['createOutTradeNo'] = ({ orderId, purpose }) =>
+    paymentOrderIdToAlipayTradeNo(orderId, purpose);
+
   create: ModuleAppPaymentAdapter['create'] = async (input) => {
     if (input.currency !== 'CNY') {
       throw new Error('MODULE_APP_ALIPAY_CURRENCY_UNSUPPORTED');
     }
-    const outTradeNo = moduleAppOrderIdToAlipayTradeNo(input.orderId);
+    const outTradeNo = this.createOutTradeNo({
+      orderId: input.orderId,
+      purpose: input.purpose ?? 'module_app',
+    });
+    const amount = parseCnyPaymentAmount(input.totalAmount);
     const parameters = this.signRequest(
       'alipay.trade.page.pay',
       {
         out_trade_no: outTradeNo,
         product_code: 'FAST_INSTANT_TRADE_PAY',
         subject: input.subject,
-        total_amount: Number(input.totalAmount).toFixed(2),
+        total_amount: amount.decimal,
       },
       { notify_url: input.notifyUrl, return_url: input.returnUrl },
     );
-    const controls = Object.entries(parameters)
-      .map(
-        ([key, value]) =>
-          `<input name="${escapeHtml(key)}" type="hidden" value="${escapeHtml(value)}" />`,
-      )
-      .join('');
     return {
-      body: `<form action="${escapeHtml(this.options.gateway)}" id="alipay-module-app-form" method="post">${controls}</form><script>document.getElementById('alipay-module-app-form').submit();</script>`,
+      checkout: {
+        fields: parameters,
+        method: 'POST' as const,
+        type: 'form' as const,
+        url: this.options.gateway,
+      },
+      method: this.method,
       outTradeNo,
+      provider: this.provider,
     };
   };
 
@@ -127,6 +131,7 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
   };
 
   refund: ModuleAppPaymentAdapter['refund'] = async (input) => {
+    const refundAmount = parseCnyPaymentAmount(input.refundAmount);
     const outRequestNo = `refund_${createHash('sha256')
       .update(`${input.outTradeNo}:${input.refundAmount}`)
       .digest('hex')
@@ -134,7 +139,7 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     const response = await this.request('alipay.trade.refund', {
       out_request_no: outRequestNo,
       out_trade_no: input.outTradeNo,
-      refund_amount: Number(input.refundAmount).toFixed(2),
+      refund_amount: refundAmount.decimal,
       refund_reason: input.reason,
     });
     return {

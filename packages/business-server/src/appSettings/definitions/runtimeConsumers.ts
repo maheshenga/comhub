@@ -46,6 +46,17 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     symbol: 'getServerFileS3Config',
   },
   {
+    id: 'payment-runtime-config',
+    keyEvidence: {
+      kind: 'registry',
+      namespace: 'APP_SETTING_KEYS',
+      sourceSymbol: 'PAYMENT_SETTING_KEYS',
+    },
+    keys: keysWithPrefixes('payment.'),
+    sourcePath: 'src/server/services/payments/config.ts',
+    symbol: 'getServerPaymentConfig',
+  },
+  {
     id: 'maintenance-endpoint',
     keyEvidence: { kind: 'literal' },
     keys: keysWithPrefixes('cron.'),

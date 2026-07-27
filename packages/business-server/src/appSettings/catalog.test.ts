@@ -142,7 +142,9 @@ describe('APP_SETTINGS_CATALOG', () => {
       APP_SETTING_KEYS.userGlobalSettingsDefaults,
     );
     expect(
-      APP_SETTINGS_CATALOG.filter((item) => item.key === APP_SETTING_KEYS.userGlobalSettingsDefaults),
+      APP_SETTINGS_CATALOG.filter(
+        (item) => item.key === APP_SETTING_KEYS.userGlobalSettingsDefaults,
+      ),
     ).toHaveLength(1);
     expect(APP_SETTINGS_SECTION_KEYS.maintenance).toContain(
       APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
@@ -256,6 +258,24 @@ describe('APP_SETTINGS_CATALOG', () => {
     expect(() =>
       normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, { nested: ['value'] }),
     ).toThrow();
+  });
+
+  it('accepts only non-credentialed HTTPS or local HTTP payment URLs', () => {
+    expect(
+      normalizeAppSettingValue(APP_SETTING_KEYS.paymentPublicBaseUrl, 'https://app.example.com'),
+    ).toBe('https://app.example.com');
+    expect(
+      normalizeAppSettingValue(APP_SETTING_KEYS.paymentPublicBaseUrl, 'http://localhost:3210'),
+    ).toBe('http://localhost:3210');
+    expect(() =>
+      normalizeAppSettingValue(APP_SETTING_KEYS.paymentPublicBaseUrl, 'http://app.example.com'),
+    ).toThrow(/valid HTTPS URL/);
+    expect(() =>
+      normalizeAppSettingValue(
+        APP_SETTING_KEYS.paymentZpayApiBaseUrl,
+        'https://user:secret@pay.example.com',
+      ),
+    ).toThrow(/valid HTTPS URL/);
   });
 
   it('models PPT settings as dedicated system-write contracts with exact limits', () => {

@@ -5,15 +5,15 @@ import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/abo
 import { APP_SETTING_KEYS, type AppSettingKey } from '@/const/appSettingsRegistry';
 import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { normalizePlanFaqSettings } from '@/const/billingPresentation';
+import {
+  normalizeDesktopDownloadUrl,
+  normalizeDesktopUpdateServerUrl,
+} from '@/const/desktopUpdate';
 import { normalizeExpertPlazaCards } from '@/const/expertPlaza';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeMobileConfigPublication } from '@/const/mobileConfigPublication';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
-import {
-  normalizeDesktopDownloadUrl,
-  normalizeDesktopUpdateServerUrl,
-} from '@/const/desktopUpdate';
 
 import type { AppSettingNormalizer, AppSettingValueDefinition } from '../types';
 
@@ -79,6 +79,23 @@ const toOptionalUrlString = (value: unknown, key: string) => {
   } catch {
     throw new TRPCError({ code: 'BAD_REQUEST', message: `${key} must be a valid URL` });
   }
+};
+const toPaymentUrlString = (value: unknown, key: string) => {
+  const text = toString(value);
+  if (!text) return '';
+
+  try {
+    const url = new URL(text);
+    const localHttp =
+      url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname);
+    if (!url.username && !url.password && (url.protocol === 'https:' || localHttp)) return text;
+  } catch {
+    // The validation error below covers malformed and unsafe payment URLs.
+  }
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: `${key} must be a valid HTTPS URL`,
+  });
 };
 const normalizeMemoryTriggerMode = (value: unknown) =>
   value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
@@ -173,6 +190,31 @@ const DOCMEE_BOOLEAN_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.docmeePptAuditEnabled,
   APP_SETTING_KEYS.docmeePptEnabled,
 ]);
+const PAYMENT_BOOLEAN_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.paymentAlipayEnabled,
+  APP_SETTING_KEYS.paymentEnabled,
+  APP_SETTING_KEYS.paymentModuleAppEnabled,
+  APP_SETTING_KEYS.paymentTopUpEnabled,
+  APP_SETTING_KEYS.paymentWechatEnabled,
+  APP_SETTING_KEYS.paymentZpayAlipayEnabled,
+  APP_SETTING_KEYS.paymentZpayEnabled,
+  APP_SETTING_KEYS.paymentZpayWechatEnabled,
+]);
+const PAYMENT_SECRET_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.paymentAlipayCertificate,
+  APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey,
+  APP_SETTING_KEYS.paymentAlipayPublicKey,
+  APP_SETTING_KEYS.paymentWechatApiV3Key,
+  APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
+  APP_SETTING_KEYS.paymentWechatPlatformCertificate,
+  APP_SETTING_KEYS.paymentZpayMerchantKey,
+]);
+const PAYMENT_URL_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.paymentAlipayGateway,
+  APP_SETTING_KEYS.paymentPublicBaseUrl,
+  APP_SETTING_KEYS.paymentWechatApiBaseUrl,
+  APP_SETTING_KEYS.paymentZpayApiBaseUrl,
+]);
 export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValueDefinition => {
   if (key === APP_SETTING_KEYS.cronAuditRetentionDays) {
     return numberValue('cron-audit-retention-integer', (value) => {
@@ -248,6 +290,30 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
   if (key === APP_SETTING_KEYS.plansFaqItems) {
     return defineValue('plans-faq-record-list', recordListSchema, normalizePlanFaqSettings);
   }
+
+  if (PAYMENT_BOOLEAN_KEYS.has(key)) return booleanValue('payment-boolean');
+  if (PAYMENT_SECRET_KEYS.has(key)) {
+    return defineValue('payment-secret-string', stringSchema, (value) => value as string);
+  }
+  if (PAYMENT_URL_KEYS.has(key)) {
+    return defineValue('payment-url', stringSchema, (value) => toPaymentUrlString(value, key));
+  }
+  if (key === APP_SETTING_KEYS.paymentDefaultProvider) {
+    return defineValue('payment-provider-enum', stringSchema, (value) =>
+      value === 'wechat_pay' || value === 'zpay' ? value : 'alipay',
+    );
+  }
+  if (key === APP_SETTING_KEYS.paymentAlipayMode) {
+    return defineValue('payment-mode-enum', stringSchema, (value) =>
+      value === 'production' ? 'production' : 'sandbox',
+    );
+  }
+  if (key === APP_SETTING_KEYS.paymentAlipayCertMode) {
+    return defineValue('payment-cert-mode-enum', stringSchema, (value) =>
+      value === 'certificate' ? 'certificate' : 'public_key',
+    );
+  }
+  if (key.startsWith('payment.')) return stringValue('payment-string');
 
   if (OPERATION_BOOLEAN_KEYS.has(key)) return booleanValue('operations-boolean');
   if (OPERATION_PAGE_SIZE_KEYS.has(key)) {

@@ -99,6 +99,11 @@ const moduleAppRuntimeClientMocks = vi.hoisted(() => ({
 }));
 const recordModuleAppPayoutState = vi.hoisted(() => vi.fn());
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
+const mockCreatePaymentAdapter = vi.hoisted(() =>
+  vi.fn(() => ({ method: 'alipay', provider: 'alipay' })),
+);
+const mockGetServerPaymentConfig = vi.hoisted(() => vi.fn());
+const mockListEnabledPaymentMethods = vi.hoisted(() => vi.fn());
 const externalAuditMock = vi.hoisted(() => vi.fn());
 
 const lifecycleMocks = vi.hoisted(() => ({
@@ -142,6 +147,20 @@ vi.mock('@lobechat/observability-otel/modules/module-app', () => ({
 
 vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
   createConfiguredModuleAppAlipayClient: mockCreateConfiguredModuleAppAlipayClient,
+}));
+
+vi.mock('@/server/services/payments/config', () => ({
+  createOperationalPaymentConfig: vi.fn((config) => ({
+    ...config,
+    enabled: true,
+    moduleAppEnabled: true,
+  })),
+  getServerPaymentConfig: mockGetServerPaymentConfig,
+  listEnabledPaymentMethods: mockListEnabledPaymentMethods,
+}));
+
+vi.mock('@/server/services/payments/factory', () => ({
+  createPaymentAdapter: mockCreatePaymentAdapter,
 }));
 
 vi.mock('../../module-apps/payments/service', () => ({
@@ -205,6 +224,12 @@ vi.mock('./orders', async () => {
   const { router } = await import('@/libs/trpc/lambda');
 
   return { adminOrdersRouter: router({}) };
+});
+
+vi.mock('./payments', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminPaymentsRouter: router({}) };
 });
 
 vi.mock('./plans', async () => {
@@ -338,6 +363,14 @@ describe('admin module apps router', () => {
     mockAppEnv.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED = true;
     mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = false;
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = undefined;
+    mockGetServerPaymentConfig.mockResolvedValue({
+      alipay: { configured: true, enabled: true },
+      enabled: true,
+      moduleAppEnabled: true,
+    });
+    mockListEnabledPaymentMethods.mockReturnValue([
+      { id: 'alipay', label: 'Alipay', provider: 'alipay' },
+    ]);
     moduleAppRuntimeClientMocks.getConfigurationStatus.mockReturnValue({
       internalTokenConfigured: false,
       internalUrlConfigured: true,

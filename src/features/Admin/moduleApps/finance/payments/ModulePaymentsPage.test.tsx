@@ -106,6 +106,16 @@ describe('ModulePaymentsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('hides the duplicate page heading when embedded in the payment center', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/payments?tab=moduleApps']}>
+        <ModulePaymentsPage embedded canWrite={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('heading', { name: 'moduleApps.admin.payments.title' })).toBeNull();
+  });
+
   it('preserves refund input after a server failure and never persists it locally', async () => {
     const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
     state.data = {
@@ -118,12 +128,14 @@ describe('ModulePaymentsPage', () => {
           discrepancyIds: [],
           id: 'attempt-1',
           licenseIds: [],
+          method: 'zpay_alipay',
           orderId: '00000000-0000-4000-8000-000000000001',
           orderStatus: 'paid',
           outTradeNo: 'trade-1',
           paymentEventIds: [],
           paymentStatus: 'paid',
           payoutBatchIds: [],
+          provider: 'zpay',
           refundIds: [],
           revenueEntryIds: [],
           totalAmount: '88.00',

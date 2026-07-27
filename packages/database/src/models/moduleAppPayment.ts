@@ -1,4 +1,9 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import type {
+  ModuleAppPaymentProvider,
+  PaymentCheckoutAction,
+  PaymentMethodId,
+} from '@lobechat/types';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import {
   moduleAppOrders,
@@ -17,32 +22,53 @@ export class ModuleAppPaymentModel {
     notifyUrl: string;
     orderId: string;
     outTradeNo: string;
+    method: PaymentMethodId;
+    provider: ModuleAppPaymentProvider;
     returnUrl: string;
     subject: string;
     totalAmount: string;
-  }) => {
-    const [attempt] = await this.db
-      .insert(moduleAppPaymentAttempts)
-      .values({ ...input, provider: 'alipay' })
-      .onConflictDoNothing({
-        target: [moduleAppPaymentAttempts.provider, moduleAppPaymentAttempts.outTradeNo],
-      })
-      .returning();
-    if (attempt) return attempt;
-    const existing = await this.getPaymentAttemptByOutTradeNo(input.outTradeNo);
-    if (!existing) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CREATE_FAILED');
-    if (
-      existing.currency !== input.currency ||
-      existing.notifyUrl !== input.notifyUrl ||
-      existing.orderId !== input.orderId ||
-      existing.returnUrl !== input.returnUrl ||
-      existing.subject !== input.subject ||
-      existing.totalAmount !== Number(input.totalAmount).toFixed(6)
-    ) {
-      throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CONFLICT');
-    }
-    return existing;
-  };
+  }) =>
+    this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select({ status: moduleAppOrders.status })
+        .from(moduleAppOrders)
+        .where(eq(moduleAppOrders.id, input.orderId))
+        .for('update');
+      if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+      if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
+
+      const [attempt] = await tx
+        .insert(moduleAppPaymentAttempts)
+        .values(input)
+        .onConflictDoNothing()
+        .returning();
+      if (attempt) return { attempt, created: true };
+      const existing =
+        (await tx.query.moduleAppPaymentAttempts.findFirst({
+          where: and(
+            eq(moduleAppPaymentAttempts.provider, input.provider),
+            eq(moduleAppPaymentAttempts.outTradeNo, input.outTradeNo),
+          ),
+        })) ??
+        (await tx.query.moduleAppPaymentAttempts.findFirst({
+          orderBy: (attempts, { desc }) => [desc(attempts.createdAt)],
+          where: eq(moduleAppPaymentAttempts.orderId, input.orderId),
+        }));
+      if (!existing) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CREATE_FAILED');
+      if (
+        existing.currency !== input.currency ||
+        existing.method !== input.method ||
+        existing.notifyUrl !== input.notifyUrl ||
+        existing.orderId !== input.orderId ||
+        existing.provider !== input.provider ||
+        existing.returnUrl !== input.returnUrl ||
+        existing.subject !== input.subject ||
+        existing.totalAmount !== Number(input.totalAmount).toFixed(6)
+      ) {
+        throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CONFLICT');
+      }
+      return { attempt: existing, created: false };
+    });
 
   getPaymentAttemptByOrderId = (orderId: string) =>
     this.db.query.moduleAppPaymentAttempts.findFirst({
@@ -50,18 +76,21 @@ export class ModuleAppPaymentModel {
       where: eq(moduleAppPaymentAttempts.orderId, orderId),
     });
 
-  getPaymentAttemptByOutTradeNo = (outTradeNo: string) =>
+  getPaymentAttemptByOutTradeNo = (outTradeNo: string, provider?: ModuleAppPaymentProvider) =>
     this.db.query.moduleAppPaymentAttempts.findFirst({
-      where: and(
-        eq(moduleAppPaymentAttempts.provider, 'alipay'),
-        eq(moduleAppPaymentAttempts.outTradeNo, outTradeNo),
-      ),
+      where: provider
+        ? and(
+            eq(moduleAppPaymentAttempts.provider, provider),
+            eq(moduleAppPaymentAttempts.outTradeNo, outTradeNo),
+          )
+        : eq(moduleAppPaymentAttempts.outTradeNo, outTradeNo),
     });
 
   updatePaymentAttempt = async (input: {
     outTradeNo: string;
     paidAt?: Date;
     providerTransactionId?: string;
+    provider?: ModuleAppPaymentProvider;
     status: 'created' | 'pending' | 'paid' | 'failed' | 'refunded';
   }) => {
     const [attempt] = await this.db
@@ -74,14 +103,40 @@ export class ModuleAppPaymentModel {
         status: input.status,
       })
       .where(
-        and(
-          eq(moduleAppPaymentAttempts.provider, 'alipay'),
-          eq(moduleAppPaymentAttempts.outTradeNo, input.outTradeNo),
-        ),
+        input.provider
+          ? and(
+              eq(moduleAppPaymentAttempts.provider, input.provider),
+              eq(moduleAppPaymentAttempts.outTradeNo, input.outTradeNo),
+            )
+          : eq(moduleAppPaymentAttempts.outTradeNo, input.outTradeNo),
       )
       .returning();
     if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
     return attempt;
+  };
+
+  storePaymentCheckout = async (input: {
+    checkout: PaymentCheckoutAction;
+    outTradeNo: string;
+    provider: ModuleAppPaymentProvider;
+  }) => {
+    const [attempt] = await this.db
+      .update(moduleAppPaymentAttempts)
+      .set({ checkout: input.checkout, status: 'pending' })
+      .where(
+        and(
+          eq(moduleAppPaymentAttempts.provider, input.provider),
+          eq(moduleAppPaymentAttempts.outTradeNo, input.outTradeNo),
+          isNull(moduleAppPaymentAttempts.checkout),
+        ),
+      )
+      .returning();
+    if (attempt) return attempt;
+
+    const existing = await this.getPaymentAttemptByOutTradeNo(input.outTradeNo, input.provider);
+    if (!existing) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
+    if (!existing.checkout) throw new Error('MODULE_APP_PAYMENT_CHECKOUT_STORE_FAILED');
+    return existing;
   };
 
   recordPaymentEvent = async (input: {
@@ -92,7 +147,7 @@ export class ModuleAppPaymentModel {
     orderId?: string;
     outTradeNo: string;
     paymentReference?: string;
-    provider: 'alipay';
+    provider: ModuleAppPaymentProvider;
     providerTransactionId?: string;
     totalAmount: string;
   }) => {
@@ -142,7 +197,7 @@ export class ModuleAppPaymentModel {
     eventStatus: 'received' | 'processed' | 'ignored' | 'rejected';
     orderId?: string;
     processedAt?: Date;
-    provider: 'alipay';
+    provider: ModuleAppPaymentProvider;
   }) => {
     const [event] = await this.db
       .update(moduleAppPaymentEvents)
@@ -166,7 +221,7 @@ export class ModuleAppPaymentModel {
   createRefund = async (input: {
     currency: string;
     orderId: string;
-    provider: 'alipay';
+    provider: ModuleAppPaymentProvider;
     providerRefundId: string;
     reason: string;
     refundAmount: string;
@@ -212,8 +267,10 @@ export class ModuleAppPaymentModel {
   listPendingPaymentAttempts = (limit = 100) =>
     this.db
       .select({
+        method: moduleAppPaymentAttempts.method,
         orderId: moduleAppPaymentAttempts.orderId,
         outTradeNo: moduleAppPaymentAttempts.outTradeNo,
+        provider: moduleAppPaymentAttempts.provider,
       })
       .from(moduleAppPaymentAttempts)
       .innerJoin(moduleAppOrders, eq(moduleAppOrders.id, moduleAppPaymentAttempts.orderId))
@@ -226,11 +283,13 @@ export class ModuleAppPaymentModel {
       .orderBy(asc(moduleAppPaymentAttempts.createdAt))
       .limit(Math.min(200, Math.max(1, limit)));
 
-  listDiscrepancies = async (input: {
-    cursor?: number;
-    limit?: number;
-    status?: 'open' | 'resolved';
-  } = {}) => {
+  listDiscrepancies = async (
+    input: {
+      cursor?: number;
+      limit?: number;
+      status?: 'open' | 'resolved';
+    } = {},
+  ) => {
     const cursor = Math.max(0, Math.floor(input.cursor ?? 0));
     const limit = Math.min(500, Math.max(1, Math.floor(input.limit ?? 50)));
     const items = await this.db.query.moduleAppPaymentDiscrepancies.findMany({
@@ -280,7 +339,7 @@ export class ModuleAppPaymentModel {
       | 'wrong_seller';
     orderId?: string;
     outTradeNo: string;
-    provider: 'alipay';
+    provider: ModuleAppPaymentProvider;
   }) => {
     const [discrepancy] = await this.db
       .insert(moduleAppPaymentDiscrepancies)

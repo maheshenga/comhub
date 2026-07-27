@@ -121,6 +121,36 @@ export const APP_SETTING_KEYS = {
   onboardingInitialCredits: 'onboarding.initialCredits',
   onboardingInitialCreditsEnabled: 'onboarding.initialCredits.enabled',
   ordersManagementEnabled: 'orders.management.enabled',
+  paymentAlipayAppCertSn: 'payment.alipay.appCertSn',
+  paymentAlipayAppId: 'payment.alipay.appId',
+  paymentAlipayCertMode: 'payment.alipay.certMode',
+  paymentAlipayCertificate: 'payment.alipay.certificate',
+  paymentAlipayEnabled: 'payment.alipay.enabled',
+  paymentAlipayGateway: 'payment.alipay.gateway',
+  paymentAlipayMerchantPrivateKey: 'payment.alipay.merchantPrivateKey',
+  paymentAlipayMode: 'payment.alipay.mode',
+  paymentAlipayPublicKey: 'payment.alipay.publicKey',
+  paymentAlipayRootCertSn: 'payment.alipay.rootCertSn',
+  paymentAlipaySellerId: 'payment.alipay.sellerId',
+  paymentDefaultProvider: 'payment.defaultProvider',
+  paymentEnabled: 'payment.enabled',
+  paymentModuleAppEnabled: 'payment.moduleApp.enabled',
+  paymentPublicBaseUrl: 'payment.publicBaseUrl',
+  paymentTopUpEnabled: 'payment.topUp.enabled',
+  paymentWechatApiBaseUrl: 'payment.wechat.apiBaseUrl',
+  paymentWechatApiV3Key: 'payment.wechat.apiV3Key',
+  paymentWechatAppId: 'payment.wechat.appId',
+  paymentWechatEnabled: 'payment.wechat.enabled',
+  paymentWechatMchId: 'payment.wechat.mchId',
+  paymentWechatMerchantPrivateKey: 'payment.wechat.merchantPrivateKey',
+  paymentWechatMerchantSerialNo: 'payment.wechat.merchantSerialNo',
+  paymentWechatPlatformCertificate: 'payment.wechat.platformCertificate',
+  paymentZpayAlipayEnabled: 'payment.zpay.alipayEnabled',
+  paymentZpayApiBaseUrl: 'payment.zpay.apiBaseUrl',
+  paymentZpayEnabled: 'payment.zpay.enabled',
+  paymentZpayMerchantId: 'payment.zpay.merchantId',
+  paymentZpayMerchantKey: 'payment.zpay.merchantKey',
+  paymentZpayWechatEnabled: 'payment.zpay.wechatEnabled',
   plansFaqItems: 'plans.faq.items',
   pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
@@ -180,6 +210,7 @@ export const APP_SETTINGS_SECTIONS = [
   'model-policy',
   'notifications',
   'operations',
+  'payments',
   'plans',
   'ppt',
   'recommendations',
@@ -266,6 +297,7 @@ export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSect
   if (key.startsWith('pricing.') || key.startsWith('plans.') || key.startsWith('orders.')) {
     return 'model-billing-matrix';
   }
+  if (key.startsWith('payment.')) return 'payments';
   if (key.startsWith('model.policy.')) return 'model-policy';
   if (key.startsWith('notification.')) return 'notifications';
   if (key.startsWith('community.')) return 'operations';
@@ -287,6 +319,7 @@ export type AppSettingDomain =
   | 'model'
   | 'notification'
   | 'operations'
+  | 'payments'
   | 'pricing'
   | 'storage'
   | 'system'
@@ -318,6 +351,7 @@ const inferDomain = (key: AppSettingKey): AppSettingDomain => {
     return 'growth';
   }
   if (key.startsWith('notification.')) return 'notification';
+  if (key.startsWith('payment.')) return 'payments';
   if (
     key.startsWith('model.') ||
     key.startsWith('default') ||
@@ -340,6 +374,13 @@ const SENSITIVE_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.cronSecret,
   APP_SETTING_KEYS.desktopOssAccessKeySecret,
   APP_SETTING_KEYS.docmeePptApiKey,
+  APP_SETTING_KEYS.paymentAlipayCertificate,
+  APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey,
+  APP_SETTING_KEYS.paymentAlipayPublicKey,
+  APP_SETTING_KEYS.paymentWechatApiV3Key,
+  APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
+  APP_SETTING_KEYS.paymentWechatPlatformCertificate,
+  APP_SETTING_KEYS.paymentZpayMerchantKey,
   APP_SETTING_KEYS.storageS3SecretAccessKey,
 ]);
 

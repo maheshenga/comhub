@@ -75,6 +75,22 @@ describe('required admin audit router transactions', () => {
               throw new Error('audit insert failed');
             }),
           })),
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue([
+                  {
+                    id: 'order-1',
+                    provider: 'redemption',
+                    redemptionCodeId: 'redemption-code-1',
+                    source: 'redemption',
+                    status: 'pending',
+                    userId: 'user-1',
+                  },
+                ]),
+              })),
+            })),
+          })),
           update: vi.fn(() => ({
             set: vi.fn((value) => ({
               where: vi.fn(() => ({
@@ -107,7 +123,9 @@ describe('required admin audit router transactions', () => {
   it('rolls back a credit adjustment and ledger write when the real audit insert fails', async () => {
     const committed = { balance: 100, ledgerEntries: 0 };
     const db = {
-      query: { users: { findFirst: vi.fn().mockResolvedValue({ ...adminUser, role: 'finance_admin' }) } },
+      query: {
+        users: { findFirst: vi.fn().mockResolvedValue({ ...adminUser, role: 'finance_admin' }) },
+      },
       transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => {
         const working = { ...committed };
         const tx = {

@@ -2,12 +2,15 @@ import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import type {
   AutoTopUpSetting,
   CreateTopUpOrderParams,
+  PaymentCheckoutAction,
+  PaymentMethodId,
+  PaymentProvider,
   QueryCommercialListParams,
   TopUpOrderHistoryItem,
   TopUpPackageItem,
 } from '@lobechat/types';
 import { Plans } from '@lobechat/types';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import {
   autoTopUpSettings,
@@ -111,6 +114,27 @@ export class CommercialTopUpModel {
     };
   };
 
+  private resolveTopUpPackage = async (
+    input: Pick<CreateTopUpOrderParams, 'credits' | 'packageId'>,
+  ): Promise<TopUpPackageItem | undefined> => {
+    if (input.packageId) {
+      const dbRow = await this.db.query.topUpPackages.findFirst({
+        where: and(eq(topUpPackages.id, input.packageId), eq(topUpPackages.isActive, true)),
+      });
+      return dbRow
+        ? {
+            amount: Number(dbRow.amount),
+            credits: Number(dbRow.credits),
+            currency: dbRow.currency,
+            id: dbRow.id,
+            recommended: dbRow.recommended || undefined,
+            validityMonths: Number(dbRow.validityMonths),
+          }
+        : DEFAULT_TOP_UP_PACKAGES.find((item) => item.id === input.packageId);
+    }
+    if (input.credits) return this.createCustomTopUpPackage(input.credits);
+  };
+
   getAutoTopUpSetting = async (): Promise<AutoTopUpSetting> => {
     const setting = await this.db.query.autoTopUpSettings.findFirst({
       where: eq(autoTopUpSettings.userId, this.userId),
@@ -187,24 +211,7 @@ export class CommercialTopUpModel {
       throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
     }
 
-    let packageItem: TopUpPackageItem | undefined;
-    if (input.packageId) {
-      const dbRow = await this.db.query.topUpPackages.findFirst({
-        where: and(eq(topUpPackages.id, input.packageId), eq(topUpPackages.isActive, true)),
-      });
-      packageItem = dbRow
-        ? {
-            amount: Number(dbRow.amount),
-            credits: Number(dbRow.credits),
-            currency: dbRow.currency,
-            id: dbRow.id,
-            recommended: dbRow.recommended || undefined,
-            validityMonths: Number(dbRow.validityMonths),
-          }
-        : DEFAULT_TOP_UP_PACKAGES.find((item) => item.id === input.packageId);
-    } else if (input.credits) {
-      packageItem = this.createCustomTopUpPackage(input.credits);
-    }
+    const packageItem = await this.resolveTopUpPackage(input);
 
     if (!packageItem) {
       throw new Error('TOP_UP_PACKAGE_NOT_FOUND');
@@ -232,6 +239,145 @@ export class CommercialTopUpModel {
       })
       .returning(topUpOrderHistoryColumns);
 
+    return order;
+  };
+
+  createOnlineTopUpOrder = async (input: {
+    idempotencyKey: string;
+    method: PaymentMethodId;
+    packageId: string;
+    provider: PaymentProvider;
+  }) => {
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (!idempotencyKey) throw new Error('TOP_UP_PAYMENT_IDEMPOTENCY_KEY_REQUIRED');
+
+    const assertMatchingOrder = (order: typeof topUpOrders.$inferSelect) => {
+      if (
+        order.currency !== 'CNY' ||
+        order.provider !== input.provider ||
+        order.metadata?.method !== input.method ||
+        order.metadata?.packageId !== input.packageId
+      ) {
+        throw new Error('TOP_UP_PAYMENT_IDEMPOTENCY_CONFLICT');
+      }
+
+      return { ...order, currency: 'CNY' as const, idempotencyKey };
+    };
+
+    const existing = await this.db.query.topUpOrders.findFirst({
+      where: and(
+        eq(topUpOrders.userId, this.userId),
+        eq(topUpOrders.idempotencyKey, idempotencyKey),
+      ),
+    });
+    if (existing) return { created: false, order: assertMatchingOrder(existing) };
+
+    const packageItem = await this.resolveTopUpPackage(input);
+    if (!packageItem) throw new Error('TOP_UP_PACKAGE_NOT_FOUND');
+    if (packageItem.currency !== 'CNY') throw new Error('TOP_UP_CURRENCY_UNSUPPORTED');
+    if (packageItem.amount <= 0 || packageItem.amount > MAX_TOP_UP_AMOUNT) {
+      throw new Error('TOP_UP_AMOUNT_EXCEEDS_MAX');
+    }
+    const amountInFen = Math.round(packageItem.amount * 100);
+    if (
+      !Number.isSafeInteger(amountInFen) ||
+      Math.abs(packageItem.amount * 100 - amountInFen) > 0.000_001
+    ) {
+      throw new Error('TOP_UP_AMOUNT_PRECISION_UNSUPPORTED');
+    }
+    const [order] = await this.db
+      .insert(topUpOrders)
+      .values({
+        amount: packageItem.amount,
+        credits: packageItem.credits,
+        currency: packageItem.currency,
+        idempotencyKey,
+        metadata: {
+          method: input.method,
+          packageId: packageItem.id,
+          validityMonths: packageItem.validityMonths,
+        },
+        provider: input.provider,
+        source: input.provider,
+        status: 'pending',
+        userId: this.userId,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (order) return { created: true, order: assertMatchingOrder(order) };
+
+    const concurrentOrder = await this.db.query.topUpOrders.findFirst({
+      where: and(
+        eq(topUpOrders.userId, this.userId),
+        eq(topUpOrders.idempotencyKey, idempotencyKey),
+      ),
+    });
+    if (!concurrentOrder) throw new Error('TOP_UP_PAYMENT_ORDER_CREATE_FAILED');
+    return { created: false, order: assertMatchingOrder(concurrentOrder) };
+  };
+
+  bindOnlineTopUpPayment = async (input: {
+    externalOrderId: string;
+    method: PaymentMethodId;
+    orderId: string;
+    provider: PaymentProvider;
+  }) => {
+    const [updated] = await this.db
+      .update(topUpOrders)
+      .set({
+        externalOrderId: input.externalOrderId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(topUpOrders.id, input.orderId),
+          eq(topUpOrders.userId, this.userId),
+          eq(topUpOrders.status, 'pending'),
+          eq(topUpOrders.provider, input.provider),
+          sql`${topUpOrders.metadata} ->> 'method' = ${input.method}`,
+          isNull(topUpOrders.externalOrderId),
+        ),
+      )
+      .returning();
+    if (updated) return { claimed: true, order: updated };
+
+    const order = await this.db.query.topUpOrders.findFirst({
+      where: and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)),
+    });
+    if (!order) throw new Error('TOP_UP_ORDER_NOT_FOUND');
+    if (
+      order.status !== 'pending' ||
+      order.provider !== input.provider ||
+      order.metadata?.method !== input.method ||
+      order.externalOrderId !== input.externalOrderId
+    ) {
+      throw new Error('TOP_UP_PAYMENT_BIND_CONFLICT');
+    }
+    return { claimed: false, order };
+  };
+
+  storeOnlineTopUpCheckout = async (input: {
+    checkout: PaymentCheckoutAction;
+    orderId: string;
+  }) => {
+    const [updated] = await this.db
+      .update(topUpOrders)
+      .set({ checkout: input.checkout, updatedAt: new Date() })
+      .where(
+        and(
+          eq(topUpOrders.id, input.orderId),
+          eq(topUpOrders.userId, this.userId),
+          isNull(topUpOrders.checkout),
+        ),
+      )
+      .returning();
+    if (updated) return updated;
+
+    const order = await this.db.query.topUpOrders.findFirst({
+      where: and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)),
+    });
+    if (!order) throw new Error('TOP_UP_ORDER_NOT_FOUND');
+    if (!order.checkout) throw new Error('TOP_UP_PAYMENT_CHECKOUT_STORE_FAILED');
     return order;
   };
 
@@ -335,6 +481,126 @@ export class CommercialTopUpModel {
         userId: this.userId,
       });
 
+      return updatedOrder;
+    });
+  };
+
+  getTopUpOrder = async (orderId: string): Promise<TopUpOrderHistoryItem | null> => {
+    const [order] = await this.db
+      .select(topUpOrderHistoryColumns)
+      .from(topUpOrders)
+      .where(and(eq(topUpOrders.id, orderId), eq(topUpOrders.userId, this.userId)))
+      .limit(1);
+    return order ?? null;
+  };
+
+  getOnlineTopUpOrderByIdempotencyKey = async (idempotencyKey: string) => {
+    return this.db.query.topUpOrders.findFirst({
+      where: and(
+        eq(topUpOrders.userId, this.userId),
+        eq(topUpOrders.idempotencyKey, idempotencyKey.trim()),
+      ),
+    });
+  };
+
+  settleOnlineTopUpOrder = async (input: {
+    amount: string;
+    currency: string;
+    externalOrderId: string;
+    method: PaymentMethodId;
+    orderId: string;
+    paymentReference?: string;
+    provider: PaymentProvider;
+  }): Promise<TopUpOrderHistoryItem> => {
+    return this.db.transaction(async (tx) => {
+      const order = await tx.query.topUpOrders.findFirst({
+        where: and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)),
+      });
+      if (!order) throw new Error('TOP_UP_ORDER_NOT_FOUND');
+      const storedPaymentReference = order.metadata?.paymentReference;
+      if (
+        isRedemptionTopUpOrder(order) ||
+        order.provider !== input.provider ||
+        order.externalOrderId !== input.externalOrderId ||
+        order.currency !== input.currency ||
+        Number(order.amount).toFixed(6) !== Number(input.amount).toFixed(6) ||
+        order.metadata?.method !== input.method ||
+        (typeof storedPaymentReference === 'string' &&
+          input.paymentReference &&
+          storedPaymentReference !== input.paymentReference)
+      ) {
+        throw new Error('TOP_UP_PAYMENT_VERIFICATION_FAILED');
+      }
+      if (order.status === 'paid') return order;
+      if (order.status !== 'pending' && order.status !== 'failed') {
+        throw new Error('TOP_UP_ORDER_NOT_SETTLEABLE');
+      }
+
+      await this.ensureCreditAccount(tx);
+      const settledAt = new Date();
+      const [updatedOrder] = await tx
+        .update(topUpOrders)
+        .set({
+          metadata: {
+            ...order.metadata,
+            ...(input.paymentReference ? { paymentReference: input.paymentReference } : {}),
+          },
+          paidAt: settledAt,
+          status: 'paid',
+          updatedAt: settledAt,
+        })
+        .where(
+          and(
+            eq(topUpOrders.id, input.orderId),
+            eq(topUpOrders.userId, this.userId),
+            inArray(topUpOrders.status, ['pending', 'failed']),
+          ),
+        )
+        .returning(topUpOrderHistoryColumns);
+      if (!updatedOrder) {
+        const [alreadySettled] = await tx
+          .select(topUpOrderHistoryColumns)
+          .from(topUpOrders)
+          .where(
+            and(
+              eq(topUpOrders.id, input.orderId),
+              eq(topUpOrders.userId, this.userId),
+              eq(topUpOrders.status, 'paid'),
+            ),
+          )
+          .limit(1);
+        if (alreadySettled) return alreadySettled;
+        throw new Error('TOP_UP_ORDER_NOT_SETTLEABLE');
+      }
+
+      const [account] = await tx
+        .update(creditAccounts)
+        .set({
+          balance: sql`${creditAccounts.balance} + ${order.credits}`,
+          totalCredited: sql`${creditAccounts.totalCredited} + ${order.credits}`,
+          updatedAt: settledAt,
+        })
+        .where(eq(creditAccounts.userId, this.userId))
+        .returning({ balance: creditAccounts.balance });
+      if (!account) throw new Error('TOP_UP_ACCOUNT_UPDATE_FAILED');
+
+      await tx.insert(creditLedgerEntries).values({
+        amount: order.credits,
+        balanceAfter: account.balance,
+        description: `Purchased ${order.credits} credits from order ${order.id.slice(0, 8).toUpperCase()}`,
+        metadata: {
+          amount: order.amount,
+          currency: order.currency,
+          method: input.method,
+          orderId: order.id,
+          provider: input.provider,
+        },
+        referenceId: order.id,
+        referenceType: 'top_up_order',
+        title: 'Top-up Order',
+        type: 'topup',
+        userId: this.userId,
+      });
       return updatedOrder;
     });
   };

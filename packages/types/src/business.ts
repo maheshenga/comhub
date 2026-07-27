@@ -93,6 +93,7 @@ export const TopUpOrderSourceEnum = {
   Manual: 'manual',
   Redemption: 'redemption',
   WechatPay: 'wechat_pay',
+  ZPay: 'zpay',
 } as const;
 
 export type TopUpOrderSourceType = (typeof TopUpOrderSourceEnum)[keyof typeof TopUpOrderSourceEnum];
@@ -239,6 +240,7 @@ export const CreateTopUpOrderSchema = z
         TopUpOrderSourceEnum.Redemption,
         TopUpOrderSourceEnum.Alipay,
         TopUpOrderSourceEnum.WechatPay,
+        TopUpOrderSourceEnum.ZPay,
         TopUpOrderSourceEnum.Manual,
       ])
       .optional(),

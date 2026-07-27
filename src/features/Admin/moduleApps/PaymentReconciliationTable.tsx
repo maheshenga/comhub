@@ -1,5 +1,6 @@
 'use client';
 
+import type { PaymentMethodId, PaymentProvider } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { Tag, Typography } from 'antd';
@@ -23,12 +24,14 @@ export type ModuleAppPaymentDiagnosticRow = {
   id: string;
   licenseIds: string[];
   latestAppRuntimeInvocationId?: null | string;
+  method: PaymentMethodId;
   orderId: string;
   orderStatus: string;
   outTradeNo: string;
   paymentEventIds: string[];
   paymentStatus: string;
   payoutBatchIds: string[];
+  provider: PaymentProvider;
   providerTransactionId?: null | string;
   refundIds: string[];
   refundStatus?: null | string;
@@ -39,7 +42,6 @@ export type ModuleAppPaymentDiagnosticRow = {
 export type PaymentTableLabels = Partial<{
   acknowledge: string;
   action: string;
-  alipayTrade: string;
   amount: string;
   app: string;
   audit: string;
@@ -52,6 +54,8 @@ export type PaymentTableLabels = Partial<{
   offlineRefund: string;
   order: string;
   previous: string;
+  providerTrade: string;
+  paymentMethod: string;
   refund: string;
   retry: string;
   retryPayment: string;
@@ -75,7 +79,7 @@ type PaymentTableProps = {
   onOpenSettle?: (row: ModuleAppPaymentDiagnosticRow) => void;
   onPrevious?: () => void;
   onRetry?: () => void;
-  onRetryPayment?: (outTradeNo: string) => void;
+  onRetryPayment?: (outTradeNo: string, provider: PaymentProvider) => void;
   onRetryRefund?: (orderId: string) => void;
   statusLabels?: Record<string, string>;
 };
@@ -83,7 +87,6 @@ type PaymentTableProps = {
 const defaultLabels = {
   acknowledge: 'Acknowledge discrepancy',
   action: 'Actions',
-  alipayTrade: 'Alipay trade',
   amount: 'Amount',
   app: 'App',
   audit: 'Audit',
@@ -95,7 +98,9 @@ const defaultLabels = {
   next: 'Next page',
   offlineRefund: 'Record offline refund',
   order: 'Order',
+  paymentMethod: 'Payment method',
   previous: 'Previous page',
+  providerTrade: 'Provider trade',
   refund: 'Refund payment',
   retry: 'Retry',
   retryPayment: 'Retry payment query',
@@ -151,10 +156,22 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
         title: copy.order,
       },
       {
+        key: 'paymentMethod',
+        render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
+          <Flexbox gap={2}>
+            <Tag>{row.method}</Tag>
+            <Text type="secondary">{row.provider}</Text>
+          </Flexbox>
+        ),
+        title: copy.paymentMethod,
+      },
+      {
         dataIndex: 'outTradeNo',
         key: 'outTradeNo',
-        render: (value: string) => <IdList ids={[value]} />,
-        title: copy.alipayTrade,
+        render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
+          <IdList ids={[row.outTradeNo, row.providerTransactionId]} />
+        ),
+        title: copy.providerTrade,
       },
       {
         key: 'status',
@@ -221,7 +238,7 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
                     </Button>
                   ) : null}
                   {row.outTradeNo && onRetryPayment ? (
-                    <Button onClick={() => onRetryPayment(row.outTradeNo)}>
+                    <Button onClick={() => onRetryPayment(row.outTradeNo, row.provider)}>
                       {copy.retryPayment}
                     </Button>
                   ) : null}

@@ -14,6 +14,7 @@ import {
   moduleAppPublisherStatusSchema,
   moduleAppRateStringSchema,
   moduleAppStatusSchema,
+  paymentProviderSchema,
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -33,8 +34,13 @@ import {
 } from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
-import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
 import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
+import {
+  createOperationalPaymentConfig,
+  getServerPaymentConfig,
+  listEnabledPaymentMethods,
+} from '@/server/services/payments/config';
+import { createPaymentAdapter } from '@/server/services/payments/factory';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
 import { ModuleAppPaymentService } from '../../module-apps/payments/service';
@@ -77,6 +83,25 @@ const requirePayoutBatchForMutation = async (db: LobeChatDatabase, batchId: stri
   if (!batch) throw new Error('MODULE_APP_PAYOUT_BATCH_NOT_FOUND');
   assertPayoutPublisherAllowed(batch.publisherId);
   return batch;
+};
+
+const createConfiguredModulePaymentService = async (db: LobeChatDatabase) => {
+  const config = await getServerPaymentConfig(db);
+  const operationalConfig = createOperationalPaymentConfig(config);
+  const methods = listEnabledPaymentMethods(operationalConfig, 'module_app');
+  if (methods.length === 0) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_payment_provider_not_configured',
+    });
+  }
+  return new ModuleAppPaymentService(
+    db,
+    createPaymentAdapter(operationalConfig, methods[0].id),
+    undefined,
+    undefined,
+    (_provider, method) => createPaymentAdapter(operationalConfig, method),
+  );
 };
 
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
@@ -132,7 +157,10 @@ const RefundOrderInputSchema = OrderIdInputSchema.extend({
 const OfflineRefundOrderInputSchema = RefundOrderInputSchema.extend({
   offlineRefundReference: z.string().trim().min(1).max(240),
 });
-const PaymentQueryInputSchema = z.object({ outTradeNo: z.string().min(1).max(240) });
+const PaymentQueryInputSchema = z.object({
+  outTradeNo: z.string().min(1).max(240),
+  provider: paymentProviderSchema.optional(),
+});
 const ReconcilePendingInputSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
 });
@@ -562,9 +590,6 @@ export const adminModuleAppsRouter = router({
   reconcilePendingPayments: financeWriteProcedure
     .input(ReconcilePendingInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
-      }
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (status, result) => ({
           action: 'module_app.pending_payments_reconciled',
@@ -576,11 +601,10 @@ export const adminModuleAppsRouter = router({
           resourceId: 'pending-payments',
           resourceType: 'moduleAppPaymentReconciliation',
         }),
-        effect: () =>
-          new ModuleAppPaymentService(
-            ctx.serverDB,
-            createConfiguredModuleAppAlipayClient(),
-          ).reconcilePendingPayments(input),
+        effect: async () =>
+          (await createConfiguredModulePaymentService(ctx.serverDB)).reconcilePendingPayments(
+            input,
+          ),
         terminalStatus: (result) =>
           result.results.some((item) => 'error' in item) ? 'failed' : 'succeeded',
       });
@@ -626,12 +650,6 @@ export const adminModuleAppsRouter = router({
   refundPaymentOrder: financeWriteProcedure
     .input(RefundOrderInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
-        throw new TRPCError({
-          code: 'PRECONDITION_FAILED',
-          message: 'module_app_alipay_disabled',
-        });
-      }
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (status) => ({
           action: 'module_app.payment_refund_requested',
@@ -639,11 +657,8 @@ export const adminModuleAppsRouter = router({
           resourceId: input.orderId,
           resourceType: 'moduleAppOrder',
         }),
-        effect: () =>
-          new ModuleAppPaymentService(
-            ctx.serverDB,
-            createConfiguredModuleAppAlipayClient(),
-          ).refundOrder({
+        effect: async () =>
+          (await createConfiguredModulePaymentService(ctx.serverDB)).refundOrder({
             actorUserId: ctx.userId,
             orderId: input.orderId,
             reason: input.reason,
@@ -654,9 +669,6 @@ export const adminModuleAppsRouter = router({
   retryPaymentQuery: financeWriteProcedure
     .input(PaymentQueryInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
-      }
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (status) => ({
           action: 'module_app.payment_query_retried',
@@ -664,20 +676,14 @@ export const adminModuleAppsRouter = router({
           resourceId: 'payment-query',
           resourceType: 'moduleAppPaymentAttempt',
         }),
-        effect: () =>
-          new ModuleAppPaymentService(
-            ctx.serverDB,
-            createConfiguredModuleAppAlipayClient(),
-          ).reconcilePayment(input),
+        effect: async () =>
+          (await createConfiguredModulePaymentService(ctx.serverDB)).reconcilePayment(input),
       });
     }),
 
   retryRefundStatus: financeWriteProcedure
     .input(OrderIdInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
-      }
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (status) => ({
           action: 'module_app.refund_status_retried',
@@ -685,11 +691,11 @@ export const adminModuleAppsRouter = router({
           resourceId: input.orderId,
           resourceType: 'moduleAppOrder',
         }),
-        effect: () =>
-          new ModuleAppPaymentService(
-            ctx.serverDB,
-            createConfiguredModuleAppAlipayClient(),
-          ).reconcileRefund({ actorUserId: ctx.userId, orderId: input.orderId }),
+        effect: async () =>
+          (await createConfiguredModulePaymentService(ctx.serverDB)).reconcileRefund({
+            actorUserId: ctx.userId,
+            orderId: input.orderId,
+          }),
         terminalStatus: (result) => (result.status === 'succeeded' ? 'succeeded' : 'failed'),
       });
     }),

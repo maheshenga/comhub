@@ -61,9 +61,10 @@ describe.skipIf(!sandboxEnabled || missing.length > 0)('Alipay Module App sandbo
       totalAmount: '0.010000',
     });
 
-    expect(result.body).toContain('alipay.trade.page.pay');
-    expect(result.body).toContain('FAST_INSTANT_TRADE_PAY');
-    expect(result.body).toContain('name="sign"');
+    if (result.checkout.type !== 'form') throw new Error('Expected an Alipay form checkout');
+    expect(result.checkout.fields.method).toBe('alipay.trade.page.pay');
+    expect(result.checkout.fields.biz_content).toContain('FAST_INSTANT_TRADE_PAY');
+    expect(result.checkout.fields.sign).toBeTruthy();
   });
 
   it('accepts a signed sandbox query response for a unique absent trade', async () => {

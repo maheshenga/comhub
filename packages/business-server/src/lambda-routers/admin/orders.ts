@@ -1,9 +1,10 @@
 import { TRPCError } from '@trpc/server';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
 import { redemptionCodes, topUpOrders, users } from '@/database/schemas';
+import type { Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { createAdminCommand } from './adminCommand';
@@ -15,6 +16,40 @@ const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financ
 const cancelCommand = createAdminCommand('order.cancel');
 const expireCommand = createAdminCommand('order.expire');
 const settleCommand = createAdminCommand('order.settle');
+const redemptionOrderCondition = or(
+  eq(topUpOrders.source, 'redemption'),
+  eq(topUpOrders.provider, 'redemption'),
+  isNotNull(topUpOrders.redemptionCodeId),
+);
+
+const getPendingRedemptionOrder = async (
+  tx: Transaction,
+  orderId: string,
+  unavailableMessage: 'ORDER_NOT_CANCELABLE' | 'ORDER_NOT_EXPIRABLE',
+) => {
+  const [order] = await tx
+    .select({
+      id: topUpOrders.id,
+      provider: topUpOrders.provider,
+      redemptionCodeId: topUpOrders.redemptionCodeId,
+      source: topUpOrders.source,
+      status: topUpOrders.status,
+      userId: topUpOrders.userId,
+    })
+    .from(topUpOrders)
+    .where(eq(topUpOrders.id, orderId))
+    .limit(1);
+
+  if (!order || order.status !== 'pending') throw new Error(unavailableMessage);
+  if (order.source !== 'redemption' && order.provider !== 'redemption' && !order.redemptionCodeId) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'ONLINE_PAYMENT_ORDER_REQUIRES_RECONCILIATION',
+    });
+  }
+
+  return order;
+};
 
 export const adminOrdersRouter = router({
   cancel: financeWriteProcedure
@@ -29,10 +64,17 @@ export const adminOrdersRouter = router({
           targetUserId: order.userId,
         }),
         mutation: async (tx) => {
+          await getPendingRedemptionOrder(tx, input.orderId, 'ORDER_NOT_CANCELABLE');
           const [order] = await tx
             .update(topUpOrders)
             .set({ status: 'canceled', updatedAt: new Date() })
-            .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.status, 'pending')))
+            .where(
+              and(
+                eq(topUpOrders.id, input.orderId),
+                eq(topUpOrders.status, 'pending'),
+                redemptionOrderCondition,
+              ),
+            )
             .returning({ id: topUpOrders.id, userId: topUpOrders.userId });
 
           if (!order) throw new Error('ORDER_NOT_CANCELABLE');
@@ -55,10 +97,17 @@ export const adminOrdersRouter = router({
           targetUserId: order.userId,
         }),
         mutation: async (tx) => {
+          await getPendingRedemptionOrder(tx, input.orderId, 'ORDER_NOT_EXPIRABLE');
           const [order] = await tx
             .update(topUpOrders)
             .set({ status: 'expired', updatedAt: new Date() })
-            .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.status, 'pending')))
+            .where(
+              and(
+                eq(topUpOrders.id, input.orderId),
+                eq(topUpOrders.status, 'pending'),
+                redemptionOrderCondition,
+              ),
+            )
             .returning({ id: topUpOrders.id, userId: topUpOrders.userId });
 
           if (!order) throw new Error('ORDER_NOT_EXPIRABLE');
@@ -137,6 +186,7 @@ export const adminOrdersRouter = router({
           credits: topUpOrders.credits,
           currency: topUpOrders.currency,
           provider: topUpOrders.provider,
+          redemptionCodeId: topUpOrders.redemptionCodeId,
           source: topUpOrders.source,
           userId: topUpOrders.userId,
         })
@@ -146,6 +196,16 @@ export const adminOrdersRouter = router({
 
       if (!order) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'ORDER_NOT_FOUND' });
+      }
+      if (
+        order.source !== 'redemption' &&
+        order.provider !== 'redemption' &&
+        !order.redemptionCodeId
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'ONLINE_PAYMENT_ORDER_REQUIRES_RECONCILIATION',
+        });
       }
 
       return runRequiredAdminAuditMutation<{ status: string }>(ctx, {

@@ -1,10 +1,9 @@
-import type { AppSettingDomain } from '@/const/appSettingsRegistry';
-
 import {
+  type AppSettingCatalogItem,
   getAppSettingCatalogItem,
   listAppSettingsCatalogItems,
-  type AppSettingCatalogItem,
 } from '@/business/server/appSettings/catalog';
+import type { AppSettingDomain } from '@/const/appSettingsRegistry';
 
 type AppSettingsGovernanceInputRow = {
   key: string;
@@ -48,31 +47,31 @@ export type AppSettingsGovernance = {
 };
 
 const DOMAIN_LABELS: Record<AppSettingDomain, string> = {
-  about: 'About',
-  brand: 'Brand',
-  client: 'Client',
-  composio: 'Composio',
-  content: 'Content',
-  growth: 'Growth',
-  model: 'Model',
-  notification: 'Notification',
-  operations: 'Operations',
-  pricing: 'Pricing',
-  storage: 'Storage',
-  system: 'System',
+  'about': 'About',
+  'brand': 'Brand',
+  'client': 'Client',
+  'composio': 'Composio',
+  'content': 'Content',
+  'growth': 'Growth',
+  'model': 'Model',
+  'notification': 'Notification',
+  'operations': 'Operations',
+  'payments': 'Payments',
+  'pricing': 'Pricing',
+  'storage': 'Storage',
+  'system': 'System',
   'user-defaults': 'User defaults',
 };
 
 const CACHE_SCOPE_LABELS: Record<string, string> = {
   'app-settings': 'App settings',
-  brand: 'Brand runtime',
-  runtime: 'Model/runtime',
-  s3: 'S3 runtime',
+  'brand': 'Brand runtime',
+  'runtime': 'Model/runtime',
+  's3': 'S3 runtime',
   'user-state': 'User state',
 };
 
-const hasPersistedValue = (value: unknown) =>
-  value !== null && value !== undefined && value !== '';
+const hasPersistedValue = (value: unknown) => value !== null && value !== undefined && value !== '';
 
 export const isUnknownAppSettingKey = (key: string) => !getAppSettingCatalogItem(key);
 
@@ -102,48 +101,42 @@ export const buildAppSettingsGovernance = (
   );
   const domainGroups = Array.from(
     registeredSettings
-      .reduce(
-        (groups, item) => {
-          const current = groups.get(item.domain) ?? {
-            configuredCount: 0,
-            domain: item.domain,
-            label: DOMAIN_LABELS[item.domain],
-            registeredCount: 0,
-            sensitiveConfiguredCount: 0,
-          };
+      .reduce((groups, item) => {
+        const current = groups.get(item.domain) ?? {
+          configuredCount: 0,
+          domain: item.domain,
+          label: DOMAIN_LABELS[item.domain],
+          registeredCount: 0,
+          sensitiveConfiguredCount: 0,
+        };
 
-          current.registeredCount += 1;
-          if (item.configured) current.configuredCount += 1;
-          if (item.configured && item.sensitive) current.sensitiveConfiguredCount += 1;
-          groups.set(item.domain, current);
+        current.registeredCount += 1;
+        if (item.configured) current.configuredCount += 1;
+        if (item.configured && item.sensitive) current.sensitiveConfiguredCount += 1;
+        groups.set(item.domain, current);
 
-          return groups;
-        },
-        new Map<AppSettingDomain, AppSettingsGovernance['domainGroups'][number]>(),
-      )
+        return groups;
+      }, new Map<AppSettingDomain, AppSettingsGovernance['domainGroups'][number]>())
       .values(),
   ).sort((a, b) => a.domain.localeCompare(b.domain));
   const cacheScopeGroups = Array.from(
     registeredSettings
-      .reduce(
-        (groups, item) => {
-          for (const cacheScope of item.cacheScopes) {
-            const current = groups.get(cacheScope) ?? {
-              cacheScope,
-              configuredCount: 0,
-              label: CACHE_SCOPE_LABELS[cacheScope] ?? cacheScope,
-              registeredCount: 0,
-            };
+      .reduce((groups, item) => {
+        for (const cacheScope of item.cacheScopes) {
+          const current = groups.get(cacheScope) ?? {
+            cacheScope,
+            configuredCount: 0,
+            label: CACHE_SCOPE_LABELS[cacheScope] ?? cacheScope,
+            registeredCount: 0,
+          };
 
-            current.registeredCount += 1;
-            if (item.configured) current.configuredCount += 1;
-            groups.set(cacheScope, current);
-          }
+          current.registeredCount += 1;
+          if (item.configured) current.configuredCount += 1;
+          groups.set(cacheScope, current);
+        }
 
-          return groups;
-        },
-        new Map<string, AppSettingsGovernance['cacheScopeGroups'][number]>(),
-      )
+        return groups;
+      }, new Map<string, AppSettingsGovernance['cacheScopeGroups'][number]>())
       .values(),
   ).sort((a, b) => a.cacheScope.localeCompare(b.cacheScope));
 

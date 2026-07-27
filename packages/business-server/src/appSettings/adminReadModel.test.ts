@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { AppSettingKey } from '@/const/appSettingsRegistry';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 
 import {
   buildDesktopSettings,
   buildMobileSettings,
+  buildPaymentSettings,
   buildSystemDefaultsSettings,
 } from './adminReadModel';
 import { AppSettingsSnapshot } from './loader';
@@ -125,5 +127,105 @@ describe('desktop admin read model', () => {
     );
 
     expect(buildDesktopSettings(snapshot).desktopDownloadUrl).toBeNull();
+  });
+});
+
+describe('payment admin read model', () => {
+  beforeEach(() => {
+    for (const name of [
+      'MODULE_APP_ALIPAY_NOTIFY_URL',
+      'MODULE_APP_ALIPAY_RETURN_URL',
+      'NEXT_PUBLIC_SITE_URL',
+      'PAYMENT_PUBLIC_BASE_URL',
+    ]) {
+      vi.stubEnv(name, '');
+    }
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns only masked payment secrets and selects an available provider', async () => {
+    const rows = [
+      { key: APP_SETTING_KEYS.paymentEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentDefaultProvider, value: 'alipay' },
+      { key: APP_SETTING_KEYS.paymentAlipayEnabled, value: false },
+      { key: APP_SETTING_KEYS.paymentWechatEnabled, value: false },
+      { key: APP_SETTING_KEYS.paymentZpayEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentZpayAlipayEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentZpayWechatEnabled, value: false },
+      { key: APP_SETTING_KEYS.paymentZpayMerchantId, value: 'merchant-1' },
+      { key: APP_SETTING_KEYS.paymentZpayMerchantKey, value: 'top-secret-1234' },
+      { key: APP_SETTING_KEYS.paymentPublicBaseUrl, value: 'https://app.example.com' },
+    ] satisfies Array<{ key: AppSettingKey; value: unknown }>;
+    const snapshot = new AppSettingsSnapshot(
+      rows.map((row) => row.key),
+      rows,
+    );
+
+    const result = await buildPaymentSettings(snapshot);
+
+    expect(result.paymentGatewayStatus).toMatchObject({
+      configured: true,
+      methods: ['zpay_alipay'],
+      provider: 'zpay',
+    });
+    expect(result.paymentConfig.zpay).toMatchObject({
+      merchantKeyConfigured: true,
+      merchantKeyMasked: '****1234',
+    });
+    expect(JSON.stringify(result)).not.toContain('top-secret-1234');
+    expect(result.paymentConfig.zpay).not.toHaveProperty('merchantKey');
+  });
+
+  it('does not report checkout ready without a valid public callback origin', async () => {
+    const rows = [
+      { key: APP_SETTING_KEYS.paymentEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentZpayEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentZpayAlipayEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentZpayMerchantId, value: 'merchant-1' },
+      { key: APP_SETTING_KEYS.paymentZpayMerchantKey, value: 'top-secret-1234' },
+    ] satisfies Array<{ key: AppSettingKey; value: unknown }>;
+    const snapshot = new AppSettingsSnapshot(
+      rows.map((row) => row.key),
+      rows,
+    );
+
+    const result = await buildPaymentSettings(snapshot);
+
+    expect(result.paymentGatewayStatus).toMatchObject({
+      configured: false,
+      methods: ['zpay_alipay', 'zpay_wechat'],
+    });
+  });
+
+  it('does not report WeChat ready when the API v3 key length is invalid', async () => {
+    const rows = [
+      { key: APP_SETTING_KEYS.paymentEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentWechatEnabled, value: true },
+      { key: APP_SETTING_KEYS.paymentWechatApiV3Key, value: 'too-short' },
+      { key: APP_SETTING_KEYS.paymentWechatAppId, value: 'wechat-app' },
+      { key: APP_SETTING_KEYS.paymentWechatMchId, value: 'wechat-merchant' },
+      {
+        key: APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
+        value: 'merchant-private-key',
+      },
+      { key: APP_SETTING_KEYS.paymentWechatMerchantSerialNo, value: 'merchant-serial' },
+      {
+        key: APP_SETTING_KEYS.paymentWechatPlatformCertificate,
+        value: 'platform-certificate',
+      },
+      { key: APP_SETTING_KEYS.paymentPublicBaseUrl, value: 'https://app.example.com' },
+    ] satisfies Array<{ key: AppSettingKey; value: unknown }>;
+    const snapshot = new AppSettingsSnapshot(
+      rows.map((row) => row.key),
+      rows,
+    );
+
+    const result = await buildPaymentSettings(snapshot);
+
+    expect(result.paymentConfig.wechat.configured).toBe(false);
+    expect(result.paymentGatewayStatus).toMatchObject({ configured: false, methods: [] });
   });
 });

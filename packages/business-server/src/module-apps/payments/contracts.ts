@@ -2,6 +2,9 @@ import type {
   ModuleAppNormalizedPaymentEvent,
   ModuleAppOrderSnapshot,
   ModuleAppPaymentProvider,
+  PaymentCreateResult,
+  PaymentMethodId,
+  PaymentPurpose,
 } from '@lobechat/types';
 
 export interface ModuleAppPaymentAdapter {
@@ -9,10 +12,14 @@ export interface ModuleAppPaymentAdapter {
     currency: ModuleAppOrderSnapshot['currency'];
     notifyUrl: string;
     orderId: string;
+    purpose?: PaymentPurpose;
     returnUrl: string;
     subject: string;
     totalAmount: string;
-  }) => Promise<{ body: string; outTradeNo: string }>;
+  }) => Promise<PaymentCreateResult>;
+  createOutTradeNo: (input: { orderId: string; purpose: PaymentPurpose }) => string;
+  readonly method: PaymentMethodId;
+  readonly provider: ModuleAppPaymentProvider;
   query: (input: { outTradeNo: string }) => Promise<ModuleAppNormalizedPaymentEvent | null>;
   queryRefund?: (input: {
     outRequestNo: string;
@@ -22,11 +29,17 @@ export interface ModuleAppPaymentAdapter {
     outTradeNo: string;
     reason: string;
     refundAmount: string;
-  }) => Promise<{ providerRefundId: string; status: string }>;
+    totalAmount: string;
+  }) => Promise<{
+    providerRefundId: string;
+    status: 'failed' | 'pending' | 'succeeded';
+  }>;
   verifyNotification: (input: {
     body: string;
     headers: Record<string, string>;
   }) => Promise<ModuleAppNormalizedPaymentEvent | null>;
 }
+
+export const canRecreatePaymentCheckout = (method: PaymentMethodId) => method !== 'wechat_pay';
 
 export type { ModuleAppNormalizedPaymentEvent, ModuleAppPaymentProvider };

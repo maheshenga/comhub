@@ -27,9 +27,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
   ...assign('composio-boolean', [APP_SETTING_KEYS.composioEnabled]),
   ...assign('composio-string', [APP_SETTING_KEYS.composioApiKey]),
   ...assign('cron-audit-retention-integer', [APP_SETTING_KEYS.cronAuditRetentionDays]),
-  ...assign('cron-pending-order-expiry-integer', [
-    APP_SETTING_KEYS.cronPendingOrderExpiryDays,
-  ]),
+  ...assign('cron-pending-order-expiry-integer', [APP_SETTING_KEYS.cronPendingOrderExpiryDays]),
   ...assign('cron-secret-string', [APP_SETTING_KEYS.cronSecret]),
   ...assign('desktop-login-string', [
     APP_SETTING_KEYS.desktopLoginCloudButtonLabel,
@@ -41,9 +39,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
   ]),
   ...assign('desktop-update-boolean', [APP_SETTING_KEYS.desktopUpdateAutoCheck]),
   ...assign('desktop-update-channel-enum', [APP_SETTING_KEYS.desktopUpdateChannel]),
-  ...assign('desktop-update-interval-integer', [
-    APP_SETTING_KEYS.desktopUpdateCheckInterval,
-  ]),
+  ...assign('desktop-update-interval-integer', [APP_SETTING_KEYS.desktopUpdateCheckInterval]),
   ...assign('desktop-update-string', [
     APP_SETTING_KEYS.desktopDownloadLabel,
     APP_SETTING_KEYS.desktopDownloadUrl,
@@ -99,12 +95,8 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.notificationPushEnabled,
     APP_SETTING_KEYS.notificationSystemEnabled,
   ]),
-  ...assign('notification-event-defaults-record', [
-    APP_SETTING_KEYS.notificationEventDefaults,
-  ]),
-  ...assign('notification-retention-integer', [
-    APP_SETTING_KEYS.notificationRetentionDays,
-  ]),
+  ...assign('notification-event-defaults-record', [APP_SETTING_KEYS.notificationEventDefaults]),
+  ...assign('notification-retention-integer', [APP_SETTING_KEYS.notificationRetentionDays]),
   ...assign('notification-string', [
     APP_SETTING_KEYS.notificationSystemActionLabel,
     APP_SETTING_KEYS.notificationSystemActionUrl,
@@ -137,6 +129,44 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.communitySkillUseButtonLabel,
   ]),
   ...assign('orders-boolean', [APP_SETTING_KEYS.ordersManagementEnabled]),
+  ...assign('payment-boolean', [
+    APP_SETTING_KEYS.paymentAlipayEnabled,
+    APP_SETTING_KEYS.paymentEnabled,
+    APP_SETTING_KEYS.paymentModuleAppEnabled,
+    APP_SETTING_KEYS.paymentTopUpEnabled,
+    APP_SETTING_KEYS.paymentWechatEnabled,
+    APP_SETTING_KEYS.paymentZpayAlipayEnabled,
+    APP_SETTING_KEYS.paymentZpayEnabled,
+    APP_SETTING_KEYS.paymentZpayWechatEnabled,
+  ]),
+  ...assign('payment-cert-mode-enum', [APP_SETTING_KEYS.paymentAlipayCertMode]),
+  ...assign('payment-mode-enum', [APP_SETTING_KEYS.paymentAlipayMode]),
+  ...assign('payment-provider-enum', [APP_SETTING_KEYS.paymentDefaultProvider]),
+  ...assign('payment-secret-string', [
+    APP_SETTING_KEYS.paymentAlipayCertificate,
+    APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey,
+    APP_SETTING_KEYS.paymentAlipayPublicKey,
+    APP_SETTING_KEYS.paymentWechatApiV3Key,
+    APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
+    APP_SETTING_KEYS.paymentWechatPlatformCertificate,
+    APP_SETTING_KEYS.paymentZpayMerchantKey,
+  ]),
+  ...assign('payment-string', [
+    APP_SETTING_KEYS.paymentAlipayAppCertSn,
+    APP_SETTING_KEYS.paymentAlipayAppId,
+    APP_SETTING_KEYS.paymentAlipayRootCertSn,
+    APP_SETTING_KEYS.paymentAlipaySellerId,
+    APP_SETTING_KEYS.paymentWechatAppId,
+    APP_SETTING_KEYS.paymentWechatMchId,
+    APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
+    APP_SETTING_KEYS.paymentZpayMerchantId,
+  ]),
+  ...assign('payment-url', [
+    APP_SETTING_KEYS.paymentAlipayGateway,
+    APP_SETTING_KEYS.paymentPublicBaseUrl,
+    APP_SETTING_KEYS.paymentWechatApiBaseUrl,
+    APP_SETTING_KEYS.paymentZpayApiBaseUrl,
+  ]),
   ...assign('plans-faq-record-list', [APP_SETTING_KEYS.plansFaqItems]),
   ...assign('ppt-api-key', [APP_SETTING_KEYS.docmeePptApiKey]),
   ...assign('ppt-base-url', [APP_SETTING_KEYS.docmeePptBaseUrl]),
@@ -212,9 +242,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.storageS3Endpoint,
     APP_SETTING_KEYS.storageS3PublicDomain,
   ]),
-  ...assign('storage-preview-expiry-integer', [
-    APP_SETTING_KEYS.storageS3PreviewUrlExpireIn,
-  ]),
+  ...assign('storage-preview-expiry-integer', [APP_SETTING_KEYS.storageS3PreviewUrlExpireIn]),
   ...assign('storage-string', [
     APP_SETTING_KEYS.storageS3AccessKeyId,
     APP_SETTING_KEYS.storageS3Bucket,
@@ -224,10 +252,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
   ...assign('user-global-settings-object', [APP_SETTING_KEYS.userGlobalSettingsDefaults]),
 ]) as Record<AppSettingKey, string>;
 
-export const listNormalizerAdapterMismatches = (
-  actual: Partial<Record<AppSettingKey, string>>,
-) =>
+export const listNormalizerAdapterMismatches = (actual: Partial<Record<AppSettingKey, string>>) =>
   (Object.entries(EXPECTED_NORMALIZER_ADAPTER_BY_KEY) as Array<[AppSettingKey, string]>).flatMap(
-    ([key, expected]) =>
-      actual[key] === expected ? [] : [{ actual: actual[key], expected, key }],
+    ([key, expected]) => (actual[key] === expected ? [] : [{ actual: actual[key], expected, key }]),
   );
