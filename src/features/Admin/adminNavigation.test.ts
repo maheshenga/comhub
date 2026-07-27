@@ -40,6 +40,7 @@ describe('adminNavigation', () => {
     expect(getAdminDefaultPath('finance_admin')).toBe(`${ADMIN_BASE_PATH}/subscriptions`);
     expect(getAdminDefaultPath('support_admin')).toBe(`${ADMIN_BASE_PATH}/users`);
     expect(getAdminDefaultPath('model_ops')).toBe(`${ADMIN_BASE_PATH}/providers`);
+    expect(getAdminDefaultPath('module_admin')).toBe(`${ADMIN_BASE_PATH}/modules`);
     expect(getAdminDefaultPath('system_admin')).toBe(`${ADMIN_BASE_PATH}/settings`);
     expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/plans`)).toBe(true);
     expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/settings`)).toBe(false);
@@ -51,6 +52,7 @@ describe('adminNavigation', () => {
     ['content_admin', `${ADMIN_BASE_PATH}/content-resources`, `${ADMIN_BASE_PATH}/plans`],
     ['finance_admin', `${ADMIN_BASE_PATH}/subscriptions`, `${ADMIN_BASE_PATH}/settings`],
     ['model_ops', `${ADMIN_BASE_PATH}/providers`, `${ADMIN_BASE_PATH}/users`],
+    ['module_admin', `${ADMIN_BASE_PATH}/modules`, `${ADMIN_BASE_PATH}/subscriptions`],
     ['support_admin', `${ADMIN_BASE_PATH}/users`, `${ADMIN_BASE_PATH}/providers`],
     ['system_admin', `${ADMIN_BASE_PATH}/settings`, `${ADMIN_BASE_PATH}/credits`],
   ] as const)('keeps %s inside its default domain', (role, allowedPath, deniedPath) => {
@@ -66,6 +68,11 @@ describe('adminNavigation', () => {
     );
     expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/modules/apps`)).toBe(false);
     expect(canAccessAdminPath('content_admin', `${ADMIN_BASE_PATH}/modules`)).toBe(false);
+    expect(canAccessAdminPath('module_admin', `${ADMIN_BASE_PATH}/modules/apps`)).toBe(true);
+    expect(canAccessAdminPath('module_admin', `${ADMIN_BASE_PATH}/audit`)).toBe(false);
+    expect(canAccessAdminPath('module_admin', `${ADMIN_BASE_PATH}/modules/finance/payments`)).toBe(
+      false,
+    );
   });
 
   it('returns a safe Module Center fallback for denied deep links', () => {

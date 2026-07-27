@@ -2,25 +2,38 @@
 
 import { confirmModal } from '@lobehub/ui/base-ui';
 import { useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router';
 
-export const useUnsavedChangesGuard = (isDirty: boolean, message: string) => {
-  const { t } = useTranslation('common');
+type UnsavedChangesGuardOptions = {
+  cancelText: string;
+  confirmText: string;
+  isDirty: boolean;
+  message: string;
+  title: string;
+};
+
+export const useUnsavedChangesGuard = ({
+  cancelText,
+  confirmText,
+  isDirty,
+  message,
+  title,
+}: UnsavedChangesGuardOptions) => {
   const blocker = useBlocker(isDirty);
+  const { proceed, reset, state } = blocker;
 
   useEffect(() => {
-    if (blocker.state !== 'blocked') return;
+    if (state !== 'blocked') return;
 
     confirmModal({
-      cancelText: t('moduleApps.admin.center.unsavedCancel'),
+      cancelText,
       content: message,
-      okText: t('moduleApps.admin.center.unsavedDiscard'),
-      onCancel: () => blocker.reset(),
-      onOk: () => blocker.proceed(),
-      title: t('moduleApps.admin.center.unsavedTitle'),
+      okText: confirmText,
+      onCancel: reset,
+      onOk: proceed,
+      title,
     });
-  }, [blocker, message, t]);
+  }, [cancelText, confirmText, message, proceed, reset, state, title]);
 
   useEffect(() => {
     if (!isDirty) return;

@@ -168,12 +168,10 @@ describe('scoped admin read procedures', () => {
       'listRecords',
       'listRuns',
     ];
-    const auditReads = ['listAuditEvents'];
     const financeReads = [
       'exportPaymentReconciliation',
       'listPaymentDiagnostics',
       'listPayouts',
-      'listPublishers',
       'listRevenue',
     ];
     const moduleAppWrites = [
@@ -212,9 +210,8 @@ describe('scoped admin read procedures', () => {
     for (const procedure of moduleAppReads) {
       expect(source).toContain(`${procedure}: moduleAppReadProcedure`);
     }
-    for (const procedure of auditReads) {
-      expect(source).toContain(`${procedure}: auditReadProcedure`);
-    }
+    expect(source).toContain('listAuditEvents: moduleAuditReadProcedure');
+    expect(source).toContain('listPublishers: publisherReadProcedure');
     for (const procedure of financeReads) {
       expect(source).toContain(`${procedure}: financeReadProcedure`);
     }

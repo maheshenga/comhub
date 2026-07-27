@@ -25,6 +25,7 @@ const wrapper = ({ children }: PropsWithChildren) => (
 describe('useMobileConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   it('uses a stable default immediately and normalizes the public response', async () => {
@@ -57,5 +58,30 @@ describe('useMobileConfig', () => {
 
     await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
     expect(result.current.config).toEqual(DEFAULT_MOBILE_CONFIG);
+    expect(result.current.isUsingCachedConfig).toBe(false);
+  });
+
+  it('keeps the last known good brand and navigation while offline', async () => {
+    window.localStorage.setItem(
+      'comhub.mobile-config.last-known-good',
+      JSON.stringify({
+        config: {
+          ...DEFAULT_MOBILE_CONFIG,
+          brand: { displayName: 'Cached Brand', logoUrl: null },
+        },
+        revision: 6,
+        updatedAt: '2026-07-20T06:00:00.000Z',
+      }),
+    );
+    vi.mocked(lambdaClient.admin.settings.getPublicMobileConfigSnapshot.query).mockRejectedValue(
+      new Error('offline'),
+    );
+
+    const { result } = renderHook(() => useMobileConfig(), { wrapper });
+
+    expect(result.current.config.brand.displayName).toBe('Cached Brand');
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+    expect(result.current.revision).toBe(6);
+    expect(result.current.isUsingCachedConfig).toBe(true);
   });
 });

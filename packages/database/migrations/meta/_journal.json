@@ -1204,6 +1204,34 @@
       "when": 1786636800000,
       "tag": "0168_module_app_installation_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1786723200000,
+      "tag": "0169_harden_module_app_catalog_consistency",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1786809600000,
+      "tag": "0170_module_app_installation_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1786896000000,
+      "tag": "0171_app_setting_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1786982400000,
+      "tag": "0172_module_app_artifact_cleanup_jobs",
+      "breakpoints": true
     }
   ],
   "version": "6"

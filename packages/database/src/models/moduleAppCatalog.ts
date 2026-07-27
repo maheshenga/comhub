@@ -407,7 +407,10 @@ export class ModuleAppCatalogModel {
     db: DbExecutor,
     publisherId?: string,
   ): Promise<{ id: string; slug: string }> => {
-    const existing = await this.findAppForUpsert(input, db);
+    const found = await this.findAppForUpsert(input, db);
+    const [existing] = found
+      ? await db.select().from(moduleApps).where(eq(moduleApps.id, found.id)).for('update')
+      : [];
     const preserveCurrentPublication =
       existing?.status === 'published' &&
       input.status === 'draft' &&

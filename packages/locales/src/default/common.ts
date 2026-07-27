@@ -531,6 +531,16 @@ export default {
   'moduleApps.market.installed': 'Installed',
   'moduleApps.market.latestVersion': 'Latest',
   'moduleApps.market.loadError': 'Failed to load the app marketplace',
+  'moduleApps.market.grantConfirmAction': 'Approve and continue',
+  'moduleApps.market.grantConfirmContent':
+    'This version requests additional access. Review every addition before continuing.',
+  'moduleApps.market.grantConfirmTitle': 'Approve access for version {{version}}?',
+  'moduleApps.market.grants.functionKeys': 'Runtime functions',
+  'moduleApps.market.grants.outboundHosts': 'External hosts',
+  'moduleApps.market.grants.permissions': 'Permissions',
+  'moduleApps.market.grants.secretKeys': 'Credentials',
+  'moduleApps.market.grants.tableKeys': 'Data tables',
+  'moduleApps.market.grants.workflowKeys': 'Workflows',
   'moduleApps.market.loading': 'Loading app marketplace...',
   'moduleApps.market.open': 'Open app',
   'moduleApps.market.openFor': 'Open {{name}}',
@@ -542,8 +552,14 @@ export default {
   'moduleApps.market.uninstallConfirmContent':
     'Uninstalling removes saved credentials and rollback history from this installation. Your license is not cancelled.',
   'moduleApps.market.uninstallConfirmTitle': 'Uninstall {{name}}?',
+  'moduleApps.market.uninstallDelete': 'Uninstall and delete data',
+  'moduleApps.market.uninstallDeleteConfirmContent':
+    'This permanently deletes app records, runs, managed data, workflows, credentials, and rollback history. Stored artifacts are queued for verified deletion. Your license is not cancelled.',
   'moduleApps.market.uninstallError': 'Could not uninstall this app. Refresh and try again.',
   'moduleApps.market.uninstallSuccess': 'App uninstalled',
+  'moduleApps.market.uninstallRetain': 'Uninstall and retain data',
+  'moduleApps.market.uninstallRetainConfirmContent':
+    'This disables the app and removes credentials and rollback history. App data is retained for a later reinstall. Your license is not cancelled.',
   'moduleApps.market.update': 'Update',
   'moduleApps.market.updateAvailable': 'Update available',
   'moduleApps.market.version': 'Version',

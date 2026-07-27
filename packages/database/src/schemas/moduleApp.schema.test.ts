@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import * as liveSchema from './index';
 import {
   moduleAppActions,
+  moduleAppArtifactCleanupJobs,
   moduleAppArtifacts,
   moduleAppAuditLogs,
   moduleAppBuilds,
@@ -47,6 +48,7 @@ describe('module app schema exports', () => {
     expect(moduleAppRecordEvents).toBeDefined();
     expect(moduleAppRuns).toBeDefined();
     expect(moduleAppArtifacts).toBeDefined();
+    expect(moduleAppArtifactCleanupJobs).toBeDefined();
     expect(moduleAppAuditLogs).toBeDefined();
     expect(moduleAppPackages).toBeDefined();
     expect(moduleAppPackageUploads).toBeDefined();
@@ -61,6 +63,31 @@ describe('module app schema exports', () => {
     expect(moduleAppSchedules).toBeDefined();
     expect(moduleAppWebhooks).toBeDefined();
     expect(moduleAppWebhookDeliveries).toBeDefined();
+  });
+
+  it('registers the durable artifact cleanup outbox', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0172_module_app_artifact_cleanup_jobs.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    const config = getTableConfig(moduleAppArtifactCleanupJobs);
+
+    expect(config.name).toBe('module_app_artifact_cleanup_jobs');
+    expect(config.indexes.map(({ config }) => config.name)).toEqual(
+      expect.arrayContaining([
+        'module_app_artifact_cleanup_jobs_storage_key_unique',
+        'module_app_artifact_cleanup_jobs_status_updated_idx',
+      ]),
+    );
+    expect(migration).toContain(
+      "CHECK (\"status\" IN ('pending', 'processing', 'released', 'failed'))",
+    );
+    expect(journal.entries.some(({ tag }) => tag === '0172_module_app_artifact_cleanup_jobs')).toBe(
+      true,
+    );
   });
 
   it('keeps database ownership constraints in the generated migration', () => {
@@ -304,5 +331,57 @@ describe('module app schema exports', () => {
     expect(
       journal.entries.some(({ tag }) => tag === '0168_module_app_installation_lifecycle'),
     ).toBe(true);
+  });
+
+  it('enforces catalog version ownership and natural-key uniqueness', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0169_harden_module_app_catalog_consistency.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    const versionIndexes = getTableConfig(moduleAppVersions).indexes.map(
+      (index) => index.config.name,
+    );
+    const pageConfig = getTableConfig(moduleAppPages);
+    const actionConfig = getTableConfig(moduleAppActions);
+
+    expect(versionIndexes).toEqual(
+      expect.arrayContaining([
+        'module_app_versions_app_id_published_version_unique',
+        'module_app_versions_one_draft_per_app_unique',
+      ]),
+    );
+    expect(pageConfig.foreignKeys.map((key) => key.getName())).toContain(
+      'module_app_pages_version_app_fk',
+    );
+    expect(actionConfig.foreignKeys.map((key) => key.getName())).toContain(
+      'module_app_actions_version_app_fk',
+    );
+    expect(migration).toContain('module_app_pages_version_id_page_key_unique');
+    expect(migration).toContain('module_app_actions_version_id_action_key_unique');
+    expect(migration).toContain('multiple drafts for an application');
+    expect(
+      journal.entries.some(({ tag }) => tag === '0169_harden_module_app_catalog_consistency'),
+    ).toBe(true);
+  });
+
+  it('persists installation grants and data purge state', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0170_module_app_installation_grants.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(moduleAppInstallations.grantSnapshot).toBeDefined();
+    expect(moduleAppInstallations.dataPurgedAt).toBeDefined();
+    expect(migration).toContain('"grant_snapshot" jsonb');
+    expect(migration).toContain('"data_purged_at" timestamp with time zone');
+    expect(journal.entries.some(({ tag }) => tag === '0170_module_app_installation_grants')).toBe(
+      true,
+    );
   });
 });

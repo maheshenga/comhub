@@ -11,6 +11,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { useUnsavedChangesGuard } from '../../../shared/useUnsavedChangesGuard';
 import ActionEditor from '../../ActionEditor';
 import { type ModuleAppAdminFormValues, normalizeModuleAppFormValues } from '../../formSchema';
 import type { ModuleAppDetailOutletContext } from '../../layouts/ModuleAppDetailLayout';
@@ -21,7 +22,6 @@ import {
   loadModuleDraft,
   saveModuleDraft,
 } from '../../shared/draftStorage';
-import { useUnsavedChangesGuard } from '../../shared/useUnsavedChangesGuard';
 
 type ConfigurationDraft = Pick<ModuleAppAdminFormValues, 'actions' | 'pages'>;
 
@@ -47,13 +47,18 @@ const ModuleAppConfigurationPage = memo(() => {
   const [saveStatus, setSaveStatus] = useState<string>();
   const draftScope = createModuleDraftScope(app.id, 'configuration');
 
-  useUnsavedChangesGuard(dirty, t('moduleApps.admin.center.unsavedConfirmation'));
+  useUnsavedChangesGuard({
+    cancelText: t('moduleApps.admin.center.unsavedCancel'),
+    confirmText: t('moduleApps.admin.center.unsavedDiscard'),
+    isDirty: dirty,
+    message: t('moduleApps.admin.center.unsavedConfirmation'),
+    title: t('moduleApps.admin.center.unsavedTitle'),
+  });
 
   useEffect(() => {
     const draft = loadModuleDraft<ConfigurationDraft>(draftScope);
     const sourcePages = draft?.pages ?? app.pages;
     const values = normalizeModuleAppFormValues({
-      ...app,
       actions: draft?.actions ?? app.actions,
       pages: sourcePages,
     });

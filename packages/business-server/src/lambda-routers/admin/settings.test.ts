@@ -5,6 +5,11 @@ import type { TRPCError } from '@trpc/server';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  type AppSettingKey,
+  type AppSettingsSection,
+  getAppSettingsSectionForKey,
+} from '@/const/appSettingsRegistry';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 import {
@@ -12,6 +17,7 @@ import {
   type MobileConfigPublicationState,
 } from '@/const/mobileConfigPublication';
 import { getServerDB } from '@/database/core/db-adaptor';
+import { appSettingRevisions } from '@/database/schemas';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
@@ -21,7 +27,7 @@ import {
   encryptAppSettingSecret,
 } from '@/server/services/appSettings/secrets';
 import { invalidateServerBrand } from '@/server/services/brand';
-import { loadMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
+import { loadCachedMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
@@ -44,6 +50,7 @@ import {
 
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 9).toString('base64');
 const GET_ALL_COMPATIBILITY_FIELDS = [
+  '__revisions',
   'aboutLinks',
   'aboutLogoUrl',
   'aboutPage',
@@ -129,6 +136,19 @@ const GET_ALL_COMPATIBILITY_FIELDS = [
   'vectorConfig',
 ] as const;
 
+const withExpectedRevisions = <Input extends { key: string } | { updates: Array<{ key: string }> }>(
+  input: Input,
+): Input & { expectedRevisions: Partial<Record<AppSettingsSection, number>> } => {
+  const keys = 'key' in input ? [input.key] : input.updates.map(({ key }) => key);
+
+  return {
+    ...input,
+    expectedRevisions: Object.fromEntries(
+      keys.map((key) => [getAppSettingsSectionForKey(key as AppSettingKey), 0]),
+    ),
+  };
+};
+
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
 }));
@@ -143,7 +163,7 @@ vi.mock('@/server/services/brand', () => ({
 }));
 
 vi.mock('@/server/services/mobileFeaturedAssistants', () => ({
-  loadMobileFeaturedAssistants: vi.fn(),
+  loadCachedMobileFeaturedAssistants: vi.fn(),
 }));
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
@@ -202,18 +222,57 @@ const createDb = ({
   appSettingsMany,
   modelRules = null,
   role = 'admin',
+  settingRevisions = {},
 }: {
   appSettings?: Array<{ updatedAt?: Date; value: unknown } | null>;
   appSettingsMany?: Array<{ key: string; value: unknown }>;
   modelRules?: any;
   role?: string | null;
+  settingRevisions?: Partial<Record<AppSettingsSection, number>>;
 } = {}) => {
+  const revisionState = new Map<string, number>(Object.entries(settingRevisions));
   const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
-  const values = vi.fn(() => ({
+  const values = vi.fn((input: unknown) => ({
+    onConflictDoNothing: vi.fn(async () => {
+      const rows = Array.isArray(input) ? input : [input];
+      for (const row of rows) {
+        if (!row || typeof row !== 'object' || !('section' in row)) continue;
+        const section = String(row.section);
+        if (!revisionState.has(section)) revisionState.set(section, 0);
+      }
+    }),
     onConflictDoUpdate,
   }));
   const insert = vi.fn(() => ({
     values,
+  }));
+  const select = vi.fn(() => ({
+    from: vi.fn((table: unknown) => {
+      if (table !== appSettingRevisions) return Promise.resolve([]);
+
+      return {
+        where: vi.fn(() => ({
+          orderBy: vi.fn(() => ({
+            for: vi.fn(async () =>
+              [...revisionState].map(([section, revision]) => ({ revision, section })),
+            ),
+          })),
+        })),
+      };
+    }),
+  }));
+  const update = vi.fn((table: unknown) => ({
+    set: vi.fn((data: { revision?: number }) => ({
+      where: vi.fn((condition: unknown) => ({
+        returning: vi.fn(async () => {
+          if (table !== appSettingRevisions || data.revision === undefined) return [];
+          const [section, expectedRevision] = new PgDialect().sqlToQuery(condition as any).params;
+          if (revisionState.get(String(section)) !== expectedRevision) return [];
+          revisionState.set(String(section), data.revision);
+          return [{ revision: data.revision }];
+        }),
+      })),
+    })),
   }));
   const execute = vi.fn().mockResolvedValue(undefined);
   const legacyAppSettings = [...appSettings];
@@ -240,6 +299,17 @@ const createDb = ({
     execute,
     insert,
     query: {
+      appSettingRevisions: {
+        findFirst: vi.fn().mockImplementation(() => {
+          const first = revisionState.entries().next();
+          if (first.done) return Promise.resolve(undefined);
+          const [section, revision] = first.value;
+          return Promise.resolve({ revision, section });
+        }),
+        findMany: vi.fn(async () =>
+          [...revisionState].map(([section, revision]) => ({ revision, section })),
+        ),
+      },
       appSettings: {
         findFirst: vi.fn().mockImplementation(() => Promise.resolve(appSettings.shift() ?? null)),
         findMany: findAppSettingsMany,
@@ -254,6 +324,8 @@ const createDb = ({
         findFirst: vi.fn().mockResolvedValue({ banned: false, role }),
       },
     },
+    select,
+    update,
   } as any;
 };
 
@@ -262,7 +334,7 @@ describe('admin settings default model validation', () => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     vi.resetAllMocks();
     vi.mocked(getServerDefaultAgentConfig).mockReturnValue({});
-    vi.mocked(loadMobileFeaturedAssistants).mockResolvedValue([]);
+    vi.mocked(loadCachedMobileFeaturedAssistants).mockResolvedValue([]);
     vi.mocked(S3).mockImplementation(
       () =>
         ({
@@ -450,10 +522,12 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSetting({
-        key: APP_SETTING_KEYS.defaultAgentModel,
-        value: 'missing-chat',
-      }),
+      caller.setAppSetting(
+        withExpectedRevisions({
+          key: APP_SETTING_KEYS.defaultAgentModel,
+          value: 'missing-chat',
+        }),
+      ),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'DEFAULT_MODEL_NOT_ENABLED',
@@ -481,15 +555,42 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.setAppSetting({
-      key: APP_SETTING_KEYS.homeMessengerEnabled,
-      value: false,
-    });
+    await caller.setAppSetting(
+      withExpectedRevisions({
+        key: APP_SETTING_KEYS.homeMessengerEnabled,
+        value: false,
+      }),
+    );
 
     expect(db.__mocks.values).toHaveBeenCalledWith({
       key: APP_SETTING_KEYS.homeMessengerEnabled,
       value: false,
     });
+  });
+
+  it('rejects stale section revisions with a correlation id and advances a current revision', async () => {
+    const db = createDb({ settingRevisions: { settings: 2 } });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSetting({
+        expectedRevisions: { settings: 1 },
+        key: APP_SETTING_KEYS.defaultAgentName,
+        value: 'Stale name',
+      }),
+    ).rejects.toMatchObject({
+      cause: { data: { correlationId: expect.any(String) } },
+      code: 'CONFLICT',
+      message: 'APP_SETTINGS_REVISION_CONFLICT',
+    });
+    await expect(
+      caller.setAppSetting({
+        expectedRevisions: { settings: 2 },
+        key: APP_SETTING_KEYS.defaultAgentName,
+        value: 'Current name',
+      }),
+    ).resolves.toEqual({ ok: true, revisions: { settings: 3 } });
   });
 
   it('returns enabled managed models with their runtime provider ids', async () => {
@@ -617,6 +718,7 @@ describe('admin settings default model validation', () => {
     expect(new PgDialect().sqlToQuery(where).params).toEqual(APP_SETTINGS_SECTION_KEYS.growth);
     expect(db.__mocks.findAppSettingsMany).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
+      __revision: 0,
       growthConfig: { signup: { enabled: false } },
       referralRewardCredits: 42,
       section: 'growth',
@@ -624,7 +726,7 @@ describe('admin settings default model validation', () => {
     });
     expect(result).not.toHaveProperty('notificationRetentionDays');
     expect(Object.keys(result).sort()).toEqual(
-      ['growthConfig', 'referralRewardCredits', 'section', 'sharedHealth'].sort(),
+      ['__revision', 'growthConfig', 'referralRewardCredits', 'section', 'sharedHealth'].sort(),
     );
   });
 
@@ -734,9 +836,9 @@ describe('admin settings default model validation', () => {
         featuredAssistants: [],
       },
     });
-    expect(loadMobileFeaturedAssistants).toHaveBeenCalledWith(
+    expect(loadCachedMobileFeaturedAssistants).toHaveBeenCalledWith(
       db,
-      publishedConfig.discover.assistants,
+      expect.objectContaining({ config: publishedConfig }),
     );
   });
 
@@ -776,7 +878,7 @@ describe('admin settings default model validation', () => {
         title: 'Assistant One',
       },
     ];
-    vi.mocked(loadMobileFeaturedAssistants).mockResolvedValue(featuredAssistants);
+    vi.mocked(loadCachedMobileFeaturedAssistants).mockResolvedValue(featuredAssistants);
     const db = createDb({
       appSettings: [{ updatedAt: new Date('2026-07-20T02:00:00.000Z'), value: state }],
       appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: publishedConfig }],
@@ -796,9 +898,9 @@ describe('admin settings default model validation', () => {
       updatedAt: '2026-07-20T01:00:00.000Z',
     });
     expect(result.config.brand.displayName).not.toBe('Draft');
-    expect(loadMobileFeaturedAssistants).toHaveBeenCalledWith(
+    expect(loadCachedMobileFeaturedAssistants).toHaveBeenCalledWith(
       db,
-      publishedConfig.discover.assistants,
+      expect.objectContaining({ config: publishedConfig }),
     );
   });
 
@@ -817,7 +919,7 @@ describe('admin settings default model validation', () => {
 
     const result = await adminSettingsRouter
       .createCaller({ userId: 'admin-user' } as any)
-      .saveMobileConfigDraft({ config: draft });
+      .saveMobileConfigDraft({ config: draft, expectedDraftRevision: 0 });
 
     expect(result.draft.config.brand.displayName).toBe('Draft only');
     expect(result.published.config.brand.displayName).toBe(DEFAULT_MOBILE_CONFIG.brand.displayName);
@@ -1135,9 +1237,11 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSettingsBatch({
-        updates: [{ key, value }],
-      }),
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [{ key, value }],
+        }),
+      ),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -1155,7 +1259,9 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSettingsBatch({ updates: [{ key, value: 'external-value' }] }),
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({ updates: [{ key, value: 'external-value' }] }),
+      ),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -1165,7 +1271,12 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value: '  test-secret  ' });
+    await caller.setAppSetting(
+      withExpectedRevisions({
+        key: APP_SETTING_KEYS.cronSecret,
+        value: '  test-secret  ',
+      }),
+    );
 
     const stored = db.__mocks.values.mock.calls.find(
       ([value]: any[]) => value.key === APP_SETTING_KEYS.cronSecret,
@@ -1185,7 +1296,7 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
     await expect(
-      caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value }),
+      caller.setAppSetting(withExpectedRevisions({ key: APP_SETTING_KEYS.cronSecret, value })),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
@@ -1202,11 +1313,13 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
     await expect(
-      caller.setAppSetting({
-        key: APP_SETTING_KEYS.composioApiKey,
-        value: '****cret',
-      }),
-    ).resolves.toEqual({ ok: true });
+      caller.setAppSetting(
+        withExpectedRevisions({
+          key: APP_SETTING_KEYS.composioApiKey,
+          value: '****cret',
+        }),
+      ),
+    ).resolves.toEqual({ ok: true, revisions: { integrations: 0 } });
 
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -1217,11 +1330,13 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
     await expect(
-      caller.setAppSetting({
-        key: APP_SETTING_KEYS.composioApiKey,
-        value: '',
-      }),
-    ).resolves.toEqual({ ok: true });
+      caller.setAppSetting(
+        withExpectedRevisions({
+          key: APP_SETTING_KEYS.composioApiKey,
+          value: '',
+        }),
+      ),
+    ).resolves.toEqual({ ok: true, revisions: { integrations: 1 } });
 
     expect(db.__mocks.values).toHaveBeenCalledWith({
       key: APP_SETTING_KEYS.composioApiKey,
@@ -1246,7 +1361,9 @@ describe('admin settings default model validation', () => {
       vi.mocked(getServerDB).mockResolvedValue(db);
 
       const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
-      await expect(caller.setAppSetting({ key, value: '' })).resolves.toEqual({ ok: true });
+      await expect(
+        caller.setAppSetting(withExpectedRevisions({ key, value: '' })),
+      ).resolves.toMatchObject({ ok: true });
 
       expect(db.insert).not.toHaveBeenCalled();
       expect(recordAdminAudit).not.toHaveBeenCalled();
@@ -1277,10 +1394,12 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
     await expect(
-      caller.setAppSetting({
-        key: APP_SETTING_KEYS.composioApiKey,
-        value: 'must-not-persist',
-      }),
+      caller.setAppSetting(
+        withExpectedRevisions({
+          key: APP_SETTING_KEYS.composioApiKey,
+          value: 'must-not-persist',
+        }),
+      ),
     ).rejects.toThrow('KEY_VAULTS_SECRET');
 
     expect(db.insert).not.toHaveBeenCalled();
@@ -1293,9 +1412,11 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSettingsBatch({
-        updates: [{ key: APP_SETTING_KEYS.ordersManagementEnabled, value: true }],
-      }),
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [{ key: APP_SETTING_KEYS.ordersManagementEnabled, value: true }],
+        }),
+      ),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -1307,10 +1428,12 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSetting({
-        key: APP_SETTING_KEYS.pricingCreditMultiplier,
-        value: 0,
-      }),
+      caller.setAppSetting(
+        withExpectedRevisions({
+          key: APP_SETTING_KEYS.pricingCreditMultiplier,
+          value: 0,
+        }),
+      ),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'pricingCreditMultiplier must be greater than 0',
@@ -1591,15 +1714,18 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
+    await caller.setAppSetting(
+      withExpectedRevisions({
+        key: APP_SETTING_KEYS.notificationEventDefaults,
+        value: {
+          email: { lowCredits: false, unknown: false },
+          push: { videoGenerationCompleted: false },
+          sms: { lowCredits: false },
+        },
+      }),
+    );
     await caller.setAppSetting({
-      key: APP_SETTING_KEYS.notificationEventDefaults,
-      value: {
-        email: { lowCredits: false, unknown: false },
-        push: { videoGenerationCompleted: false },
-        sms: { lowCredits: false },
-      },
-    });
-    await caller.setAppSetting({
+      expectedRevisions: { notifications: 1 },
       key: APP_SETTING_KEYS.notificationSystemType,
       value: 'critical',
     });
@@ -1627,11 +1753,14 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
+    await caller.setAppSetting(
+      withExpectedRevisions({
+        key: APP_SETTING_KEYS.storageS3Endpoint,
+        value: 'https://s3.example.com',
+      }),
+    );
     await caller.setAppSetting({
-      key: APP_SETTING_KEYS.storageS3Endpoint,
-      value: 'https://s3.example.com',
-    });
-    await caller.setAppSetting({
+      expectedRevisions: { 'file-storage': 1 },
       key: APP_SETTING_KEYS.storageS3SecretAccessKey,
       value: 'admin-secret-key',
     });
@@ -1671,18 +1800,20 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
-    await caller.setAppSettingsBatch({
-      updates: [
-        {
-          key: APP_SETTING_KEYS.storageS3Endpoint,
-          value: 'https://s3.example.com',
-        },
-        {
-          key: APP_SETTING_KEYS.storageS3SecretAccessKey,
-          value: 'admin-secret-key',
-        },
-      ],
-    });
+    await caller.setAppSettingsBatch(
+      withExpectedRevisions({
+        updates: [
+          {
+            key: APP_SETTING_KEYS.storageS3Endpoint,
+            value: 'https://s3.example.com',
+          },
+          {
+            key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+            value: 'admin-secret-key',
+          },
+        ],
+      }),
+    );
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(tx.__mocks.values).toHaveBeenCalledWith({
@@ -1730,7 +1861,9 @@ describe('admin settings default model validation', () => {
       const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
       await expect(
-        caller.setAppSettingsBatch({ updates: [{ key, value: DEFAULT_MOBILE_CONFIG }] }),
+        caller.setAppSettingsBatch(
+          withExpectedRevisions({ updates: [{ key, value: DEFAULT_MOBILE_CONFIG }] }),
+        ),
       ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
       expect(db.insert).not.toHaveBeenCalled();
     },
@@ -1752,42 +1885,44 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
-    await caller.setAppSettingsBatch({
-      updates: [
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
-          value: 'newapi',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
-          value: 'gpt-5.5',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
-          value: 'newapi',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
-          value: 'gpt-5.5-mini',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
-          value: 'opencodego',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
-          value: 'claude-sonnet-4',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
-          value: 'siliconflow',
-        },
-        {
-          key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
-          value: 'BAAI/bge-m3',
-        },
-      ],
-    });
+    await caller.setAppSettingsBatch(
+      withExpectedRevisions({
+        updates: [
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+            value: 'newapi',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+            value: 'gpt-5.5',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+            value: 'newapi',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+            value: 'gpt-5.5-mini',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+            value: 'opencodego',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+            value: 'claude-sonnet-4',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+            value: 'siliconflow',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+            value: 'BAAI/bge-m3',
+          },
+        ],
+      }),
+    );
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(tx.__mocks.values).toHaveBeenCalledWith({
@@ -1851,22 +1986,24 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSettingsBatch({
-        updates: [
-          {
-            key: APP_SETTING_KEYS.userGlobalSettingsDefaults,
-            value: {
-              systemAgent: {
-                inputCompletion: {
-                  enabled: true,
-                  model: 'gpt-5.4',
-                  provider: 'newapi',
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [
+            {
+              key: APP_SETTING_KEYS.userGlobalSettingsDefaults,
+              value: {
+                systemAgent: {
+                  inputCompletion: {
+                    enabled: true,
+                    model: 'gpt-5.4',
+                    provider: 'newapi',
+                  },
                 },
               },
             },
-          },
-        ],
-      }),
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'INPUT_COMPLETION_MODEL_NOT_ENABLED',
@@ -2220,18 +2357,20 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSettingsBatch({
-        updates: [
-          {
-            key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
-            value: 'newapi',
-          },
-          {
-            key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
-            value: 'gpt-5.5',
-          },
-        ],
-      }),
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [
+            {
+              key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+              value: 'newapi',
+            },
+            {
+              key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+              value: 'gpt-5.5',
+            },
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'DEFAULT_MODEL_TYPE_MISMATCH',
@@ -2247,10 +2386,12 @@ describe('admin settings default model validation', () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.setAppSetting({
-        key: APP_SETTING_KEYS.storageS3Endpoint,
-        value: 'not-a-url',
-      }),
+      caller.setAppSetting(
+        withExpectedRevisions({
+          key: APP_SETTING_KEYS.storageS3Endpoint,
+          value: 'not-a-url',
+        }),
+      ),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: `${APP_SETTING_KEYS.storageS3Endpoint} must be a valid URL`,

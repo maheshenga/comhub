@@ -35,11 +35,12 @@ interface CreateGenerationPageProps {
   onUploadFiles?: (files: File[]) => void | Promise<void>;
   path: string;
   PromptInput: ComponentType<{ disableAnimation?: boolean; showTitle?: boolean }>;
+  showHeader?: boolean;
   Workspace: ComponentType<{ embedInput?: boolean }>;
 }
 
 const CreateGenerationPage = memo<CreateGenerationPageProps>(
-  ({ path, Workspace, PromptInput, dragDisabled, onUploadFiles }) => {
+  ({ path, Workspace, PromptInput, dragDisabled, onUploadFiles, showHeader = true }) => {
     const isPersonalPath = useMatch({ end: true, path });
     const isWorkspacePath = useMatch({ end: true, path: `/:workspaceSlug${path}` });
     const [topic] = useQueryState('topic');
@@ -107,19 +108,21 @@ const CreateGenerationPage = memo<CreateGenerationPageProps>(
 
     return (
       <>
-        <NavHeader
-          right={<WideScreenButton />}
-          styles={{
-            center: {
-              alignItems: 'center',
-              display: 'flex',
-              justifyContent: 'center',
-              minWidth: 0,
-            },
-            left: { flex: 1, minWidth: 0 },
-            right: { flex: 1, minWidth: 0 },
-          }}
-        />
+        {showHeader ? (
+          <NavHeader
+            right={<WideScreenButton />}
+            styles={{
+              center: {
+                alignItems: 'center',
+                display: 'flex',
+                justifyContent: 'center',
+                minWidth: 0,
+              },
+              left: { flex: 1, minWidth: 0 },
+              right: { flex: 1, minWidth: 0 },
+            }}
+          />
+        ) : null}
         {onUploadFiles ? (
           <DragUploadZone
             disabled={dragDisabled}

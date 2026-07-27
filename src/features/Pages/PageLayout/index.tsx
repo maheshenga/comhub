@@ -20,4 +20,13 @@ const DesktopPagesLayout: FC = () => {
   );
 };
 
+export const MobilePagesLayout: FC = () => (
+  <>
+    <Flexbox className={styles.mainContainer} flex={1} height={'100%'}>
+      <Outlet />
+    </Flexbox>
+    <DataSync />
+  </>
+);
+
 export default DesktopPagesLayout;

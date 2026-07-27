@@ -1,4 +1,6 @@
+import { recordModuleAppInstallationLifecycle } from '@lobechat/observability-otel/modules/module-app';
 import {
+  moduleAppGrantSnapshotSchema,
   moduleAppInstallationListInputSchema,
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
@@ -41,6 +43,12 @@ const AppIdOrSlugInputSchema = z.object({
 const WorkspaceAppInputSchema = AppIdInputSchema.extend({
   workspaceId: z.string().min(1),
 });
+const UninstallAppInputSchema = AppIdInputSchema.extend({
+  dataPolicy: z.enum(['delete', 'retain']).default('retain'),
+});
+const UninstallWorkspaceAppInputSchema = WorkspaceAppInputSchema.extend({
+  dataPolicy: z.enum(['delete', 'retain']).default('retain'),
+});
 
 const TeamInstallationListInputSchema = moduleAppInstallationListInputSchema.extend({
   workspaceId: z.string().min(1),
@@ -48,11 +56,13 @@ const TeamInstallationListInputSchema = moduleAppInstallationListInputSchema.ext
 
 const InstallationVersionChangeInputSchema = z.discriminatedUnion('operation', [
   AppIdInputSchema.extend({
+    acceptedGrantSnapshot: moduleAppGrantSnapshotSchema.optional(),
     expectedVersionId: z.string().uuid(),
     operation: z.literal('upgrade'),
     workspaceId: z.string().min(1).optional(),
   }),
   AppIdInputSchema.extend({
+    acceptedGrantSnapshot: moduleAppGrantSnapshotSchema.optional(),
     expectedVersionId: z.string().uuid(),
     operation: z.literal('rollback'),
     targetVersionId: z.string().uuid(),
@@ -173,6 +183,9 @@ const mapInstallationVersionError = (error: unknown) => {
   if (identifier === 'MODULE_APP_INSTALLATION_REQUIRED') {
     return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
   }
+  if (identifier === 'MODULE_APP_GRANT_CONFIRMATION_REQUIRED') {
+    return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
+  }
   if (identifier === 'MODULE_APP_NOT_FOUND') {
     return new TRPCError({ cause: error, code: 'NOT_FOUND', message: identifier });
   }
@@ -276,12 +289,18 @@ export const moduleAppMarketProcedures = {
       });
 
       try {
-        return await ctx.moduleAppModel.changeInstallationVersion({
+        const result = await ctx.moduleAppModel.changeInstallationVersion({
           ...input,
           appId: detail.id,
           scopeType: input.workspaceId ? 'workspace' : 'personal',
           userId: ctx.userId,
         });
+        recordModuleAppInstallationLifecycle({
+          changed: result.changed,
+          operation: input.operation,
+          scope: input.workspaceId ? 'workspace' : 'personal',
+        });
+        return result;
       } catch (error) {
         throw mapInstallationVersionError(error);
       }
@@ -332,7 +351,15 @@ export const moduleAppMarketProcedures = {
       userId: ctx.userId,
     });
 
-    await ctx.moduleAppModel.installPersonalApp({ appId: detail.id, userId: ctx.userId });
+    const result = await ctx.moduleAppModel.installPersonalApp({
+      appId: detail.id,
+      userId: ctx.userId,
+    });
+    recordModuleAppInstallationLifecycle({
+      changed: result.changed,
+      operation: 'install',
+      scope: 'personal',
+    });
 
     return { ok: true };
   }),
@@ -364,10 +391,15 @@ export const moduleAppMarketProcedures = {
         userId: ctx.userId,
         workspaceId: input.workspaceId,
       });
-      await ctx.moduleAppModel.installWorkspaceApp({
+      const result = await ctx.moduleAppModel.installWorkspaceApp({
         appId: detail.id,
         userId: ctx.userId,
         workspaceId: input.workspaceId,
+      });
+      recordModuleAppInstallationLifecycle({
+        changed: result.changed,
+        operation: 'install',
+        scope: 'workspace',
       });
 
       return { ok: true };
@@ -525,12 +557,23 @@ export const moduleAppMarketProcedures = {
       }
     }),
 
-  uninstallPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
-    return ctx.moduleAppModel.uninstallPersonalApp({ ...input, userId: ctx.userId });
-  }),
+  uninstallPersonal: moduleAppProcedure
+    .input(UninstallAppInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.moduleAppModel.uninstallPersonalApp({
+        ...input,
+        userId: ctx.userId,
+      });
+      recordModuleAppInstallationLifecycle({
+        changed: result.changed,
+        operation: 'uninstall',
+        scope: 'personal',
+      });
+      return result;
+    }),
 
   uninstallWorkspace: moduleAppProcedure
-    .input(WorkspaceAppInputSchema)
+    .input(UninstallWorkspaceAppInputSchema)
     .mutation(async ({ ctx, input }) => {
       await assertWorkspaceManagementPermission({
         db: ctx.serverDB,
@@ -538,6 +581,12 @@ export const moduleAppMarketProcedures = {
         workspaceId: input.workspaceId,
       });
 
-      return ctx.moduleAppModel.uninstallWorkspaceApp(input);
+      const result = await ctx.moduleAppModel.uninstallWorkspaceApp(input);
+      recordModuleAppInstallationLifecycle({
+        changed: result.changed,
+        operation: 'uninstall',
+        scope: 'workspace',
+      });
+      return result;
     }),
 };

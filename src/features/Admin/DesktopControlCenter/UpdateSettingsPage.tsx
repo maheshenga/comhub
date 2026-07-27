@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { normalizeDesktopUpdateServerUrl } from '@/const/desktopUpdate';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
 import {
   buildUpdateSettingsUpdates,
   type DesktopSettingsValues,
@@ -32,6 +33,7 @@ interface UpdateSettingsPageProps {
 const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, settings }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<DesktopSettingsValues>();
+  const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const initialValues = useMemo(() => getDesktopSettingsValues(settings.data), [settings.data]);
   const { dirtyFields, markEdited, markSaved } = useDesktopSettingsFormSync(
@@ -50,12 +52,16 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
         return;
       }
       setSubmitting(true);
+      setSaveError(undefined);
       await adminCommercialService.setAppSettingsBatch({ updates });
       markSaved();
       message.success(t('admin.desktopUpdate.saveSuccess'));
     } catch (error) {
       if (!isDesktopFormValidationError(error)) {
-        message.error(t('admin.desktopUpdate.saveFailed'));
+        setSaveError(error);
+        if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
+          message.error(t('admin.desktopUpdate.saveFailed'));
+        }
       }
     } finally {
       setSubmitting(false);
@@ -83,6 +89,13 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
       <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
         {t('admin.desktopControl.tabs.updates')}
       </Typography.Title>
+      <AdminSettingsConflictAlert
+        error={saveError}
+        onReload={async () => {
+          await settings.mutate();
+          setSaveError(undefined);
+        }}
+      />
       <Form
         disabled={settings.isLoading || submitting}
         form={form}

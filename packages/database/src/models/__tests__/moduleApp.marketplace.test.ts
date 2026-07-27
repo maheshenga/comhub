@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getTestDB } from '../../core/getTestDB';
 import {
   moduleAppActions,
+  moduleAppArtifactCleanupJobs,
   moduleAppArtifacts,
   moduleAppEntitlements,
   moduleAppInstallations,
@@ -35,6 +36,7 @@ const baseBilling = {
 };
 
 beforeEach(async () => {
+  await serverDB.delete(moduleAppArtifactCleanupJobs);
   await serverDB.delete(moduleApps);
   await serverDB.delete(workspaces);
   await serverDB.delete(users);
@@ -368,6 +370,71 @@ describe('ModuleAppModel marketplace behavior', () => {
     });
   });
 
+  it('requires an exact confirmation snapshot for expanded version grants', async () => {
+    const app = await createRecordDesk();
+    await model.installPersonalApp({ appId: app.id, userId });
+    const installation = await serverDB.query.moduleAppInstallations.findFirst({
+      where: eq(moduleAppInstallations.appId, app.id),
+    });
+    if (!installation?.versionId) throw new Error('module_app_test_installation_missing');
+
+    const [nextVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({
+        appId: app.id,
+        manifestSnapshot: { actions: [] },
+        publishedAt: new Date(),
+        runtimeManifest: {
+          runtime: {
+            kind: 'sandboxed_app',
+            outboundHosts: ['api.example.com'],
+            permissions: ['records.write'],
+          },
+        },
+        version: '2.0.0',
+      })
+      .returning();
+    await serverDB
+      .update(moduleApps)
+      .set({ currentPublishedVersionId: nextVersion.id, status: 'published' })
+      .where(eq(moduleApps.id, app.id));
+
+    const state = await model.getInstallationVersionState({ appId: app.id, userId });
+    expect(state?.publishedVersion?.grantChange).toMatchObject({
+      added: {
+        outboundHosts: ['api.example.com'],
+        permissions: ['records.write'],
+      },
+      hasExpansion: true,
+    });
+    await expect(
+      model.changeInstallationVersion({
+        appId: app.id,
+        expectedVersionId: installation.versionId,
+        operation: 'upgrade',
+        scopeType: 'personal',
+        userId,
+      }),
+    ).rejects.toThrow('MODULE_APP_GRANT_CONFIRMATION_REQUIRED');
+
+    await expect(
+      model.changeInstallationVersion({
+        acceptedGrantSnapshot: state!.publishedVersion!.grantChange.targetSnapshot,
+        appId: app.id,
+        expectedVersionId: installation.versionId,
+        operation: 'upgrade',
+        scopeType: 'personal',
+        userId,
+      }),
+    ).resolves.toMatchObject({
+      grantSnapshot: expect.objectContaining({
+        outboundHosts: ['api.example.com'],
+        permissions: ['records.write'],
+      }),
+      versionId: nextVersion.id,
+    });
+  });
+
   it('resolves an execution action from the installed version only', async () => {
     const app = await createRecordDesk();
     await model.installPersonalApp({ appId: app.id, userId });
@@ -507,6 +574,32 @@ describe('ModuleAppModel marketplace behavior', () => {
       installationId: installation!.id,
       secretKey: 'CRM_TOKEN',
     });
+    await serverDB.insert(moduleAppRecords).values({
+      appId: app.id,
+      collectionKey: 'notes',
+      installationId: installation!.id,
+      ownerUserId: userId,
+      scopeType: 'personal',
+    });
+    const run = await model.createRun({
+      actionId: 'create_record',
+      appId: app.id,
+      input: { title: 'Queued artifact' },
+      scopeType: 'personal',
+      userId,
+    });
+    const artifactStorageKey = `module-apps/${app.id}/${run.id}/result.txt`;
+    await serverDB.insert(moduleAppArtifacts).values({
+      appId: app.id,
+      fileName: 'result.txt',
+      installationId: installation!.id,
+      mimeType: 'text/plain',
+      runId: run.id,
+      scopeType: 'personal',
+      sizeBytes: 12,
+      storageKey: artifactStorageKey,
+      userId,
+    });
 
     await expect(model.listInstalledApps({ scopeType: 'personal', userId })).resolves.toEqual([
       expect.objectContaining({ id: app.id, installed: true, slug: 'record-desk' }),
@@ -530,6 +623,39 @@ describe('ModuleAppModel marketplace behavior', () => {
         where: eq(moduleAppInstallationVersionRefs.installationId, installation!.id),
       }),
     ).resolves.toBeUndefined();
+    await expect(
+      serverDB.query.moduleAppRecords.findFirst({
+        where: eq(moduleAppRecords.installationId, installation!.id),
+      }),
+    ).resolves.toBeDefined();
+    await expect(
+      serverDB.query.moduleAppArtifacts.findFirst({
+        where: eq(moduleAppArtifacts.installationId, installation!.id),
+      }),
+    ).resolves.toBeDefined();
+
+    await model.installPersonalApp({ appId: app.id, userId });
+    await expect(
+      model.uninstallPersonalApp({ appId: app.id, dataPolicy: 'delete', userId }),
+    ).resolves.toMatchObject({ dataPolicy: 'delete', dataPurgedAt: expect.any(Date) });
+    await expect(
+      serverDB.query.moduleAppRecords.findFirst({
+        where: eq(moduleAppRecords.installationId, installation!.id),
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.id, installation!.id),
+      }),
+    ).resolves.toMatchObject({ dataPurgedAt: expect.any(Date), status: 'uninstalled' });
+    await expect(
+      serverDB.query.moduleAppArtifactCleanupJobs.findFirst({
+        where: eq(moduleAppArtifactCleanupJobs.installationId, installation!.id),
+      }),
+    ).resolves.toMatchObject({
+      status: 'pending',
+      storageKey: artifactStorageKey,
+    });
   });
 
   it('reports configuration and runtime readiness from the installed version snapshot', async () => {

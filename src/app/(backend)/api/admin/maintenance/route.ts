@@ -7,6 +7,7 @@ import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
+import { ModuleAppArtifactCleanupService } from '@/server/services/moduleAppArtifactCleanup';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 
 /**
@@ -25,6 +26,7 @@ import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPac
  *     auditRetentionDays?: number,
  *     pendingOrderExpiryDays?: number,
  *     skipAudit?: boolean,
+ *     skipModuleAppArtifacts?: boolean,
  *     skipModuleAppUploads?: boolean,
  *     skipOrders?: boolean,
  *   }
@@ -70,6 +72,7 @@ export const POST = async (req: NextRequest) => {
     auditRetentionDays?: number;
     pendingOrderExpiryDays?: number;
     skipAudit?: boolean;
+    skipModuleAppArtifacts?: boolean;
     skipModuleAppUploads?: boolean;
     skipOrders?: boolean;
   } = {};
@@ -84,6 +87,10 @@ export const POST = async (req: NextRequest) => {
     auditCutoff?: string;
     pendingOrdersExpired?: number;
     pendingOrdersCutoff?: string;
+    moduleAppArtifactCleanupClaimed?: number;
+    moduleAppArtifactCleanupFailed?: number;
+    moduleAppArtifactCleanupRetrying?: number;
+    moduleAppArtifactsReleased?: number;
     moduleAppUploadCleanupFailed?: number;
     moduleAppUploadsExpired?: number;
     subscriptionSnapshotsExpired?: number;
@@ -130,6 +137,14 @@ export const POST = async (req: NextRequest) => {
     });
     result.moduleAppUploadCleanupFailed = cleanup.failed;
     result.moduleAppUploadsExpired = cleanup.expired;
+  }
+
+  if (!body.skipModuleAppArtifacts) {
+    const cleanup = await new ModuleAppArtifactCleanupService({ db }).cleanupPending(100);
+    result.moduleAppArtifactCleanupClaimed = cleanup.claimed;
+    result.moduleAppArtifactCleanupFailed = cleanup.failed;
+    result.moduleAppArtifactCleanupRetrying = cleanup.retrying;
+    result.moduleAppArtifactsReleased = cleanup.released;
   }
 
   const subscriptionResult = await syncExpiredSubscriptionsToFree(db);

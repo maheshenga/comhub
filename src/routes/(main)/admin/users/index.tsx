@@ -8,7 +8,8 @@ import {
   isFullAdminRole,
 } from '@lobechat/types';
 import { Avatar, Flexbox } from '@lobehub/ui';
-import { Button, Empty, Input, InputNumber, message, Modal, Select, Space, Tag } from 'antd';
+import { Button, Modal, Select } from '@lobehub/ui/base-ui';
+import { Empty, Input, InputNumber, message, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -62,6 +63,7 @@ const AdminUsersPage = memo(() => {
     content_admin: t('admin.roles.contentAdmin', '内容管理员'),
     finance_admin: t('admin.roles.financeAdmin', '财务管理员'),
     model_ops: t('admin.roles.modelOps', '模型运营'),
+    module_admin: t('admin.roles.moduleAdmin', '模块管理员'),
     support_admin: t('admin.roles.supportAdmin', '用户支持'),
     system_admin: t('admin.roles.systemAdmin', '系统管理员'),
     user: t('admin.roles.user', '普通用户'),
@@ -401,16 +403,17 @@ const AdminUsersPage = memo(() => {
           ) : null}
           {canSetRoles ? (
             <Space.Compact>
-              <Select
+              <Select<AssignableRole>
                 loading={actionLoading === `${row.id}-role`}
                 options={roleOptions}
                 placeholder={t('admin.setRole', '设置角色')}
                 size="small"
                 style={{ width: 132 }}
                 value={roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole)}
-                onChange={(value: AssignableRole) =>
-                  setRoleDrafts((current) => ({ ...current, [row.id]: value }))
-                }
+                onChange={(value) => {
+                  if (!value) return;
+                  setRoleDrafts((current) => ({ ...current, [row.id]: value }));
+                }}
               />
               <AdminDangerousActionButton
                 actionId="user.setRole"
@@ -494,8 +497,8 @@ const AdminUsersPage = memo(() => {
             label: `${item.displayName || item.plan} (${item.plan})`,
             value: item.plan,
           }))}
-          onChange={(value: string | undefined) => {
-            setPlanFilter(value);
+          onChange={(value: null | string | undefined) => {
+            setPlanFilter(value ?? undefined);
             resetList();
           }}
         />
@@ -508,8 +511,8 @@ const AdminUsersPage = memo(() => {
             { label: t('admin.subscriptionStartedOrder.asc', '开始时间正序'), value: 'asc' },
             { label: t('admin.subscriptionStartedOrder.desc', '开始时间倒序'), value: 'desc' },
           ]}
-          onChange={(value: 'asc' | 'desc' | undefined) => {
-            setSubscriptionStartedOrder(value);
+          onChange={(value: 'asc' | 'desc' | null | undefined) => {
+            setSubscriptionStartedOrder(value ?? undefined);
             resetList();
           }}
         />

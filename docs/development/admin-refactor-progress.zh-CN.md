@@ -85,7 +85,7 @@
 
 ## 2026-07-15 Module App 财务隔离增量
 
-- `/settings/admin/module-apps` 继续作为唯一 Module App 后台入口；完整管理员通过 `moduleApp.read` 进入治理页面，财务管理员通过 `finance.read` 进入同一路由。
+- `/settings/admin/modules` 是唯一 Module App 后台入口；完整管理员通过 `moduleApp.read` 进入治理页面，财务管理员通过 `finance.read` 进入同一路由。旧 URL 不再保留。
 - `finance_admin` 不再拥有 `moduleApp.read` 或 `moduleApp.write`，不能调用通用 Module App 列表、详情、审核、发布和治理写入 procedure。
 - 路由内新增按角色独立懒加载的页面边界：完整管理员保持原治理页面，财务管理员只加载收入、支付诊断、发布方财务信息和提现页面，不下载或渲染治理页面代码。
 - 发布方列表已归属 `finance.read`；收入结算等财务写操作继续要求 `finance.write`，未扩大财务管理员的治理权限。

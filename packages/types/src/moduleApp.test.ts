@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  EMPTY_MODULE_APP_GRANT_SNAPSHOT,
   getModuleAppDeclaredSecretKeys,
+  getModuleAppGrantDiff,
   MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
   MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS,
   MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS,
@@ -522,5 +524,27 @@ describe('module app type contracts', () => {
     expect(() =>
       moduleAppPackageSubmissionListInputSchema.parse({ cursor: -1, limit: 51 }),
     ).toThrow();
+  });
+
+  it('reports only newly requested installation grants', () => {
+    const diff = getModuleAppGrantDiff(
+      { ...EMPTY_MODULE_APP_GRANT_SNAPSHOT, permissions: ['records.read'] },
+      {
+        ...EMPTY_MODULE_APP_GRANT_SNAPSHOT,
+        outboundHosts: ['api.example.com'],
+        permissions: ['records.read', 'records.write'],
+        secretKeys: ['API_KEY'],
+      },
+    );
+
+    expect(diff).toEqual({
+      added: {
+        ...EMPTY_MODULE_APP_GRANT_SNAPSHOT,
+        outboundHosts: ['api.example.com'],
+        permissions: ['records.write'],
+        secretKeys: ['API_KEY'],
+      },
+      hasExpansion: true,
+    });
   });
 });

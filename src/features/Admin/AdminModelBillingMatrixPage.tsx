@@ -800,7 +800,7 @@ const AdminModelBillingMatrixPage = memo(() => {
         dataSource={displayRows}
         loading={loading}
         locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
-        pagination={false}
+        pagination={{ defaultPageSize: 50, hideOnSinglePage: true, showSizeChanger: true }}
         rowKey="key"
         scroll={{ x: 900 + plans.length * 104 }}
       />

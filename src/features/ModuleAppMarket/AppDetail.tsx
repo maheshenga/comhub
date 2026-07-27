@@ -1,8 +1,8 @@
-import type { ModuleAppInstallationReadiness } from '@lobechat/types';
+import type { ModuleAppGrantSnapshot, ModuleAppInstallationReadiness } from '@lobechat/types';
 import { A } from '@lobehub/ui';
 import { Button, buttonStyles, confirmModal, DropdownMenu, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
-import { RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router';
@@ -14,6 +14,18 @@ import { moduleAppService } from '@/services/moduleApp';
 
 import InstallationSecrets from './InstallationSecrets';
 import PurchaseModal, { type ModuleAppCatalogItem } from './PurchaseModal';
+
+type VersionGrantChange = {
+  added: ModuleAppGrantSnapshot;
+  hasExpansion: boolean;
+  targetSnapshot: ModuleAppGrantSnapshot;
+};
+
+type ModuleAppVersionOption = {
+  grantChange?: VersionGrantChange;
+  id: string;
+  version: string;
+};
 
 type ModuleAppDetailData = {
   actions: unknown[];
@@ -27,8 +39,8 @@ type ModuleAppDetailData = {
   installed?: boolean;
   installedVersion?: { id: string; version: string };
   installationReadiness?: ModuleAppInstallationReadiness;
-  publishedVersion?: null | { id: string; version: string };
-  rollbackVersions?: Array<{ id: string; version: string }>;
+  publishedVersion?: ModuleAppVersionOption | null;
+  rollbackVersions?: ModuleAppVersionOption[];
   source?: string;
   updateAvailable?: boolean;
   version?: string;
@@ -92,6 +104,15 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorError};
 
     background: ${cssVar.colorErrorBg};
+  `,
+  grantList: css`
+    display: grid;
+    gap: 6px;
+
+    margin-block: 12px 0;
+    padding-inline-start: 20px;
+
+    overflow-wrap: anywhere;
   `,
   frame: css`
     display: flex;
@@ -357,14 +378,18 @@ const ModuleAppDetail = memo(() => {
       setInstallationLoading(false);
     }
   };
-  const performUninstall = async () => {
+  const performUninstall = async (dataPolicy: 'delete' | 'retain') => {
     setInstallationLoading(true);
     setUninstallError(false);
     try {
       if (workspaceId) {
-        await moduleAppService.uninstallWorkspace({ appId: detailData.id, workspaceId });
+        await moduleAppService.uninstallWorkspace({
+          appId: detailData.id,
+          dataPolicy,
+          workspaceId,
+        });
       } else {
-        await moduleAppService.uninstallPersonal({ appId: detailData.id });
+        await moduleAppService.uninstallPersonal({ appId: detailData.id, dataPolicy });
       }
       toast.success(t('moduleApps.market.uninstallSuccess'));
       await Promise.allSettled([detail.mutate(), refreshLicense()]);
@@ -374,18 +399,30 @@ const ModuleAppDetail = memo(() => {
       setInstallationLoading(false);
     }
   };
-  const uninstall = () => {
+  const uninstall = (dataPolicy: 'delete' | 'retain') => {
     setUninstallError(false);
     setVersionChangeError(false);
     confirmModal({
-      content: t('moduleApps.market.uninstallConfirmContent'),
+      content: t(
+        dataPolicy === 'delete'
+          ? 'moduleApps.market.uninstallDeleteConfirmContent'
+          : 'moduleApps.market.uninstallRetainConfirmContent',
+      ),
       okButtonProps: { danger: true },
-      okText: t('moduleApps.market.uninstall'),
-      onOk: performUninstall,
+      okText: t(
+        dataPolicy === 'delete'
+          ? 'moduleApps.market.uninstallDelete'
+          : 'moduleApps.market.uninstallRetain',
+      ),
+      onOk: () => performUninstall(dataPolicy),
       title: t('moduleApps.market.uninstallConfirmTitle', { name: detailData.displayName }),
     });
   };
-  const changeVersion = async (operation: 'rollback' | 'upgrade', targetVersionId?: string) => {
+  const performVersionChange = async (
+    operation: 'rollback' | 'upgrade',
+    targetVersionId?: string,
+    acceptedGrantSnapshot?: ModuleAppGrantSnapshot,
+  ) => {
     if (!detailData.installedVersion) return;
 
     setInstallationLoading(true);
@@ -394,6 +431,7 @@ const ModuleAppDetail = memo(() => {
     try {
       await moduleAppService.changeInstallationVersion({
         appId: detailData.id,
+        acceptedGrantSnapshot,
         expectedVersionId: detailData.installedVersion.id,
         operation,
         targetVersionId,
@@ -405,6 +443,44 @@ const ModuleAppDetail = memo(() => {
     } finally {
       setInstallationLoading(false);
     }
+  };
+  const changeVersion = (
+    operation: 'rollback' | 'upgrade',
+    version: ModuleAppVersionOption | null | undefined,
+  ) => {
+    if (!version) return;
+    const grantChange = version.grantChange;
+    if (!grantChange?.hasExpansion) {
+      void performVersionChange(operation, operation === 'rollback' ? version.id : undefined);
+      return;
+    }
+
+    const expandedGrants = Object.entries(grantChange.added).filter(
+      ([, items]) => items.length > 0,
+    );
+    confirmModal({
+      content: (
+        <div>
+          <p>{t('moduleApps.market.grantConfirmContent')}</p>
+          <ul className={styles.grantList}>
+            {expandedGrants.map(([dimension, items]) => (
+              <li key={dimension}>
+                <strong>{t(`moduleApps.market.grants.${dimension}` as any)}</strong>
+                {`: ${items.join(', ')}`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ),
+      okText: t('moduleApps.market.grantConfirmAction'),
+      onOk: () =>
+        performVersionChange(
+          operation,
+          operation === 'rollback' ? version.id : undefined,
+          grantChange.targetSnapshot,
+        ),
+      title: t('moduleApps.market.grantConfirmTitle', { version: version.version }),
+    });
   };
   const cancelOrder = async (orderId: string) => {
     await moduleAppService.cancelOrder({ orderId });
@@ -448,7 +524,7 @@ const ModuleAppDetail = memo(() => {
                 <Button
                   icon={<RefreshCw aria-hidden size={16} />}
                   loading={installationLoading}
-                  onClick={() => void changeVersion('upgrade')}
+                  onClick={() => changeVersion('upgrade', detailData.publishedVersion)}
                 >
                   {t('moduleApps.market.update')}
                 </Button>
@@ -461,7 +537,7 @@ const ModuleAppDetail = memo(() => {
                     icon: <RotateCcw aria-hidden size={16} />,
                     key: version.id,
                     label: t('moduleApps.market.rollbackTo', { version: version.version }),
-                    onClick: () => void changeVersion('rollback', version.id),
+                    onClick: () => changeVersion('rollback', version),
                   }))}
                 >
                   <Button disabled={installationLoading} icon={<RotateCcw aria-hidden size={16} />}>
@@ -471,12 +547,21 @@ const ModuleAppDetail = memo(() => {
               ) : null}
               {canManageInstallation ? (
                 <Button
+                  icon={<Archive aria-hidden size={16} />}
+                  loading={installationLoading}
+                  onClick={() => uninstall('retain')}
+                >
+                  {t('moduleApps.market.uninstallRetain')}
+                </Button>
+              ) : null}
+              {canManageInstallation ? (
+                <Button
                   danger
                   icon={<Trash2 aria-hidden size={16} />}
                   loading={installationLoading}
-                  onClick={uninstall}
+                  onClick={() => uninstall('delete')}
                 >
-                  {t('moduleApps.market.uninstall')}
+                  {t('moduleApps.market.uninstallDelete')}
                 </Button>
               ) : null}
             </>

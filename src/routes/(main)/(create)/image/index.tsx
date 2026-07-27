@@ -8,7 +8,7 @@ import ImageWorkspace from './features/ImageWorkspace';
 import PromptInput from './features/PromptInput';
 import { useImageReferenceUpload } from './features/PromptInput/useImageReferenceUpload';
 
-const DesktopImagePage = memo(() => {
+const ImagePage = memo<{ showHeader?: boolean }>(({ showHeader }) => {
   const { canDropImage, handleUploadFiles } = useImageReferenceUpload();
 
   return (
@@ -17,11 +17,15 @@ const DesktopImagePage = memo(() => {
       Workspace={ImageWorkspace}
       dragDisabled={!canDropImage}
       path="/image"
+      showHeader={showHeader}
       onUploadFiles={handleUploadFiles}
     />
   );
 });
 
-DesktopImagePage.displayName = 'DesktopImagePage';
+ImagePage.displayName = 'ImagePage';
 
-export default DesktopImagePage;
+export const MobileImagePage = memo(() => <ImagePage showHeader={false} />);
+MobileImagePage.displayName = 'MobileImagePage';
+
+export default ImagePage;

@@ -15,6 +15,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -541,6 +542,18 @@ export const appSettings = pgTable('app_settings', {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+export const appSettingRevisions = pgTable(
+  'app_setting_revisions',
+  {
+    section: varchar('section', { length: 64 }).primaryKey().notNull(),
+    revision: integer('revision').default(0).notNull(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [check('app_setting_revisions_nonnegative_check', sql`${table.revision} >= 0`)],
+);
+
+export type AppSettingRevisionItem = typeof appSettingRevisions.$inferSelect;
 
 export type NewAppSetting = typeof appSettings.$inferInsert;
 export type AppSettingItem = typeof appSettings.$inferSelect;

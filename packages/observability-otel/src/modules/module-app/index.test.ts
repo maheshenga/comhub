@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  recordModuleAppArtifactCleanup,
+  recordModuleAppInstallationLifecycle,
   recordModuleAppOperationalAge,
   recordModuleAppPaymentVerificationFailure,
   recordModuleAppPayoutState,
@@ -129,5 +131,29 @@ describe('module app observability', () => {
     expect(JSON.stringify(call)).not.toMatch(
       /build_id|package|version|worker|application|user|storage/i,
     );
+  });
+
+  it('records artifact cleanup and installation lifecycle with bounded dimensions', () => {
+    recordModuleAppArtifactCleanup({ failed: 1, released: 3.8, retrying: 2 });
+    recordModuleAppInstallationLifecycle({
+      changed: false,
+      operation: 'uninstall',
+      scope: 'workspace',
+    });
+
+    expect(instruments.get('module_app_artifact_cleanup_total')).toHaveBeenNthCalledWith(1, 3, {
+      outcome: 'released',
+    });
+    expect(instruments.get('module_app_artifact_cleanup_total')).toHaveBeenNthCalledWith(2, 2, {
+      outcome: 'retrying',
+    });
+    expect(instruments.get('module_app_artifact_cleanup_total')).toHaveBeenNthCalledWith(3, 1, {
+      outcome: 'failed',
+    });
+    expect(instruments.get('module_app_installation_lifecycle_total')).toHaveBeenCalledWith(1, {
+      operation: 'uninstall',
+      outcome: 'noop',
+      scope: 'workspace',
+    });
   });
 });

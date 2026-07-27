@@ -6,7 +6,6 @@ import { Alert } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useBlocker } from 'react-router';
 
 import {
   DEFAULT_MOBILE_CONFIG,
@@ -44,6 +43,7 @@ import {
   toFormConfig,
   validateFormConfig,
 } from './mobileSettingsHelpers';
+import { useUnsavedChangesGuard } from './shared/useUnsavedChangesGuard';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   actionRow: css`
@@ -244,32 +244,16 @@ const AdminMobileSettingsPage = memo(() => {
     });
   const canSave = canSaveReady && !saving;
   const canPublish = canPublishReady && !saving && !publishing;
-  const { proceed, reset, state: blockerState } = useBlocker(dirty);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const preventUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', preventUnload);
-    return () => window.removeEventListener('beforeunload', preventUnload);
-  }, [dirty]);
-
-  useEffect(() => {
-    if (blockerState !== 'blocked') return;
-    confirmModal({
-      cancelText: tr('admin.mobile.unsavedStay', 'Keep editing'),
-      content: tr(
-        'admin.mobile.unsavedChanges',
-        'You have unsaved mobile settings. Leave this page?',
-      ),
-      okText: tr('admin.mobile.unsavedLeave', 'Leave'),
-      onCancel: reset,
-      onOk: proceed,
-      title: tr('admin.mobile.unsavedTitle', 'Discard unsaved mobile settings?'),
-    });
-  }, [blockerState, proceed, reset, tr]);
+  useUnsavedChangesGuard({
+    cancelText: tr('admin.mobile.unsavedStay', 'Keep editing'),
+    confirmText: tr('admin.mobile.unsavedLeave', 'Leave'),
+    isDirty: dirty,
+    message: tr(
+      'admin.mobile.unsavedChanges',
+      'You have unsaved mobile settings. Leave this page?',
+    ),
+    title: tr('admin.mobile.unsavedTitle', 'Discard unsaved mobile settings?'),
+  });
 
   useEffect(() => {
     if (dirty) return;

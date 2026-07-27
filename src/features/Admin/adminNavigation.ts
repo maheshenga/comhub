@@ -25,6 +25,7 @@ export { ADMIN_BASE_PATH, type AdminNavGroupKey, type AdminNavIcon } from './adm
 export type AdminNavItem = {
   description: string;
   icon: AdminNavIcon;
+  id: string;
   label: string;
   path: string;
   status: AdminFeatureStatus;
@@ -48,6 +49,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = ADMIN_CATALOG_GROUPS.map((group
   ).map((item) => ({
     description: item.description,
     icon: item.icon,
+    id: item.id,
     label: item.label,
     path: item.path,
     status: item.status,
@@ -63,6 +65,7 @@ const ADMIN_ROLE_DEFAULT_PATHS: Record<AdminRole, string> = {
   content_admin: `${ADMIN_BASE_PATH}/content-resources`,
   finance_admin: `${ADMIN_BASE_PATH}/subscriptions`,
   model_ops: `${ADMIN_BASE_PATH}/providers`,
+  module_admin: `${ADMIN_BASE_PATH}/modules`,
   support_admin: `${ADMIN_BASE_PATH}/users`,
   system_admin: `${ADMIN_BASE_PATH}/settings`,
 };

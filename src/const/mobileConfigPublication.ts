@@ -28,7 +28,7 @@ const normalizeUpdatedAt = (value: unknown, fallback: string) => {
   return new Date(value).toISOString();
 };
 
-const normalizeSnapshot = (
+export const normalizeMobileConfigRevisionSnapshot = (
   value: unknown,
   fallback: MobileConfigRevisionSnapshot,
 ): MobileConfigRevisionSnapshot => {
@@ -48,7 +48,7 @@ const normalizeHistory = (
   const byRevision = new Map<number, MobileConfigRevisionSnapshot>();
 
   for (const item of [published, ...source]) {
-    const snapshot = normalizeSnapshot(item, published);
+    const snapshot = normalizeMobileConfigRevisionSnapshot(item, published);
     if (!byRevision.has(snapshot.revision)) byRevision.set(snapshot.revision, snapshot);
   }
 
@@ -77,8 +77,8 @@ export const normalizeMobileConfigPublication = (
 ): MobileConfigPublicationState => {
   const fallback = createMobileConfigPublication(legacyConfig, updatedAt);
   const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const published = normalizeSnapshot(raw.published, fallback.published);
-  const draft = normalizeSnapshot(raw.draft, published);
+  const published = normalizeMobileConfigRevisionSnapshot(raw.published, fallback.published);
+  const draft = normalizeMobileConfigRevisionSnapshot(raw.draft, published);
 
   return {
     draft,

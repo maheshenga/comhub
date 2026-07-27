@@ -470,6 +470,7 @@ describe('AdminMobileSettingsPage', () => {
           brand: expect.objectContaining({ displayName: 'ComHub App' }),
           version: 1,
         }),
+        0,
       );
     });
     expect(await screen.findByText('Mobile draft saved.')).toBeInTheDocument();

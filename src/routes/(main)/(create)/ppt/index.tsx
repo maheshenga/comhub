@@ -11,4 +11,6 @@ const PptPage = () => (
   </>
 );
 
+export const MobilePptPage = () => <PptWorkspace />;
+
 export default PptPage;

@@ -25,7 +25,12 @@ import { ModuleAppPayoutModel } from '@/database/models/moduleAppPayout';
 import { ModuleAppPublisherModel } from '@/database/models/moduleAppPublisher';
 import type { LobeChatDatabase, Transaction } from '@/database/type';
 import { appEnv } from '@/envs/app';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminAnyCapabilityProcedure,
+  adminCapabilityProcedure,
+  router,
+} from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
@@ -41,11 +46,18 @@ import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../mod
 import { runRequiredAdminAuditExternalEffect } from './audit';
 import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
-const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 const moduleAppReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppRead);
 const moduleAppWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppWrite);
+const publisherReadProcedure = adminAnyCapabilityProcedure([
+  ADMIN_CAPABILITIES.moduleAppRead,
+  ADMIN_CAPABILITIES.financeRead,
+]);
+const moduleAuditReadProcedure = adminAnyCapabilityProcedure([
+  ADMIN_CAPABILITIES.moduleAppRead,
+  ADMIN_CAPABILITIES.financeRead,
+]);
 
 const assertPayoutRecordingEnabled = () =>
   assertModuleAppMutationEnabled(
@@ -537,7 +549,7 @@ export const adminModuleAppsRouter = router({
       return new ModuleAppAdminReadModel(ctx.serverDB).listPaymentDiagnostics(input);
     }),
 
-  listPublishers: financeReadProcedure
+  listPublishers: publisherReadProcedure
     .input(ListPublishersInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPublishers(input);
@@ -767,11 +779,13 @@ export const adminModuleAppsRouter = router({
       return new ModuleAppAdminReadModel(ctx.serverDB).listArtifacts(input);
     }),
 
-  listAuditEvents: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  listAuditEvents: moduleAuditReadProcedure
+    .input(ListByAppInputSchema)
+    .query(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppAdminReadModel(ctx.serverDB).listAuditEvents(input);
-  }),
+      return new ModuleAppAdminReadModel(ctx.serverDB).listAuditEvents(input);
+    }),
 
   listPackages: moduleAppReadProcedure
     .input(ListPackagesInputSchema)

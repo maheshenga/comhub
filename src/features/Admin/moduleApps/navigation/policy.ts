@@ -25,6 +25,9 @@ export type ModuleAdminRoutePolicy = {
 
 const MODULE_APP_READ_POLICY = { allOf: [ADMIN_CAPABILITIES.moduleAppRead] } as const;
 const FINANCE_READ_POLICY = { allOf: [ADMIN_CAPABILITIES.financeRead] } as const;
+const PUBLISHER_READ_POLICY = {
+  anyOf: [ADMIN_CAPABILITIES.moduleAppRead, ADMIN_CAPABILITIES.financeRead],
+} as const;
 
 export const MODULE_ADMIN_ROUTE_POLICIES = {
   'module-center-layout': {
@@ -60,7 +63,7 @@ export const MODULE_ADMIN_ROUTE_POLICIES = {
     write: { allOf: [ADMIN_CAPABILITIES.moduleAppWrite] },
   },
   'module-publishers': {
-    access: FINANCE_READ_POLICY,
+    access: PUBLISHER_READ_POLICY,
     write: { allOf: [ADMIN_CAPABILITIES.moduleAppWrite] },
   },
   'module-finance': { access: FINANCE_READ_POLICY },
@@ -82,10 +85,7 @@ export const MODULE_ADMIN_ROUTE_POLICIES = {
   'module-runs': { access: MODULE_APP_READ_POLICY },
   'module-artifacts': { access: MODULE_APP_READ_POLICY },
   'module-audit': {
-    access: {
-      allOf: [ADMIN_CAPABILITIES.auditRead],
-      anyOf: [ADMIN_CAPABILITIES.moduleAppRead, ADMIN_CAPABILITIES.financeRead],
-    },
+    access: { anyOf: [ADMIN_CAPABILITIES.moduleAppRead, ADMIN_CAPABILITIES.financeRead] },
   },
 } as const satisfies Record<ModuleAdminRouteId, ModuleAdminRoutePolicy>;
 

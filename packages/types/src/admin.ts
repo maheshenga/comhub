@@ -50,6 +50,7 @@ export const ADMIN_ROLE_IDS = [
   'content_admin',
   'finance_admin',
   'model_ops',
+  'module_admin',
   'support_admin',
   'system_admin',
 ] as const;
@@ -74,6 +75,7 @@ export const ADMIN_ROLE_CAPABILITIES: Record<AdminRole, AdminRoleCapabilitySet> 
     ADMIN_CAPABILITIES.modelOpsWrite,
     ADMIN_CAPABILITIES.auditRead,
   ],
+  module_admin: [ADMIN_CAPABILITIES.moduleAppRead, ADMIN_CAPABILITIES.moduleAppWrite],
   support_admin: [
     ADMIN_CAPABILITIES.supportWrite,
     ADMIN_CAPABILITIES.userRead,

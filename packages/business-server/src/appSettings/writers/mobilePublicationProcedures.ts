@@ -18,7 +18,10 @@ import { systemWriteProcedure } from '../procedureShared';
 import { loadMobileConfigPublication } from '../readers/mobilePublicationProcedures';
 
 const MOBILE_CONFIG_PUBLICATION_LOCK_ID = 6_722_826_532;
-const configInputSchema = z.object({ config: z.unknown() });
+const configInputSchema = z.object({
+  config: z.unknown(),
+  expectedDraftRevision: z.number().int().nonnegative(),
+});
 const expectedRevisionSchema = z.object({ expectedRevision: z.number().int().nonnegative() });
 const expectedPublicationSchema = expectedRevisionSchema.extend({
   expectedDraftRevision: z.number().int().nonnegative(),
@@ -114,22 +117,29 @@ export const mobilePublicationWriteProcedures = {
   saveMobileConfigDraft: systemWriteProcedure
     .input(configInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const state = await runRequiredAdminAuditMutation<MobileConfigPublicationState>(ctx, {
-        audit: (result) => ({
-          action: 'settings.mobile.saveDraft',
-          payload: { draftRevision: result.draft.revision },
-          resourceId: APP_SETTING_KEYS.mobileConfigPublication,
-          resourceType: 'app_setting',
-        }),
-        mutation: async (tx) => {
-          await lockPublication(tx);
-          const current = await loadMobileConfigPublication(tx);
-          const next = saveMobileConfigDraft(current, input.config);
-          await upsertSetting(tx, APP_SETTING_KEYS.mobileConfigPublication, next);
-          return next;
-        },
-      });
-      await invalidateServerAppSettings();
-      return state;
+      try {
+        const state = await runRequiredAdminAuditMutation<MobileConfigPublicationState>(ctx, {
+          audit: (result) => ({
+            action: 'settings.mobile.saveDraft',
+            payload: { draftRevision: result.draft.revision },
+            resourceId: APP_SETTING_KEYS.mobileConfigPublication,
+            resourceType: 'app_setting',
+          }),
+          mutation: async (tx) => {
+            await lockPublication(tx);
+            const current = await loadMobileConfigPublication(tx);
+            if (current.draft.revision !== input.expectedDraftRevision) {
+              throw new Error('MOBILE_CONFIG_REVISION_CONFLICT');
+            }
+            const next = saveMobileConfigDraft(current, input.config);
+            await upsertSetting(tx, APP_SETTING_KEYS.mobileConfigPublication, next);
+            return next;
+          },
+        });
+        await invalidateServerAppSettings();
+        return state;
+      } catch (error) {
+        return mapPublicationError(error);
+      }
     }),
 } as const;

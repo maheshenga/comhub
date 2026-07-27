@@ -3,6 +3,7 @@ import type {
   ModuleAppBillingConfig,
   ModuleAppBuildProfile,
   ModuleAppBuildStatus,
+  ModuleAppGrantSnapshot,
   ModuleAppInputSchema,
   ModuleAppPackageArchiveMetadata,
   ModuleAppPackageFileManifestItem,
@@ -149,7 +150,15 @@ export const moduleAppVersions = pgTable(
       .notNull(),
     createdAt: createdAt(),
   },
-  (table) => [index('module_app_versions_app_id_version_idx').on(table.appId, table.version)],
+  (table) => [
+    uniqueIndex('module_app_versions_id_app_id_unique').on(table.id, table.appId),
+    uniqueIndex('module_app_versions_app_id_published_version_unique')
+      .on(table.appId, table.version)
+      .where(sql`${table.publishedAt} IS NOT NULL`),
+    uniqueIndex('module_app_versions_one_draft_per_app_unique')
+      .on(table.appId)
+      .where(sql`${table.publishedAt} IS NULL`),
+  ],
 );
 
 export type NewModuleAppVersion = typeof moduleAppVersions.$inferInsert;
@@ -162,9 +171,7 @@ export const moduleAppPages = pgTable(
     appId: uuid('app_id')
       .references(() => moduleApps.id, { onDelete: 'cascade' })
       .notNull(),
-    versionId: uuid('version_id')
-      .references(() => moduleAppVersions.id, { onDelete: 'cascade' })
-      .notNull(),
+    versionId: uuid('version_id').notNull(),
     pageKey: text('page_key').notNull(),
     title: text('title').notNull(),
     pageType: text('page_type').notNull(),
@@ -188,6 +195,12 @@ export const moduleAppPages = pgTable(
       table.versionId,
       table.sortOrder,
     ),
+    uniqueIndex('module_app_pages_version_id_page_key_unique').on(table.versionId, table.pageKey),
+    foreignKey({
+      columns: [table.versionId, table.appId],
+      foreignColumns: [moduleAppVersions.id, moduleAppVersions.appId],
+      name: 'module_app_pages_version_app_fk',
+    }).onDelete('cascade'),
   ],
 );
 
@@ -201,9 +214,7 @@ export const moduleAppActions = pgTable(
     appId: uuid('app_id')
       .references(() => moduleApps.id, { onDelete: 'cascade' })
       .notNull(),
-    versionId: uuid('version_id')
-      .references(() => moduleAppVersions.id, { onDelete: 'cascade' })
-      .notNull(),
+    versionId: uuid('version_id').notNull(),
     actionKey: text('action_key').notNull(),
     runtimeType: text('runtime_type').$type<ModuleAppActionConfig['runtimeType']>().notNull(),
     name: text('name').notNull(),
@@ -225,6 +236,15 @@ export const moduleAppActions = pgTable(
       table.versionId,
       table.actionKey,
     ),
+    uniqueIndex('module_app_actions_version_id_action_key_unique').on(
+      table.versionId,
+      table.actionKey,
+    ),
+    foreignKey({
+      columns: [table.versionId, table.appId],
+      foreignColumns: [moduleAppVersions.id, moduleAppVersions.appId],
+      name: 'module_app_actions_version_app_fk',
+    }).onDelete('cascade'),
   ],
 );
 
@@ -269,8 +289,20 @@ export const moduleAppInstallations = pgTable(
       onDelete: 'cascade',
     }),
     status: text('status').default('installed').notNull(),
+    grantSnapshot: jsonb('grant_snapshot')
+      .$type<ModuleAppGrantSnapshot>()
+      .default({
+        functionKeys: [],
+        outboundHosts: [],
+        permissions: [],
+        secretKeys: [],
+        tableKeys: [],
+        workflowKeys: [],
+      })
+      .notNull(),
     installedAt: timestamptz('installed_at').defaultNow().notNull(),
     uninstalledAt: timestamptz('uninstalled_at'),
+    dataPurgedAt: timestamptz('data_purged_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -558,6 +590,40 @@ export const moduleAppArtifacts = pgTable(
 
 export type NewModuleAppArtifact = typeof moduleAppArtifacts.$inferInsert;
 export type ModuleAppArtifactItem = typeof moduleAppArtifacts.$inferSelect;
+
+export const moduleAppArtifactCleanupJobs = pgTable(
+  'module_app_artifact_cleanup_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    appId: uuid('app_id').notNull(),
+    installationId: uuid('installation_id'),
+    artifactId: uuid('artifact_id').notNull(),
+    storageKey: text('storage_key').notNull(),
+    status: text('status')
+      .$type<'failed' | 'pending' | 'processing' | 'released'>()
+      .default('pending')
+      .notNull(),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    lastError: text('last_error'),
+    claimedAt: timestamptz('claimed_at'),
+    releasedAt: timestamptz('released_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_artifact_cleanup_jobs_storage_key_unique').on(table.storageKey),
+    index('module_app_artifact_cleanup_jobs_status_updated_idx').on(table.status, table.updatedAt),
+    index('module_app_artifact_cleanup_jobs_installation_idx').on(table.installationId),
+    check(
+      'module_app_artifact_cleanup_jobs_status_check',
+      sql`${table.status} IN ('pending', 'processing', 'released', 'failed')`,
+    ),
+    check('module_app_artifact_cleanup_jobs_attempt_count_check', sql`${table.attemptCount} >= 0`),
+  ],
+);
+
+export type NewModuleAppArtifactCleanupJob = typeof moduleAppArtifactCleanupJobs.$inferInsert;
+export type ModuleAppArtifactCleanupJobItem = typeof moduleAppArtifactCleanupJobs.$inferSelect;
 
 export const moduleAppPackages = pgTable(
   'module_app_packages',

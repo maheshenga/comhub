@@ -502,6 +502,23 @@ describe('admin module apps router', () => {
     });
   });
 
+  it('allows module admins to govern publishers without finance access', async () => {
+    authState.role = 'module_admin';
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.listAuditEvents({ appId: APP_ID, limit: 20 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(caller.moduleApps.listPublishers({ limit: 20 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(caller.moduleApps.listPaymentDiagnostics({})).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
   it('writes an audit log when upserting a module app', async () => {
     const caller = createCaller();
 

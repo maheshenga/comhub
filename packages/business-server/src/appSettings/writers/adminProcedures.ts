@@ -1,8 +1,16 @@
+import { randomUUID } from 'node:crypto';
+
 import { TRPCError } from '@trpc/server';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { appSettings, users, userSettings } from '@/database/schemas';
+import {
+  APP_SETTINGS_SECTIONS,
+  type AppSettingKey,
+  type AppSettingsSection,
+  getAppSettingsSectionForKey,
+} from '@/const/appSettingsRegistry';
+import { appSettingRevisions, appSettings, users, userSettings } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
 import { invalidateFileS3RuntimeCache } from '@/server/modules/S3';
 import { invalidateServerAppSettings } from '@/server/services/appSettings';
@@ -68,6 +76,10 @@ const appSettingUpdateInputSchema = z.object({
   key: z.enum(GENERIC_WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
   value: z.unknown(),
 });
+const expectedSettingRevisionsSchema = z.partialRecord(
+  z.enum(APP_SETTINGS_SECTIONS),
+  z.number().int().nonnegative(),
+);
 const syncUserGlobalSettingsDefaultsInputSchema = z
   .object({
     forceDefaultAgentMeta: z.boolean().optional(),
@@ -284,6 +296,79 @@ const upsertAppSetting = async (
       target: appSettings.key,
     });
 };
+const getUpdateSections = (updates: NormalizedSettingUpdate[]) =>
+  [
+    ...new Set(updates.map((update) => getAppSettingsSectionForKey(update.key as AppSettingKey))),
+  ].sort() as AppSettingsSection[];
+
+const lockSettingRevisions = async (
+  tx: Transaction,
+  sections: AppSettingsSection[],
+  expectedRevisions: Partial<Record<AppSettingsSection, number>>,
+  correlationId: string,
+) => {
+  if (sections.length === 0) {
+    return new Map<AppSettingsSection, number>();
+  }
+
+  await tx
+    .insert(appSettingRevisions)
+    .values(sections.map((section) => ({ revision: 0, section })))
+    .onConflictDoNothing({ target: appSettingRevisions.section });
+  const rows = await tx
+    .select()
+    .from(appSettingRevisions)
+    .where(inArray(appSettingRevisions.section, sections))
+    .orderBy(appSettingRevisions.section)
+    .for('update');
+  const revisions = new Map(
+    rows.map((row) => [row.section as AppSettingsSection, row.revision] as const),
+  );
+
+  for (const section of sections) {
+    const expected = expectedRevisions[section];
+    if (expected === undefined) {
+      throw new TRPCError({
+        cause: { data: { correlationId } },
+        code: 'BAD_REQUEST',
+        message: 'APP_SETTINGS_REVISION_REQUIRED',
+      });
+    }
+    if (revisions.get(section) !== expected) {
+      throw new TRPCError({
+        cause: { data: { correlationId } },
+        code: 'CONFLICT',
+        message: 'APP_SETTINGS_REVISION_CONFLICT',
+      });
+    }
+  }
+
+  return revisions;
+};
+
+const advanceSettingRevisions = async (
+  tx: Transaction,
+  revisions: Map<AppSettingsSection, number>,
+) => {
+  const nextRevisions: Partial<Record<AppSettingsSection, number>> = {};
+
+  for (const [section, revision] of revisions) {
+    const nextRevision = revision + 1;
+    const [updated] = await tx
+      .update(appSettingRevisions)
+      .set({ revision: nextRevision, updatedAt: new Date() })
+      .where(
+        and(eq(appSettingRevisions.section, section), eq(appSettingRevisions.revision, revision)),
+      )
+      .returning({ revision: appSettingRevisions.revision });
+    if (!updated) {
+      throw new TRPCError({ code: 'CONFLICT', message: 'APP_SETTINGS_REVISION_CONFLICT' });
+    }
+    nextRevisions[section] = updated.revision;
+  }
+
+  return nextRevisions;
+};
 export const syncUserGlobalSettingsDefaultsToUserSettings = async (
   db: LobeChatDatabase,
   defaults: unknown,
@@ -474,41 +559,62 @@ export const adminSettingsWriteProcedures = {
       return { deleted: deleted.length > 0, key: input.key };
     }),
   setAppSetting: systemWriteProcedure
-    .input(appSettingUpdateInputSchema)
+    .input(
+      appSettingUpdateInputSchema.extend({ expectedRevisions: expectedSettingRevisionsSchema }),
+    )
     .mutation(async ({ ctx, input }) => {
+      const correlationId = randomUUID();
       const update = await normalizeAppSettingUpdate(ctx.serverDB, input);
-      if (!update.shouldWrite) return { ok: true };
+      if (!update.shouldWrite) return { ok: true, revisions: input.expectedRevisions };
 
       await validateDefaultModelUpdates(ctx.serverDB, [update]);
-      await runRequiredAdminAuditMutation(ctx, {
+      const revisions = await runRequiredAdminAuditMutation(ctx, {
         audit: () => ({
           action: setAppSettingCommand.definition.auditAction,
           payload: buildSingleSettingAuditPayload(update),
           resourceId: input.key,
           resourceType: 'app_setting',
         }),
-        mutation: async (tx) => upsertAppSetting(tx, update),
+        mutation: async (tx) => {
+          const lockedRevisions = await lockSettingRevisions(
+            tx,
+            getUpdateSections([update]),
+            input.expectedRevisions,
+            correlationId,
+          );
+          await upsertAppSetting(tx, update);
+          return advanceSettingRevisions(tx, lockedRevisions);
+        },
+        correlationId,
       });
 
       await invalidateAppSettingsCaches([update]);
 
-      return { ok: true };
+      return { ok: true, revisions };
     }),
   setAppSettingsBatch: systemWriteProcedure
     .input(
       z.object({
+        expectedRevisions: expectedSettingRevisionsSchema,
         updates: z.array(appSettingUpdateInputSchema).min(1).max(100),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const correlationId = randomUUID();
       const normalizedUpdates = await Promise.all(
         input.updates.map((update) => normalizeAppSettingUpdate(ctx.serverDB, update)),
       );
       const updates = normalizedUpdates.filter((update) => update.shouldWrite);
-      if (updates.length === 0) return { count: input.updates.length, ok: true };
+      if (updates.length === 0) {
+        return {
+          count: input.updates.length,
+          ok: true,
+          revisions: input.expectedRevisions,
+        };
+      }
 
       await validateDefaultModelUpdates(ctx.serverDB, updates);
-      await runRequiredAdminAuditMutation(ctx, {
+      const revisions = await runRequiredAdminAuditMutation(ctx, {
         audit: () => ({
           action: 'settings.batchSet',
           payload: {
@@ -518,15 +624,23 @@ export const adminSettingsWriteProcedures = {
           resourceType: 'app_setting',
         }),
         mutation: async (tx) => {
+          const lockedRevisions = await lockSettingRevisions(
+            tx,
+            getUpdateSections(updates),
+            input.expectedRevisions,
+            correlationId,
+          );
           for (const update of updates) {
             await upsertAppSetting(tx, update);
           }
+          return advanceSettingRevisions(tx, lockedRevisions);
         },
+        correlationId,
       });
 
       await invalidateAppSettingsCaches(updates);
 
-      return { count: input.updates.length, ok: true };
+      return { count: input.updates.length, ok: true, revisions };
     }),
   syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure
     .input(syncUserGlobalSettingsDefaultsInputSchema)

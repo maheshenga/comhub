@@ -16,6 +16,7 @@ describe('shared admin roles', () => {
       'content_admin',
       'finance_admin',
       'model_ops',
+      'module_admin',
       'support_admin',
       'system_admin',
     ]);
@@ -70,13 +71,14 @@ describe('shared admin roles', () => {
         ADMIN_CAPABILITIES.modelOpsWrite,
       ]),
     );
-    expect(getAdminRoleCapabilities('support_admin')).toEqual(
-      [
-        ADMIN_CAPABILITIES.supportWrite,
-        ADMIN_CAPABILITIES.userRead,
-        ADMIN_CAPABILITIES.auditRead,
-      ],
+    expect(getAdminRoleCapabilities('module_admin')).toEqual(
+      expect.arrayContaining([ADMIN_CAPABILITIES.moduleAppRead, ADMIN_CAPABILITIES.moduleAppWrite]),
     );
+    expect(getAdminRoleCapabilities('support_admin')).toEqual([
+      ADMIN_CAPABILITIES.supportWrite,
+      ADMIN_CAPABILITIES.userRead,
+      ADMIN_CAPABILITIES.auditRead,
+    ]);
     expect(getAdminRoleCapabilities('system_admin')).toEqual(
       expect.arrayContaining([
         ADMIN_CAPABILITIES.auditRead,
@@ -93,9 +95,15 @@ describe('shared admin roles', () => {
     expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.moduleAppRead)).toBe(false);
     expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.moduleAppWrite)).toBe(false);
 
-    for (const role of ADMIN_ROLE_IDS.filter((role) => role !== 'admin')) {
+    for (const role of ADMIN_ROLE_IDS.filter(
+      (role) => role !== 'admin' && role !== 'module_admin',
+    )) {
       expect(hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppRead)).toBe(false);
       expect(hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppWrite)).toBe(false);
     }
+    expect(hasAdminCapability('module_admin', ADMIN_CAPABILITIES.moduleAppRead)).toBe(true);
+    expect(hasAdminCapability('module_admin', ADMIN_CAPABILITIES.moduleAppWrite)).toBe(true);
+    expect(hasAdminCapability('module_admin', ADMIN_CAPABILITIES.auditRead)).toBe(false);
+    expect(hasAdminCapability('module_admin', ADMIN_CAPABILITIES.financeRead)).toBe(false);
   });
 });

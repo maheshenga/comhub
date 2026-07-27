@@ -6,6 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppDetail, { submitModuleAppPaymentForm } from './AppDetail';
 
+const emptyGrantSnapshot = {
+  functionKeys: [],
+  outboundHosts: [],
+  permissions: [],
+  secretKeys: [],
+  tableKeys: [],
+  workflowKeys: [],
+};
+
 const commerceState = vi.hoisted(() => ({
   canManageInstallation: true,
   canManageSecrets: true,
@@ -24,7 +33,8 @@ const commerceState = vi.hoisted(() => ({
   licenseLoading: false,
   licenseMutate: vi.fn(),
   orderStatus: 'pending',
-  rollbackVersions: [] as Array<{ id: string; version: string }>,
+  publishedGrantChange: undefined as any,
+  rollbackVersions: [] as Array<{ grantChange?: any; id: string; version: string }>,
   secretKeys: [] as string[],
   updateAvailable: false,
 }));
@@ -89,6 +99,13 @@ vi.mock('swr', () => ({
                 : undefined,
               installationReadiness: commerceState.installed
                 ? commerceState.installationReadiness
+                : undefined,
+              publishedVersion: commerceState.updateAvailable
+                ? {
+                    grantChange: commerceState.publishedGrantChange,
+                    id: 'version-2',
+                    version: '2.0.0',
+                  }
                 : undefined,
               rollbackVersions: commerceState.rollbackVersions,
               source: 'developer',
@@ -210,6 +227,7 @@ describe('ModuleAppDetail', () => {
     };
     commerceState.licenseMutate.mockReset();
     commerceState.orderStatus = 'pending';
+    commerceState.publishedGrantChange = undefined;
     commerceState.rollbackVersions = [];
     commerceState.secretKeys = [];
     commerceState.updateAvailable = false;
@@ -248,10 +266,10 @@ describe('ModuleAppDetail', () => {
     renderDetail('/apps/app-1?workspaceId=workspace-1');
 
     const open = screen.getByRole('link', { name: 'moduleApps.market.open' });
-    const uninstall = screen.getByRole('button', { name: 'moduleApps.market.uninstall' });
+    const uninstall = screen.getByRole('button', { name: 'moduleApps.market.uninstallRetain' });
     expect(open).toHaveAttribute('data-button-type', 'primary');
     expect(open.compareDocumentPosition(uninstall) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByTestId('module-app-detail-actions').children).toHaveLength(2);
+    expect(screen.getByTestId('module-app-detail-actions').children).toHaveLength(3);
   });
 
   it('keeps the app openable while guiding managers to configure missing credentials', () => {
@@ -289,14 +307,14 @@ describe('ModuleAppDetail', () => {
     commerceState.installed = true;
     renderDetail('/apps/app-1?workspaceId=workspace-1');
 
-    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.uninstall' }));
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.uninstallRetain' }));
 
     expect(moduleAppServiceMocks.uninstallWorkspace).not.toHaveBeenCalled();
     expect(baseUiMocks.confirmModal).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: 'moduleApps.market.uninstallConfirmContent',
+        content: 'moduleApps.market.uninstallRetainConfirmContent',
         okButtonProps: { danger: true },
-        okText: 'moduleApps.market.uninstall',
+        okText: 'moduleApps.market.uninstallRetain',
         title: 'moduleApps.market.uninstallConfirmTitle',
       }),
     );
@@ -305,6 +323,7 @@ describe('ModuleAppDetail', () => {
 
     expect(moduleAppServiceMocks.uninstallWorkspace).toHaveBeenCalledWith({
       appId: 'app-1',
+      dataPolicy: 'retain',
       workspaceId: 'workspace-1',
     });
     expect(commerceState.detailMutate).toHaveBeenCalled();
@@ -317,7 +336,7 @@ describe('ModuleAppDetail', () => {
     moduleAppServiceMocks.uninstallPersonal.mockRejectedValueOnce(new Error('offline'));
     renderDetail();
 
-    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.uninstall' }));
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.uninstallDelete' }));
     await baseUiMocks.confirmModal.mock.calls[0][0].onOk();
 
     await waitFor(() =>
@@ -336,6 +355,7 @@ describe('ModuleAppDetail', () => {
 
     await waitFor(() =>
       expect(moduleAppServiceMocks.changeInstallationVersion).toHaveBeenCalledWith({
+        acceptedGrantSnapshot: undefined,
         appId: 'app-1',
         expectedVersionId: 'version-1',
         operation: 'upgrade',
@@ -344,6 +364,42 @@ describe('ModuleAppDetail', () => {
       }),
     );
     expect(screen.getByRole('button', { name: 'moduleApps.market.rollback' })).toBeInTheDocument();
+  });
+
+  it('requires explicit confirmation when an update expands installation grants', async () => {
+    commerceState.installed = true;
+    commerceState.updateAvailable = true;
+    commerceState.publishedGrantChange = {
+      added: {
+        ...emptyGrantSnapshot,
+        outboundHosts: ['api.example.com'],
+        permissions: ['records.write'],
+      },
+      hasExpansion: true,
+      targetSnapshot: {
+        ...emptyGrantSnapshot,
+        outboundHosts: ['api.example.com'],
+        permissions: ['records.write'],
+      },
+    };
+    renderDetail();
+
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.update' }));
+    expect(moduleAppServiceMocks.changeInstallationVersion).not.toHaveBeenCalled();
+    expect(baseUiMocks.confirmModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        okText: 'moduleApps.market.grantConfirmAction',
+        title: 'moduleApps.market.grantConfirmTitle',
+      }),
+    );
+
+    await baseUiMocks.confirmModal.mock.calls[0][0].onOk();
+    expect(moduleAppServiceMocks.changeInstallationVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        acceptedGrantSnapshot: commerceState.publishedGrantChange.targetSnapshot,
+        operation: 'upgrade',
+      }),
+    );
   });
 
   it('keeps workspace installation management read-only for regular members', () => {
@@ -361,7 +417,10 @@ describe('ModuleAppDetail', () => {
       screen.queryByRole('button', { name: 'moduleApps.market.rollback' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'moduleApps.market.uninstall' }),
+      screen.queryByRole('button', { name: 'moduleApps.market.uninstallRetain' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'moduleApps.market.uninstallDelete' }),
     ).not.toBeInTheDocument();
   });
 

@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { DESKTOP_DEFAULT_BUSINESS_SERVER_URL } from '../adminDesktopUpdateSettings';
+import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
 import {
   buildBrandUpdates,
   type DesktopSettingsValues,
@@ -28,6 +29,7 @@ interface BrandPageProps {
 const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<DesktopSettingsValues>();
+  const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const initialValues = useMemo(() => getDesktopSettingsValues(settings.data), [settings.data]);
   const { dirtyFields, markEdited, markSaved } = useDesktopSettingsFormSync(
@@ -46,12 +48,16 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
         return;
       }
       setSubmitting(true);
+      setSaveError(undefined);
       await adminCommercialService.setAppSettingsBatch({ updates });
       markSaved();
       message.success(t('admin.desktopUpdate.saveSuccess'));
     } catch (error) {
       if (!isDesktopFormValidationError(error)) {
-        message.error(t('admin.desktopUpdate.saveFailed'));
+        setSaveError(error);
+        if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
+          message.error(t('admin.desktopUpdate.saveFailed'));
+        }
       }
     } finally {
       setSubmitting(false);
@@ -79,6 +85,13 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
       <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
         {t('admin.desktopControl.tabs.brand')}
       </Typography.Title>
+      <AdminSettingsConflictAlert
+        error={saveError}
+        onReload={async () => {
+          await settings.mutate();
+          setSaveError(undefined);
+        }}
+      />
       <Alert
         showIcon
         description={<Typography.Text code>{DESKTOP_DEFAULT_BUSINESS_SERVER_URL}</Typography.Text>}

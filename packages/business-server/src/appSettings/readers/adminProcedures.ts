@@ -12,6 +12,15 @@ import { SETTING_KEYS, toString, validateDefaultAgentModelUsability } from '../p
 
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 
+const getSettingsRevisions = async (db: Parameters<typeof loadAllAppSettingsSnapshot>[0]) => {
+  const rows = await db.query.appSettingRevisions.findMany();
+  const persisted = new Map(rows.map((row) => [row.section, row.revision]));
+
+  return Object.fromEntries(
+    APP_SETTINGS_SECTIONS.map((section) => [section, persisted.get(section) ?? 0]),
+  );
+};
+
 export const adminSettingsReadProcedures = {
   getGovernance: systemReadProcedure.query(async ({ ctx }) => {
     const rows = await ctx.serverDB.query.appSettings.findMany({
@@ -32,26 +41,36 @@ export const adminSettingsReadProcedures = {
         input.section === 'model-policy' ||
         input.section === 'system-defaults' ||
         input.section === 'user-defaults';
-      const [snapshot, enabledModels] = await Promise.all([
+      const [snapshot, enabledModels, revisionRow] = await Promise.all([
         loadAppSettingsSectionSnapshot(ctx.serverDB, input.section),
         needsEnabledModels ? getAllEnabledModels(ctx.serverDB) : Promise.resolve([]),
+        ctx.serverDB.query.appSettingRevisions.findFirst({
+          where: (rows, { eq }) => eq(rows.section, input.section),
+        }),
       ]);
 
-      return buildAdminSettingsSectionReadModel(input.section, snapshot, {
-        defaultAgentConfig: getServerDefaultAgentConfig(),
-        enabledModels,
-      });
+      return {
+        ...buildAdminSettingsSectionReadModel(input.section, snapshot, {
+          defaultAgentConfig: getServerDefaultAgentConfig(),
+          enabledModels,
+        }),
+        __revision: revisionRow?.revision ?? 0,
+      };
     }),
   getAll: systemReadProcedure.query(async ({ ctx }) => {
-    const [snapshot, enabledModels] = await Promise.all([
+    const [snapshot, enabledModels, revisions] = await Promise.all([
       loadAllAppSettingsSnapshot(ctx.serverDB),
       getAllEnabledModels(ctx.serverDB),
+      getSettingsRevisions(ctx.serverDB),
     ]);
 
-    return buildAdminSettingsReadModel(snapshot, {
-      defaultAgentConfig: getServerDefaultAgentConfig(),
-      enabledModels,
-    });
+    return {
+      ...buildAdminSettingsReadModel(snapshot, {
+        defaultAgentConfig: getServerDefaultAgentConfig(),
+        enabledModels,
+      }),
+      __revisions: revisions,
+    };
   }),
   validateDefaultAgentSettings: systemReadProcedure
     .input(

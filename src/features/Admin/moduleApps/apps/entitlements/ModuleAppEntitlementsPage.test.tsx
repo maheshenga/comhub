@@ -78,7 +78,7 @@ vi.mock('@lobechat/types', async (importOriginal) => ({
   ...(await importOriginal()),
   hasAdminCapability: () => roleState.canWrite,
 }));
-vi.mock('../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
+vi.mock('../../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
 vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({
     children,

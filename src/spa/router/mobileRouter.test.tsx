@@ -5,45 +5,50 @@ import { describe, expect, it } from 'vitest';
 
 const readMobileRouterSource = () =>
   readFile(path.join(process.cwd(), 'src/spa/router/mobileRouter.config.tsx'), 'utf8');
+const readMobileWorkspaceRoutesSource = () =>
+  readFile(path.join(process.cwd(), 'src/spa/router/mobileWorkspaceRoutes.tsx'), 'utf8');
 
 describe('mobileRouter workspace roots', () => {
   it('registers design, discover, and apps before the workspace slug route', async () => {
-    const source = await readMobileRouterSource();
-    const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
+    const [routerSource, workspaceRoutesSource] = await Promise.all([
+      readMobileRouterSource(),
+      readMobileWorkspaceRoutesSource(),
+    ]);
+    const workspaceSlugIndex = routerSource.indexOf("path: ':workspaceSlug'");
+    const personalFeatureRoutesIndex = routerSource.indexOf('includeDeveloper: true');
 
     for (const route of ['design', 'discover', 'apps']) {
-      const routeIndex = source.indexOf(`path: '${route}'`);
-      expect(routeIndex).toBeGreaterThan(-1);
-      expect(routeIndex).toBeLessThan(workspaceSlugIndex);
-      expect(source).toContain(`import('@/routes/(mobile)/${route}')`);
+      expect(workspaceRoutesSource).toContain(`path: '${route}'`);
+      expect(workspaceRoutesSource).toContain(`import('@/routes/(mobile)/${route}')`);
     }
+    expect(personalFeatureRoutesIndex).toBeGreaterThan(-1);
+    expect(personalFeatureRoutesIndex).toBeLessThan(workspaceSlugIndex);
   });
 
   it('mirrors the four mobile roots and required design/app deep routes inside a workspace', async () => {
-    const source = await readMobileRouterSource();
-    const mirrorStart = source.indexOf('const workspaceMobileRootChildren');
-    const mirrorEnd = source.indexOf('// Mobile router configuration');
-    const mirroredRoutes = source.slice(mirrorStart, mirrorEnd);
+    const [source, featureSource] = await Promise.all([
+      readMobileRouterSource(),
+      readMobileWorkspaceRoutesSource(),
+    ]);
 
     for (const route of ['design', 'discover', 'apps', 'page', 'image', 'ppt']) {
-      expect(mirroredRoutes).toContain(`path: '${route}'`);
+      expect(featureSource).toContain(`path: '${route}'`);
     }
     expect(source).toContain('...workspaceMobileRootChildren');
-    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/(home)/')");
-    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/design')");
-    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/discover')");
-    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/apps')");
-    expect(mirroredRoutes).toContain("import('@/features/MobileWorkspace/MobileDeepPageGuard')");
+    expect(source).toContain("import('@/routes/(mobile)/(home)/')");
+    expect(source).toContain('includeDeveloper: false');
+    expect(featureSource).toContain("import('@/routes/(mobile)/design')");
+    expect(featureSource).toContain("import('@/routes/(mobile)/discover')");
+    expect(featureSource).toContain("import('@/routes/(mobile)/apps')");
+    expect(featureSource).toContain("import('@/features/MobileWorkspace/MobileDeepPageGuard')");
   });
 
   it('registers the app market, detail, and runtime routes before the workspace slug route', async () => {
-    const source = await readMobileRouterSource();
-    const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
+    const source = await readMobileWorkspaceRoutesSource();
 
     for (const route of ['market', ':appId', 'app', 'app/:pageKey']) {
       const routeIndex = source.indexOf(`path: '${route}'`);
       expect(routeIndex).toBeGreaterThan(-1);
-      expect(routeIndex).toBeLessThan(workspaceSlugIndex);
     }
 
     expect(source).toContain("import('@/routes/(main)/apps')");
@@ -54,24 +59,21 @@ describe('mobileRouter workspace roots', () => {
   });
 
   it('registers design document, image, and PPT workspaces before the workspace slug route', async () => {
-    const source = await readMobileRouterSource();
-    const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
+    const source = await readMobileWorkspaceRoutesSource();
 
     for (const route of ['page', 'image', 'ppt']) {
       const routeIndex = source.indexOf(`path: '${route}'`);
       expect(routeIndex).toBeGreaterThan(-1);
-      expect(routeIndex).toBeLessThan(workspaceSlugIndex);
     }
 
-    expect(source).toContain("import('@/routes/(main)/page')");
     expect(source).toContain("import('@/routes/(main)/page/[id]')");
     expect(source).toContain("import('@/routes/(main)/page/_layout')");
     expect(source).toContain("import('@/routes/(main)/(create)/image')");
     expect(source).toContain("import('@/routes/(main)/(create)/image/_layout')");
     expect(source).toContain("import('@/routes/(main)/(create)/ppt')");
-    for (const routeName of ['Pages', 'Image', 'PPT']) {
-      expect(source).toContain(`Mobile > ${routeName} > Deep Page Guard`);
-    }
+    expect(source).toContain("label('Pages > Mobile Layout')");
+    expect(source).toContain("label('Image > Deep Page Guard')");
+    expect(source).toContain("label('PPT > Deep Page Guard')");
   });
 
   it('keeps AI group conversations and group topics reachable on mobile', async () => {

@@ -11,6 +11,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { useUnsavedChangesGuard } from '../../../shared/useUnsavedChangesGuard';
 import BillingEditor from '../../BillingEditor';
 import EntitlementEditor from '../../EntitlementEditor';
 import { type ModuleAppAdminFormValues, normalizeModuleAppFormValues } from '../../formSchema';
@@ -21,7 +22,6 @@ import {
   loadModuleDraft,
   saveModuleDraft,
 } from '../../shared/draftStorage';
-import { useUnsavedChangesGuard } from '../../shared/useUnsavedChangesGuard';
 
 type EntitlementsDraft = Pick<ModuleAppAdminFormValues, 'billing' | 'entitlements'>;
 
@@ -38,19 +38,24 @@ const ModuleAppEntitlementsPage = memo(() => {
   const [saveStatus, setSaveStatus] = useState<string>();
   const draftScope = createModuleDraftScope(app.id, 'entitlements');
 
-  useUnsavedChangesGuard(dirty, t('moduleApps.admin.center.unsavedConfirmation'));
+  useUnsavedChangesGuard({
+    cancelText: t('moduleApps.admin.center.unsavedCancel'),
+    confirmText: t('moduleApps.admin.center.unsavedDiscard'),
+    isDirty: dirty,
+    message: t('moduleApps.admin.center.unsavedConfirmation'),
+    title: t('moduleApps.admin.center.unsavedTitle'),
+  });
 
   useEffect(() => {
     const draft = loadModuleDraft<EntitlementsDraft>(draftScope);
     const values = normalizeModuleAppFormValues({
-      ...app,
       billing: draft?.billing ?? app.billing,
       entitlements: draft?.entitlements ?? app.entitlements,
     });
     form.setFieldsValue({ billing: values.billing, entitlements: values.entitlements });
     setDirty(Boolean(draft));
     setSaveStatus(draft ? t('moduleApps.admin.entitlements.draftRestored') : undefined);
-  }, [app.id, draftScope, form, t]);
+  }, [app.billing, app.entitlements, draftScope, form, t]);
 
   const persistDraft = () => {
     if (!canWrite) return;

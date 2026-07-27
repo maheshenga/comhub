@@ -1,5 +1,16 @@
 # Internal Changelog
 
+## 2026-07-27
+
+### Module App P0-P3 Hardening
+
+- MODULE-APP-HARDEN-001: Added the least-privilege `module_admin` role, aligned admin navigation and route policy, and consolidated Module App administration at `/settings/admin/modules` without a legacy URL alias.
+- MODULE-APP-HARDEN-002: Added catalog uniqueness and ownership constraints, installation row locking, immutable grant snapshots, explicit permission-expansion confirmation for upgrade and rollback, and retain/delete uninstall policies.
+- MODULE-APP-HARDEN-003: Added section-level compare-and-swap revisions for generic admin settings and draft revisions for mobile settings. Conflicts preserve local edits, clear stale client revisions, and expose a support correlation ID with a reload action.
+- MODULE-APP-HARDEN-004: Added durable artifact cleanup jobs with leases, bounded retries, terminal failures, generated-namespace validation, maintenance processing, OpenTelemetry metrics, Prometheus alerts, and the Module App operations runbook.
+- MODULE-APP-HARDEN-005: Extracted shared personal/workspace mobile feature routes, removed desktop-only chrome from mobile design surfaces, added last-known-good mobile configuration fallback, and standardized unsaved-change protection across admin editors.
+- Release boundary: Module App execution, privileged workflow, schedule, public execution, Alipay mutation, and payout recording controls remain disabled. No payment state machine or Alipay adapter behavior changed.
+
 ## 2026-07-14
 
 ### Module App Production Completion

@@ -315,6 +315,53 @@ export const moduleAppPackageRuntimeSchema = z.object({
 });
 export type ModuleAppPackageRuntime = z.infer<typeof moduleAppPackageRuntimeSchema>;
 
+const moduleAppGrantItemsSchema = z.array(z.string().min(1).max(253)).max(1000);
+
+export const moduleAppGrantSnapshotSchema = z
+  .object({
+    functionKeys: moduleAppGrantItemsSchema,
+    outboundHosts: moduleAppGrantItemsSchema,
+    permissions: moduleAppGrantItemsSchema,
+    secretKeys: moduleAppGrantItemsSchema,
+    tableKeys: moduleAppGrantItemsSchema,
+    workflowKeys: moduleAppGrantItemsSchema,
+  })
+  .strict();
+export type ModuleAppGrantSnapshot = z.infer<typeof moduleAppGrantSnapshotSchema>;
+
+export const EMPTY_MODULE_APP_GRANT_SNAPSHOT: ModuleAppGrantSnapshot = {
+  functionKeys: [],
+  outboundHosts: [],
+  permissions: [],
+  secretKeys: [],
+  tableKeys: [],
+  workflowKeys: [],
+};
+
+export type ModuleAppGrantDiff = {
+  added: ModuleAppGrantSnapshot;
+  hasExpansion: boolean;
+};
+
+export const getModuleAppGrantDiff = (
+  current: ModuleAppGrantSnapshot,
+  target: ModuleAppGrantSnapshot,
+): ModuleAppGrantDiff => {
+  const added = Object.fromEntries(
+    Object.keys(EMPTY_MODULE_APP_GRANT_SNAPSHOT).map((key) => {
+      const dimension = key as keyof ModuleAppGrantSnapshot;
+      const currentItems = new Set(current[dimension]);
+
+      return [dimension, target[dimension].filter((item) => !currentItems.has(item))];
+    }),
+  ) as ModuleAppGrantSnapshot;
+
+  return {
+    added,
+    hasExpansion: Object.values(added).some((items) => items.length > 0),
+  };
+};
+
 export const MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
 export const MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS = 3;
 export const MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS = 20;

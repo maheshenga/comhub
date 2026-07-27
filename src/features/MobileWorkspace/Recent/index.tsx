@@ -24,7 +24,12 @@ import { useHomeStore } from '@/store/home';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 
-import { MobileListSkeleton, MobileSection, MobileStateView } from '../components';
+import {
+  MobileContentFrame,
+  MobileListSkeleton,
+  MobileSection,
+  MobileStateView,
+} from '../components';
 import { useMobileSlotState } from '../mobileSlotState';
 import { useCreateAssistant } from '../useCreateAssistant';
 import MobilePendingInbox from './MobilePendingInbox';
@@ -44,15 +49,12 @@ const styles = createStaticStyles(({ css }) => ({
     display: flex;
     flex-direction: column;
     gap: 16px;
-    padding-inline: 12px;
   `,
   search: css`
     padding-block: 4px 8px;
-    padding-inline: 12px;
   `,
   switcher: css`
     padding-block: 4px;
-    padding-inline: 12px;
   `,
 }));
 
@@ -172,123 +174,127 @@ const MobileRecentPage = memo(() => {
 
   return (
     <main className={styles.page}>
-      <div className={styles.switcher}>
-        <Segmented
-          block
-          value={mode}
-          options={[
-            { label: t('mobile.recent.modeRecent'), value: 'recent' },
-            { label: t('mobile.recent.modePending'), value: 'pending' },
-          ]}
-          onChange={(value) => setMode(value as 'pending' | 'recent')}
-        />
-      </div>
-      {mode === 'recent' ? (
-        <div className={styles.search}>
-          <SearchBar
-            allowClear
-            aria-label={t('mobile.recent.search')}
-            placeholder={t('mobile.recent.search')}
-            value={searchInput}
-            variant="filled"
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchInput(event.target.value)}
+      <MobileContentFrame>
+        <div className={styles.switcher}>
+          <Segmented
+            block
+            value={mode}
+            options={[
+              { label: t('mobile.recent.modeRecent'), value: 'recent' },
+              { label: t('mobile.recent.modePending'), value: 'pending' },
+            ]}
+            onChange={(value) => setMode(value as 'pending' | 'recent')}
           />
         </div>
-      ) : null}
-      <div className={styles.sections}>
-        {mode === 'pending' ? (
-          <MobilePendingInbox />
-        ) : isLoading && isLogin !== false ? (
-          <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
-            <Flexbox aria-busy="true" data-testid="mobile-recent-loading" role="status">
-              <MobileListSkeleton label={t('mobile.recent.latest')} rows={4} />
-            </Flexbox>
-          </MobileSection>
-        ) : error ? (
-          <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
-            <div role="alert">
-              <MobileStateView
-                action={{ label: t('retry'), onClick: () => void refresh() }}
-                title={t('mobile.recent.error')}
-                variant="error"
-              />
-            </div>
-          </MobileSection>
-        ) : !hasItems ? (
-          <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
-            <MobileStateView
-              title={searchInput ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
-              action={
-                searchInput
-                  ? { label: t('mobile.recent.clearSearch'), onClick: clearSearch }
-                  : {
-                      label: t('mobile.recent.createAgent'),
-                      loading: creating,
-                      onClick: () => void createAssistant(),
-                    }
+        {mode === 'recent' ? (
+          <div className={styles.search}>
+            <SearchBar
+              allowClear
+              aria-label={t('mobile.recent.search')}
+              placeholder={t('mobile.recent.search')}
+              value={searchInput}
+              variant="filled"
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                setSearchInput(event.target.value)
               }
             />
-          </MobileSection>
-        ) : (
-          <>
-            {sections.pinned.length > 0 ? (
-              <MobileSection
-                action={refreshAction}
-                aria-label={t('mobile.recent.pinned')}
-                title={t('mobile.recent.pinned')}
-              >
-                {sections.pinned.map((item) => (
-                  <RecentConversationRow
-                    item={item}
-                    key={item.id}
-                    pending={pinningKeys.has(`${item.kind}:${item.id}`)}
-                    onTogglePin={() => void togglePin(item)}
-                    onOpen={() => {
-                      rememberFocus(`${item.kind}:${item.id}`);
-                      navigate(item.routePath);
-                    }}
-                  />
-                ))}
-              </MobileSection>
-            ) : null}
-
-            {sections.recent.length > 0 ? (
-              <MobileSection
-                action={sections.pinned.length ? undefined : refreshAction}
-                aria-label={t('mobile.recent.latest')}
-                title={t('mobile.recent.latest')}
-              >
-                {sections.recent.map((item) => (
-                  <RecentConversationRow
-                    item={item}
-                    key={item.id}
-                    pending={pinningKeys.has(`${item.kind}:${item.id}`)}
-                    onTogglePin={() => void togglePin(item)}
-                    onOpen={() => {
-                      rememberFocus(`${item.kind}:${item.id}`);
-                      navigate(item.routePath);
-                    }}
-                  />
-                ))}
-              </MobileSection>
-            ) : null}
-            {hasMore ? (
-              <Flexbox align="center" padding={16}>
-                <Button
-                  aria-label={t('mobile.recent.loadMore')}
-                  disabled={isValidating}
-                  htmlType="button"
-                  loading={isValidating}
-                  style={MOBILE_LOAD_MORE_BUTTON_STYLE}
-                  onClick={() => void setSize(size + 1)}
-                >
-                  {t('mobile.recent.loadMore')}
-                </Button>
+          </div>
+        ) : null}
+        <div className={styles.sections}>
+          {mode === 'pending' ? (
+            <MobilePendingInbox />
+          ) : isLoading && isLogin !== false ? (
+            <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
+              <Flexbox aria-busy="true" data-testid="mobile-recent-loading" role="status">
+                <MobileListSkeleton label={t('mobile.recent.latest')} rows={4} />
               </Flexbox>
-            ) : null}
-          </>
-        )}
-      </div>
+            </MobileSection>
+          ) : error ? (
+            <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
+              <div role="alert">
+                <MobileStateView
+                  action={{ label: t('retry'), onClick: () => void refresh() }}
+                  title={t('mobile.recent.error')}
+                  variant="error"
+                />
+              </div>
+            </MobileSection>
+          ) : !hasItems ? (
+            <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
+              <MobileStateView
+                title={searchInput ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
+                action={
+                  searchInput
+                    ? { label: t('mobile.recent.clearSearch'), onClick: clearSearch }
+                    : {
+                        label: t('mobile.recent.createAgent'),
+                        loading: creating,
+                        onClick: () => void createAssistant(),
+                      }
+                }
+              />
+            </MobileSection>
+          ) : (
+            <>
+              {sections.pinned.length > 0 ? (
+                <MobileSection
+                  action={refreshAction}
+                  aria-label={t('mobile.recent.pinned')}
+                  title={t('mobile.recent.pinned')}
+                >
+                  {sections.pinned.map((item) => (
+                    <RecentConversationRow
+                      item={item}
+                      key={item.id}
+                      pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                      onTogglePin={() => void togglePin(item)}
+                      onOpen={() => {
+                        rememberFocus(`${item.kind}:${item.id}`);
+                        navigate(item.routePath);
+                      }}
+                    />
+                  ))}
+                </MobileSection>
+              ) : null}
+
+              {sections.recent.length > 0 ? (
+                <MobileSection
+                  action={sections.pinned.length ? undefined : refreshAction}
+                  aria-label={t('mobile.recent.latest')}
+                  title={t('mobile.recent.latest')}
+                >
+                  {sections.recent.map((item) => (
+                    <RecentConversationRow
+                      item={item}
+                      key={item.id}
+                      pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                      onTogglePin={() => void togglePin(item)}
+                      onOpen={() => {
+                        rememberFocus(`${item.kind}:${item.id}`);
+                        navigate(item.routePath);
+                      }}
+                    />
+                  ))}
+                </MobileSection>
+              ) : null}
+              {hasMore ? (
+                <Flexbox align="center" padding={16}>
+                  <Button
+                    aria-label={t('mobile.recent.loadMore')}
+                    disabled={isValidating}
+                    htmlType="button"
+                    loading={isValidating}
+                    style={MOBILE_LOAD_MORE_BUTTON_STYLE}
+                    onClick={() => void setSize(size + 1)}
+                  >
+                    {t('mobile.recent.loadMore')}
+                  </Button>
+                </Flexbox>
+              ) : null}
+            </>
+          )}
+        </div>
+      </MobileContentFrame>
     </main>
   );
 });

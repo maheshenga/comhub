@@ -12,6 +12,7 @@ import {
 import { POST } from './route';
 
 const cleanupMocks = vi.hoisted(() => ({
+  cleanupPending: vi.fn(),
   cleanupExpiredUploads: vi.fn(),
 }));
 
@@ -25,6 +26,10 @@ vi.mock('@/business/server/subscriptionMaintenance', () => ({
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
   ModuleAppPackageLifecycleService: vi.fn(() => cleanupMocks),
+}));
+
+vi.mock('@/server/services/moduleAppArtifactCleanup', () => ({
+  ModuleAppArtifactCleanupService: vi.fn(() => cleanupMocks),
 }));
 
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 15).toString('base64');
@@ -58,6 +63,12 @@ describe('admin maintenance route module app cleanup', () => {
       freeSnapshotsCreated: 1,
     });
     cleanupMocks.cleanupExpiredUploads.mockResolvedValue({ expired: 4, failed: 1 });
+    cleanupMocks.cleanupPending.mockResolvedValue({
+      claimed: 5,
+      failed: 1,
+      released: 3,
+      retrying: 1,
+    });
   });
 
   afterEach(() => {
@@ -80,9 +91,14 @@ describe('admin maintenance route module app cleanup', () => {
     await expect(response.json()).resolves.toMatchObject({
       moduleAppUploadCleanupFailed: 1,
       moduleAppUploadsExpired: 4,
+      moduleAppArtifactCleanupClaimed: 5,
+      moduleAppArtifactCleanupFailed: 1,
+      moduleAppArtifactCleanupRetrying: 1,
+      moduleAppArtifactsReleased: 3,
       subscriptionSnapshotsExpired: 2,
     });
     expect(cleanupMocks.cleanupExpiredUploads).toHaveBeenCalledWith({ limit: 100 });
+    expect(cleanupMocks.cleanupPending).toHaveBeenCalledWith(100);
   });
 
   it('decrypts cron.secret and keeps legacy non-string environment fallback', async () => {
@@ -92,17 +108,13 @@ describe('admin maintenance route module app cleanup', () => {
     );
     vi.mocked(getServerDB).mockResolvedValue(createDb(encrypted));
     await expect(
-      POST(
-        createRequest('encrypted-maintenance-secret', { skipAudit: true, skipOrders: true }),
-      ),
+      POST(createRequest('encrypted-maintenance-secret', { skipAudit: true, skipOrders: true })),
     ).resolves.toMatchObject({ status: 200 });
 
     process.env.CRON_SECRET = 'environment-maintenance-secret';
     vi.mocked(getServerDB).mockResolvedValue(createDb({ legacy: true }));
     await expect(
-      POST(
-        createRequest('environment-maintenance-secret', { skipAudit: true, skipOrders: true }),
-      ),
+      POST(createRequest('environment-maintenance-secret', { skipAudit: true, skipOrders: true })),
     ).resolves.toMatchObject({ status: 200 });
   });
 
@@ -112,9 +124,9 @@ describe('admin maintenance route module app cleanup', () => {
       createDb(`${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.cronSecret}:invalid`),
     );
 
-    await expect(
-      POST(createRequest('environment-maintenance-secret')),
-    ).resolves.toMatchObject({ status: 401 });
+    await expect(POST(createRequest('environment-maintenance-secret'))).resolves.toMatchObject({
+      status: 401,
+    });
     expect(cleanupMocks.cleanupExpiredUploads).not.toHaveBeenCalled();
   });
 
@@ -122,6 +134,7 @@ describe('admin maintenance route module app cleanup', () => {
     const response = await POST(
       createRequest('maintenance-secret', {
         skipAudit: true,
+        skipModuleAppArtifacts: true,
         skipModuleAppUploads: true,
         skipOrders: true,
       }),
@@ -129,6 +142,7 @@ describe('admin maintenance route module app cleanup', () => {
 
     expect(response.status).toBe(200);
     expect(cleanupMocks.cleanupExpiredUploads).not.toHaveBeenCalled();
+    expect(cleanupMocks.cleanupPending).not.toHaveBeenCalled();
     expect(await response.json()).not.toHaveProperty('moduleAppUploadsExpired');
   });
 });

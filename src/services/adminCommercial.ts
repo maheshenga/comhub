@@ -61,11 +61,98 @@ export type AdminSettingsSectionData<Section extends AppSettingsSection> = Extra
   { section: Section }
 >;
 
+export type AdminSettingsSaveErrorDetails = {
+  code?: string;
+  correlationId?: string;
+  isConflict: boolean;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+
+export const getAdminSettingsSaveErrorDetails = (error: unknown): AdminSettingsSaveErrorDetails => {
+  const root = asRecord(error);
+  const data = asRecord(root?.data);
+  const shape = asRecord(root?.shape);
+  const shapeData = asRecord(shape?.data);
+  const errorData = asRecord(data?.errorData) ?? asRecord(shapeData?.errorData);
+  const message = typeof root?.message === 'string' ? root.message : '';
+  const code =
+    typeof data?.code === 'string'
+      ? data.code
+      : typeof shapeData?.code === 'string'
+        ? shapeData.code
+        : undefined;
+  const correlationId =
+    typeof errorData?.correlationId === 'string' ? errorData.correlationId : undefined;
+
+  return {
+    code,
+    correlationId,
+    isConflict: code === 'CONFLICT' || message.includes('APP_SETTINGS_REVISION_CONFLICT'),
+  };
+};
+
+export class AdminSettingsRevisionConflictError extends Error {
+  readonly code = 'APP_SETTINGS_REVISION_CONFLICT';
+
+  constructor(
+    readonly details: AdminSettingsSaveErrorDetails & { sections: AppSettingsSection[] },
+    options?: ErrorOptions,
+  ) {
+    super('APP_SETTINGS_REVISION_CONFLICT', options);
+    this.name = 'AdminSettingsRevisionConflictError';
+  }
+}
+
 const invalidateAdminSettingsWrites = async (sections: readonly AppSettingsSection[]) => {
   for (const key of getAdminSettingsWriteSWRKeys(sections)) await mutate(key);
 };
 
 class AdminCommercialService {
+  private appSettingRevisions = new Map<AppSettingsSection, number>();
+
+  private rememberAppSettingRevisions = (revisions?: Record<string, number>) => {
+    if (!revisions) return;
+    for (const [section, revision] of Object.entries(revisions)) {
+      this.appSettingRevisions.set(section as AppSettingsSection, revision);
+    }
+  };
+
+  private getAppSettingSections = (keys: string[]) => [
+    ...new Set(keys.map((key) => getAppSettingsSectionForKey(key as AppSettingKey))),
+  ];
+
+  private getExpectedAppSettingRevisions = async (keys: string[]) => {
+    const sections = this.getAppSettingSections(keys);
+
+    for (const section of sections) {
+      if (this.appSettingRevisions.has(section)) continue;
+      const response = (await lambdaClient.admin.settings.getSection.query({ section })) as any;
+      this.appSettingRevisions.set(section, response?.__revision ?? 0);
+    }
+
+    return Object.fromEntries(
+      sections.map((section) => [section, this.appSettingRevisions.get(section) ?? 0]),
+    );
+  };
+
+  private runAppSettingWrite = async <Result>(
+    sections: AppSettingsSection[],
+    write: () => Promise<Result>,
+  ): Promise<Result> => {
+    try {
+      return await write();
+    } catch (error) {
+      sections.forEach((section) => this.appSettingRevisions.delete(section));
+      const details = getAdminSettingsSaveErrorDetails(error);
+      if (details.isConflict) {
+        throw new AdminSettingsRevisionConflictError({ ...details, sections }, { cause: error });
+      }
+      throw error;
+    }
+  };
+
   // Users
   listUsers = async (params: {
     cursor?: number;
@@ -148,12 +235,19 @@ class AdminCommercialService {
 
   // Settings
   getAllSettings = async () => {
-    return lambdaClient.admin.settings.getAll.query();
+    const response = (await lambdaClient.admin.settings.getAll.query()) as any;
+    this.rememberAppSettingRevisions(response.__revisions);
+    const { __revisions: _, ...settings } = response;
+
+    return settings;
   };
 
   getSettingsSection = async <Section extends AppSettingsSection>(section: Section) => {
-    const response = await lambdaClient.admin.settings.getSection.query({ section });
-    return response as AdminSettingsSectionData<Section>;
+    const response = (await lambdaClient.admin.settings.getSection.query({ section })) as any;
+    this.appSettingRevisions.set(section, response.__revision ?? 0);
+    const { __revision: _, ...settings } = response;
+
+    return settings as AdminSettingsSectionData<Section>;
   };
 
   getMobileSettings = async () => (await this.getSettingsSection('mobile')).mobileConfig;
@@ -218,30 +312,48 @@ class AdminCommercialService {
   };
 
   setAppSetting = async (params: { key: string; value: unknown }) => {
-    const result = await lambdaClient.admin.settings.setAppSetting.mutate(params as any);
+    const sections = this.getAppSettingSections([params.key]);
+    const expectedRevisions = await this.getExpectedAppSettingRevisions([params.key]);
+    const result = await this.runAppSettingWrite(sections, () =>
+      lambdaClient.admin.settings.setAppSetting.mutate({
+        ...params,
+        expectedRevisions,
+      } as any),
+    );
+    this.rememberAppSettingRevisions(result.revisions);
     await invalidateAdminSettingsWrites([getAppSettingsSectionForKey(params.key as AppSettingKey)]);
     return result;
   };
 
   setAppSettingsBatch = async (params: { updates: Array<{ key: string; value: unknown }> }) => {
-    const result = await lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
+    const keys = params.updates.map(({ key }) => key);
+    const sections = this.getAppSettingSections(keys);
+    const expectedRevisions = await this.getExpectedAppSettingRevisions(keys);
+    const result = await this.runAppSettingWrite(sections, () =>
+      lambdaClient.admin.settings.setAppSettingsBatch.mutate({
+        ...params,
+        expectedRevisions,
+      } as any),
+    );
+    this.rememberAppSettingRevisions(result.revisions);
     await invalidateAdminSettingsWrites(
       params.updates.map((update) => getAppSettingsSectionForKey(update.key as AppSettingKey)),
     );
     return result;
   };
 
-  saveMobileSettingsDraft = async (config: unknown) => {
+  saveMobileSettingsDraft = async (config: unknown, expectedDraftRevision: number) => {
     const normalized = normalizeMobileConfig(config);
     const state = await lambdaClient.admin.settings.saveMobileConfigDraft.mutate({
       config: normalized,
+      expectedDraftRevision,
     });
     await invalidateAdminSettingsWrites(['mobile']);
     return state;
   };
 
-  saveMobileSettings = async (config: unknown) =>
-    (await this.saveMobileSettingsDraft(config)).draft.config;
+  saveMobileSettings = async (config: unknown, expectedDraftRevision = 0) =>
+    (await this.saveMobileSettingsDraft(config, expectedDraftRevision)).draft.config;
 
   publishMobileSettings = async (params: {
     expectedDraftRevision: number;

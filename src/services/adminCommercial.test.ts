@@ -10,6 +10,7 @@ import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConf
 import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
 
+import type { AdminSettingsRevisionConflictError } from './adminCommercial';
 import { adminCommercialService } from './adminCommercial';
 
 const PROFILE_CURSOR = Buffer.from(
@@ -636,6 +637,60 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
+  it('carries section revisions through settings writes', async () => {
+    vi.mocked(lambdaClient.admin.settings.getSection.query).mockResolvedValue({
+      __revision: 4,
+      section: 'settings',
+      sharedHealth: {},
+    } as any);
+    vi.mocked(lambdaClient.admin.settings.setAppSetting.mutate).mockResolvedValue({
+      ok: true,
+      revisions: { settings: 5 },
+    } as any);
+
+    await adminCommercialService.getSettingsSection('settings');
+    await adminCommercialService.setAppSetting({ key: 'defaultAgent.name', value: 'ComHub' });
+
+    expect(lambdaClient.admin.settings.setAppSetting.mutate).toHaveBeenCalledWith({
+      expectedRevisions: { settings: 4 },
+      key: 'defaultAgent.name',
+      value: 'ComHub',
+    });
+  });
+
+  it('surfaces conflict correlation ids and reloads a cleared revision before retrying', async () => {
+    vi.mocked(lambdaClient.admin.settings.getSection.query)
+      .mockResolvedValueOnce({ __revision: 4, section: 'settings', sharedHealth: {} } as any)
+      .mockResolvedValueOnce({ __revision: 7, section: 'settings', sharedHealth: {} } as any);
+    vi.mocked(lambdaClient.admin.settings.setAppSetting.mutate)
+      .mockRejectedValueOnce({
+        data: { code: 'CONFLICT', errorData: { correlationId: 'settings-correlation-1' } },
+        message: 'APP_SETTINGS_REVISION_CONFLICT',
+      })
+      .mockResolvedValueOnce({ ok: true, revisions: { settings: 8 } } as any);
+
+    await adminCommercialService.getSettingsSection('settings');
+    await expect(
+      adminCommercialService.setAppSetting({ key: 'defaultAgent.name', value: 'Stale' }),
+    ).rejects.toMatchObject({
+      details: {
+        correlationId: 'settings-correlation-1',
+        isConflict: true,
+        sections: ['settings'],
+      },
+      name: 'AdminSettingsRevisionConflictError',
+    } satisfies Partial<AdminSettingsRevisionConflictError>);
+
+    await adminCommercialService.setAppSetting({ key: 'defaultAgent.name', value: 'Fresh' });
+
+    expect(lambdaClient.admin.settings.getSection.query).toHaveBeenCalledTimes(2);
+    expect(lambdaClient.admin.settings.setAppSetting.mutate).toHaveBeenLastCalledWith({
+      expectedRevisions: { settings: 7 },
+      key: 'defaultAgent.name',
+      value: 'Fresh',
+    });
+  });
+
   it('returns the complete mobile publication state from the dedicated endpoint', async () => {
     const publication = {
       draft: { config: DEFAULT_MOBILE_CONFIG, revision: 2, updatedAt: '2026-07-20T02:00:00.000Z' },
@@ -697,6 +752,7 @@ describe('adminCommercialService NewAPI helpers', () => {
 
     expect(lambdaClient.admin.settings.saveMobileConfigDraft.mutate).toHaveBeenCalledWith({
       config: normalized,
+      expectedDraftRevision: 0,
     });
   });
 
@@ -733,6 +789,7 @@ describe('adminCommercialService NewAPI helpers', () => {
     vi.mocked(lambdaClient.admin.settings.setAppSettingsBatch.mutate).mockResolvedValue({
       count: 3,
       ok: true,
+      revisions: { growth: 1, notifications: 1 },
     });
 
     await adminCommercialService.setAppSettingsBatch({
@@ -755,6 +812,7 @@ describe('adminCommercialService NewAPI helpers', () => {
     vi.mocked(lambdaClient.admin.settings.setAppSettingsBatch.mutate).mockResolvedValue({
       count: 1,
       ok: true,
+      revisions: { 'desktop-update': 1 },
     });
 
     await adminCommercialService.setAppSettingsBatch({

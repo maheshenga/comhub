@@ -1,0 +1,68 @@
+groups:
+  - name: module-app-slo
+    rules:
+      - alert: ModuleAppSandboxErrorBudgetBurn
+        expr: |
+          sum(rate(module_app_sandbox_invocations_total{outcome!="succeeded"}[15m]))
+          /
+          clamp_min(sum(rate(module_app_sandbox_invocations_total[15m])), 0.001)
+          > 0.01
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Module App sandbox success rate is below 99%
+      - alert: ModuleAppSandboxLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(module_app_sandbox_duration_ms_bucket[15m]))
+          ) > 15000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Module App sandbox p95 latency exceeds 15 seconds
+      - alert: ModuleAppWorkerBuildFailureRateHigh
+        expr: |
+          sum(rate(module_app_worker_build_outcomes_total{outcome="failed"}[30m]))
+          /
+          clamp_min(sum(rate(module_app_worker_build_outcomes_total[30m])), 0.001)
+          > 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Module App build failure rate exceeds 5%
+      - alert: ModuleAppWorkflowBacklogHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(module_app_workflow_backlog_bucket[15m]))
+          ) > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Module App workflow backlog exceeds 100 jobs
+      - alert: ModuleAppArtifactCleanupFailed
+        expr: increase(module_app_artifact_cleanup_total{outcome="failed"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Module App artifact cleanup has terminal failures
+      - alert: ModuleAppArtifactCleanupRetrying
+        expr: increase(module_app_artifact_cleanup_total{outcome="retrying"}[30m]) > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Module App artifact cleanup retries are accumulating
+      - alert: ModuleAppPaymentVerificationFailures
+        expr: increase(module_app_payment_verification_failures_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Module App payment verification failed

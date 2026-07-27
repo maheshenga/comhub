@@ -1,7 +1,14 @@
 import {
+  EMPTY_MODULE_APP_GRANT_SNAPSHOT,
   getModuleAppDeclaredSecretKeys,
+  getModuleAppGrantDiff,
   type ModuleAppActionConfig,
+  moduleAppActionListSchema,
+  moduleAppExecutableRuntimeSchema,
+  type ModuleAppGrantSnapshot,
+  moduleAppGrantSnapshotSchema,
   type ModuleAppInstallationReadiness,
+  moduleAppPackageRuntimeSchema,
   type ModuleAppPage,
   type ModuleAppScopeType,
 } from '@lobechat/types';
@@ -10,14 +17,24 @@ import { alias } from 'drizzle-orm/pg-core';
 
 import {
   moduleAppActions,
+  moduleAppArtifactCleanupJobs,
+  moduleAppArtifacts,
   moduleAppBuilds,
+  moduleAppDataRows,
+  moduleAppDataSchemas,
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
   moduleAppInstallationVersionRefs,
   moduleAppPages,
+  moduleAppRecords,
+  moduleAppRuns,
   moduleApps,
+  moduleAppSchedules,
   moduleAppVersions,
+  moduleAppWebhooks,
+  moduleAppWorkflowNodes,
+  moduleAppWorkflowRuns,
 } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 import { ModuleAppCatalogModel } from './moduleAppCatalog';
@@ -26,6 +43,41 @@ const INSTALL_STATUS_ACTIVE = 'installed';
 const INSTALL_STATUS_INACTIVE = 'uninstalled';
 const installedModuleAppVersions = alias(moduleAppVersions, 'installed_module_app_versions');
 const publishedModuleAppVersions = alias(moduleAppVersions, 'published_module_app_versions');
+
+const normalizeGrantSnapshot = (snapshot: ModuleAppGrantSnapshot): ModuleAppGrantSnapshot =>
+  Object.fromEntries(
+    Object.entries(snapshot).map(([key, items]) => [key, [...new Set(items)].sort()]),
+  ) as ModuleAppGrantSnapshot;
+
+const getVersionGrantSnapshot = (version: {
+  manifestSnapshot: Record<string, unknown>;
+  runtimeManifest: Record<string, unknown>;
+}): ModuleAppGrantSnapshot => {
+  const runtimeCandidate = version.runtimeManifest.runtime;
+  const executableRuntime = moduleAppExecutableRuntimeSchema.safeParse(runtimeCandidate);
+  const packageRuntime = moduleAppPackageRuntimeSchema.safeParse(runtimeCandidate);
+  const manifestActions = moduleAppActionListSchema.safeParse(version.manifestSnapshot.actions);
+  const runtime = executableRuntime.success ? executableRuntime.data : null;
+
+  return normalizeGrantSnapshot({
+    functionKeys: runtime?.functions.map(({ key }) => key) ?? [],
+    outboundHosts: runtime?.outboundHosts ?? [],
+    permissions:
+      runtime?.permissions ?? (packageRuntime.success ? packageRuntime.data.permissions : []),
+    secretKeys: manifestActions.success ? getModuleAppDeclaredSecretKeys(manifestActions.data) : [],
+    tableKeys: runtime?.data?.tables.map(({ key }) => key) ?? [],
+    workflowKeys: runtime?.workflows?.map(({ key }) => key) ?? [],
+  });
+};
+
+const parseStoredGrantSnapshot = (value: unknown) => {
+  const parsed = moduleAppGrantSnapshotSchema.safeParse(value);
+
+  return normalizeGrantSnapshot(parsed.success ? parsed.data : EMPTY_MODULE_APP_GRANT_SNAPSHOT);
+};
+
+const grantSnapshotsEqual = (left: ModuleAppGrantSnapshot, right: ModuleAppGrantSnapshot) =>
+  JSON.stringify(normalizeGrantSnapshot(left)) === JSON.stringify(normalizeGrantSnapshot(right));
 
 type ModuleAppActionRow = typeof moduleAppActions.$inferSelect;
 type ModuleAppEntitlementRow = typeof moduleAppEntitlements.$inferSelect;
@@ -339,6 +391,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         ),
       });
       if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+      const grantSnapshot = getVersionGrantSnapshot(version);
 
       const [existing] = await tx
         .select({
@@ -356,7 +409,12 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
           throw new Error('MODULE_APP_INSTALLATION_VERSION_CONFLICT');
         }
 
-        return { changed: false as const, installationId: existing.id, versionId };
+        await tx
+          .update(moduleAppInstallations)
+          .set({ grantSnapshot, updatedAt: now })
+          .where(eq(moduleAppInstallations.id, existing.id));
+
+        return { changed: false as const, grantSnapshot, installationId: existing.id, versionId };
       }
 
       let installationId: string | undefined;
@@ -365,6 +423,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
           .update(moduleAppInstallations)
           .set({
             installedAt: now,
+            grantSnapshot,
             status: INSTALL_STATUS_ACTIVE,
             uninstalledAt: null,
             updatedAt: now,
@@ -378,6 +437,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
           .insert(moduleAppInstallations)
           .values({
             appId: params.appId,
+            grantSnapshot,
             installedAt: now,
             scopeType: params.scopeType,
             status: INSTALL_STATUS_ACTIVE,
@@ -391,7 +451,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
       }
       if (!installationId) throw new Error('MODULE_APP_INSTALLATION_CREATE_FAILED');
 
-      return { changed: true as const, installationId, versionId };
+      return { changed: true as const, grantSnapshot, installationId, versionId };
     });
   };
 
@@ -408,7 +468,43 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
       scopeType: 'workspace',
     });
 
-  private uninstallApp = async (params: InstallationScope) => {
+  private purgeInstallationData = async (tx: TransactionDatabase, installationId: string) => {
+    await tx
+      .insert(moduleAppArtifactCleanupJobs)
+      .select(
+        tx
+          .select({
+            appId: moduleAppArtifacts.appId,
+            artifactId: moduleAppArtifacts.id,
+            installationId: moduleAppArtifacts.installationId,
+            storageKey: moduleAppArtifacts.storageKey,
+          })
+          .from(moduleAppArtifacts)
+          .where(eq(moduleAppArtifacts.installationId, installationId)),
+      )
+      .onConflictDoNothing({ target: moduleAppArtifactCleanupJobs.storageKey });
+
+    await tx
+      .delete(moduleAppWorkflowNodes)
+      .where(eq(moduleAppWorkflowNodes.installationId, installationId));
+    await tx
+      .delete(moduleAppWorkflowRuns)
+      .where(eq(moduleAppWorkflowRuns.installationId, installationId));
+    await tx
+      .delete(moduleAppSchedules)
+      .where(eq(moduleAppSchedules.installationId, installationId));
+    await tx.delete(moduleAppWebhooks).where(eq(moduleAppWebhooks.installationId, installationId));
+    await tx.delete(moduleAppDataRows).where(eq(moduleAppDataRows.installationId, installationId));
+    await tx
+      .delete(moduleAppDataSchemas)
+      .where(eq(moduleAppDataSchemas.installationId, installationId));
+    await tx.delete(moduleAppRuns).where(eq(moduleAppRuns.installationId, installationId));
+    await tx.delete(moduleAppRecords).where(eq(moduleAppRecords.installationId, installationId));
+  };
+
+  private uninstallApp = async (
+    params: InstallationScope & { dataPolicy: 'delete' | 'retain' },
+  ) => {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select({
@@ -419,7 +515,14 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         .from(moduleAppInstallations)
         .where(getInstallationScopeCondition(params))
         .for('update');
-      if (!existing) return { changed: false as const, ok: true as const };
+      if (!existing) {
+        return {
+          changed: false as const,
+          dataPolicy: params.dataPolicy,
+          dataPurgedAt: null,
+          ok: true as const,
+        };
+      }
 
       const now = new Date();
       const wasActive = existing.status === INSTALL_STATUS_ACTIVE && Boolean(existing.versionId);
@@ -442,16 +545,43 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         .delete(moduleAppInstallationSecrets)
         .where(eq(moduleAppInstallationSecrets.installationId, existing.id));
 
-      return { changed: wasActive, ok: true as const };
+      const dataPurgedAt = params.dataPolicy === 'delete' ? now : null;
+      if (dataPurgedAt) {
+        await this.purgeInstallationData(tx, existing.id);
+        await tx
+          .update(moduleAppInstallations)
+          .set({ dataPurgedAt, updatedAt: now })
+          .where(eq(moduleAppInstallations.id, existing.id));
+      }
+
+      return {
+        changed: wasActive,
+        dataPolicy: params.dataPolicy,
+        dataPurgedAt,
+        ok: true as const,
+      };
     });
   };
 
-  uninstallPersonalApp = (params: { appId: string; userId: string }) =>
-    this.uninstallApp({ ...params, scopeType: 'personal' });
+  uninstallPersonalApp = (params: {
+    appId: string;
+    dataPolicy?: 'delete' | 'retain';
+    userId: string;
+  }) =>
+    this.uninstallApp({
+      ...params,
+      dataPolicy: params.dataPolicy ?? 'retain',
+      scopeType: 'personal',
+    });
 
-  uninstallWorkspaceApp = (params: { appId: string; workspaceId: string }) =>
+  uninstallWorkspaceApp = (params: {
+    appId: string;
+    dataPolicy?: 'delete' | 'retain';
+    workspaceId: string;
+  }) =>
     this.uninstallApp({
       appId: params.appId,
+      dataPolicy: params.dataPolicy ?? 'retain',
       scopeType: 'workspace',
       userId: '',
       workspaceId: params.workspaceId,
@@ -488,6 +618,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
   };
 
   changeInstallationVersion = async (params: {
+    acceptedGrantSnapshot?: ModuleAppGrantSnapshot;
     appId: string;
     expectedVersionId: string;
     operation: 'rollback' | 'upgrade';
@@ -512,6 +643,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
 
       const [installation] = await tx
         .select({
+          grantSnapshot: moduleAppInstallations.grantSnapshot,
           id: moduleAppInstallations.id,
           versionId: moduleAppInstallations.versionId,
         })
@@ -553,14 +685,28 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         };
       }
 
-      await this.assertVersionTransitionReady(tx, {
+      const targetVersion = await this.assertVersionTransitionReady(tx, {
         appId: params.appId,
         versionId: targetVersionId,
       });
+      const currentGrantSnapshot = parseStoredGrantSnapshot(installation.grantSnapshot);
+      const targetGrantSnapshot = getVersionGrantSnapshot(targetVersion);
+      const grantDiff = getModuleAppGrantDiff(currentGrantSnapshot, targetGrantSnapshot);
+      if (
+        grantDiff.hasExpansion &&
+        (!params.acceptedGrantSnapshot ||
+          !grantSnapshotsEqual(params.acceptedGrantSnapshot, targetGrantSnapshot))
+      ) {
+        throw new Error('MODULE_APP_GRANT_CONFIRMATION_REQUIRED');
+      }
 
       const [updated] = await tx
         .update(moduleAppInstallations)
-        .set({ versionId: targetVersionId, updatedAt: new Date() })
+        .set({
+          grantSnapshot: targetGrantSnapshot,
+          versionId: targetVersionId,
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(moduleAppInstallations.id, installation.id),
@@ -573,6 +719,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
 
       return {
         changed: true as const,
+        grantSnapshot: targetGrantSnapshot,
         installationId: updated.id,
         operation: params.operation,
         previousVersionId: installation.versionId,
@@ -596,6 +743,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         installedRuntimeArtifactSha256: moduleAppVersions.runtimeArtifactSha256,
         installedRuntimeManifest: moduleAppVersions.runtimeManifest,
         installedVersionNumber: moduleAppVersions.version,
+        grantSnapshot: moduleAppInstallations.grantSnapshot,
         id: moduleAppInstallations.id,
         versionId: moduleAppVersions.id,
       })
@@ -617,6 +765,8 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
       this.db
         .select({
           id: moduleAppVersions.id,
+          manifestSnapshot: moduleAppVersions.manifestSnapshot,
+          runtimeManifest: moduleAppVersions.runtimeManifest,
           version: moduleAppVersions.version,
         })
         .from(moduleAppInstallationVersionRefs)
@@ -644,6 +794,24 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         },
       ]),
     ]);
+    const currentGrantSnapshot = parseStoredGrantSnapshot(installation.grantSnapshot);
+    const withGrantChange = (version: {
+      id: string;
+      manifestSnapshot: Record<string, unknown>;
+      runtimeManifest: Record<string, unknown>;
+      version: string;
+    }) => {
+      const targetGrantSnapshot = getVersionGrantSnapshot(version);
+
+      return {
+        grantChange: {
+          ...getModuleAppGrantDiff(currentGrantSnapshot, targetGrantSnapshot),
+          targetSnapshot: targetGrantSnapshot,
+        },
+        id: version.id,
+        version: version.version,
+      };
+    };
 
     return {
       installationReadiness:
@@ -653,11 +821,11 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         version: installation.installedVersionNumber,
       },
       installationId: installation.id,
-      rollbackVersions: rollbackRows.filter(({ id }) => id !== installation.versionId),
+      rollbackVersions: rollbackRows
+        .filter(({ id }) => id !== installation.versionId)
+        .map(withGrantChange),
       updateAvailable: Boolean(publishedVersion && publishedVersion.id !== installation.versionId),
-      publishedVersion: publishedVersion
-        ? { id: publishedVersion.id, version: publishedVersion.version }
-        : null,
+      publishedVersion: publishedVersion ? withGrantChange(publishedVersion) : null,
     };
   };
 

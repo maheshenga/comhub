@@ -34,18 +34,16 @@ const payoutStateCounter = meter.createCounter('module_app_payout_state_total', 
 const workerClaimCounter = meter.createCounter('module_app_worker_claims_total', {
   description: 'Module App worker claim attempts by bounded outcome',
 });
-const workerLeaseRenewalCounter = meter.createCounter(
-  'module_app_worker_lease_renewals_total',
-  { description: 'Module App worker lease renewals by bounded outcome' },
-);
-const workerBuildOutcomeCounter = meter.createCounter(
-  'module_app_worker_build_outcomes_total',
-  { description: 'Module App worker build outcomes by bounded failure code' },
-);
-const workerBuildDurationHistogram = meter.createHistogram(
-  'module_app_worker_build_duration_ms',
-  { description: 'Module App worker build duration in milliseconds', unit: 'ms' },
-);
+const workerLeaseRenewalCounter = meter.createCounter('module_app_worker_lease_renewals_total', {
+  description: 'Module App worker lease renewals by bounded outcome',
+});
+const workerBuildOutcomeCounter = meter.createCounter('module_app_worker_build_outcomes_total', {
+  description: 'Module App worker build outcomes by bounded failure code',
+});
+const workerBuildDurationHistogram = meter.createHistogram('module_app_worker_build_duration_ms', {
+  description: 'Module App worker build duration in milliseconds',
+  unit: 'ms',
+});
 const workerQueueDepthHistogram = meter.createHistogram('module_app_worker_queue_depth', {
   description: 'Module App worker eligible queue depth',
 });
@@ -64,13 +62,15 @@ const workerMaterializationDurationHistogram = meter.createHistogram(
 const workerCleanupCounter = meter.createCounter('module_app_worker_cleanup_total', {
   description: 'Module App worker stale staging cleanup results',
 });
+const artifactCleanupCounter = meter.createCounter('module_app_artifact_cleanup_total', {
+  description: 'Module App user artifact object cleanup results',
+});
+const installationLifecycleCounter = meter.createCounter(
+  'module_app_installation_lifecycle_total',
+  { description: 'Module App installation lifecycle transitions' },
+);
 
-export type ModuleAppSandboxOutcome =
-  | 'cleanup_failed'
-  | 'failed'
-  | 'oom'
-  | 'succeeded'
-  | 'timeout';
+export type ModuleAppSandboxOutcome = 'cleanup_failed' | 'failed' | 'oom' | 'succeeded' | 'timeout';
 
 const paymentReasons = new Set([
   'amount_mismatch',
@@ -118,11 +118,9 @@ export const recordModuleAppSandboxInvocation = (input: {
   sandboxDurationHistogram.record(boundedNumber(input.durationMs), attributes);
 };
 
-export const recordModuleAppSandboxCleanupFailure = () =>
-  sandboxCleanupFailureCounter.add(1);
+export const recordModuleAppSandboxCleanupFailure = () => sandboxCleanupFailureCounter.add(1);
 
-export const recordModuleAppSandboxReplayRejection = () =>
-  sandboxReplayRejectionCounter.add(1);
+export const recordModuleAppSandboxReplayRejection = () => sandboxReplayRejectionCounter.add(1);
 
 export const recordModuleAppWorkflowBacklog = (count: number) =>
   workflowBacklogHistogram.record(Math.floor(boundedNumber(count)));
@@ -132,22 +130,18 @@ export const recordModuleAppPaymentVerificationFailure = (reason: string) =>
     reason: paymentReasons.has(reason) ? reason : 'other',
   });
 
-export const recordModuleAppOperationalAge = (
-  kind: 'discrepancy' | 'refund',
-  ageMs: number,
-) => operationalAgeHistogram.record(boundedNumber(ageMs), { kind });
+export const recordModuleAppOperationalAge = (kind: 'discrepancy' | 'refund', ageMs: number) =>
+  operationalAgeHistogram.record(boundedNumber(ageMs), { kind });
 
 export const recordModuleAppPayoutState = (
   state: 'eligible' | 'failed' | 'paid' | 'pending' | 'processing' | 'reversed',
 ) => payoutStateCounter.add(1, { state });
 
-export const recordModuleAppWorkerClaim = (
-  outcome: 'claimed' | 'conflict' | 'recovered',
-) => workerClaimCounter.add(1, { outcome });
+export const recordModuleAppWorkerClaim = (outcome: 'claimed' | 'conflict' | 'recovered') =>
+  workerClaimCounter.add(1, { outcome });
 
-export const recordModuleAppWorkerLeaseRenewal = (
-  outcome: 'lost' | 'succeeded',
-) => workerLeaseRenewalCounter.add(1, { outcome });
+export const recordModuleAppWorkerLeaseRenewal = (outcome: 'lost' | 'succeeded') =>
+  workerLeaseRenewalCounter.add(1, { outcome });
 
 export const recordModuleAppWorkerBuildOutcome = (input: {
   failureCode?: string;
@@ -181,3 +175,24 @@ export const recordModuleAppWorkerCleanup = (input: { failed: number; removed: n
   workerCleanupCounter.add(Math.floor(boundedNumber(input.removed)), { outcome: 'removed' });
   workerCleanupCounter.add(Math.floor(boundedNumber(input.failed)), { outcome: 'failed' });
 };
+
+export const recordModuleAppArtifactCleanup = (input: {
+  failed: number;
+  released: number;
+  retrying: number;
+}) => {
+  artifactCleanupCounter.add(Math.floor(boundedNumber(input.released)), { outcome: 'released' });
+  artifactCleanupCounter.add(Math.floor(boundedNumber(input.retrying)), { outcome: 'retrying' });
+  artifactCleanupCounter.add(Math.floor(boundedNumber(input.failed)), { outcome: 'failed' });
+};
+
+export const recordModuleAppInstallationLifecycle = (input: {
+  changed: boolean;
+  operation: 'install' | 'rollback' | 'uninstall' | 'upgrade';
+  scope: 'personal' | 'workspace';
+}) =>
+  installationLifecycleCounter.add(1, {
+    operation: input.operation,
+    outcome: input.changed ? 'changed' : 'noop',
+    scope: input.scope,
+  });

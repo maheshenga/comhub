@@ -30,7 +30,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
@@ -79,6 +79,7 @@ const iconMap: Record<AdminNavIcon, typeof Gauge> = {
 const buildMenuItems = (
   role: null | string | undefined,
   statusLabel: Record<'deprecated' | 'experimental' | 'planned', string>,
+  translate: (key: string, fallback: string) => string,
 ): MenuProps['items'] =>
   getAdminNavGroupsForRole(role).map((group) => ({
     children: group.items.map((item) => ({
@@ -86,10 +87,10 @@ const buildMenuItems = (
       key: item.path,
       label:
         item.status === 'active' ? (
-          item.label
+          translate(`admin.navigation.items.${item.id}.label`, item.label)
         ) : (
           <Flexbox horizontal align="center" gap={8} justify="space-between">
-            <span>{item.label}</span>
+            <span>{translate(`admin.navigation.items.${item.id}.label`, item.label)}</span>
             {item.status === 'experimental' || item.status === 'deprecated' ? (
               <Tag color={item.status === 'deprecated' ? 'gold' : 'blue'}>
                 {statusLabel[item.status]}
@@ -97,12 +98,12 @@ const buildMenuItems = (
             ) : null}
           </Flexbox>
         ),
-      title: item.description,
+      title: translate(`admin.navigation.items.${item.id}.description`, item.description),
     })),
     icon: <Icon icon={iconMap[group.icon]} />,
     key: group.key,
-    label: group.label,
-    title: group.description,
+    label: translate(`admin.navigation.groups.${group.key}.label`, group.label),
+    title: translate(`admin.navigation.groups.${group.key}.description`, group.description),
   }));
 
 const AdminSidebar = memo<{ onNavigate?: () => void }>(({ onNavigate }) => {
@@ -110,25 +111,34 @@ const AdminSidebar = memo<{ onNavigate?: () => void }>(({ onNavigate }) => {
   const location = useLocation();
   const { t } = useTranslation('subscription');
   const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
+  const routeOpenKeys = useMemo(() => getAdminOpenKeys(location.pathname), [location.pathname]);
+  const [openKeys, setOpenKeys] = useState<string[]>(routeOpenKeys);
+
+  useEffect(() => setOpenKeys(routeOpenKeys), [routeOpenKeys]);
 
   const items = useMemo(
     () =>
-      buildMenuItems(role, {
-        deprecated: t('admin.navigation.status.deprecated'),
-        experimental: t('admin.navigation.status.experimental'),
-        planned: t('admin.navigation.status.planned'),
-      }),
+      buildMenuItems(
+        role,
+        {
+          deprecated: t('admin.navigation.status.deprecated'),
+          experimental: t('admin.navigation.status.experimental'),
+          planned: t('admin.navigation.status.planned'),
+        },
+        (key, fallback) => t(key, { defaultValue: fallback }),
+      ),
     [role, t],
   );
   const selectedKey = getAdminSelectedKey(location.pathname);
 
   return (
     <Menu
-      defaultOpenKeys={getAdminOpenKeys(location.pathname)}
       items={items}
       mode="inline"
+      openKeys={openKeys}
       selectedKeys={[selectedKey]}
       style={{ borderInlineEnd: 'none', height: '100%', width: '100%' }}
+      onOpenChange={(keys) => setOpenKeys(keys as string[])}
       onClick={({ key }: { key: string }) => {
         navigate(key);
         onNavigate?.();

@@ -1,3 +1,3 @@
 'use client';
 
-export { default } from '@/features/Pages/PageLayout';
+export { default, MobilePagesLayout } from '@/features/Pages/PageLayout';

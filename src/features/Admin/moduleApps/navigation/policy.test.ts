@@ -28,4 +28,23 @@ describe('module admin navigation policies', () => {
   it('filters app detail sections using module application read access', () => {
     expect(getModuleAppSectionsForRole('finance_admin')).toEqual([]);
   });
+
+  it('delegates governance and publisher review without finance access', () => {
+    expect(getModuleCenterSectionsForRole('module_admin').map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        'module-apps',
+        'module-publishers',
+        'module-reviews',
+        'module-installs',
+        'module-records',
+        'module-runs',
+        'module-artifacts',
+        'module-audit',
+      ]),
+    );
+    expect(getModuleCenterSectionsForRole('module_admin').map((item) => item.id)).not.toContain(
+      'module-payments',
+    );
+    expect(getModuleAppSectionsForRole('module_admin').length).toBeGreaterThan(0);
+  });
 });

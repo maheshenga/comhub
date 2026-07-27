@@ -601,6 +601,7 @@ export default {
   'admin.roles.contentAdmin': '内容管理员',
   'admin.roles.financeAdmin': '财务管理员',
   'admin.roles.modelOps': '模型运营',
+  'admin.roles.moduleAdmin': 'Module admin',
   'admin.roles.supportAdmin': '用户支持',
   'admin.roles.systemAdmin': '系统管理员',
   'admin.roles.unset': '未设置',
@@ -1001,6 +1002,99 @@ export default {
   'admin.navigation.status.deprecated': '已弃用',
   'admin.navigation.status.experimental': '实验性',
   'admin.navigation.status.planned': '规划中',
+  'admin.navigation.groups.overview.label': 'Dashboard',
+  'admin.navigation.groups.overview.description':
+    'Key metrics, pending work, runtime health, and version information',
+  'admin.navigation.groups.user-access.label': 'Users and access',
+  'admin.navigation.groups.user-access.description':
+    'User identity, roles, support actions, and user audit',
+  'admin.navigation.groups.commercial.label': 'Commercial',
+  'admin.navigation.groups.commercial.description':
+    'Plans, subscriptions, orders, credits, redemption, and statistics',
+  'admin.navigation.groups.ai-platform.label': 'AI platform',
+  'admin.navigation.groups.ai-platform.description':
+    'Providers, model catalog, pricing, policies, defaults, and generation services',
+  'admin.navigation.groups.module-apps.label': 'Module apps',
+  'admin.navigation.groups.module-apps.description':
+    'Module catalog, reviews, commerce, runtime data, and audit',
+  'admin.navigation.groups.content-operations.label': 'Content and operations',
+  'admin.navigation.groups.content-operations.description':
+    'Content governance, recommendations, experts, notifications, and growth',
+  'admin.navigation.groups.client-integrations.label': 'Clients and integrations',
+  'admin.navigation.groups.client-integrations.description':
+    'Desktop client, file storage, and external integrations',
+  'admin.navigation.groups.system-security.label': 'System and security',
+  'admin.navigation.groups.system-security.description':
+    'Site branding, system defaults, maintenance, and audit logs',
+  'admin.navigation.items.overview.label': 'Dashboard',
+  'admin.navigation.items.overview.description':
+    'View key metrics, pending work, and runtime health',
+  'admin.navigation.items.users.label': 'Users',
+  'admin.navigation.items.users.description':
+    'Manage user identity, roles, status, and support actions',
+  'admin.navigation.items.user-defaults.label': 'User defaults',
+  'admin.navigation.items.user-defaults.description':
+    'Configure inherited model, tool, avatar, and interest defaults',
+  'admin.navigation.items.plans.label': 'Plans and benefits',
+  'admin.navigation.items.plans.description': 'Configure plan prices, credits, and benefits',
+  'admin.navigation.items.subscriptions.label': 'Subscriptions',
+  'admin.navigation.items.subscriptions.description':
+    'Review subscriptions and process plan changes',
+  'admin.navigation.items.orders.label': 'Orders and top-ups',
+  'admin.navigation.items.orders.description': 'Review platform orders and top-up status',
+  'admin.navigation.items.credits.label': 'Credit accounts',
+  'admin.navigation.items.credits.description':
+    'Review credit accounts, balances, and ledger entries',
+  'admin.navigation.items.redemption.label': 'Redemption codes',
+  'admin.navigation.items.redemption.description': 'Create, inspect, and disable redemption codes',
+  'admin.navigation.items.stats.label': 'Commercial statistics',
+  'admin.navigation.items.stats.description':
+    'Review revenue, subscription, and referral statistics',
+  'admin.navigation.items.providers.label': 'Providers and instances',
+  'admin.navigation.items.providers.description':
+    'Maintain provider instances, scopes, and model catalogs',
+  'admin.navigation.items.model-billing-matrix.label': 'Model catalog and billing',
+  'admin.navigation.items.model-billing-matrix.description':
+    'Manage model catalog, multipliers, and plan billing',
+  'admin.navigation.items.model-policy.label': 'Model access policy',
+  'admin.navigation.items.model-policy.description':
+    'Configure platform model allow and deny policies',
+  'admin.navigation.items.ppt.label': 'Generation services',
+  'admin.navigation.items.ppt.description': 'Configure presentation generation and plan quotas',
+  'admin.navigation.items.ai-runtime-defaults.label': 'AI runtime defaults',
+  'admin.navigation.items.ai-runtime-defaults.description':
+    'Configure default models for retrieval and memory extraction',
+  'admin.navigation.items.modules.label': 'Module app center',
+  'admin.navigation.items.modules.description':
+    'Govern module apps, reviews, commerce, and runtime data',
+  'admin.navigation.items.content-resources.label': 'Content resources',
+  'admin.navigation.items.content-resources.description':
+    'Manage topics, resource files, and user documents',
+  'admin.navigation.items.content-operations.label': 'Content operations',
+  'admin.navigation.items.content-operations.description':
+    'Manage recommendations, experts, announcements, and operation switches',
+  'admin.navigation.items.growth.label': 'Signup and growth',
+  'admin.navigation.items.growth.description': 'Configure signup, referral, and growth policies',
+  'admin.navigation.items.desktop-update.label': 'Desktop control center',
+  'admin.navigation.items.desktop-update.description':
+    'Manage desktop installation, versions, client status, and updates',
+  'admin.navigation.items.mobile.label': 'Mobile control center',
+  'admin.navigation.items.mobile.description':
+    'Manage mobile branding, navigation, discovery, and app entries',
+  'admin.navigation.items.integrations.label': 'External integrations',
+  'admin.navigation.items.integrations.description':
+    'Configure Composio and other external tool integrations',
+  'admin.navigation.items.file-storage.label': 'File storage',
+  'admin.navigation.items.file-storage.description':
+    'Configure object storage, CDN, and presigned URLs',
+  'admin.navigation.items.settings.label': 'Site and branding',
+  'admin.navigation.items.settings.description':
+    'Configure site branding, sign-in pages, and help links',
+  'admin.navigation.items.maintenance.label': 'Cache and maintenance',
+  'admin.navigation.items.maintenance.description':
+    'Manage caches, data retention, and maintenance tasks',
+  'admin.navigation.items.audit.label': 'Audit logs',
+  'admin.navigation.items.audit.description': 'Inspect admin operations and sensitive actions',
   'admin.navigation.title': '管理后台',
   'admin.pagination.next': '下一页',
   'admin.pagination.previous': '上一页',
@@ -1370,6 +1464,14 @@ export default {
   'admin.mobile.retryModelSelector': 'Retry model selector',
   'admin.mobile.retryModuleAppSelector': 'Retry module app selector',
   'admin.mobile.saveError': 'Failed to save mobile settings.',
+  'admin.mobile.saveConflict':
+    'Another administrator updated this draft. Your local edits were preserved; reload before saving.',
+  'admin.settingsConflict.code': 'Error code',
+  'admin.settingsConflict.correlationId': 'Correlation ID',
+  'admin.settingsConflict.description':
+    'Another administrator saved this section first. Reload the latest values, review your retained local edits, and save again.',
+  'admin.settingsConflict.reload': 'Reload latest',
+  'admin.settingsConflict.title': 'Settings changed elsewhere',
   'admin.mobile.unsavedChanges': 'You have unsaved mobile settings. Leave this page?',
   'admin.mobile.unsavedLeave': 'Leave',
   'admin.mobile.unsavedStay': 'Keep editing',

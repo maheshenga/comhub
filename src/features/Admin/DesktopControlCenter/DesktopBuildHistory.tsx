@@ -1,9 +1,9 @@
 'use client';
 
 import type { DesktopReleaseStatus } from '@lobechat/types';
-import { confirmModal } from '@lobehub/ui/base-ui';
+import { Button, confirmModal } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Button, message, Space, Table, Tag, Typography } from 'antd';
+import { message, Space, Table, Tag, Typography } from 'antd';
 import { CheckCircle2, RefreshCw, RotateCcw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -251,7 +251,7 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
           <Table
             columns={columns}
             dataSource={releases}
-            pagination={false}
+            pagination={{ defaultPageSize: 20, hideOnSinglePage: true, showSizeChanger: true }}
             rowKey="id"
             scroll={{ x: 1100 }}
             size="small"

@@ -70,6 +70,7 @@ export const useMobilePublicationActions = ({
     try {
       const publication = await adminCommercialService.saveMobileSettingsDraft(
         normalizeMobileConfig(formValues),
+        publicationState.draft.revision,
       );
       if (!asyncGuard.isMounted()) return;
       const normalized = cloneConfig(publication.draft.config);
@@ -79,9 +80,16 @@ export const useMobilePublicationActions = ({
         setFormValues(normalized);
         setSuccess(tr('admin.mobile.draftSaved', 'Mobile draft saved.'));
       }
-    } catch {
+    } catch (reason) {
       if (asyncGuard.isMounted()) {
-        setError(tr('admin.mobile.saveError', 'Failed to save mobile settings.'));
+        setError(
+          isConflictError(reason)
+            ? tr(
+                'admin.mobile.saveConflict',
+                'Another administrator updated this draft. Your local edits were preserved; reload before saving.',
+              )
+            : tr('admin.mobile.saveError', 'Failed to save mobile settings.'),
+        );
       }
     } finally {
       asyncGuard.finishSave();
