@@ -70,7 +70,6 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml ./
 COPY .npmrc ./
 COPY packages ./packages
-COPY patches ./patches
 # bring in app workspace manifests so pnpm can resolve their local dependencies
 COPY apps/server/package.json ./apps/server/package.json
 COPY apps/desktop/src/main/package.json ./apps/desktop/src/main/package.json

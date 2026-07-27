@@ -48,6 +48,26 @@ describe('Docker workspace manifests', () => {
     );
   });
 
+  it('copies only tracked sources from the local build context', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const localCopySources = dockerfile
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('COPY ') && !line.startsWith('COPY --from='))
+      .flatMap((line) => line.trim().split(/\s+/).slice(1, -1));
+
+    for (const source of localCopySources) {
+      const trackedFiles = spawnSync('git', ['ls-files', '--', source], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+
+      expect(trackedFiles.status, trackedFiles.stderr).toBe(0);
+      expect(trackedFiles.stdout.trim(), `Docker COPY source is not tracked: ${source}`).not.toBe(
+        '',
+      );
+    }
+  });
+
   it('uses pnpm for container build scripts', () => {
     const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
     const wslBuildScript = readFileSync(
