@@ -43,6 +43,16 @@ const assertPinnedMainTooling = (source, workflow, jobName) => {
   assert.equal(checkout?.with?.ref, '${{ github.sha }}');
 };
 
+const assertJobUsesSetupEnv = (workflow, jobName) => {
+  const setupEnvironment = workflow.jobs[jobName].steps.find(
+    (step) => step.uses === './.github/actions/setup-env',
+  );
+
+  assert.ok(setupEnvironment, `${jobName} must install Bun through the shared setup action`);
+  assert.equal(setupEnvironment.with?.['node-version'], '${{ env.NODEJS_VERSION }}');
+  assert.equal(setupEnvironment.with?.['package-manager-cache'], false);
+};
+
 test('build workflow publishes images without production access', () => {
   const { source, workflow } = loadWorkflow('comhub-build.yml');
 
@@ -54,6 +64,20 @@ test('build workflow publishes images without production access', () => {
   assert.match(source, /git show -s --format=%cI/);
   assert.doesNotMatch(source, /COMHUB_SSH_PRIVATE_KEY/);
   assert.doesNotMatch(source, /comhub-production-deploy/);
+});
+
+test('Module App verification jobs install Bun through the shared setup action', () => {
+  const setupEnvironment = readRepositoryFile('.github/actions/setup-env/action.yml');
+  assert.match(setupEnvironment, /oven-sh\/setup-bun@v2/u);
+
+  for (const [filename, jobNames] of [
+    ['comhub-build.yml', ['verify-module-app', 'verify-module-app-full']],
+    ['comhub-deploy.yml', ['verify-module-app-full']],
+    ['comhub-deploy-worker.yml', ['verify-worker']],
+  ]) {
+    const { workflow } = loadWorkflow(filename);
+    for (const jobName of jobNames) assertJobUsesSetupEnv(workflow, jobName);
+  }
 });
 
 test('PR checks validate main-bound changes without deployment capability', () => {
@@ -267,7 +291,9 @@ test('ComHub build tooling uses Node 24 LTS while preserving the node22 module c
   ]) {
     const source = readRepositoryFile(filename);
     assert.match(source, new RegExp(nodeVersion.replaceAll('.', '\\.'), 'u'));
-    const setupNodeCount = (source.match(/actions\/setup-node@v6/gu) ?? []).length;
+    const setupNodeCount = (
+      source.match(/uses: (?:actions\/setup-node@v6|\.\/\.github\/actions\/setup-env)/gu) ?? []
+    ).length;
     const disabledCacheCount = (source.match(/package-manager-cache: false/gu) ?? []).length;
     assert.equal(disabledCacheCount, setupNodeCount);
   }

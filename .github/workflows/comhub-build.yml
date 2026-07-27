@@ -50,13 +50,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - name: Set up Node.js, pnpm, and Bun
+        uses: ./.github/actions/setup-env
         with:
           node-version: ${{ env.NODEJS_VERSION }}
           package-manager-cache: false
@@ -97,13 +92,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - name: Set up Node.js, pnpm, and Bun
+        uses: ./.github/actions/setup-env
         with:
           node-version: ${{ env.NODEJS_VERSION }}
           package-manager-cache: false
