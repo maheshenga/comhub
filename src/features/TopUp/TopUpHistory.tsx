@@ -8,6 +8,7 @@ const sourceLabels: Record<string, string> = {
   manual: '手动充值',
   redemption: '卡密兑换',
   wechat_pay: '微信支付',
+  zpay: '第三方支付',
 };
 
 const statusLabels: Record<string, string> = {

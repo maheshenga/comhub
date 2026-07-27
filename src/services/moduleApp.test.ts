@@ -338,21 +338,28 @@ describe('createModuleAppService', () => {
     expect(cancelOrder).toHaveBeenCalledWith({ orderId: 'order-1' });
   });
 
-  it('creates a server-owned Alipay computer website payment', async () => {
+  it('creates a server-owned computer website payment with the selected method', async () => {
     const createPayment = vi.fn().mockResolvedValue({
-      body: '<form action="https://openapi.alipay.com/gateway.do"></form>',
+      checkout: {
+        fields: { sign: 'signed' },
+        method: 'POST',
+        type: 'form',
+        url: 'https://openapi.alipay.com/gateway.do',
+      },
+      method: 'alipay',
       outTradeNo: 'mapp-order-1',
+      provider: 'alipay',
     });
     const service = createModuleAppService({
       moduleApp: { createPayment: { mutate: createPayment } },
     } as never);
 
     await expect(
-      service.createPayment({ orderId: 'order-1', subject: 'Recruiting Desk' }),
+      service.createPayment({ method: 'alipay', orderId: 'order-1' }),
     ).resolves.toMatchObject({ outTradeNo: 'mapp-order-1' });
     expect(createPayment).toHaveBeenCalledWith({
+      method: 'alipay',
       orderId: 'order-1',
-      subject: 'Recruiting Desk',
     });
   });
 });

@@ -25,12 +25,15 @@ describe('PaymentReconciliationTable', () => {
             id: 'attempt-1',
             licenseIds: ['license-1'],
             latestAppRuntimeInvocationId: 'run-1',
+            method: 'wechat_pay',
             orderId: 'order-1',
             orderStatus: 'paid',
             outTradeNo: 'out-1',
             paymentEventIds: ['event-1'],
             paymentStatus: 'paid',
             payoutBatchIds: ['payout-1'],
+            provider: 'wechat_pay',
+            providerTransactionId: 'wechat-transaction-1',
             refundIds: ['refund-1'],
             revenueEntryIds: ['revenue-1'],
             totalAmount: '88.00',
@@ -43,6 +46,8 @@ describe('PaymentReconciliationTable', () => {
     expect(screen.getByText('event-1')).toBeInTheDocument();
     expect(screen.getByText('payout-1')).toBeInTheDocument();
     expect(screen.getByText('run-1')).toBeInTheDocument();
+    expect(screen.getAllByText('wechat_pay')).toHaveLength(2);
+    expect(screen.getByText('wechat-transaction-1')).toBeInTheDocument();
     expect(screen.queryByText(/signature/i)).not.toBeInTheDocument();
   });
 
@@ -70,12 +75,14 @@ describe('PaymentReconciliationTable', () => {
             discrepancyIds: ['discrepancy-1'],
             id: 'attempt-1',
             licenseIds: [],
+            method: 'alipay',
             orderId: 'order-1',
             orderStatus: 'paid',
             outTradeNo: 'out-1',
             paymentEventIds: [],
             paymentStatus: 'paid',
             payoutBatchIds: [],
+            provider: 'alipay',
             refundIds: [],
             revenueEntryIds: [],
             totalAmount: '88.00',
@@ -90,6 +97,7 @@ describe('PaymentReconciliationTable', () => {
   });
 
   it('renders only actions backed by row identifiers', () => {
+    const onRetryPayment = vi.fn();
     render(
       <PaymentReconciliationTable
         canWrite
@@ -103,12 +111,14 @@ describe('PaymentReconciliationTable', () => {
             discrepancyStatus: 'open',
             id: 'attempt-1',
             licenseIds: [],
+            method: 'alipay',
             orderId: 'order-1',
             orderStatus: 'paid',
             outTradeNo: 'out-1',
             paymentEventIds: [],
             paymentStatus: 'paid',
             payoutBatchIds: [],
+            provider: 'alipay',
             refundIds: [],
             revenueEntryIds: [],
             totalAmount: '88.00',
@@ -116,13 +126,14 @@ describe('PaymentReconciliationTable', () => {
         ]}
         onAcknowledge={vi.fn()}
         onOpenRefund={vi.fn()}
-        onRetryPayment={vi.fn()}
+        onRetryPayment={onRetryPayment}
       />,
     );
 
     expect(screen.getByRole('button', { name: 'Acknowledge discrepancy' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refund payment' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry payment query' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry payment query' }));
+    expect(onRetryPayment).toHaveBeenCalledWith('out-1', 'alipay');
     expect(screen.queryByRole('button', { name: 'Retry refund status' })).toBeNull();
   });
 });

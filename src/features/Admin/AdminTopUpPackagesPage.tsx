@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Empty, Form, Input, InputNumber, message, Modal, Switch, Tag } from 'antd';
+import { Button, confirmModal, Modal } from '@lobehub/ui/base-ui';
+import { Empty, Form, Input, InputNumber, message, Switch, Tag } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -49,7 +50,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
     const init = row ?? {
       amount: 0,
       credits: 0,
-      currency: 'USD',
+      currency: 'CNY',
       displayName: '',
       id: '',
       isActive: true,
@@ -102,7 +103,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
   };
 
   const handleDelete = (id: string) => {
-    Modal.confirm({
+    confirmModal({
       content: id,
       onOk: async () => {
         await adminCommercialService.deletePackage(id);

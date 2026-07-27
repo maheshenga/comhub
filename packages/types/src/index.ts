@@ -39,6 +39,7 @@ export * from './moduleAppPayment';
 export * from './moduleAppPublisher';
 export * from './moduleAppRuntime';
 export * from './moduleAppWorkflow';
+export * from './payment';
 export * from './plugins';
 export * from './rag';
 export * from './redis';

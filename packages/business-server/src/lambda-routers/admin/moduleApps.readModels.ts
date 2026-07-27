@@ -652,6 +652,7 @@ export class ModuleAppAdminReadModel {
           ?.status,
         id: attempt.id,
         licenseIds: licenseIds.get(attempt.orderId) ?? [],
+        method: attempt.method,
         orderId: attempt.orderId,
         orderStatus,
         outTradeNo: attempt.outTradeNo,
@@ -660,6 +661,7 @@ export class ModuleAppAdminReadModel {
         payoutBatchIds: Array.from(
           new Set(orderRevenueIds.flatMap((id) => payoutIdsByRevenue.get(id) ?? [])),
         ),
+        provider: attempt.provider,
         providerTransactionId: attempt.providerTransactionId,
         refundIds: refundIds.get(attempt.orderId) ?? [],
         refundStatus: refunds.findLast((item) => item.orderId === attempt.orderId)?.status,

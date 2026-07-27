@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { paymentProviderSchema } from './payment';
+
 const paymentAmountSchema = z.string().regex(/^\d{1,14}(?:\.\d{1,6})?$/, 'invalid_payment_amount');
 
-export const moduleAppPaymentProviderSchema = z.literal('alipay');
+export const moduleAppPaymentProviderSchema = paymentProviderSchema;
 export type ModuleAppPaymentProvider = z.infer<typeof moduleAppPaymentProviderSchema>;
 
 export const moduleAppPaymentAttemptStatusSchema = z.enum([
@@ -44,9 +46,7 @@ export const moduleAppPaymentDiscrepancyKindSchema = z.enum([
   'settlement_failed',
   'wrong_seller',
 ]);
-export type ModuleAppPaymentDiscrepancyKind = z.infer<
-  typeof moduleAppPaymentDiscrepancyKindSchema
->;
+export type ModuleAppPaymentDiscrepancyKind = z.infer<typeof moduleAppPaymentDiscrepancyKindSchema>;
 
 export const moduleAppNormalizedPaymentEventSchema = z
   .object({
@@ -62,6 +62,4 @@ export const moduleAppNormalizedPaymentEventSchema = z
     totalAmount: paymentAmountSchema,
   })
   .strict();
-export type ModuleAppNormalizedPaymentEvent = z.infer<
-  typeof moduleAppNormalizedPaymentEventSchema
->;
+export type ModuleAppNormalizedPaymentEvent = z.infer<typeof moduleAppNormalizedPaymentEventSchema>;

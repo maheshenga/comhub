@@ -1,10 +1,21 @@
+import { paymentMethodIdSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { ModuleAppPaymentService } from '@/business/server/module-apps/payments/service';
 import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
+import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
+import { moduleAppOrders } from '@/database/schemas';
 import { appEnv } from '@/envs/app';
-import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
+import {
+  buildPaymentCallbackUrl,
+  buildPaymentReturnUrl,
+  getServerPaymentConfig,
+  listCheckoutPaymentMethods,
+  resolvePaymentMethod,
+} from '@/server/services/payments/config';
+import { createPaymentAdapter } from '@/server/services/payments/factory';
 
 import {
   assertWorkspaceManagementPermission,
@@ -26,7 +37,7 @@ const ProductIdInputSchema = z.object({
 const ProductQuoteInputSchema = ProductIdInputSchema.omit({ idempotencyKey: true });
 const OrderIdInputSchema = z.object({ orderId: z.string().uuid() });
 const ModuleAppPaymentInputSchema = OrderIdInputSchema.extend({
-  subject: z.string().trim().min(1).max(240),
+  method: paymentMethodIdSchema.optional(),
 });
 const ModuleAppCatalogInputSchema = z.object({ appId: z.string().uuid().optional() });
 const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
@@ -57,40 +68,69 @@ export const moduleAppCommerceProcedures = {
     });
   }),
 
+  getPaymentMethods: moduleAppProcedure.query(async ({ ctx }) => {
+    const config = await getServerPaymentConfig(ctx.serverDB);
+    return listCheckoutPaymentMethods(config, 'module_app');
+  }),
+
+  getPaymentStatus: moduleAppProcedure.input(OrderIdInputSchema).query(async ({ ctx, input }) => {
+    const order = await ctx.serverDB.query.moduleAppOrders.findFirst({
+      columns: { id: true, status: true },
+      where: and(
+        eq(moduleAppOrders.id, input.orderId),
+        eq(moduleAppOrders.purchaserUserId, ctx.userId),
+      ),
+    });
+    if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_order_not_found' });
+    const attempt = await new ModuleAppPaymentModel(ctx.serverDB).getPaymentAttemptByOrderId(
+      order.id,
+    );
+    return {
+      method: attempt?.method ?? null,
+      paymentStatus: attempt?.status ?? null,
+      provider: attempt?.provider ?? null,
+      status: order.status,
+    };
+  }),
+
   createPayment: moduleAppProcedure
     .input(ModuleAppPaymentInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
+      const config = await getServerPaymentConfig(ctx.serverDB);
+      if (!config.enabled || !config.moduleAppEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
-          message: 'module_app_alipay_disabled',
+          message: 'module_app_payment_disabled',
         });
       }
-      if (!appEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED) {
+      let method;
+      try {
+        method = resolvePaymentMethod(config, 'module_app', input.method);
+      } catch (error) {
         throw new TRPCError({
+          cause: error,
           code: 'PRECONDITION_FAILED',
-          message: 'module_app_alipay_payment_creation_disabled',
+          message: 'module_app_payment_method_unavailable',
         });
       }
-      if (!appEnv.MODULE_APP_ALIPAY_NOTIFY_URL || !appEnv.MODULE_APP_ALIPAY_RETURN_URL) {
+      if (!config.publicBaseUrl) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
-          message: 'module_app_alipay_url_required',
+          message: 'module_app_payment_public_url_required',
         });
       }
       return new ModuleAppPaymentService(
         ctx.serverDB,
-        createConfiguredModuleAppAlipayClient(),
+        createPaymentAdapter(config, method.id),
       ).createPayment({
-        notifyUrl: appEnv.MODULE_APP_ALIPAY_NOTIFY_URL,
+        notifyUrl: buildPaymentCallbackUrl(config, method.provider),
         orderId: input.orderId,
         purchaserUserId: ctx.userId,
-        returnUrl: appEnv.MODULE_APP_ALIPAY_RETURN_URL,
+        returnUrl: buildPaymentReturnUrl(config, 'module_app'),
         rollout: {
           appIds: appEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST,
           publisherIds: appEnv.MODULE_APP_PUBLISHER_ALLOWLIST,
         },
-        subject: input.subject,
       });
     }),
 

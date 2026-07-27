@@ -80,6 +80,13 @@ test('Module App verification jobs install Bun through the shared setup action',
   }
 });
 
+test('Module App SDK workspace installs link source instead of unpublished build output', () => {
+  const manifest = JSON.parse(readRepositoryFile('packages/module-app-sdk/package.json'));
+
+  assert.equal(manifest.publishConfig.directory, 'dist');
+  assert.equal(manifest.publishConfig.linkDirectory, false);
+});
+
 test('PR checks validate main-bound changes without deployment capability', () => {
   const { source, workflow } = loadWorkflow('comhub-pr-check.yml');
 

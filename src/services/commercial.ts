@@ -1,3 +1,5 @@
+import type { PaymentCreateResult, PaymentMethod, PaymentMethodId } from '@lobechat/types';
+
 import { lambdaClient } from '@/libs/trpc/client';
 import {
   type BindReferralCodeParams,
@@ -62,6 +64,24 @@ class CommercialService {
   getTopUpPackages = async () => {
     return lambdaClient.spend.listTopUpPackages.query();
   };
+
+  getPaymentMethods = async () =>
+    lambdaClient.payment.getPaymentMethods.query() as Promise<PaymentMethod[]>;
+
+  createPaymentOrder = async (input: {
+    idempotencyKey: string;
+    method?: PaymentMethodId;
+    packageId: string;
+  }) =>
+    lambdaClient.payment.createPaymentOrder.mutate(input) as Promise<
+      PaymentCreateResult & { orderId: string }
+    >;
+
+  getPaymentStatus = async (orderId: string) =>
+    lambdaClient.payment.getPaymentStatus.query({ orderId });
+
+  recoverPaymentOrder = async (idempotencyKey: string) =>
+    lambdaClient.payment.recoverPaymentOrder.mutate({ idempotencyKey });
 
   listTopUpOrders = async (params?: QueryCommercialListParams) => {
     return lambdaClient.spend.listTopUpOrders.query(params ?? {});

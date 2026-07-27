@@ -1,6 +1,7 @@
 import type {
   AutoTopUpSetting,
   CreditLedgerEntryType,
+  PaymentCheckoutAction,
   ReferralStatusString,
   SubscriptionChangeRequestReasonType,
   SubscriptionChangeRequestStatusType,
@@ -347,6 +348,8 @@ export const topUpOrders = pgTable(
 
     provider: text('provider'),
     externalOrderId: text('external_order_id'),
+    idempotencyKey: text('idempotency_key'),
+    checkout: jsonb('checkout').$type<PaymentCheckoutAction>(),
     source: text('source').$type<TopUpOrderSourceType>(),
     redemptionCodeId: text('redemption_code_id'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
@@ -357,6 +360,9 @@ export const topUpOrders = pgTable(
   },
   (table) => [
     index('top_up_orders_user_id_idx').on(table.userId),
+    uniqueIndex('top_up_orders_user_idempotency_unique')
+      .on(table.userId, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
     uniqueIndex('top_up_orders_external_order_id_idx').on(table.provider, table.externalOrderId),
     uniqueIndex('top_up_orders_redemption_code_unique')
       .on(table.redemptionCodeId)

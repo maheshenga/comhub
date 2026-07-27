@@ -1,6 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { APP_SETTINGS_SECTIONS } from '@/const/appSettingsRegistry';
+import { appSettingRevisions } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure } from '@/libs/trpc/lambda';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { buildAppSettingsGovernance } from '@/server/services/appSettings/governance';
@@ -45,7 +47,7 @@ export const adminSettingsReadProcedures = {
         loadAppSettingsSectionSnapshot(ctx.serverDB, input.section),
         needsEnabledModels ? getAllEnabledModels(ctx.serverDB) : Promise.resolve([]),
         ctx.serverDB.query.appSettingRevisions.findFirst({
-          where: (rows, { eq }) => eq(rows.section, input.section),
+          where: eq(appSettingRevisions.section, input.section),
         }),
       ]);
 

@@ -79,6 +79,14 @@ describe('adminCatalog', () => {
       ADMIN_CAPABILITIES.financeRead,
       ADMIN_CAPABILITIES.systemRead,
     ]);
+    expect(getAdminCatalogAccessCapabilities(byId.payments)).toEqual([
+      ADMIN_CAPABILITIES.systemRead,
+      ADMIN_CAPABILITIES.financeRead,
+    ]);
+    expect(byId.payments.writeCapabilities).toEqual([
+      ADMIN_CAPABILITIES.systemWrite,
+      ADMIN_CAPABILITIES.financeWrite,
+    ]);
     const moduleApps = ADMIN_CATALOG.find((item) => item.id === 'modules');
     expect(moduleApps?.readCapability).toBe(ADMIN_CAPABILITIES.moduleAppRead);
     expect(moduleApps?.segment).toBe('modules');

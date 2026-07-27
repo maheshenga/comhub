@@ -64,11 +64,21 @@ describe('AlipayModuleAppClient', () => {
     });
 
     expect(result.outTradeNo).toBe('mapp_00000000000040008000000000000001');
-    expect(result.body).toContain('alipay.trade.page.pay');
-    expect(result.body).toContain('https://openapi-sandbox.dl.alipaydev.com/gateway.do');
-    expect(result.body).toContain('name="sign"');
-    expect(result.body).not.toContain('name="app_cert_sn"');
-    expect(result.body).not.toContain('name="alipay_root_cert_sn"');
+    expect(result.checkout).toMatchObject({
+      method: 'POST',
+      type: 'form',
+      url: 'https://openapi-sandbox.dl.alipaydev.com/gateway.do',
+    });
+    expect(result.checkout.type === 'form' && result.checkout.fields).toMatchObject({
+      method: 'alipay.trade.page.pay',
+      sign: expect.any(String),
+    });
+    expect(result.checkout.type === 'form' && result.checkout.fields).not.toHaveProperty(
+      'app_cert_sn',
+    );
+    expect(result.checkout.type === 'form' && result.checkout.fields).not.toHaveProperty(
+      'alipay_root_cert_sn',
+    );
   });
 
   it('includes certificate serial parameters in certificate mode requests', async () => {
@@ -91,10 +101,10 @@ describe('AlipayModuleAppClient', () => {
       totalAmount: '12.340000',
     });
 
-    expect(result.body).toContain('name="app_cert_sn"');
-    expect(result.body).toContain('value="app-cert-sn-1"');
-    expect(result.body).toContain('name="alipay_root_cert_sn"');
-    expect(result.body).toContain('value="root-cert-sn-1"');
+    expect(result.checkout.type === 'form' && result.checkout.fields).toMatchObject({
+      alipay_root_cert_sn: 'root-cert-sn-1',
+      app_cert_sn: 'app-cert-sn-1',
+    });
   });
 
   it('rejects unsupported currencies before creating a payment form', async () => {
@@ -173,7 +183,12 @@ describe('AlipayModuleAppClient', () => {
       eventType: 'payment_succeeded',
     });
     await expect(
-      client.refund({ outTradeNo: 'out-1', reason: 'requested', refundAmount: '12.340000' }),
+      client.refund({
+        outTradeNo: 'out-1',
+        reason: 'requested',
+        refundAmount: '12.340000',
+        totalAmount: '12.340000',
+      }),
     ).resolves.toMatchObject({ status: 'succeeded' });
     await expect(
       client.queryBillDownloadUrl({ billDate: '2026-07-11', billType: 'trade' }),

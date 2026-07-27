@@ -8,6 +8,7 @@ import type {
   ModuleAppDeveloperRevenueSummary,
   ModuleAppDeveloperSubmissionListResult,
   ModuleAppDeveloperVersionSummary,
+  ModuleAppGrantSnapshot,
   ModuleAppInstallationListInput,
   ModuleAppInstallationReadiness,
   ModuleAppLaunchContext,
@@ -20,6 +21,9 @@ import type {
   ModuleAppPublisherProfileInput,
   ModuleAppRecordInput,
   ModuleAppRunInput,
+  PaymentCreateResult,
+  PaymentMethod,
+  PaymentMethodId,
 } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
@@ -59,6 +63,7 @@ type ModuleAppInstallationSecretScope = Pick<
 >;
 
 export type ModuleAppInstallationVersionChangeInput = {
+  acceptedGrantSnapshot?: ModuleAppGrantSnapshot;
   appId: string;
   expectedVersionId: string;
   operation: 'rollback' | 'upgrade';
@@ -124,8 +129,8 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     createPackageUpload,
     createOrder: (input: { idempotencyKey: string; productId: string; workspaceId?: string }) =>
       client.moduleApp.createOrder.mutate!(input),
-    createPayment: (input: { orderId: string; subject: string }) =>
-      client.moduleApp.createPayment.mutate!(input),
+    createPayment: (input: { method?: PaymentMethodId; orderId: string }) =>
+      client.moduleApp.createPayment.mutate!(input) as Promise<PaymentCreateResult>,
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
     deleteInstallationSecret: (input: ModuleAppInstallationSecretScope & { secretKey: string }) =>
       client.moduleApp.deleteInstallationSecret.mutate!(input),
@@ -135,6 +140,10 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.getLaunchContext.query!(input) as Promise<ModuleAppLaunchContext>,
     getLicense: (input: { appId: string; workspaceId?: string }) =>
       client.moduleApp.getLicense.query!(input),
+    getPaymentMethods: () =>
+      client.moduleApp.getPaymentMethods.query!() as Promise<PaymentMethod[]>,
+    getPaymentStatus: (input: { orderId: string }) =>
+      client.moduleApp.getPaymentStatus.query!(input),
     getMyDeveloperFinance: () =>
       client.moduleApp.getMyDeveloperFinance.query!() as Promise<ModuleAppDeveloperFinance>,
     getMyDeveloperFinanceSummary: () =>
@@ -200,10 +209,13 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     rollbackMyDeveloperApp: (input: { appId: string; versionId: string }) =>
       client.moduleApp.rollbackMyDeveloperApp.mutate!(input),
     submitUploadedPackage,
-    uninstallPersonal: (input: { appId: string }) =>
+    uninstallPersonal: (input: { appId: string; dataPolicy?: 'delete' | 'retain' }) =>
       client.moduleApp.uninstallPersonal.mutate!(input),
-    uninstallWorkspace: (input: { appId: string; workspaceId: string }) =>
-      client.moduleApp.uninstallWorkspace.mutate!(input),
+    uninstallWorkspace: (input: {
+      appId: string;
+      dataPolicy?: 'delete' | 'retain';
+      workspaceId: string;
+    }) => client.moduleApp.uninstallWorkspace.mutate!(input),
     unpublishMyDeveloperApp: (input: { appId: string }) =>
       client.moduleApp.unpublishMyDeveloperApp.mutate!(input),
     upsertInstallationSecret: (

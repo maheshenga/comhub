@@ -1,7 +1,6 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it } from 'vitest';
-
 import { eq } from 'drizzle-orm';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '@/database/core/getTestDB';
 import {
@@ -383,9 +382,11 @@ describe('ModuleAppAdminReadModel', () => {
       auditEventIds: [auditRows[0].id],
       discrepancyIds: [discrepancy.id],
       licenseIds: [license.id],
+      method: 'alipay',
       orderId: order.id,
       paymentEventIds: [event.id],
       payoutBatchIds: [payout.id],
+      provider: 'alipay',
       refundIds: [refund.id],
       revenueEntryIds: [revenue.id],
       latestAppRuntimeInvocationId: run.id,

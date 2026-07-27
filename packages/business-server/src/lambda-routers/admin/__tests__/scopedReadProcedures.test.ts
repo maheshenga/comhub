@@ -15,6 +15,7 @@ describe('scoped admin read procedures', () => {
         'listAccounts: financeReadProcedure',
       ],
       orders: ['getDetail: financeReadProcedure', 'list: financeReadProcedure'],
+      payments: ['listTopUpPayments: financeReadProcedure'],
       plans: ['getDeleteImpact: financeReadProcedure', 'list: financeReadProcedure'],
       subscriptions: [
         'getUserSubscription: financeReadProcedure',

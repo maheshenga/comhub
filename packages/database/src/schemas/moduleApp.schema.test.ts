@@ -5,6 +5,7 @@ import { getTableName } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
+import { topUpOrders } from './commercial';
 import * as liveSchema from './index';
 import {
   moduleAppActions,
@@ -22,6 +23,7 @@ import {
   moduleAppPackages,
   moduleAppPackageUploads,
   moduleAppPages,
+  moduleAppPaymentAttempts,
   moduleAppPayoutEntries,
   moduleAppRecordEvents,
   moduleAppRecords,
@@ -383,5 +385,33 @@ describe('module app schema exports', () => {
     expect(journal.entries.some(({ tag }) => tag === '0170_module_app_installation_grants')).toBe(
       true,
     );
+  });
+
+  it('registers a rerunnable unified payment provider migration', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0173_unify_payment_providers.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain(
+      'DROP CONSTRAINT IF EXISTS "module_app_payment_attempts_method_check"',
+    );
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "checkout" jsonb');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "idempotency_key" text');
+    expect(migration).toContain(
+      'CREATE UNIQUE INDEX IF NOT EXISTS "top_up_orders_user_idempotency_unique"',
+    );
+    expect(moduleAppPaymentAttempts.checkout).toBeDefined();
+    expect(topUpOrders.checkout).toBeDefined();
+    expect(topUpOrders.idempotencyKey).toBeDefined();
+    expect(
+      getTableConfig(topUpOrders).indexes.find(
+        (index) => index.config.name === 'top_up_orders_user_idempotency_unique',
+      )?.config.where,
+    ).toBeDefined();
+    expect(journal.entries.some(({ tag }) => tag === '0173_unify_payment_providers')).toBe(true);
   });
 });

@@ -10,6 +10,9 @@ import type {
   CreditLedgerListResult,
   CreditSourceSummary,
   CreditSourceType,
+  PaymentCheckoutAction,
+  PaymentMethodId,
+  PaymentProvider,
   QueryCommercialListParams,
   QueryCreditLedgerParams,
   ReferralHistoryItem,
@@ -277,10 +280,7 @@ export const getPlanDeleteImpact = async (
       .select({ value: count() })
       .from(userPlanSnapshots)
       .where(
-        and(
-          eq(userPlanSnapshots.plan, plan as Plans),
-          eq(userPlanSnapshots.status, 'active'),
-        ),
+        and(eq(userPlanSnapshots.plan, plan as Plans), eq(userPlanSnapshots.status, 'active')),
       ),
     db
       .select({ value: count() })
@@ -347,9 +347,7 @@ export class CommercialModel {
     this.topUp = new CommercialTopUpModel(db, userId);
   }
 
-  private resolveReferralRewardCredits = async (
-    db: LobeChatDatabase | Transaction = this.db,
-  ) => {
+  private resolveReferralRewardCredits = async (db: LobeChatDatabase | Transaction = this.db) => {
     const row = await db.query.appSettings.findFirst({
       columns: { value: true },
       extras: {
@@ -1529,7 +1527,9 @@ export class CommercialModel {
       }
       case 'one_time': {
         const cyclePrice =
-          preset.oneTimePrice > 0 ? preset.oneTimePrice : Number((preset.monthlyPrice * 12).toFixed(2));
+          preset.oneTimePrice > 0
+            ? preset.oneTimePrice
+            : Number((preset.monthlyPrice * 12).toFixed(2));
 
         return {
           currency: preset.currency,
@@ -1986,6 +1986,38 @@ export class CommercialModel {
   settleTopUpOrder = (orderId: string): Promise<TopUpOrderHistoryItem> =>
     this.topUp.settleTopUpOrder(orderId);
 
+  createOnlineTopUpOrder = (input: {
+    idempotencyKey: string;
+    method: PaymentMethodId;
+    packageId: string;
+    provider: PaymentProvider;
+  }) => this.topUp.createOnlineTopUpOrder(input);
+
+  bindOnlineTopUpPayment = (input: {
+    externalOrderId: string;
+    method: PaymentMethodId;
+    orderId: string;
+    provider: PaymentProvider;
+  }) => this.topUp.bindOnlineTopUpPayment(input);
+
+  storeOnlineTopUpCheckout = (input: { checkout: PaymentCheckoutAction; orderId: string }) =>
+    this.topUp.storeOnlineTopUpCheckout(input);
+
+  getTopUpOrder = (orderId: string) => this.topUp.getTopUpOrder(orderId);
+
+  getOnlineTopUpOrderByIdempotencyKey = (idempotencyKey: string) =>
+    this.topUp.getOnlineTopUpOrderByIdempotencyKey(idempotencyKey);
+
+  settleOnlineTopUpOrder = (input: {
+    amount: string;
+    currency: string;
+    externalOrderId: string;
+    method: PaymentMethodId;
+    orderId: string;
+    paymentReference?: string;
+    provider: PaymentProvider;
+  }) => this.topUp.settleOnlineTopUpOrder(input);
+
   getReferralStatus = async () => {
     const relation = await this.db.query.referralRelations.findFirst({
       columns: { status: true },
@@ -1999,19 +2031,19 @@ export class CommercialModel {
   getReferralOverview = async (): Promise<ReferralOverview> => {
     const [aggregate, currentReferralStatus, referralProfile, rewardCreditsPerInvite] =
       await Promise.all([
-      this.db
-        .select({
-          totalInvites: sql<number>`COUNT(*)::int`,
-          totalRewarded: sql<number>`COUNT(*) FILTER (WHERE ${referralRelations.status} = 'rewarded')::int`,
-          totalRewardedAmount: sql<number>`COALESCE(SUM(CASE WHEN ${referralRelations.status} = 'rewarded' THEN ${referralRelations.rewardCredits} ELSE 0 END), 0)::float8`,
-        })
-        .from(referralRelations)
-        .where(eq(referralRelations.inviterUserId, this.userId))
-        .limit(1),
-      this.getReferralStatus(),
-      this.getReferralProfile(),
-      this.resolveReferralRewardCredits(),
-    ]);
+        this.db
+          .select({
+            totalInvites: sql<number>`COUNT(*)::int`,
+            totalRewarded: sql<number>`COUNT(*) FILTER (WHERE ${referralRelations.status} = 'rewarded')::int`,
+            totalRewardedAmount: sql<number>`COALESCE(SUM(CASE WHEN ${referralRelations.status} = 'rewarded' THEN ${referralRelations.rewardCredits} ELSE 0 END), 0)::float8`,
+          })
+          .from(referralRelations)
+          .where(eq(referralRelations.inviterUserId, this.userId))
+          .limit(1),
+        this.getReferralStatus(),
+        this.getReferralProfile(),
+        this.resolveReferralRewardCredits(),
+      ]);
 
     return {
       currentReferralStatus,
@@ -2149,9 +2181,7 @@ export class CommercialModel {
       .limit(limit);
   };
 
-  listTopUpOrders = (
-    params: QueryCommercialListParams = {},
-  ): Promise<TopUpOrderHistoryItem[]> =>
+  listTopUpOrders = (params: QueryCommercialListParams = {}): Promise<TopUpOrderHistoryItem[]> =>
     this.topUp.listTopUpOrders(params);
 
   updateReferralCode = async (input: string) => {

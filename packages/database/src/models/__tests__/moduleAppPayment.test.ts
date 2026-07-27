@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
+  moduleAppInstallations,
   moduleAppOrders,
   moduleAppPaymentAttempts,
   moduleAppPaymentDiscrepancies,
@@ -29,6 +30,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppPaymentEvents);
   await serverDB.delete(moduleAppPaymentAttempts);
   await serverDB.delete(moduleAppOrders);
+  await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppPrices);
   await serverDB.delete(moduleAppProducts);
   await serverDB.delete(moduleAppVersions);
@@ -72,6 +74,28 @@ const createOrder = async () => {
 };
 
 describe('ModuleAppPaymentModel', () => {
+  it('rejects creating a payment attempt after the order is cancelled', async () => {
+    const commerce = new ModuleAppCommerceModel(serverDB);
+    const model = new ModuleAppPaymentModel(serverDB);
+    const order = await createOrder();
+    await commerce.cancelOrder({ orderId: order.id, purchaserUserId: USER_ID });
+
+    await expect(
+      model.createPaymentAttempt({
+        currency: 'CNY',
+        method: 'alipay',
+        notifyUrl: 'https://app.example.com/api/webhooks/payments/alipay',
+        orderId: order.id,
+        outTradeNo: `cancelled-${order.id}`,
+        provider: 'alipay',
+        returnUrl: 'https://app.example.com/apps',
+        subject: 'Payment model test app',
+        totalAmount: '1234.000000',
+      }),
+    ).rejects.toThrow('MODULE_APP_ORDER_NOT_PAYABLE');
+    await expect(serverDB.query.moduleAppPaymentAttempts.findMany()).resolves.toEqual([]);
+  });
+
   it('deduplicates provider events by provider-scoped event id', async () => {
     const model = new ModuleAppPaymentModel(serverDB);
     const input = {

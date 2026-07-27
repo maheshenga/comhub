@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '@/database/core/getTestDB';
 import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
+import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
 import {
   moduleAppAuditLogs,
+  moduleAppInstallations,
   moduleAppLicenses,
   moduleAppOrders,
   moduleAppPaymentAttempts,
@@ -31,12 +33,22 @@ const USER_ID = 'module-app-payment-user';
 const serverDB: LobeChatDatabase = await getTestDB();
 
 const createAdapter = (): ModuleAppPaymentAdapter => ({
-  create: vi.fn(async ({ orderId }) => ({
-    body: `<form data-order="${orderId}"></form>`,
+  createOutTradeNo: ({ orderId }) => `out-${orderId}`,
+  create: vi.fn(async ({ orderId }: Parameters<ModuleAppPaymentAdapter['create']>[0]) => ({
+    checkout: {
+      fields: { order_id: orderId },
+      method: 'POST' as const,
+      type: 'form' as const,
+      url: 'https://pay.example.com/checkout',
+    },
+    method: 'alipay' as const,
     outTradeNo: `out-${orderId}`,
+    provider: 'alipay' as const,
   })),
+  method: 'alipay',
+  provider: 'alipay',
   query: vi.fn(),
-  refund: vi.fn(async () => ({ providerRefundId: 'refund-1', status: 'succeeded' })),
+  refund: vi.fn(async () => ({ providerRefundId: 'refund-1', status: 'succeeded' as const })),
   verifyNotification: vi.fn(),
 });
 
@@ -51,6 +63,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppRevenueEntries);
   await serverDB.delete(moduleAppAuditLogs);
   await serverDB.delete(moduleAppOrders);
+  await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppPrices);
   await serverDB.delete(moduleAppProducts);
   await serverDB.delete(moduleAppVersions);
@@ -102,7 +115,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     };
 
     await expect(
@@ -115,6 +127,73 @@ describe('ModuleAppPaymentService', () => {
     ).resolves.toMatchObject({ outTradeNo: `out-${order.id}` });
   });
 
+  it('locks an order to its first payment method before another provider is called', async () => {
+    const firstAdapter = createAdapter();
+    const order = await createPendingOrder();
+    const input = {
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    };
+    await new ModuleAppPaymentService(serverDB, firstAdapter).createPayment(input);
+
+    const secondAdapter: ModuleAppPaymentAdapter = {
+      ...createAdapter(),
+      createOutTradeNo: ({ orderId }) => `wx-${orderId}`,
+      method: 'wechat_pay',
+      provider: 'wechat_pay',
+    };
+    await expect(
+      new ModuleAppPaymentService(serverDB, secondAdapter).createPayment(input),
+    ).rejects.toThrow('MODULE_APP_PAYMENT_ATTEMPT_CONFLICT');
+    expect(secondAdapter.create).not.toHaveBeenCalled();
+  });
+
+  it('records the provider order reference before an uncertain create request fails', async () => {
+    const adapter = createAdapter();
+    (adapter.create as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network timeout'));
+    const order = await createPendingOrder();
+
+    await expect(
+      new ModuleAppPaymentService(serverDB, adapter).createPayment({
+        notifyUrl: 'https://app.example.com/notify',
+        orderId: order.id,
+        returnUrl: 'https://app.example.com/return',
+      }),
+    ).rejects.toThrow('network timeout');
+    await expect(
+      serverDB.query.moduleAppPaymentAttempts.findFirst({
+        where: (attempt, { eq }) => eq(attempt.orderId, order.id),
+      }),
+    ).resolves.toMatchObject({
+      outTradeNo: `out-${order.id}`,
+      status: 'created',
+    });
+  });
+
+  it('does not repeat an uncertain WeChat create request without a persisted checkout', async () => {
+    const adapter: ModuleAppPaymentAdapter = {
+      ...createAdapter(),
+      createOutTradeNo: ({ orderId }) => `wx-${orderId}`,
+      method: 'wechat_pay',
+      provider: 'wechat_pay',
+    };
+    (adapter.create as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network timeout'));
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const input = {
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    };
+
+    await expect(service.createPayment(input)).rejects.toThrow('network timeout');
+    await expect(service.createPayment(input)).rejects.toThrow(
+      'MODULE_APP_PAYMENT_CHECKOUT_RECOVERY_REQUIRED',
+    );
+    expect(adapter.create).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the server order snapshot and settles a verified event once', async () => {
     const adapter = createAdapter();
     const service = new ModuleAppPaymentService(serverDB, adapter);
@@ -123,12 +202,12 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     expect(adapter.create).toHaveBeenCalledWith(
       expect.objectContaining({
         currency: 'CNY',
         orderId: order.id,
+        subject: 'Payment test app',
         totalAmount: '1234.000000',
       }),
     );
@@ -137,10 +216,19 @@ describe('ModuleAppPaymentService', () => {
         notifyUrl: 'https://app.example.com/notify',
         orderId: order.id,
         returnUrl: 'https://app.example.com/return',
-        subject: 'Payment test',
       }),
     ).resolves.toMatchObject({ outTradeNo: payment.outTradeNo });
+    expect(adapter.create).toHaveBeenCalledTimes(1);
     await expect(serverDB.query.moduleAppPaymentAttempts.findMany()).resolves.toHaveLength(1);
+    await expect(
+      serverDB.query.moduleAppPaymentAttempts.findFirst({
+        where: (attempt, { eq }) => eq(attempt.orderId, order.id),
+      }),
+    ).resolves.toMatchObject({
+      checkout: payment.checkout,
+      status: 'pending',
+      subject: 'Payment test app',
+    });
 
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -160,6 +248,47 @@ describe('ModuleAppPaymentService', () => {
     ).resolves.toMatchObject({ duplicate: true, status: 'paid' });
   });
 
+  it('repairs a received duplicate after settlement committed before payment bookkeeping', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    const event = {
+      currency: 'CNY',
+      eventId: 'notify-bookkeeping-recovery',
+      eventType: 'payment_succeeded' as const,
+      occurredAt: new Date('2026-07-27T08:00:00.000Z'),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay' as const,
+      providerTransactionId: 'trade-bookkeeping-recovery',
+      totalAmount: '1234.000000',
+    };
+    await new ModuleAppPaymentModel(serverDB).recordPaymentEvent(event);
+    await new ModuleAppOrderRevenueService(serverDB).settleOrder({
+      actorUserId: USER_ID,
+      orderId: order.id,
+      paymentReference: event.providerTransactionId,
+    });
+
+    await expect(service.handleNormalizedEvent(event)).resolves.toEqual({
+      duplicate: true,
+      status: 'paid',
+    });
+    await expect(serverDB.query.moduleAppPaymentAttempts.findFirst()).resolves.toMatchObject({
+      paidAt: event.occurredAt,
+      providerTransactionId: event.providerTransactionId,
+      status: 'paid',
+    });
+    await expect(serverDB.query.moduleAppPaymentEvents.findFirst()).resolves.toMatchObject({
+      eventStatus: 'processed',
+      orderId: order.id,
+    });
+  });
+
   it('retries settlement when the same verified event previously failed to settle', async () => {
     const adapter = createAdapter();
     const settleOrder = vi
@@ -176,7 +305,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -210,7 +338,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -239,7 +366,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -266,7 +392,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     const event = {
       currency: 'CNY',
@@ -298,7 +423,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -318,6 +442,52 @@ describe('ModuleAppPaymentService', () => {
       service.refundOrder({ orderId: order.id, reason: 'customer request' }),
     ).resolves.toMatchObject({ status: 'refunded' });
     expect(adapter.refund).toHaveBeenCalledOnce();
+    expect(adapter.refund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundAmount: '1234.000000',
+        totalAmount: '1234.000000',
+      }),
+    );
+  });
+
+  it('keeps an accepted asynchronous refund pending until reconciliation succeeds', async () => {
+    const adapter = createAdapter();
+    (adapter.refund as ReturnType<typeof vi.fn>).mockResolvedValue({
+      providerRefundId: 'refund-pending',
+      status: 'pending',
+    });
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-refund-pending',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-refund-pending',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).resolves.toEqual({ orderId: order.id, status: 'requested' });
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).resolves.toEqual({ orderId: order.id, status: 'requested' });
+    expect(adapter.refund).toHaveBeenCalledOnce();
+    await expect(serverDB.query.moduleAppPaymentRefunds.findFirst()).resolves.toMatchObject({
+      status: 'requested',
+    });
+    await expect(serverDB.query.moduleAppPaymentAttempts.findFirst()).resolves.toMatchObject({
+      status: 'paid',
+    });
   });
 
   it('rejects a pending order before calling the refund provider', async () => {
@@ -328,7 +498,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
 
     await expect(
@@ -345,7 +514,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -376,7 +544,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
@@ -400,6 +567,55 @@ describe('ModuleAppPaymentService', () => {
     await expect(serverDB.query.moduleAppPaymentDiscrepancies.findFirst()).resolves.toMatchObject({
       kind: 'local_paid_provider_unpaid',
     });
+  });
+
+  it('keeps a paid attempt paid when reconciliation reports provider failure', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-paid-before-provider-failure',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-paid-before-provider-failure',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+    (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'query-provider-failed-after-paid',
+      eventType: 'payment_failed',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      totalAmount: '1234.000000',
+    });
+
+    await expect(
+      service.reconcilePayment({ outTradeNo: payment.outTradeNo }),
+    ).resolves.toMatchObject({
+      providerStatus: 'payment_failed',
+      status: 'paid',
+    });
+    await expect(
+      serverDB.query.moduleAppPaymentDiscrepancies.findFirst({
+        where: (discrepancy, { eq }) =>
+          eq(discrepancy.discrepancyKey, 'provider-unpaid:query-provider-failed-after-paid'),
+      }),
+    ).resolves.toMatchObject({ kind: 'local_paid_provider_unpaid' });
+    await expect(
+      serverDB.query.moduleAppPaymentAttempts.findFirst({
+        where: (attempt, { eq }) => eq(attempt.orderId, order.id),
+      }),
+    ).resolves.toMatchObject({ status: 'paid' });
   });
 
   it('records bounded notification verification failures', async () => {
@@ -447,7 +663,6 @@ describe('ModuleAppPaymentService', () => {
       notifyUrl: 'https://app.example.com/notify',
       orderId: order.id,
       returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
     });
     const createdAt = new Date('2026-07-12T00:00:00.000Z');
     await serverDB.insert(moduleAppPaymentDiscrepancies).values({

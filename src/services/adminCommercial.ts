@@ -6,6 +6,7 @@ import {
   type DesktopBuildAssetManifest,
   type DesktopBuildProfilePayload,
   type ModuleAppPayoutStatus,
+  type PaymentProvider,
   type Plans,
 } from '@lobechat/types';
 
@@ -592,7 +593,7 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.refundOrder.mutate(input),
     refundPaymentOrder: (input: { orderId: string; reason: string }) =>
       lambdaClient.admin.moduleApps.refundPaymentOrder.mutate(input),
-    retryPaymentQuery: (input: { outTradeNo: string }) =>
+    retryPaymentQuery: (input: { outTradeNo: string; provider?: PaymentProvider }) =>
       lambdaClient.admin.moduleApps.retryPaymentQuery.mutate(input),
     retryRefundStatus: (input: { orderId: string }) =>
       lambdaClient.admin.moduleApps.retryRefundStatus.mutate(input),
@@ -663,6 +664,22 @@ class AdminCommercialService {
     params: { orderId: string; reason: string },
     command: AdminCommandEnvelope<'order.settle'>,
   ) => lambdaClient.admin.orders.settle.mutate({ ...params, command });
+
+  // Unified payment center
+  listTopUpPayments = async (params?: {
+    cursor?: number;
+    limit?: number;
+    orderId?: string;
+    provider?: PaymentProvider;
+    status?: 'pending' | 'paid' | 'canceled' | 'expired' | 'failed' | 'refunded';
+    userId?: string;
+  }) => lambdaClient.admin.payments.listTopUpPayments.query(params);
+
+  reconcileTopUpPayment = async (orderId: string) =>
+    lambdaClient.admin.payments.reconcileTopUpPayment.mutate({ orderId });
+
+  reconcilePendingTopUpPayments = async (limit = 100) =>
+    lambdaClient.admin.payments.reconcilePendingTopUpPayments.mutate({ limit });
 
   getReferralStats = async () => lambdaClient.admin.referral.getReferralStats.query();
 

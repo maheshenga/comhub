@@ -29,6 +29,8 @@ import type {
   ModuleAppType,
   ModuleAppWorkflowNodeStatus,
   ModuleAppWorkflowRunStatus,
+  PaymentCheckoutAction,
+  PaymentMethodId,
 } from '@lobechat/types';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -1145,6 +1147,7 @@ export const moduleAppPaymentAttempts = pgTable(
       .references(() => moduleAppOrders.id, { onDelete: 'restrict' })
       .notNull(),
     provider: text('provider').$type<ModuleAppPaymentProvider>().notNull(),
+    method: text('method').$type<PaymentMethodId>().default('alipay').notNull(),
     outTradeNo: text('out_trade_no').notNull(),
     subject: text('subject').notNull(),
     totalAmount: numeric('total_amount', { precision: 20, scale: 6 }).notNull(),
@@ -1154,17 +1157,26 @@ export const moduleAppPaymentAttempts = pgTable(
     status: text('status').$type<ModuleAppPaymentAttemptStatus>().default('created').notNull(),
     providerTransactionId: text('provider_transaction_id'),
     lastError: text('last_error'),
+    checkout: jsonb('checkout').$type<PaymentCheckoutAction>(),
     paidAt: timestamptz('paid_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
+    uniqueIndex('module_app_payment_attempts_order_unique').on(table.orderId),
     uniqueIndex('module_app_payment_attempts_provider_out_trade_no_unique').on(
       table.provider,
       table.outTradeNo,
     ),
     index('module_app_payment_attempts_order_status_idx').on(table.orderId, table.status),
-    check('module_app_payment_attempts_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_attempts_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
+    check(
+      'module_app_payment_attempts_method_check',
+      sql`${table.method} IN ('alipay', 'wechat_pay', 'zpay_alipay', 'zpay_wechat')`,
+    ),
     check(
       'module_app_payment_attempts_status_check',
       sql`${table.status} IN ('created', 'pending', 'paid', 'failed', 'refunded')`,
@@ -1205,7 +1217,10 @@ export const moduleAppPaymentEvents = pgTable(
       table.outTradeNo,
       table.createdAt,
     ),
-    check('module_app_payment_events_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_events_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
     check(
       'module_app_payment_events_type_check',
       sql`${table.eventType} IN ('payment_succeeded', 'payment_failed', 'refund_succeeded')`,
@@ -1240,7 +1255,10 @@ export const moduleAppPaymentRefunds = pgTable(
       table.providerRefundId,
     ),
     index('module_app_payment_refunds_order_created_idx').on(table.orderId, table.createdAt),
-    check('module_app_payment_refunds_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_refunds_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
     check(
       'module_app_payment_refunds_status_check',
       sql`${table.status} IN ('requested', 'succeeded', 'failed')`,
@@ -1273,7 +1291,10 @@ export const moduleAppPaymentDiscrepancies = pgTable(
       table.discrepancyKey,
     ),
     index('module_app_payment_discrepancies_status_created_idx').on(table.status, table.createdAt),
-    check('module_app_payment_discrepancies_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_discrepancies_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
     check(
       'module_app_payment_discrepancies_kind_check',
       sql`${table.kind} IN ('amount_mismatch', 'currency_mismatch', 'duplicate_event', 'local_paid_provider_unpaid', 'local_unpaid_provider_paid', 'order_not_found', 'provider_mismatch', 'refund_mismatch', 'settlement_failed', 'wrong_seller')`,

@@ -17,6 +17,7 @@ import type { LobeChatDatabase } from '../../type';
 import { CommercialModel } from '../commercial';
 
 const testUserId = 'topup-test-user';
+const onlinePackageId = 'topup-online-pkg';
 const serverDB: LobeChatDatabase = await getTestDB();
 
 const seedActiveStarterPlan = async () => {
@@ -52,6 +53,16 @@ describe('CommercialModel topUpOrders', () => {
       id: 'topup-test-pkg',
       isActive: true,
       sortOrder: 0,
+      validityMonths: 12,
+    });
+    await serverDB.insert(topUpPackages).values({
+      amount: 19.9,
+      credits: 2_000_000_000,
+      currency: 'CNY',
+      displayName: 'Online Package',
+      id: onlinePackageId,
+      isActive: true,
+      sortOrder: 1,
       validityMonths: 12,
     });
     // Seed a paid plan so the online-payment guard is proven independent of subscription status.
@@ -132,6 +143,204 @@ describe('CommercialModel topUpOrders', () => {
         orderId: order.id,
         provider: 'redemption',
       });
+    });
+  });
+
+  describe('online top-up settlement', () => {
+    it('reuses an order for the same idempotency key', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const input = {
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay' as const,
+        packageId: onlinePackageId,
+        provider: 'wechat_pay' as const,
+      };
+
+      const first = await model.createOnlineTopUpOrder(input);
+      const second = await model.createOnlineTopUpOrder(input);
+
+      expect(first.created).toBe(true);
+      expect(second.created).toBe(false);
+      expect(second.order.id).toBe(first.order.id);
+      await expect(
+        serverDB.query.topUpOrders.findMany({
+          where: (order, { eq }) => eq(order.idempotencyKey, input.idempotencyKey),
+        }),
+      ).resolves.toHaveLength(1);
+    });
+
+    it('rejects an idempotency key reused with different payment parameters', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const idempotencyKey = crypto.randomUUID();
+      await model.createOnlineTopUpOrder({
+        idempotencyKey,
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+
+      await expect(
+        model.createOnlineTopUpOrder({
+          idempotencyKey,
+          method: 'alipay',
+          packageId: onlinePackageId,
+          provider: 'alipay',
+        }),
+      ).rejects.toThrow('TOP_UP_PAYMENT_IDEMPOTENCY_CONFLICT');
+    });
+
+    it('scopes idempotency-key recovery lookups to the current user', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const idempotencyKey = crypto.randomUUID();
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey,
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+
+      await expect(
+        model.getOnlineTopUpOrderByIdempotencyKey(idempotencyKey),
+      ).resolves.toMatchObject({
+        id: order.id,
+        userId: testUserId,
+      });
+      await expect(
+        new CommercialModel(serverDB, 'another-user').getOnlineTopUpOrderByIdempotencyKey(
+          idempotencyKey,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('claims the external provider order only once', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      const input = {
+        externalOrderId: 'wechat-order-claim',
+        method: 'wechat_pay' as const,
+        orderId: order.id,
+        provider: 'wechat_pay' as const,
+      };
+
+      await expect(model.bindOnlineTopUpPayment(input)).resolves.toMatchObject({ claimed: true });
+      await expect(model.bindOnlineTopUpPayment(input)).resolves.toMatchObject({ claimed: false });
+    });
+
+    it('keeps the first persisted checkout as the canonical recovery action', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      const firstCheckout = { type: 'qrcode' as const, url: 'weixin://first' };
+      const secondCheckout = { type: 'qrcode' as const, url: 'weixin://second' };
+
+      await expect(
+        model.storeOnlineTopUpCheckout({ checkout: firstCheckout, orderId: order.id }),
+      ).resolves.toMatchObject({ checkout: firstCheckout });
+      await expect(
+        model.storeOnlineTopUpCheckout({ checkout: secondCheckout, orderId: order.id }),
+      ).resolves.toMatchObject({ checkout: firstCheckout });
+    });
+
+    it('credits a verified payment exactly once across duplicate callbacks', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await model.bindOnlineTopUpPayment({
+        externalOrderId: 'wechat-order-1',
+        method: 'wechat_pay',
+        orderId: order.id,
+        provider: 'wechat_pay',
+      });
+      const settlement = {
+        amount: '19.900000',
+        currency: 'CNY',
+        externalOrderId: 'wechat-order-1',
+        method: 'wechat_pay' as const,
+        orderId: order.id,
+        paymentReference: 'wechat-transaction-1',
+        provider: 'wechat_pay' as const,
+      };
+
+      await expect(model.settleOnlineTopUpOrder(settlement)).resolves.toMatchObject({
+        status: 'paid',
+      });
+      await expect(model.settleOnlineTopUpOrder(settlement)).resolves.toMatchObject({
+        status: 'paid',
+      });
+      await expect(
+        model.settleOnlineTopUpOrder({ ...settlement, amount: '19.910000' }),
+      ).rejects.toThrow('TOP_UP_PAYMENT_VERIFICATION_FAILED');
+      await expect(
+        model.settleOnlineTopUpOrder({
+          ...settlement,
+          paymentReference: 'different-transaction',
+        }),
+      ).rejects.toThrow('TOP_UP_PAYMENT_VERIFICATION_FAILED');
+
+      await expect(
+        serverDB.query.creditLedgerEntries.findMany({
+          where: (entry, { eq }) => eq(entry.referenceId, order.id),
+        }),
+      ).resolves.toHaveLength(1);
+      await expect(
+        serverDB.query.creditAccounts.findFirst({
+          where: (account, { eq }) => eq(account.userId, testUserId),
+        }),
+      ).resolves.toMatchObject({ balance: 2_000_000_000, totalCredited: 2_000_000_000 });
+    });
+
+    it('settles a provider-authoritative late success after a local failure exactly once', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await model.bindOnlineTopUpPayment({
+        externalOrderId: 'wechat-order-late-success',
+        method: 'wechat_pay',
+        orderId: order.id,
+        provider: 'wechat_pay',
+      });
+      await serverDB
+        .update(topUpOrders)
+        .set({ status: 'failed' })
+        .where(eq(topUpOrders.id, order.id));
+      const settlement = {
+        amount: '19.900000',
+        currency: 'CNY',
+        externalOrderId: 'wechat-order-late-success',
+        method: 'wechat_pay' as const,
+        orderId: order.id,
+        paymentReference: 'wechat-transaction-late-success',
+        provider: 'wechat_pay' as const,
+      };
+
+      await expect(model.settleOnlineTopUpOrder(settlement)).resolves.toMatchObject({
+        status: 'paid',
+      });
+      await expect(model.settleOnlineTopUpOrder(settlement)).resolves.toMatchObject({
+        status: 'paid',
+      });
+      await expect(
+        serverDB.query.creditLedgerEntries.findMany({
+          where: (entry, { eq }) => eq(entry.referenceId, order.id),
+        }),
+      ).resolves.toHaveLength(1);
     });
   });
 

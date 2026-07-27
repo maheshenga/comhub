@@ -29,7 +29,10 @@ describe('adminOrdersRouter', () => {
     vi.resetAllMocks();
   });
 
-  const setupSettleCaller = (role: string | null = 'admin') => {
+  const setupSettleCaller = (
+    role: string | null = 'admin',
+    orderOverrides: Record<string, unknown> = {},
+  ) => {
     const settleTopUpOrder = vi.fn().mockResolvedValue({ status: 'paid' });
     vi.mocked(CommercialModel).mockImplementation(
       () =>
@@ -52,9 +55,11 @@ describe('adminOrdersRouter', () => {
                 amount: 19.9,
                 credits: 199_000_000,
                 currency: 'CNY',
-                provider: 'manual-bank-transfer',
-                source: 'manual',
+                provider: 'redemption',
+                redemptionCodeId: 'redemption-code-1',
+                source: 'redemption',
                 userId: 'target-user',
+                ...orderOverrides,
               },
             ]),
           })),
@@ -69,6 +74,43 @@ describe('adminOrdersRouter', () => {
     const caller = adminOrdersRouter.createCaller({ userId: `${role}-user` } as any);
 
     return { caller, settleTopUpOrder };
+  };
+
+  const setupStatusMutationCaller = () => {
+    const update = vi.fn();
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
+        },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue([
+              {
+                id: 'online-order',
+                provider: 'alipay',
+                redemptionCodeId: null,
+                source: 'alipay',
+                status: 'pending',
+                userId: 'target-user',
+              },
+            ]),
+          })),
+        })),
+      })),
+      update,
+    };
+    (db as any).transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback(db),
+    );
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    return {
+      caller: adminOrdersRouter.createCaller({ userId: 'finance-user' } as any),
+      update,
+    };
   };
 
   it('accepts and records an envelope-only reason when manually settling an order', async () => {
@@ -93,9 +135,9 @@ describe('adminOrdersRouter', () => {
           amount: 19.9,
           credits: 199_000_000,
           currency: 'CNY',
-          provider: 'manual-bank-transfer',
+          provider: 'redemption',
           reason: 'manual transfer confirmed by finance',
-          source: 'manual',
+          source: 'redemption',
           status: 'paid',
         },
         resourceId: 'order-1',
@@ -184,5 +226,48 @@ describe('adminOrdersRouter', () => {
       message: 'ADMIN_COMMAND_REASON_MISMATCH',
     });
     expect(settleTopUpOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects online orders and directs them to provider reconciliation', async () => {
+    const { caller, settleTopUpOrder } = setupSettleCaller('finance_admin', {
+      provider: 'alipay',
+      redemptionCodeId: null,
+      source: 'alipay',
+    });
+
+    await expect(
+      caller.settle({
+        command: {
+          actionId: 'order.settle',
+          confirmationText: 'order.settle',
+          confirmed: true,
+          reason: 'provider says paid',
+        },
+        orderId: 'order-1',
+      } as any),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ONLINE_PAYMENT_ORDER_REQUIRES_RECONCILIATION',
+    });
+    expect(settleTopUpOrder).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['cancel', 'order.cancel'],
+    ['expire', 'order.expire'],
+  ] as const)('rejects online orders before attempting to %s them', async (procedure, actionId) => {
+    const { caller, update } = setupStatusMutationCaller();
+
+    await expect(
+      caller[procedure]({
+        command: { actionId, confirmed: true },
+        orderId: 'online-order',
+      } as any),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ONLINE_PAYMENT_ORDER_REQUIRES_RECONCILIATION',
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 });
