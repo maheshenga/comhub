@@ -91,9 +91,9 @@ RUN set -e && \
     echo '{"name":"deps","private":true}' > package.json && \
     pnpm add pg drizzle-orm
 
-RUN pnpm --filter @lobechat/module-app-sdk build
-
 COPY . .
+
+RUN pnpm --filter @lobechat/module-app-sdk build
 
 # Prebuild: env checks (checkDeprecatedAuth, checkRequiredEnvVars, printEnvInfo) then remove desktop-only code
 RUN KEY_VAULTS_SECRET="dXNlLWZvci1idWlsZC1rZXktMzItYnl0ZXMtMDAwMDA=" \

@@ -70,10 +70,11 @@ describe('Docker workspace manifests', () => {
 
   it('builds the linked Module App SDK before the application bundle', () => {
     const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const sourceCopyIndex = dockerfile.indexOf('COPY . .');
     const sdkBuildIndex = dockerfile.indexOf('RUN pnpm --filter @lobechat/module-app-sdk build');
     const applicationBuildIndex = dockerfile.indexOf('pnpm run build:docker');
 
-    expect(sdkBuildIndex).toBeGreaterThan(-1);
+    expect(sdkBuildIndex).toBeGreaterThan(sourceCopyIndex);
     expect(applicationBuildIndex).toBeGreaterThan(sdkBuildIndex);
   });
 
