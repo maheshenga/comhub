@@ -2,10 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  MOBILE_TABBAR_HEIGHT,
-  MOBILE_WORKSPACE_CONTENT_MAX_WIDTH,
-} from '@/const/layoutTokens';
+import { MOBILE_TABBAR_HEIGHT, MOBILE_WORKSPACE_CONTENT_MAX_WIDTH } from '@/const/layoutTokens';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 
 import MobileWorkspaceShell, { MOBILE_WORKSPACE_CLEARANCE_VAR } from './MobileWorkspaceShell';
@@ -33,6 +30,7 @@ describe('MobileWorkspaceShell', () => {
       }),
       error: undefined,
       isLoading: false,
+      isUsingCachedConfig: false,
       isValidating: false,
       mutate: vi.fn(),
       revision: 0,

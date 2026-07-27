@@ -51,6 +51,7 @@ describe('MobileTabBar', () => {
       }),
       error: undefined,
       isLoading: false,
+      isUsingCachedConfig: false,
       isValidating: false,
       mutate: vi.fn(),
       revision: 0,
@@ -80,12 +81,10 @@ describe('MobileTabBar', () => {
     ]);
     expect(screen.getByRole('button', { name: '发现' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Tools' })).not.toHaveAttribute('aria-current');
-    expect(
-      screen.getAllByRole('button').every((button) => button.tagName === 'BUTTON'),
-    ).toBe(true);
+    expect(screen.getAllByRole('button').every((button) => button.tagName === 'BUTTON')).toBe(true);
   });
 
-  it('omits hidden configured slots from semantic navigation', () => {
+  it('keeps all four primary slots visible when persisted config hides one', () => {
     vi.mocked(useMobileConfig).mockReturnValue({
       config: normalizeMobileConfig({
         ...DEFAULT_MOBILE_CONFIG,
@@ -97,6 +96,7 @@ describe('MobileTabBar', () => {
       }),
       error: undefined,
       isLoading: false,
+      isUsingCachedConfig: false,
       isValidating: false,
       mutate: vi.fn(),
       revision: 0,
@@ -110,8 +110,8 @@ describe('MobileTabBar', () => {
     );
 
     const navigation = screen.getByRole('navigation', { name: 'Mobile workspace navigation' });
-    expect(navigation.querySelectorAll('button')).toHaveLength(3);
-    expect(screen.queryByRole('button', { name: 'Hidden slot' })).not.toBeInTheDocument();
+    expect(navigation.querySelectorAll('button')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: 'Hidden slot' })).toBeInTheDocument();
     expect(
       screen.getAllByRole('button').filter((button) => button.hasAttribute('aria-current')),
     ).toHaveLength(1);

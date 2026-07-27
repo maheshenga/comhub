@@ -403,7 +403,7 @@ const AdminUsersPage = memo(() => {
           ) : null}
           {canSetRoles ? (
             <Space.Compact>
-              <Select<AssignableRole>
+              <Select
                 loading={actionLoading === `${row.id}-role`}
                 options={roleOptions}
                 placeholder={t('admin.setRole', '设置角色')}
@@ -412,7 +412,10 @@ const AdminUsersPage = memo(() => {
                 value={roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole)}
                 onChange={(value) => {
                   if (!value) return;
-                  setRoleDrafts((current) => ({ ...current, [row.id]: value }));
+                  setRoleDrafts((current) => ({
+                    ...current,
+                    [row.id]: value as AssignableRole,
+                  }));
                 }}
               />
               <AdminDangerousActionButton
