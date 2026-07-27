@@ -12,7 +12,7 @@ import {
   type ModuleAppPage,
   type ModuleAppScopeType,
 } from '@lobechat/types';
-import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import {
@@ -469,20 +469,17 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     });
 
   private purgeInstallationData = async (tx: TransactionDatabase, installationId: string) => {
-    await tx
-      .insert(moduleAppArtifactCleanupJobs)
-      .select(
-        tx
-          .select({
-            appId: moduleAppArtifacts.appId,
-            artifactId: moduleAppArtifacts.id,
-            installationId: moduleAppArtifacts.installationId,
-            storageKey: moduleAppArtifacts.storageKey,
-          })
-          .from(moduleAppArtifacts)
-          .where(eq(moduleAppArtifacts.installationId, installationId)),
-      )
-      .onConflictDoNothing({ target: moduleAppArtifactCleanupJobs.storageKey });
+    await tx.execute(sql`
+      INSERT INTO ${moduleAppArtifactCleanupJobs} (app_id, installation_id, artifact_id, storage_key)
+      SELECT
+        ${moduleAppArtifacts.appId},
+        ${moduleAppArtifacts.installationId},
+        ${moduleAppArtifacts.id},
+        ${moduleAppArtifacts.storageKey}
+      FROM ${moduleAppArtifacts}
+      WHERE ${moduleAppArtifacts.installationId} = ${installationId}
+      ON CONFLICT (storage_key) DO NOTHING
+    `);
 
     await tx
       .delete(moduleAppWorkflowNodes)
