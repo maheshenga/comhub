@@ -153,6 +153,23 @@ test('main deployment isolates remote Compose exec commands from the SSH script 
   }
 });
 
+test('closed deployment skips the optional Module Runtime rollout', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const remoteDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Run remote blue-green deploy',
+  );
+  const script = remoteDeploy?.run ?? '';
+
+  assert.match(
+    script,
+    /if \[ "\$REQUIRE_MODULE_RUNTIME" = "true" \]; then\s+docker pull "\$RUNTIME_IMAGE_REF"\s+docker compose up -d --no-deps --wait module-runtime\s+verify_module_runtime\s+verify_runtime_auth_boundary\s+else\s+echo "module-runtime rollout skipped; production mutation flags remain disabled"\s+fi/u,
+  );
+  assert.doesNotMatch(
+    script,
+    /if \[ "\$module_runtime_configured" = "true" \]; then\s+docker pull/u,
+  );
+});
+
 test('Worker deployment is manual, targeted, and build-free', () => {
   const { source, workflow } = loadWorkflow('comhub-deploy-worker.yml');
 
