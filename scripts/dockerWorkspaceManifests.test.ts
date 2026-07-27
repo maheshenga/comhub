@@ -68,6 +68,15 @@ describe('Docker workspace manifests', () => {
     }
   });
 
+  it('builds the linked Module App SDK before the application bundle', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const sdkBuildIndex = dockerfile.indexOf('RUN pnpm --filter @lobechat/module-app-sdk build');
+    const applicationBuildIndex = dockerfile.indexOf('pnpm run build:docker');
+
+    expect(sdkBuildIndex).toBeGreaterThan(-1);
+    expect(applicationBuildIndex).toBeGreaterThan(sdkBuildIndex);
+  });
+
   it('uses pnpm for container build scripts', () => {
     const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
     const wslBuildScript = readFileSync(
