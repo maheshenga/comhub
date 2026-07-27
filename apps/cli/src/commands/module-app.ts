@@ -12,6 +12,7 @@ import {
   packModuleAppProject,
   validateModuleAppProject,
 } from '../moduleApp/project';
+import { resolveServerUrl } from '../settings';
 import { log } from '../utils/logger';
 
 const run = async (action: () => Promise<void>) => {
@@ -75,7 +76,14 @@ export function registerModuleAppCommand(program: Command) {
     .option('-o, --output <file>', 'Output ZIP path')
     .action((directory = '.', options: { output?: string }) =>
       run(async () => {
-        const result = await packModuleAppProject({ directory, output: options.output });
+        const result = await packModuleAppProject({
+          directory,
+          output: options.output,
+          onFilesCollected: (files) => {
+            console.log(pc.dim(`Including ${files.length} files:`));
+            files.forEach((file) => console.log(pc.dim(`  ${file}`)));
+          },
+        });
         console.log(
           `${pc.green('✓')} Packed ${result.fileCount} files (${result.sizeBytes} bytes) to ${result.output}`,
         );
@@ -85,7 +93,8 @@ export function registerModuleAppCommand(program: Command) {
   command
     .command('submit <package>')
     .description('Submit a packaged Module App for review')
-    .action((packagePath: string) =>
+    .option('--json', 'Print a machine-readable submission result')
+    .action((packagePath: string, options: { json?: boolean }) =>
       run(async () => {
         const filePath = path.resolve(packagePath);
         if (!filePath.toLowerCase().endsWith('.zip'))
@@ -137,12 +146,28 @@ export function registerModuleAppCommand(program: Command) {
           method: 'PUT',
         });
         if (!response.ok) throw new Error(`Package upload failed (${response.status}).`);
-        await client.moduleApp.submitUploadedPackage.mutate({
+        const submission = await client.moduleApp.submitUploadedPackage.mutate({
           fileName,
           storageKey: target.storageKey,
           uploadId: target.uploadId,
         });
+        const statusUrl = new URL('/apps/developer', resolveServerUrl());
+        statusUrl.searchParams.set('submission', submission.id);
+        statusUrl.searchParams.set('tab', 'packages');
+        if (options.json) {
+          console.log(
+            JSON.stringify({
+              fileName,
+              id: submission.id,
+              reviewStatus: submission.reviewStatus,
+              statusUrl: statusUrl.toString(),
+            }),
+          );
+          return;
+        }
         console.log(`${pc.green('✓')} Submitted ${pc.bold(fileName)} for review`);
+        console.log(pc.dim(`Submission: ${submission.id}`));
+        console.log(pc.dim(`Status: ${statusUrl.toString()}`));
       }),
     );
 }

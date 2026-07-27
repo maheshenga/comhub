@@ -59,10 +59,11 @@ afterEach(() => {
 });
 
 describe('AdminLayout', () => {
-  it('renders nothing while the user state is still loading', () => {
-    const { container } = render(<AdminLayout />);
+  it('renders a stable skeleton while the user state is still loading', () => {
+    render(<AdminLayout />);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByTestId('admin-layout-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-outlet')).not.toBeInTheDocument();
   });
 
   it('redirects initialized visitors without a user away from admin routes', () => {

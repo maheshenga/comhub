@@ -188,6 +188,7 @@ class AdminCommercialService {
   saveBuildProfileDraft = async (input: {
     assets: DesktopBuildAssetManifest;
     createIfMissing?: boolean;
+    expectedRevision: number;
     name: string;
     payload: DesktopBuildProfilePayload;
     profileId: string;
@@ -918,6 +919,12 @@ class AdminCommercialService {
 
   updateNewapiInstanceModel = this.updateAiProviderInstanceModel;
 
+  setAiProviderInstanceModelsEnabled = async (params: {
+    enabled: boolean;
+    instanceId: string;
+    models: Array<{ modelId: string; modelType: AiProviderModelType }>;
+  }) => lambdaClient.admin.newapiProviders.setModelsEnabled.mutate(params);
+
   // Plan model rules (per-type allowlist/blocklist)
   setPlanModelRules = async (params: {
     modelRules?: Record<
@@ -926,6 +933,16 @@ class AdminCommercialService {
     >;
     plan: string;
   }) => lambdaClient.admin.plans.setModelRules.mutate(params as any);
+
+  setPlanModelRulesBatch = async (
+    updates: Array<{
+      modelRules?: Record<
+        string,
+        { allowlist?: string[]; blocklist?: string[]; mode: 'allowlist' | 'blocklist' }
+      >;
+      plan: string;
+    }>,
+  ) => lambdaClient.admin.plans.setModelRulesBatch.mutate({ updates } as any);
 }
 
 export const adminCommercialService = new AdminCommercialService();

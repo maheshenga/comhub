@@ -6,6 +6,7 @@ export {
   ModuleAppArtifactMaterializationError,
 } from './materializer';
 export * from './scanner';
+export * from './secrets';
 export * from './source';
 export * from './storage';
 export * from './zipMetadata';

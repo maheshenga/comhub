@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
@@ -10,6 +10,7 @@ import {
   getServerDefaultAgentSettingOverrides,
   getServerDefaultModelSuggestions,
   getServerFileS3Config,
+  getServerModelPolicyConfig,
   getServerPublicCustomizationConfig,
   invalidateServerAppSettings,
   isSensitiveAppSettingKey,
@@ -21,9 +22,9 @@ import { APP_SETTING_SECRET_PREFIX, encryptAppSettingSecret } from './secrets';
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 13).toString('base64');
 
 describe('appSettings model helpers', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
-    invalidateServerAppSettings();
+    await invalidateServerAppSettings();
   });
 
   afterEach(() => {
@@ -200,9 +201,7 @@ describe('appSettings model helpers', () => {
     await expect(getServerComposioConfig(db)).rejects.toThrow(
       'Invalid encrypted app setting secret',
     );
-    await expect(getServerFileS3Config(db)).rejects.toThrow(
-      'Invalid encrypted app setting secret',
-    );
+    await expect(getServerFileS3Config(db)).rejects.toThrow('Invalid encrypted app setting secret');
   });
 
   it('preserves explicitly empty help menu items in public customization config', async () => {
@@ -235,5 +234,51 @@ describe('appSettings model helpers', () => {
     await expect(getServerDefaultAgentSettingOverrides(createDb('second-model'))).resolves.toEqual({
       model: 'second-model',
     });
+  });
+
+  it('fails closed when the first runtime settings read fails', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: vi.fn().mockRejectedValue(new Error('database unavailable')),
+        },
+      },
+    } as any;
+
+    await expect(getServerModelPolicyConfig(db)).rejects.toThrow('database unavailable');
+    expect(db.query.appSettings.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the last successful runtime snapshot when a refresh fails', async () => {
+    let now = 1_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const findMany = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { key: APP_SETTING_KEYS.modelPolicyEnabled, value: true },
+        { key: APP_SETTING_KEYS.modelPolicyMode, value: 'blocklist' },
+        { key: APP_SETTING_KEYS.modelPolicyBlocklist, value: ['newapi:blocked-model'] },
+      ])
+      .mockRejectedValue(new Error('database unavailable'));
+    const db = { query: { appSettings: { findMany } } } as any;
+
+    try {
+      await expect(getServerModelPolicyConfig(db)).resolves.toMatchObject({
+        blocklist: ['newapi:blocked-model'],
+        enabled: true,
+        mode: 'blocklist',
+      });
+
+      now += 30_001;
+
+      await expect(getServerModelPolicyConfig(db)).resolves.toMatchObject({
+        blocklist: ['newapi:blocked-model'],
+        enabled: true,
+        mode: 'blocklist',
+      });
+      expect(findMany).toHaveBeenCalledTimes(2);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });

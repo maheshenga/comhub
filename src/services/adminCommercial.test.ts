@@ -69,11 +69,13 @@ vi.mock('@/libs/trpc/client', () => ({
         getDeleteInstanceImpact: { query: vi.fn() },
         getModelCatalogDiagnostics: { query: vi.fn() },
         getRemoveModelImpact: { query: vi.fn() },
+        setModelsEnabled: { mutate: vi.fn() },
         syncInstanceModels: { mutate: vi.fn() },
         testInstanceConnection: { query: vi.fn() },
       },
       plans: {
         getDeleteImpact: { query: vi.fn() },
+        setModelRulesBatch: { mutate: vi.fn() },
       },
       users: {
         compactDetail: { query: vi.fn() },
@@ -165,6 +167,39 @@ describe('adminCommercialService NewAPI helpers', () => {
     expect(lambdaClient.admin.newapiProviders.testInstanceConnection.query).toHaveBeenCalledWith({
       id: 'instance-1',
     });
+  });
+
+  it('delegates model and plan batches as one server transaction each', async () => {
+    const models = [
+      { modelId: 'gpt-4.1', modelType: 'chat' as const },
+      { modelId: 'text-embedding-3-large', modelType: 'embedding' as const },
+    ];
+    const updates = [
+      {
+        modelRules: { chat: { allowlist: ['gpt-4.1'], mode: 'allowlist' as const } },
+        plan: 'premium',
+      },
+      {
+        modelRules: { chat: { blocklist: ['legacy-chat'], mode: 'blocklist' as const } },
+        plan: 'ultimate',
+      },
+    ];
+
+    await adminCommercialService.setAiProviderInstanceModelsEnabled({
+      enabled: false,
+      instanceId: '11111111-1111-4111-8111-111111111111',
+      models,
+    });
+    await adminCommercialService.setPlanModelRulesBatch(updates);
+
+    expect(lambdaClient.admin.newapiProviders.setModelsEnabled.mutate).toHaveBeenCalledOnce();
+    expect(lambdaClient.admin.newapiProviders.setModelsEnabled.mutate).toHaveBeenCalledWith({
+      enabled: false,
+      instanceId: '11111111-1111-4111-8111-111111111111',
+      models,
+    });
+    expect(lambdaClient.admin.plans.setModelRulesBatch.mutate).toHaveBeenCalledOnce();
+    expect(lambdaClient.admin.plans.setModelRulesBatch.mutate).toHaveBeenCalledWith({ updates });
   });
 
   it('loads structured deletion impact previews for plans, providers, and models', async () => {

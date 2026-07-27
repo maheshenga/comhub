@@ -1,11 +1,9 @@
 'use client';
 
+import { confirmModal } from '@lobehub/ui/base-ui';
 import { type Dispatch, type SetStateAction, useRef, useState } from 'react';
 
-import {
-  type MobilePublicConfigV1,
-  normalizeMobileConfig,
-} from '@/const/mobileConfig';
+import { type MobilePublicConfigV1, normalizeMobileConfig } from '@/const/mobileConfig';
 import type { MobileConfigPublicationState } from '@/const/mobileConfigPublication';
 import { refreshMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -125,17 +123,7 @@ export const useMobilePublicationActions = ({
     }
   };
 
-  const rollback = async (targetRevision: number) => {
-    if (rollingBackRef.current) return;
-    if (
-      !window.confirm(
-        tr('admin.mobile.rollbackConfirm', 'Publish revision {{revision}} as a new revision?', {
-          revision: targetRevision,
-        }),
-      )
-    ) {
-      return;
-    }
+  const performRollback = async (targetRevision: number) => {
     rollingBackRef.current = true;
     setRollingBackRevision(targetRevision);
     setError(undefined);
@@ -167,6 +155,23 @@ export const useMobilePublicationActions = ({
       rollingBackRef.current = false;
       if (asyncGuard.isMounted()) setRollingBackRevision(undefined);
     }
+  };
+
+  const rollback = (targetRevision: number) => {
+    if (rollingBackRef.current) return;
+    confirmModal({
+      cancelText: tr('admin.mobile.rollbackCancel', 'Cancel'),
+      content: tr(
+        'admin.mobile.rollbackConfirm',
+        'Publish revision {{revision}} as a new revision?',
+        {
+          revision: targetRevision,
+        },
+      ),
+      okText: tr('admin.mobile.rollback', 'Roll back'),
+      onOk: () => performRollback(targetRevision),
+      title: tr('admin.mobile.rollbackTitle', 'Roll back mobile settings?'),
+    });
   };
 
   return { publish, publishing, rollback, rollingBackRevision, save, saving };

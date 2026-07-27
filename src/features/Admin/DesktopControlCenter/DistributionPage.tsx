@@ -1,9 +1,10 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
+import type { TableColumnsType } from 'antd';
 import {
   Alert,
-  Button,
   Descriptions,
   Empty,
   Form,
@@ -16,7 +17,6 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import type { TableColumnsType } from 'antd';
 import { ExternalLink, RefreshCw, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,9 +26,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import {
   buildDistributionUpdates,
+  type DesktopSettingsValues,
   getDesktopSettingsValues,
   isDesktopFormValidationError,
-  type DesktopSettingsValues,
 } from './desktopSettingsForm';
 import { desktopControlCenterStyles } from './styles';
 import {
@@ -85,11 +85,12 @@ const getRows = (resource: DesktopOverviewResource): DistributionRow[] =>
   ) || [];
 
 interface DistributionPageProps {
+  onDirtyChange?: (dirty: boolean) => void;
   overview: DesktopOverviewResource;
   settings: DesktopSettingsResource;
 }
 
-const DistributionPage = memo<DistributionPageProps>(({ overview, settings }) => {
+const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview, settings }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<DesktopSettingsValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +99,7 @@ const DistributionPage = memo<DistributionPageProps>(({ overview, settings }) =>
     form,
     Boolean(settings.data),
     initialValues,
+    onDirtyChange,
   );
 
   const columns: TableColumnsType<DistributionRow> = [
@@ -165,13 +167,13 @@ const DistributionPage = memo<DistributionPageProps>(({ overview, settings }) =>
     <Skeleton active paragraph={{ rows: 6 }} />
   ) : overview.error ? (
     <Result
+      status="error"
+      title={t('admin.desktopControl.error.title')}
       extra={
         <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void overview.mutate()}>
           {t('admin.desktopControl.retry')}
         </Button>
       }
-      status="error"
-      title={t('admin.desktopControl.error.title')}
     />
   ) : !overview.data?.diagnostics.configured ? (
     <Empty
@@ -227,13 +229,13 @@ const DistributionPage = memo<DistributionPageProps>(({ overview, settings }) =>
         </Typography.Title>
         {settings.error ? (
           <Alert
+            message={t('admin.desktopControl.settingsError')}
+            type="error"
             action={
-              <Button onClick={() => void settings.mutate()} size="small">
+              <Button size="small" onClick={() => void settings.mutate()}>
                 {t('admin.desktopControl.retry')}
               </Button>
             }
-            message={t('admin.desktopControl.settingsError')}
-            type="error"
           />
         ) : settings.isLoading && !settings.data ? (
           <Skeleton active paragraph={{ rows: 4 }} />
@@ -263,10 +265,10 @@ const DistributionPage = memo<DistributionPageProps>(({ overview, settings }) =>
               <Input placeholder={t('admin.desktopControl.downloadLabelPlaceholder')} />
             </Form.Item>
             <Alert
-              message={t('admin.desktopControl.managedByCi')}
-              description={t('admin.desktopControl.managedByCi.description')}
-              type="info"
               showIcon
+              description={t('admin.desktopControl.managedByCi.description')}
+              message={t('admin.desktopControl.managedByCi')}
+              type="info"
             />
             <Descriptions bordered column={1} size="small" style={{ marginTop: 16 }}>
               <Descriptions.Item label={t('admin.desktopControl.oss.bucket')}>

@@ -66,7 +66,7 @@ const assertHttpOk = async (response: Response, code: string) => {
 
 export const runtimeSettingsWriteProcedures = {
   refreshRuntimeCaches: systemWriteProcedure.mutation(async ({ ctx }) => {
-    invalidateServerAppSettings();
+    await invalidateServerAppSettings();
     invalidateNewapiInstancesCache();
     invalidateFileS3RuntimeCache();
     invalidateServerBrand();

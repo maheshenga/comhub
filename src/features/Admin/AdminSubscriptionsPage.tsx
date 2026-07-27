@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Empty, Input, message, Modal, Select, Tabs, Tag } from 'antd';
+import { Button, Modal, Select, Tabs } from '@lobehub/ui/base-ui';
+import { Empty, Input, message, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -42,7 +43,8 @@ const STATUS_COLORS: Record<string, string> = {
 const AdminSubscriptionsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [plan, setPlan] = useState<PlanFilter>('all');
-  const [cursor, setCursor] = useState<number | undefined>(undefined);
+  const [cursorStack, setCursorStack] = useState<Array<number | undefined>>([undefined]);
+  const cursor = cursorStack.at(-1);
   const [forceModal, setForceModal] = useState<{
     cycle: AdminSubscriptionCycle;
     plan: string;
@@ -67,13 +69,16 @@ const AdminSubscriptionsPage = memo(() => {
 
   const handlePlanFilterChange = (value: PlanFilter) => {
     setPlan(value);
-    setCursor(undefined);
+    setCursorStack([undefined]);
   };
 
-  const handleLoadMore = () => {
+  const handleNextPage = () => {
     if (nextCursor == null) return;
-    setCursor(nextCursor);
+    setCursorStack((current) => [...current, nextCursor]);
   };
+
+  const handlePreviousPage = () =>
+    setCursorStack((current) => (current.length > 1 ? current.slice(0, -1) : current));
 
   const openForceModal = (userId: string) => {
     setForceModal({ cycle: 'monthly', plan: 'free', reason: '', userId, visible: true });
@@ -173,7 +178,7 @@ const AdminSubscriptionsPage = memo(() => {
             children: (
               <Flexbox gap={16}>
                 <Flexbox horizontal gap={12}>
-                  <Select<PlanFilter>
+                  <Select
                     style={{ width: 160 }}
                     value={plan}
                     options={[
@@ -214,10 +219,17 @@ const AdminSubscriptionsPage = memo(() => {
                   />
                 )}
 
-                {nextCursor != null && (
-                  <Flexbox align="center">
-                    <Button loading={isLoading} onClick={handleLoadMore}>
-                      {t('admin.subscriptions.loadMore', '加载更多')}
+                {(cursorStack.length > 1 || nextCursor != null) && (
+                  <Flexbox horizontal align="center" gap={8}>
+                    <Button disabled={cursorStack.length === 1} onClick={handlePreviousPage}>
+                      {t('admin.pagination.previous', '上一页')}
+                    </Button>
+                    <Button
+                      disabled={nextCursor == null}
+                      loading={isLoading}
+                      onClick={handleNextPage}
+                    >
+                      {t('admin.pagination.next', '下一页')}
                     </Button>
                   </Flexbox>
                 )}
@@ -249,7 +261,7 @@ const AdminSubscriptionsPage = memo(() => {
                     </Flexbox>
                     <Flexbox gap={4}>
                       <div>{t('admin.subscriptions.modal.cycleLabel', '周期')}</div>
-                      <Select<AdminSubscriptionCycle>
+                      <Select
                         style={{ width: '100%' }}
                         value={forceModal.cycle}
                         options={ADMIN_SUBSCRIPTION_CYCLES.map((item) => ({

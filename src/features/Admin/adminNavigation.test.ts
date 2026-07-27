@@ -231,6 +231,7 @@ describe('adminNavigation', () => {
     expect(clientItems).toContainEqual(
       expect.objectContaining({
         icon: 'mobile',
+        label: '移动端控制中心',
         path: `${ADMIN_BASE_PATH}/mobile`,
       }),
     );
@@ -238,21 +239,9 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/mobile')).toEqual(['client-integrations']);
   });
 
-  it('maps legacy billing routes to their merged sidebar entries', () => {
-    expect(getAdminSelectedKey('/settings/admin/pricing')).toBe(
-      `${ADMIN_BASE_PATH}/model-billing-matrix`,
-    );
-    expect(getAdminSelectedKey('/settings/admin/topup')).toBe(`${ADMIN_BASE_PATH}/orders`);
-    expect(getAdminSelectedKey('/settings/admin/change-requests')).toBe(
-      `${ADMIN_BASE_PATH}/subscriptions`,
-    );
-  });
-
   it('normalizes legacy root admin URLs before selecting the sidebar item', () => {
     expect(getAdminSelectedKey('/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/admin/users')).toBe(`${ADMIN_BASE_PATH}/users`);
-    expect(getAdminSelectedKey('/admin/pricing')).toBe(`${ADMIN_BASE_PATH}/model-billing-matrix`);
-    expect(getAdminOpenKeys('/admin/pricing')).toEqual(['ai-platform']);
   });
 
   it('selects the nearest admin item for nested URLs and opens its module', () => {
@@ -266,26 +255,8 @@ describe('adminNavigation', () => {
     );
     expect(getAdminSelectedKey('/settings/admin/ppt')).toBe(`${ADMIN_BASE_PATH}/ppt`);
     expect(getAdminSelectedKey('/settings/admin/modules')).toBe(`${ADMIN_BASE_PATH}/modules`);
-    expect(getAdminSelectedKey('/settings/admin/notifications')).toBe(
-      `${ADMIN_BASE_PATH}/content-operations`,
-    );
-    expect(getAdminSelectedKey('/settings/admin/expert-plaza')).toBe(
-      `${ADMIN_BASE_PATH}/content-operations`,
-    );
-    expect(getAdminSelectedKey('/settings/admin/topics')).toBe(
-      `${ADMIN_BASE_PATH}/content-resources`,
-    );
-    expect(getAdminSelectedKey('/settings/admin/files')).toBe(
-      `${ADMIN_BASE_PATH}/content-resources`,
-    );
     expect(getAdminSelectedKey('/settings/admin/file-storage')).toBe(
       `${ADMIN_BASE_PATH}/file-storage`,
-    );
-    expect(getAdminSelectedKey('/settings/admin/documents')).toBe(
-      `${ADMIN_BASE_PATH}/content-resources`,
-    );
-    expect(getAdminSelectedKey('/settings/admin/system-defaults')).toBe(
-      `${ADMIN_BASE_PATH}/ai-runtime-defaults`,
     );
     expect(getAdminSelectedKey('/settings/admin/maintenance')).toBe(
       `${ADMIN_BASE_PATH}/maintenance`,
@@ -298,13 +269,7 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['ai-platform']);
     expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['ai-platform']);
     expect(getAdminOpenKeys('/settings/admin/modules')).toEqual(['module-apps']);
-    expect(getAdminOpenKeys('/settings/admin/notifications')).toEqual(['content-operations']);
-    expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['content-operations']);
-    expect(getAdminOpenKeys('/settings/admin/topics')).toEqual(['content-operations']);
-    expect(getAdminOpenKeys('/settings/admin/files')).toEqual(['content-operations']);
     expect(getAdminOpenKeys('/settings/admin/file-storage')).toEqual(['client-integrations']);
-    expect(getAdminOpenKeys('/settings/admin/documents')).toEqual(['content-operations']);
-    expect(getAdminOpenKeys('/settings/admin/system-defaults')).toEqual(['ai-platform']);
     expect(getAdminOpenKeys('/settings/admin/maintenance')).toEqual(['system-security']);
     expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client-integrations']);
   });

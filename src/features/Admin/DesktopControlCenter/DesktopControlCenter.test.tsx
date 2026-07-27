@@ -17,6 +17,11 @@ import type { DesktopReleaseHistoryItem } from './DesktopBuildHistory';
 import DesktopControlCenter from './index';
 
 const confirmModalMock = vi.hoisted(() => vi.fn());
+const routeBlocker = vi.hoisted(() => ({
+  proceed: vi.fn(),
+  reset: vi.fn(),
+  state: 'unblocked' as 'blocked' | 'unblocked',
+}));
 
 vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
   ...(await importOriginal<typeof LobeUIBaseModule>()),
@@ -28,6 +33,8 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('react-router', () => ({
+  useBlocker: () => routeBlocker,
+  useLocation: () => ({ pathname: '/settings/admin/desktop-update', search: '' }),
   useSearchParams: vi.fn(),
 }));
 
@@ -306,6 +313,7 @@ const renderControlCenter = (options?: {
 describe('DesktopControlCenter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    routeBlocker.state = 'unblocked';
     confirmModalMock.mockImplementation(({ onOk }) => onOk?.());
     vi.mocked(adminCommercialService.activateDesktopRelease).mockResolvedValue(
       releaseData[0] as any,
@@ -352,7 +360,7 @@ describe('DesktopControlCenter', () => {
 
     expect(screen.getByLabelText('admin.desktopBuild.applicationName')).toHaveValue('ComHub');
     expect(
-      screen.getByLabelText('admin.desktopBuild.profile.selector').closest('.ant-select'),
+      screen.getByRole('combobox', { name: 'admin.desktopBuild.profile.selector' }),
     ).toHaveTextContent('ComHub');
     expect(screen.getByRole('button', { name: 'admin.desktopBuild.saveDraft' })).toBeDisabled();
   });
@@ -542,6 +550,7 @@ describe('DesktopControlCenter', () => {
     await waitFor(() => {
       expect(adminCommercialService.saveBuildProfileDraft).toHaveBeenCalledWith(
         expect.objectContaining({
+          expectedRevision: buildProfileData.currentRevision,
           name: 'ComHub Pro',
           profileId: buildProfileData.id,
           payload: expect.objectContaining({ applicationName: 'ComHub Pro' }),

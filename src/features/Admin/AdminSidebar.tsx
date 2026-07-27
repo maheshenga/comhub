@@ -31,6 +31,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
 import { useUserStore } from '@/store/user';
@@ -75,13 +76,10 @@ const iconMap: Record<AdminNavIcon, typeof Gauge> = {
   'users': Users,
 };
 
-const statusLabel = {
-  deprecated: '已弃用',
-  experimental: '实验性',
-  planned: '规划中',
-} as const;
-
-const buildMenuItems = (role?: string | null): MenuProps['items'] =>
+const buildMenuItems = (
+  role: null | string | undefined,
+  statusLabel: Record<'deprecated' | 'experimental' | 'planned', string>,
+): MenuProps['items'] =>
   getAdminNavGroupsForRole(role).map((group) => ({
     children: group.items.map((item) => ({
       icon: <Icon icon={iconMap[item.icon]} />,
@@ -107,12 +105,21 @@ const buildMenuItems = (role?: string | null): MenuProps['items'] =>
     title: group.description,
   }));
 
-const AdminSidebar = memo(() => {
+const AdminSidebar = memo<{ onNavigate?: () => void }>(({ onNavigate }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation('subscription');
   const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
 
-  const items = useMemo(() => buildMenuItems(role), [role]);
+  const items = useMemo(
+    () =>
+      buildMenuItems(role, {
+        deprecated: t('admin.navigation.status.deprecated'),
+        experimental: t('admin.navigation.status.experimental'),
+        planned: t('admin.navigation.status.planned'),
+      }),
+    [role, t],
+  );
   const selectedKey = getAdminSelectedKey(location.pathname);
 
   return (
@@ -121,8 +128,11 @@ const AdminSidebar = memo(() => {
       items={items}
       mode="inline"
       selectedKeys={[selectedKey]}
-      style={{ borderInlineEnd: 'none', height: '100%', width: 240 }}
-      onClick={({ key }: { key: string }) => navigate(key)}
+      style={{ borderInlineEnd: 'none', height: '100%', width: '100%' }}
+      onClick={({ key }: { key: string }) => {
+        navigate(key);
+        onNavigate?.();
+      }}
     />
   );
 });

@@ -1,18 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Switch } from '@lobehub/ui/base-ui';
-import {
-  Alert,
-  Button,
-  Form,
-  Input,
-  InputNumber,
-  message,
-  Segmented,
-  Skeleton,
-  Typography,
-} from 'antd';
+import { Button, Segmented, Switch } from '@lobehub/ui/base-ui';
+import { Alert, Form, Input, InputNumber, message, Skeleton, Typography } from 'antd';
 import { RefreshCw, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,9 +12,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import {
   buildUpdateSettingsUpdates,
+  type DesktopSettingsValues,
   getDesktopSettingsValues,
   isDesktopFormValidationError,
-  type DesktopSettingsValues,
 } from './desktopSettingsForm';
 import { desktopControlCenterStyles } from './styles';
 import type { DesktopSettingsResource } from './types';
@@ -35,10 +25,11 @@ const isAllowedUpdateServerUrl = (value?: string) => {
 };
 
 interface UpdateSettingsPageProps {
+  onDirtyChange?: (dirty: boolean) => void;
   settings: DesktopSettingsResource;
 }
 
-const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ settings }) => {
+const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, settings }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<DesktopSettingsValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -47,6 +38,7 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ settings }) => {
     form,
     Boolean(settings.data),
     initialValues,
+    onDirtyChange,
   );
 
   const handleSave = async () => {
@@ -73,13 +65,13 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ settings }) => {
   if (settings.error) {
     return (
       <Alert
+        message={t('admin.desktopControl.settingsError')}
+        type="error"
         action={
           <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void settings.mutate()}>
             {t('admin.desktopControl.retry')}
           </Button>
         }
-        message={t('admin.desktopControl.settingsError')}
-        type="error"
       />
     );
   }

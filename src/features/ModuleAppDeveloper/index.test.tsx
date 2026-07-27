@@ -9,8 +9,11 @@ import ModuleAppDeveloper from './index';
 
 const service = vi.hoisted(() => ({
   getMyDeveloperFinance: vi.fn(),
+  getMyDeveloperFinanceSummary: vi.fn(),
   getMyPublisherProfile: vi.fn(),
   listMyDeveloperApps: vi.fn(),
+  listMyDeveloperPayouts: vi.fn(),
+  listMyDeveloperRevenue: vi.fn(),
   listMyDeveloperSubmissions: vi.fn(),
   listMyDeveloperVersions: vi.fn(),
   publishMyDeveloperApp: vi.fn(),
@@ -27,11 +30,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const renderConsole = () =>
+const renderConsole = (search = '') =>
   render(
     <SWRConfig value={{ provider: () => new Map() }}>
       <ConfigProvider motion={m}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={['/developer' + search]}>
           <ModuleAppDeveloper />
         </MemoryRouter>
       </ConfigProvider>
@@ -90,6 +93,9 @@ describe('ModuleAppDeveloper', () => {
     });
     service.listMyDeveloperSubmissions.mockResolvedValue({ items: [], nextCursor: null });
     service.getMyDeveloperFinance.mockResolvedValue({ payouts: [], revenue: [], summary: [] });
+    service.getMyDeveloperFinanceSummary.mockResolvedValue([]);
+    service.listMyDeveloperPayouts.mockResolvedValue({ items: [], nextCursor: null });
+    service.listMyDeveloperRevenue.mockResolvedValue({ items: [], nextCursor: null });
     service.publishMyDeveloperApp.mockResolvedValue({ ok: true });
   });
 
@@ -122,5 +128,67 @@ describe('ModuleAppDeveloper', () => {
 
     expect(await screen.findByTestId('module-app-developer-console')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'moduleApps.developer.publish' })).toBeDisabled();
+  });
+
+  it('paginates applications without replacing the console shell', async () => {
+    service.listMyDeveloperApps
+      .mockResolvedValueOnce({ items: [], nextCursor: 20 })
+      .mockResolvedValueOnce({ items: [], nextCursor: null });
+
+    renderConsole();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'moduleApps.developer.next' }));
+    await waitFor(() =>
+      expect(service.listMyDeveloperApps).toHaveBeenLastCalledWith({ cursor: 20, limit: 20 }),
+    );
+    expect(screen.getByTestId('module-app-developer-console')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'moduleApps.developer.previous' }),
+    ).toBeInTheDocument();
+  });
+
+  it('isolates an applications error and exposes a local retry action', async () => {
+    service.listMyDeveloperApps.mockRejectedValueOnce(new Error('apps unavailable'));
+
+    renderConsole();
+
+    expect(await screen.findByTestId('module-app-developer-console')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('moduleApps.developer.loadError');
+    expect(screen.getByRole('button', { name: 'moduleApps.developer.retry' })).toBeInTheDocument();
+  });
+
+  it('restores the selected tab from the URL', async () => {
+    renderConsole('?tab=packages');
+
+    await waitFor(() =>
+      expect(service.listMyDeveloperSubmissions).toHaveBeenCalledWith({ cursor: 0, limit: 20 }),
+    );
+    expect(service.listMyDeveloperApps).not.toHaveBeenCalled();
+  });
+
+  it('paginates revenue and payouts independently', async () => {
+    service.listMyDeveloperRevenue.mockImplementation(async ({ cursor }) => ({
+      items: [],
+      nextCursor: cursor === 0 ? 20 : null,
+    }));
+    service.listMyDeveloperPayouts.mockImplementation(async ({ cursor }) => ({
+      items: [],
+      nextCursor: cursor === 0 ? 20 : null,
+    }));
+
+    renderConsole('?tab=finance');
+
+    const nextButtons = await screen.findAllByRole('button', {
+      name: 'moduleApps.developer.next',
+    });
+    fireEvent.click(nextButtons[0]!);
+    await waitFor(() =>
+      expect(service.listMyDeveloperRevenue).toHaveBeenLastCalledWith({ cursor: 20, limit: 20 }),
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'moduleApps.developer.next' })[1]!);
+    await waitFor(() =>
+      expect(service.listMyDeveloperPayouts).toHaveBeenLastCalledWith({ cursor: 20, limit: 20 }),
+    );
   });
 });

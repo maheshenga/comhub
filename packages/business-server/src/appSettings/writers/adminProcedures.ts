@@ -409,7 +409,7 @@ const validateUserGlobalSettingsDefaults = async (db: LobeChatDatabase, defaults
     },
   );
 };
-const invalidateAppSettingsCaches = (updates: NormalizedSettingUpdate[]) => {
+const invalidateAppSettingsCaches = async (updates: NormalizedSettingUpdate[]) => {
   if (
     updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('brand'))
   ) {
@@ -421,7 +421,7 @@ const invalidateAppSettingsCaches = (updates: NormalizedSettingUpdate[]) => {
     invalidateFileS3RuntimeCache();
   }
 
-  invalidateServerAppSettings();
+  await invalidateServerAppSettings();
 };
 const buildSettingAuditPayload = (update: NormalizedSettingUpdate) => ({
   hasValue: update.hasValue,
@@ -490,7 +490,7 @@ export const adminSettingsWriteProcedures = {
         mutation: async (tx) => upsertAppSetting(tx, update),
       });
 
-      invalidateAppSettingsCaches([update]);
+      await invalidateAppSettingsCaches([update]);
 
       return { ok: true };
     }),
@@ -524,7 +524,7 @@ export const adminSettingsWriteProcedures = {
         },
       });
 
-      invalidateAppSettingsCaches(updates);
+      await invalidateAppSettingsCaches(updates);
 
       return { count: input.updates.length, ok: true };
     }),

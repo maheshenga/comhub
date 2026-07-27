@@ -48,6 +48,14 @@ When('I open the Module App developer console', async function (this: CustomWorl
   await open(this, '/apps/developer');
 });
 
+When(
+  'I open the Module App developer console on a phone viewport',
+  async function (this: CustomWorld) {
+    await this.page.setViewportSize({ height: 844, width: 390 });
+    await open(this, '/apps/developer');
+  },
+);
+
 When('I open the configured Module App runtime page', async function (this: CustomWorld) {
   await open(this, `/apps/${env('MODULE_APP_E2E_APP_ID')}/app`);
 });
@@ -99,6 +107,20 @@ Then('the Module App detail should render', async function (this: CustomWorld) {
 Then('the Module App developer console should render', async function (this: CustomWorld) {
   await expect(this.page.getByTestId('module-app-developer-console')).toBeVisible();
 });
+
+Then(
+  'the Module App developer console should render without horizontal overflow',
+  async function (this: CustomWorld) {
+    await expect(this.page.getByTestId('module-app-developer-console')).toBeVisible();
+    await expect
+      .poll(() =>
+        this.page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      )
+      .toBe(true);
+  },
+);
 
 Then(
   'the Module App runtime should render without a launch error',

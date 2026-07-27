@@ -17,6 +17,12 @@ const routeBlocker = vi.hoisted(() => ({
   reset: vi.fn(),
   state: 'unblocked' as 'blocked' | 'unblocked',
 }));
+const confirmModalMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+  ...((await importOriginal()) as object),
+  confirmModal: confirmModalMock,
+}));
 
 vi.mock('react-router', async (importOriginal) => ({
   ...((await importOriginal()) as object),
@@ -144,8 +150,6 @@ const setupLoaders = (config: MobilePublicConfigV1 = mobileConfig()) => {
 const renderPage = (ui: ReactElement = <AdminMobileSettingsPage />) =>
   render(<ConfigProvider motion={m}>{ui}</ConfigProvider>);
 
-const switchByLabel = (label: string) => screen.getAllByLabelText(label)[0];
-
 const createDeferred = <T,>() => {
   let reject!: (reason?: unknown) => void;
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -201,7 +205,7 @@ describe('AdminMobileSettingsPage', () => {
         },
       }),
     );
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmModalMock.mockImplementation(({ onOk }) => onOk?.());
     routeBlocker.state = 'unblocked';
   });
 
@@ -378,6 +382,10 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove assistant agent-one' }));
     fireEvent.click(screen.getByRole('button', { name: 'Move module app app-two up' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove module app app-one' }));
+    const builtinLabelsBefore = screen
+      .getAllByLabelText(/Builtin .* label/)
+      .map((element) => (element as HTMLInputElement).value);
+    const communityIndexBefore = builtinLabelsBefore.indexOf('Community');
     fireEvent.click(screen.getByRole('button', { name: 'Move builtin community up' }));
 
     expect(
@@ -389,7 +397,12 @@ describe('AdminMobileSettingsPage', () => {
     expect(screen.queryByText('app-one')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Move assistant agent-two up' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move module app app-two up' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move builtin community up' })).toBeDisabled();
+    await waitFor(() => {
+      const builtinLabelsAfter = screen
+        .getAllByLabelText(/Builtin .* label/)
+        .map((element) => (element as HTMLInputElement).value);
+      expect(builtinLabelsAfter.indexOf('Community')).toBe(communityIndexBefore - 1);
+    });
   }, 15_000);
 
   it('does not allow more than four featured assistants', async () => {
@@ -430,8 +443,10 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Brand display name'), { target: { value: 'Changed' } });
     fireEvent.click(screen.getByRole('button', { name: 'Restore defaults' }));
 
-    expect(window.confirm).toHaveBeenCalled();
-    expect(screen.getByLabelText('Brand display name')).toHaveValue('');
+    expect(confirmModalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Restore mobile defaults?' }),
+    );
+    await waitFor(() => expect(screen.getByLabelText('Brand display name')).toHaveValue(''));
     expect(
       within(screen.getByTestId('mobile-config-preview')).getByRole('navigation', {
         name: 'Bottom Navigation',
@@ -613,8 +628,10 @@ describe('AdminMobileSettingsPage', () => {
     });
 
     await waitFor(() => expect(routeBlocker.proceed).toHaveBeenCalled());
-    expect(window.confirm).toHaveBeenCalledWith(
-      'You have unsaved mobile settings. Leave this page?',
+    expect(confirmModalMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'You have unsaved mobile settings. Leave this page?',
+      }),
     );
   });
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Alert, Button, Form, Input, message, Skeleton, Typography } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert, Form, Input, message, Skeleton, Typography } from 'antd';
 import { RefreshCw, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,19 +12,20 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { DESKTOP_DEFAULT_BUSINESS_SERVER_URL } from '../adminDesktopUpdateSettings';
 import {
   buildBrandUpdates,
+  type DesktopSettingsValues,
   getDesktopSettingsValues,
   isDesktopFormValidationError,
-  type DesktopSettingsValues,
 } from './desktopSettingsForm';
 import { desktopControlCenterStyles } from './styles';
 import type { DesktopSettingsResource } from './types';
 import { useDesktopSettingsFormSync } from './useDesktopSettingsFormSync';
 
 interface BrandPageProps {
+  onDirtyChange?: (dirty: boolean) => void;
   settings: DesktopSettingsResource;
 }
 
-const BrandPage = memo<BrandPageProps>(({ settings }) => {
+const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<DesktopSettingsValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +34,7 @@ const BrandPage = memo<BrandPageProps>(({ settings }) => {
     form,
     Boolean(settings.data),
     initialValues,
+    onDirtyChange,
   );
 
   const handleSave = async () => {
@@ -58,13 +61,13 @@ const BrandPage = memo<BrandPageProps>(({ settings }) => {
   if (settings.error) {
     return (
       <Alert
+        message={t('admin.desktopControl.settingsError')}
+        type="error"
         action={
           <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void settings.mutate()}>
             {t('admin.desktopControl.retry')}
           </Button>
         }
-        message={t('admin.desktopControl.settingsError')}
-        type="error"
       />
     );
   }
@@ -77,9 +80,9 @@ const BrandPage = memo<BrandPageProps>(({ settings }) => {
         {t('admin.desktopControl.tabs.brand')}
       </Typography.Title>
       <Alert
+        showIcon
         description={<Typography.Text code>{DESKTOP_DEFAULT_BUSINESS_SERVER_URL}</Typography.Text>}
         message={t('admin.desktopControl.businessServer')}
-        showIcon
         type="info"
       />
       <Form
@@ -87,8 +90,8 @@ const BrandPage = memo<BrandPageProps>(({ settings }) => {
         form={form}
         initialValues={initialValues}
         layout="vertical"
-        onValuesChange={markEdited}
         style={{ marginTop: 16 }}
+        onValuesChange={markEdited}
       >
         <Form.Item label={t('admin.desktopUpdate.loginWindowTitle')} name="loginWindowTitle">
           <Input placeholder="ComHub" />

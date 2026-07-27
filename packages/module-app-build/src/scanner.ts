@@ -3,6 +3,7 @@ import {
   type ModuleAppPackageValidationIssue,
 } from '@lobechat/types';
 
+import { containsModuleAppSecret, isSensitiveModuleAppPath } from './secrets';
 import type { ModuleAppZipEntry } from './zipMetadata';
 
 const FORBIDDEN_EXTENSIONS = new Set([
@@ -140,6 +141,27 @@ export const scanModuleAppPackage = (input: {
   for (const [path, data] of Object.entries(input.files)) {
     if (issues.length >= MODULE_APP_PACKAGE_MAX_SCAN_ISSUES) break;
     const extension = extensionOf(path);
+
+    if (isSensitiveModuleAppPath(path)) {
+      add(
+        issue(
+          'module_app_package_sensitive_file',
+          path,
+          'Sensitive credential and private-key files are not allowed in module app packages.',
+        ),
+      );
+      continue;
+    }
+    if (containsModuleAppSecret(data)) {
+      add(
+        issue(
+          'module_app_package_secret_detected',
+          path,
+          'The package contains a high-confidence credential or private-key signature.',
+        ),
+      );
+      continue;
+    }
 
     if (NESTED_ARCHIVE_EXTENSIONS.has(extension) || hasNestedArchiveMagic(data)) {
       add(

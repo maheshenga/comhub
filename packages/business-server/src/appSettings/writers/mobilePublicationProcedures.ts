@@ -71,7 +71,7 @@ export const mobilePublicationWriteProcedures = {
             return next;
           },
         });
-        invalidateServerAppSettings();
+        await invalidateServerAppSettings();
         return state;
       } catch (error) {
         return mapPublicationError(error);
@@ -105,7 +105,7 @@ export const mobilePublicationWriteProcedures = {
             return next;
           },
         });
-        invalidateServerAppSettings();
+        await invalidateServerAppSettings();
         return state;
       } catch (error) {
         return mapPublicationError(error);
@@ -129,7 +129,7 @@ export const mobilePublicationWriteProcedures = {
           return next;
         },
       });
-      invalidateServerAppSettings();
+      await invalidateServerAppSettings();
       return state;
     }),
 } as const;

@@ -7,6 +7,7 @@ export const useDesktopSettingsFormSync = (
   form: FormInstance<DesktopSettingsValues>,
   hasData: boolean,
   initialValues: DesktopSettingsValues,
+  onDirtyChange?: (dirty: boolean) => void,
 ) => {
   const [dirtyFields, setDirtyFields] = useState<ReadonlySet<keyof DesktopSettingsValues>>(
     () => new Set(),
@@ -22,6 +23,10 @@ export const useDesktopSettingsFormSync = (
     ) as Partial<DesktopSettingsValues>;
     form.setFieldsValue(synchronizedValues);
   }, [dirtyFields, form, hasData, initialValues]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirtyFields.size > 0);
+  }, [dirtyFields, onDirtyChange]);
 
   const markSaved = useCallback(() => setDirtyFields(new Set()), []);
   const markEdited = useCallback(

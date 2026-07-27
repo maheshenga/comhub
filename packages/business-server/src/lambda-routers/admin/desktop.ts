@@ -203,7 +203,7 @@ export const adminDesktopRouter = router({
           return release;
         },
       });
-      invalidateServerAppSettings();
+      await invalidateServerAppSettings();
       return activated;
     }),
   archiveBuildProfile: systemWriteProcedure
@@ -561,6 +561,7 @@ export const adminDesktopRouter = router({
         .object({
           assets: assetManifestSchema,
           createIfMissing: z.boolean().optional(),
+          expectedRevision: z.number().int().nonnegative(),
           name: z.string().trim().min(1).max(255),
           payload: z.unknown(),
           profileId: z.string().uuid(),
@@ -577,29 +578,37 @@ export const adminDesktopRouter = router({
       const payload = parseDesktopBuildProfilePayload(input.payload);
       const model = new DesktopBuildModel(ctx.serverDB);
 
-      return runRequiredAdminAuditMutation<SavedDraft>(ctx, {
-        audit: (result) => ({
-          action: saveBuildProfileDraftCommand.definition.auditAction,
-          payload: {
-            assets: assetAuditPayload(assets),
-            profileId: result.profileId,
-            revisionId: result.revisionId,
-          },
-          resourceId: result.profileId,
-          resourceType: 'desktopBuildProfile',
-        }),
-        mutation: (tx) =>
-          model.saveDraft(
-            {
-              actorUserId: ctx.userId,
-              assets,
-              createIfMissing: input.createIfMissing,
-              name: input.name,
-              payload,
-              profileId: input.profileId,
+      try {
+        return await runRequiredAdminAuditMutation<SavedDraft>(ctx, {
+          audit: (result) => ({
+            action: saveBuildProfileDraftCommand.definition.auditAction,
+            payload: {
+              assets: assetAuditPayload(assets),
+              profileId: result.profileId,
+              revisionId: result.revisionId,
             },
-            tx,
-          ),
-      });
+            resourceId: result.profileId,
+            resourceType: 'desktopBuildProfile',
+          }),
+          mutation: (tx) =>
+            model.saveDraft(
+              {
+                actorUserId: ctx.userId,
+                assets,
+                createIfMissing: input.createIfMissing,
+                expectedRevision: input.expectedRevision,
+                name: input.name,
+                payload,
+                profileId: input.profileId,
+              },
+              tx,
+            ),
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === 'DESKTOP_BUILD_PROFILE_REVISION_CONFLICT') {
+          throw new TRPCError({ code: 'CONFLICT', message: error.message });
+        }
+        throw error;
+      }
     }),
 });

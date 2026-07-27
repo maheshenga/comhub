@@ -2,7 +2,10 @@ import type {
   ModuleAppDeveloperAppListResult,
   ModuleAppDeveloperFinance,
   ModuleAppDeveloperListInput,
+  ModuleAppDeveloperPayoutListResult,
   ModuleAppDeveloperPublisherProfile,
+  ModuleAppDeveloperRevenueListResult,
+  ModuleAppDeveloperRevenueSummary,
   ModuleAppDeveloperSubmissionListResult,
   ModuleAppDeveloperVersionSummary,
   ModuleAppInstallationListInput,
@@ -134,6 +137,10 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.getLicense.query!(input),
     getMyDeveloperFinance: () =>
       client.moduleApp.getMyDeveloperFinance.query!() as Promise<ModuleAppDeveloperFinance>,
+    getMyDeveloperFinanceSummary: () =>
+      client.moduleApp.getMyDeveloperFinanceSummary.query!() as Promise<
+        ModuleAppDeveloperRevenueSummary[]
+      >,
     getMyPublisherProfile: () =>
       client.moduleApp.getMyPublisherProfile
         .query!() as Promise<ModuleAppDeveloperPublisherProfile | null>,
@@ -161,6 +168,14 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.listMyDeveloperSubmissions.query!(
         input,
       ) as Promise<ModuleAppDeveloperSubmissionListResult>,
+    listMyDeveloperPayouts: (input: ModuleAppDeveloperListInput = {}) =>
+      client.moduleApp.listMyDeveloperPayouts.query!(
+        input,
+      ) as Promise<ModuleAppDeveloperPayoutListResult>,
+    listMyDeveloperRevenue: (input: ModuleAppDeveloperListInput = {}) =>
+      client.moduleApp.listMyDeveloperRevenue.query!(
+        input,
+      ) as Promise<ModuleAppDeveloperRevenueListResult>,
     listMyDeveloperVersions: (input: { appId: string }) =>
       client.moduleApp.listMyDeveloperVersions.query!(input) as Promise<
         ModuleAppDeveloperVersionSummary[]

@@ -419,6 +419,7 @@ export class DesktopBuildModel {
       actorUserId: string;
       assets: DesktopBuildAssetManifest;
       createIfMissing?: boolean;
+      expectedRevision?: number;
       name: string;
       payload: DesktopBuildProfilePayload;
       profileId?: string;
@@ -441,6 +442,9 @@ export class DesktopBuildModel {
         }
 
         if (!existingProfile) {
+          if (input.expectedRevision !== undefined && input.expectedRevision !== 0) {
+            throw new Error('DESKTOP_BUILD_PROFILE_REVISION_CONFLICT');
+          }
           const [created] = await tx
             .insert(desktopBuildProfiles)
             .values({
@@ -455,6 +459,12 @@ export class DesktopBuildModel {
         } else {
           if (existingProfile.status === 'archived')
             throw new Error('DESKTOP_BUILD_PROFILE_ARCHIVED');
+          if (
+            input.expectedRevision !== undefined &&
+            existingProfile.currentRevision !== input.expectedRevision
+          ) {
+            throw new Error('DESKTOP_BUILD_PROFILE_REVISION_CONFLICT');
+          }
           await this.assertLockedIdentity(existingProfile, input.payload, tx);
           profile = existingProfile;
         }

@@ -3,9 +3,9 @@
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import {
   Alert,
-  Button,
   Empty,
   InputNumber,
   message,
@@ -407,10 +407,8 @@ const AdminModelBillingMatrixPage = memo(() => {
 
     try {
       const rulesByPlan = buildPlanModelRulesFromRows(rows, plans);
-      await Promise.all(
-        Object.entries(rulesByPlan).map(([plan, modelRules]) =>
-          adminCommercialService.setPlanModelRules({ modelRules, plan }),
-        ),
+      await adminCommercialService.setPlanModelRulesBatch(
+        Object.entries(rulesByPlan).map(([plan, modelRules]) => ({ modelRules, plan })),
       );
       await mutate(PLANS_KEY);
       message.success(t('admin.modelBillingMatrix.accessSaved', '套餐模型权限已保存'));
@@ -579,78 +577,78 @@ const AdminModelBillingMatrixPage = memo(() => {
 
       {canReadPlans && canReadSettings ? (
         <Card title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}>
-        <Flexbox gap={12}>
-          <Alert
-            showIcon
-            type={configHealthMeta.alertType as 'error' | 'success' | 'warning'}
-            description={
-              <Flexbox gap={10}>
-                <Space wrap size={[8, 8]}>
-                  <Tag color={configHealthMeta.color}>{configHealthMeta.label}</Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthModels', 'Models')}:{' '}
-                    {configHealth.summary.modelCount}
-                  </Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthPlans', 'Plans')}:{' '}
-                    {configHealth.summary.planCount}
-                  </Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthDefaults', 'Defaults')}:{' '}
-                    {configHealth.summary.defaultModelOkCount}/
-                    {configHealth.summary.defaultModelTotal}
-                  </Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthPricingOverrides', 'Pricing overrides')}:{' '}
-                    {configHealth.summary.pricingOverrideCount}
-                  </Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthPricingFallbacks', 'Pricing metadata')}:{' '}
-                    {configHealth.summary.providerPricingModelCount}
-                  </Tag>
-                  <Tag>DB pricing: {configHealth.summary.databasePricingModelCount}</Tag>
-                  <Tag>Model Bank: {configHealth.summary.modelBankPricingModelCount}</Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthPricingMissing', 'Missing pricing')}:{' '}
-                    {configHealth.summary.missingPricingModelCount}
-                  </Tag>
-                  <Tag>
-                    {t('admin.modelBillingMatrix.healthAbilitiesMissing', 'Missing abilities')}:{' '}
-                    {configHealth.summary.missingAbilityModelCount}
-                  </Tag>
-                </Space>
+          <Flexbox gap={12}>
+            <Alert
+              showIcon
+              type={configHealthMeta.alertType as 'error' | 'success' | 'warning'}
+              description={
+                <Flexbox gap={10}>
+                  <Space wrap size={[8, 8]}>
+                    <Tag color={configHealthMeta.color}>{configHealthMeta.label}</Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthModels', 'Models')}:{' '}
+                      {configHealth.summary.modelCount}
+                    </Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthPlans', 'Plans')}:{' '}
+                      {configHealth.summary.planCount}
+                    </Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthDefaults', 'Defaults')}:{' '}
+                      {configHealth.summary.defaultModelOkCount}/
+                      {configHealth.summary.defaultModelTotal}
+                    </Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthPricingOverrides', 'Pricing overrides')}:{' '}
+                      {configHealth.summary.pricingOverrideCount}
+                    </Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthPricingFallbacks', 'Pricing metadata')}:{' '}
+                      {configHealth.summary.providerPricingModelCount}
+                    </Tag>
+                    <Tag>DB pricing: {configHealth.summary.databasePricingModelCount}</Tag>
+                    <Tag>Model Bank: {configHealth.summary.modelBankPricingModelCount}</Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthPricingMissing', 'Missing pricing')}:{' '}
+                      {configHealth.summary.missingPricingModelCount}
+                    </Tag>
+                    <Tag>
+                      {t('admin.modelBillingMatrix.healthAbilitiesMissing', 'Missing abilities')}:{' '}
+                      {configHealth.summary.missingAbilityModelCount}
+                    </Tag>
+                  </Space>
 
-                <Flexbox gap={6}>
-                  {configHealth.checks.map((check) => {
-                    const meta = CONFIG_HEALTH_CHECK_STATUS[check.severity];
+                  <Flexbox gap={6}>
+                    {configHealth.checks.map((check) => {
+                      const meta = CONFIG_HEALTH_CHECK_STATUS[check.severity];
 
-                    return (
-                      <Space wrap align="start" key={check.key} size={6}>
-                        <Tag color={meta.color}>{meta.label}</Tag>
-                        <Text>{check.title}</Text>
-                        {typeof check.count === 'number' ? <Tag>{check.count}</Tag> : null}
-                        {check.detail ? <Text type="secondary">{check.detail}</Text> : null}
-                        {canFocusConfigHealthCheck(check) ? (
-                          <Button
-                            size="small"
-                            type="link"
-                            onClick={() => handleFocusConfigHealthCheck(check)}
-                          >
-                            {focusedHealthCheckKey === check.key ? '取消定位' : '定位'}
-                          </Button>
-                        ) : null}
-                      </Space>
-                    );
-                  })}
+                      return (
+                        <Space wrap align="start" key={check.key} size={6}>
+                          <Tag color={meta.color}>{meta.label}</Tag>
+                          <Text>{check.title}</Text>
+                          {typeof check.count === 'number' ? <Tag>{check.count}</Tag> : null}
+                          {check.detail ? <Text type="secondary">{check.detail}</Text> : null}
+                          {canFocusConfigHealthCheck(check) ? (
+                            <Button
+                              size="small"
+                              type="link"
+                              onClick={() => handleFocusConfigHealthCheck(check)}
+                            >
+                              {focusedHealthCheckKey === check.key ? '取消定位' : '定位'}
+                            </Button>
+                          ) : null}
+                        </Space>
+                      );
+                    })}
+                  </Flexbox>
                 </Flexbox>
-              </Flexbox>
-            }
-            message={t(
-              'admin.modelBillingMatrix.configHealthTitle',
-              'Provider, model access, and billing configuration',
-            )}
-          />
-        </Flexbox>
+              }
+              message={t(
+                'admin.modelBillingMatrix.configHealthTitle',
+                'Provider, model access, and billing configuration',
+              )}
+            />
+          </Flexbox>
         </Card>
       ) : (
         <Alert
@@ -665,100 +663,100 @@ const AdminModelBillingMatrixPage = memo(() => {
 
       {canReadSettings ? (
         <Card title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}>
-        <Flexbox gap={16}>
-          <Text type="secondary">
-            {t(
-              'admin.modelBillingMatrix.billingBasisDescription',
-              '在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
-            )}
-          </Text>
+          <Flexbox gap={16}>
+            <Text type="secondary">
+              {t(
+                'admin.modelBillingMatrix.billingBasisDescription',
+                '在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
+              )}
+            </Text>
 
-          <Space wrap align="start" size={24}>
-            <Flexbox gap={8} style={{ minWidth: 220 }}>
-              <Text strong>{t('admin.modelBillingMatrix.globalMultiplier', '全局积分倍率')}</Text>
-              <InputNumber
+            <Space wrap align="start" size={24}>
+              <Flexbox gap={8} style={{ minWidth: 220 }}>
+                <Text strong>{t('admin.modelBillingMatrix.globalMultiplier', '全局积分倍率')}</Text>
+                <InputNumber
+                  disabled={!canWriteSystem}
+                  max={100}
+                  min={0.0001}
+                  precision={4}
+                  step={0.1}
+                  style={{ width: 180 }}
+                  value={billingBasis.pricingMultiplier}
+                  onChange={(next: number | null) =>
+                    updateBillingBasis({
+                      pricingMultiplier: toFiniteNumber(next) ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
+                    })
+                  }
+                />
+                <Text type="secondary">
+                  {t(
+                    'admin.modelBillingMatrix.globalMultiplierHelp',
+                    '用于生成计费的默认倍率，单模型倍率会覆盖该值。',
+                  )}
+                </Text>
+              </Flexbox>
+
+              <Flexbox gap={8} style={{ minWidth: 220 }}>
+                <Text strong>{t('admin.pricing.ordersEnabled', '在线平台支付（已关闭）')}</Text>
+                <Switch
+                  disabled
+                  checked={false}
+                  checkedChildren={t('admin.modelBillingMatrix.enabled', '启用')}
+                  unCheckedChildren={t('admin.modelBillingMatrix.disabled', '停用')}
+                />
+                <Text type="secondary">
+                  {t(
+                    'admin.pricing.ordersEnabled.help',
+                    '平台在线支付保持关闭，仅兑换码充值可用；此状态不可在后台开启。',
+                  )}
+                </Text>
+              </Flexbox>
+            </Space>
+
+            <Space wrap>
+              <Button
                 disabled={!canWriteSystem}
-                max={100}
-                min={0.0001}
-                precision={4}
-                step={0.1}
-                style={{ width: 180 }}
-                value={billingBasis.pricingMultiplier}
-                onChange={(next: number | null) =>
-                  updateBillingBasis({
-                    pricingMultiplier: toFiniteNumber(next) ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
-                  })
-                }
-              />
-              <Text type="secondary">
-                {t(
-                  'admin.modelBillingMatrix.globalMultiplierHelp',
-                  '用于生成计费的默认倍率，单模型倍率会覆盖该值。',
-                )}
-              </Text>
-            </Flexbox>
-
-            <Flexbox gap={8} style={{ minWidth: 220 }}>
-              <Text strong>{t('admin.pricing.ordersEnabled', '在线平台支付（已关闭）')}</Text>
-              <Switch
-                disabled
-                checked={false}
-                checkedChildren={t('admin.modelBillingMatrix.enabled', '启用')}
-                unCheckedChildren={t('admin.modelBillingMatrix.disabled', '停用')}
-              />
-              <Text type="secondary">
-                {t(
-                  'admin.pricing.ordersEnabled.help',
-                  '平台在线支付保持关闭，仅兑换码充值可用；此状态不可在后台开启。',
-                )}
-              </Text>
-            </Flexbox>
-          </Space>
-
-          <Space wrap>
-            <Button
-              disabled={!canWriteSystem}
-              loading={savingBillingBasis}
-              type="primary"
-              onClick={handleSaveBillingBasis}
-            >
-              {t('admin.modelBillingMatrix.saveBillingBasis', '保存全局计费设置')}
-            </Button>
-            {billingBasisOverride && (
-              <Button disabled={savingBillingBasis} onClick={() => setBillingBasisOverride(null)}>
-                {MATRIX_DISCARD_LABEL}
+                loading={savingBillingBasis}
+                type="primary"
+                onClick={handleSaveBillingBasis}
+              >
+                {t('admin.modelBillingMatrix.saveBillingBasis', '保存全局计费设置')}
               </Button>
-            )}
-          </Space>
-        </Flexbox>
+              {billingBasisOverride && (
+                <Button disabled={savingBillingBasis} onClick={() => setBillingBasisOverride(null)}>
+                  {MATRIX_DISCARD_LABEL}
+                </Button>
+              )}
+            </Space>
+          </Flexbox>
         </Card>
       ) : null}
 
       {canReadSettings ? (
         <Alert
-        showIcon
-        message="默认模型健康检查"
-        type={hasDefaultModelRisk ? 'warning' : 'success'}
-        description={
-          <Flexbox gap={8}>
-            {Object.values(defaultModelHealth).map((health) => {
-              const meta = DEFAULT_HEALTH_STATUS[health.status];
+          showIcon
+          message="默认模型健康检查"
+          type={hasDefaultModelRisk ? 'warning' : 'success'}
+          description={
+            <Flexbox gap={8}>
+              {Object.values(defaultModelHealth).map((health) => {
+                const meta = DEFAULT_HEALTH_STATUS[health.status];
 
-              return (
-                <Space wrap align="start" key={health.modelType} size={6}>
-                  <Tag color="blue">{getAdminModelTypeLabel(health.modelType)}</Tag>
-                  <Text>
-                    {health.model
-                      ? `${health.provider}/${health.model}`
-                      : `${health.provider}/未配置`}
-                  </Text>
-                  <Tag color={meta.color}>{meta.label}</Tag>
-                  <Text type="secondary">{getDefaultModelHealthMessage(health)}</Text>
-                </Space>
-              );
-            })}
-          </Flexbox>
-        }
+                return (
+                  <Space wrap align="start" key={health.modelType} size={6}>
+                    <Tag color="blue">{getAdminModelTypeLabel(health.modelType)}</Tag>
+                    <Text>
+                      {health.model
+                        ? `${health.provider}/${health.model}`
+                        : `${health.provider}/未配置`}
+                    </Text>
+                    <Tag color={meta.color}>{meta.label}</Tag>
+                    <Text type="secondary">{getDefaultModelHealthMessage(health)}</Text>
+                  </Space>
+                );
+              })}
+            </Flexbox>
+          }
         />
       ) : null}
 

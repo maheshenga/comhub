@@ -2,19 +2,8 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox } from '@lobehub/ui';
-import {
-  Alert,
-  AutoComplete,
-  Button,
-  Form,
-  Input,
-  message,
-  Modal,
-  Select,
-  Space,
-  Switch,
-  Typography,
-} from 'antd';
+import { Button, confirmModal, Select } from '@lobehub/ui/base-ui';
+import { Alert, AutoComplete, Form, Input, message, Space, Switch, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -44,10 +33,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 const { Text, Title } = Typography;
 
-export type AdminDefaultSettingsScope =
-  | 'ai-runtime-defaults'
-  | 'integrations'
-  | 'user-defaults';
+export type AdminDefaultSettingsScope = 'ai-runtime-defaults' | 'integrations' | 'user-defaults';
 
 type FormValues = {
   avatarPresets: AvatarPreset[];
@@ -221,7 +207,7 @@ const scopeCopy: Record<
     title: 'AI 运行时默认值',
     titleKey: 'admin.defaultSettings.aiRuntime.title',
   },
-  integrations: {
+  'integrations': {
     description: '配置可选的 Composio 工具集成。保存不会修改 AI 运行时或用户默认设置。',
     descriptionKey: 'admin.defaultSettings.integrations.description',
     title: '外部集成',
@@ -331,12 +317,24 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
       languageModelDefaultsJson: jsonStringify(userDefaults.languageModel ?? {}),
       profileInterestAreas: normalizeConfiguredInterestAreas(settings.profileInterestAreas),
       serviceModelAgentMeta: resolveModelOptionValue(systemAgent.agentMeta, modelOptions),
-      serviceModelDefaultAgent: resolveModelOptionValue(userDefaults.defaultAgent?.config, modelOptions),
+      serviceModelDefaultAgent: resolveModelOptionValue(
+        userDefaults.defaultAgent?.config,
+        modelOptions,
+      ),
       serviceModelFollowUpAction: resolveModelOptionValue(systemAgent.followUpAction, modelOptions),
       serviceModelFollowUpActionEnabled: systemAgent.followUpAction?.enabled ?? false,
-      serviceModelGenerationTopic: resolveModelOptionValue(systemAgent.generationTopic, modelOptions),
-      serviceModelHistoryCompress: resolveModelOptionValue(systemAgent.historyCompress, modelOptions),
-      serviceModelInputCompletion: resolveModelOptionValue(systemAgent.inputCompletion, modelOptions),
+      serviceModelGenerationTopic: resolveModelOptionValue(
+        systemAgent.generationTopic,
+        modelOptions,
+      ),
+      serviceModelHistoryCompress: resolveModelOptionValue(
+        systemAgent.historyCompress,
+        modelOptions,
+      ),
+      serviceModelInputCompletion: resolveModelOptionValue(
+        systemAgent.inputCompletion,
+        modelOptions,
+      ),
       serviceModelInputCompletionEnabled: systemAgent.inputCompletion?.enabled ?? false,
       serviceModelPromptRewrite: resolveModelOptionValue(systemAgent.promptRewrite, modelOptions),
       serviceModelPromptRewriteEnabled: systemAgent.promptRewrite?.enabled ?? true,
@@ -386,7 +384,9 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
         ? { ...userGlobalSettings.defaultAgent }
         : {};
     const defaultAgentConfig =
-      defaultAgent.config && typeof defaultAgent.config === 'object' && !Array.isArray(defaultAgent.config)
+      defaultAgent.config &&
+      typeof defaultAgent.config === 'object' &&
+      !Array.isArray(defaultAgent.config)
         ? { ...defaultAgent.config }
         : {};
     delete defaultAgentConfig.model;
@@ -497,12 +497,12 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
 
       if (scope === 'ai-runtime-defaults') {
         await mutate(RUNTIME_CONFIG_SWR_KEY);
-        message.success('AI 运行时默认值已保存');
+        message.success(t('admin.defaultSettings.aiRuntime.saved'));
         return;
       }
 
       if (scope === 'integrations') {
-        message.success('外部集成设置已保存');
+        message.success(t('admin.defaultSettings.integrations.saved'));
         return;
       }
 
@@ -512,18 +512,29 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
         mutate(RUNTIME_CONFIG_SWR_KEY),
       ]);
       if (syncUserDefaults) {
-        const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers({
-          forceDefaultAgentMeta: true,
-        });
-        await mutate(USER_STATE_SWR_KEY);
-        message.success(
-          `用户默认值已保存，并已同步 ${result.syncedUsers} 个用户的 ${result.syncedFields.length} 个设置分类`,
-        );
+        try {
+          const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers({
+            forceDefaultAgentMeta: true,
+          });
+          await mutate(USER_STATE_SWR_KEY);
+          message.success(
+            t('admin.defaultSettings.userDefaults.savedAndSynced', {
+              fields: result.syncedFields.length,
+              users: result.syncedUsers,
+            }),
+          );
+        } catch {
+          message.warning(t('admin.defaultSettings.userDefaults.savedSyncFailed'));
+        }
         return;
       }
-      message.success('用户默认值已保存');
+      message.success(t('admin.defaultSettings.userDefaults.saved'));
     } catch (error) {
-      message.error(error instanceof SyntaxError ? 'JSON 格式不正确' : '保存失败，请检查表单内容');
+      message.error(
+        error instanceof SyntaxError
+          ? t('admin.defaultSettings.invalidJson')
+          : t('admin.defaultSettings.saveFailed'),
+      );
     } finally {
       setSubmitting(false);
       setSyncing(false);
@@ -539,7 +550,11 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           style={{ marginBottom: 16 }}
           type="warning"
         />
-        <Form.Item extra="留空时使用服务器或系统默认值。" label="Embedding 供应商" name="vectorEmbeddingProvider">
+        <Form.Item
+          extra="留空时使用服务器或系统默认值。"
+          label="Embedding 供应商"
+          name="vectorEmbeddingProvider"
+        >
           <Input placeholder="openai / newapi / jina / cohere" />
         </Form.Item>
         <Form.Item label="Embedding 模型" name="vectorEmbeddingModel">
@@ -571,9 +586,24 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           type="info"
         />
         {[
-          ['memoryGatekeeperModel', 'memoryGatekeeperProvider', '记忆判定模型', '判断聊天内容是否需要写入长期记忆。'],
-          ['memoryLayerExtractorModel', 'memoryLayerExtractorProvider', '分层提取模型', '提取 activity、context、experience 等记忆层。'],
-          ['memoryPersonaWriterModel', 'memoryPersonaWriterProvider', '用户画像写入模型', '根据长期记忆生成和更新用户画像。'],
+          [
+            'memoryGatekeeperModel',
+            'memoryGatekeeperProvider',
+            '记忆判定模型',
+            '判断聊天内容是否需要写入长期记忆。',
+          ],
+          [
+            'memoryLayerExtractorModel',
+            'memoryLayerExtractorProvider',
+            '分层提取模型',
+            '提取 activity、context、experience 等记忆层。',
+          ],
+          [
+            'memoryPersonaWriterModel',
+            'memoryPersonaWriterProvider',
+            '用户画像写入模型',
+            '根据长期记忆生成和更新用户画像。',
+          ],
         ].map(([modelField, providerField, label, extra]) => (
           <Flexbox horizontal gap={12} key={modelField}>
             <Form.Item
@@ -596,8 +626,12 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                 }
               />
             </Form.Item>
-            <Form.Item label="供应商" name={providerField as keyof FormValues} style={{ width: 220 }}>
-              <Select allowClear showSearch optionFilterProp="label" options={modelProviderOptions} />
+            <Form.Item
+              label="供应商"
+              name={providerField as keyof FormValues}
+              style={{ width: 220 }}
+            >
+              <Select allowClear showSearch options={modelProviderOptions} />
             </Form.Item>
           </Flexbox>
         ))}
@@ -623,7 +657,7 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
             />
           </Form.Item>
           <Form.Item label="供应商" name="memoryEmbeddingProvider" style={{ width: 220 }}>
-            <Select allowClear showSearch optionFilterProp="label" options={embeddingProviderOptions} />
+            <Select allowClear showSearch options={embeddingProviderOptions} />
           </Form.Item>
         </Flexbox>
       </Card>
@@ -685,15 +719,34 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           </Form.Item>
         ))}
         {[
-          ['serviceModelFollowUpAction', 'serviceModelFollowUpActionEnabled', '追问建议模型', '启用追问建议'],
-          ['serviceModelInputCompletion', 'serviceModelInputCompletionEnabled', '输入建议模型', '启用输入建议'],
-          ['serviceModelPromptRewrite', 'serviceModelPromptRewriteEnabled', '提示词改写模型', '启用提示词改写'],
+          [
+            'serviceModelFollowUpAction',
+            'serviceModelFollowUpActionEnabled',
+            '追问建议模型',
+            '启用追问建议',
+          ],
+          [
+            'serviceModelInputCompletion',
+            'serviceModelInputCompletionEnabled',
+            '输入建议模型',
+            '启用输入建议',
+          ],
+          [
+            'serviceModelPromptRewrite',
+            'serviceModelPromptRewriteEnabled',
+            '提示词改写模型',
+            '启用提示词改写',
+          ],
         ].map(([modelField, enabledField, label, enabledLabel]) => (
           <Flexbox horizontal gap={12} key={modelField}>
             <Form.Item label={label} name={modelField as keyof FormValues} style={{ flex: 1 }}>
               <Select allowClear showSearch options={modelOptions} placeholder="选择聊天模型" />
             </Form.Item>
-            <Form.Item label={enabledLabel} name={enabledField as keyof FormValues} valuePropName="checked">
+            <Form.Item
+              label={enabledLabel}
+              name={enabledField as keyof FormValues}
+              valuePropName="checked"
+            >
               <Switch />
             </Form.Item>
           </Flexbox>
@@ -739,10 +792,18 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                     >
                       <Input placeholder="显示名称，例如 AI 绘画" style={{ flex: 1.4 }} />
                     </Form.Item>
-                    <MinusCircleOutlined style={{ color: '#ff4d4f' }} onClick={() => remove(name)} />
+                    <MinusCircleOutlined
+                      style={{ color: '#ff4d4f' }}
+                      onClick={() => remove(name)}
+                    />
                   </Flexbox>
                 ))}
-                <Button block icon={<PlusOutlined />} type="dashed" onClick={() => add({ key: '', label: '' })}>
+                <Button
+                  block
+                  icon={<PlusOutlined />}
+                  type="dashed"
+                  onClick={() => add({ key: '', label: '' })}
+                >
                   添加兴趣领域
                 </Button>
               </Flexbox>
@@ -756,7 +817,13 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                 {fields.map(({ key, name, ...restField }) => (
                   <Flexbox horizontal align="center" gap={8} key={key}>
                     <Form.Item noStyle shouldUpdate>
-                      {() => <Avatar avatar={form.getFieldValue(['avatarPresets', name, 'value'])} size={32} title="" />}
+                      {() => (
+                        <Avatar
+                          avatar={form.getFieldValue(['avatarPresets', name, 'value'])}
+                          size={32}
+                          title=""
+                        />
+                      )}
                     </Form.Item>
                     <Form.Item
                       {...restField}
@@ -778,10 +845,18 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                         style={{ flex: 2 }}
                       />
                     </Form.Item>
-                    <MinusCircleOutlined style={{ color: '#ff4d4f' }} onClick={() => remove(name)} />
+                    <MinusCircleOutlined
+                      style={{ color: '#ff4d4f' }}
+                      onClick={() => remove(name)}
+                    />
                   </Flexbox>
                 ))}
-                <Button block icon={<PlusOutlined />} type="dashed" onClick={() => add({ label: '', value: '' })}>
+                <Button
+                  block
+                  icon={<PlusOutlined />}
+                  type="dashed"
+                  onClick={() => add({ label: '', value: '' })}
+                >
                   添加头像
                 </Button>
               </Flexbox>
@@ -797,9 +872,9 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
   return (
     <Flexbox gap={16} padding={24} style={{ maxWidth: 960 }}>
       <Flexbox gap={4}>
-          <Title level={3} style={{ margin: 0 }}>
+        <Title level={3} style={{ margin: 0 }}>
           {t(scopeCopy[scope].titleKey, scopeCopy[scope].title)}
-          </Title>
+        </Title>
         <Text type="secondary">
           {t(scopeCopy[scope].descriptionKey, scopeCopy[scope].description)}
         </Text>
@@ -834,17 +909,16 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                 danger
                 loading={syncing}
                 onClick={() => {
-                  Modal.confirm({
-                    cancelText: '取消',
-                    content: '这会先保存当前用户默认值，再覆盖同步到所有现有用户的对应设置分类。',
-                    okButtonProps: { danger: true },
-                    okText: '保存并同步',
-                    title: '同步用户默认值到现有用户',
+                  confirmModal({
+                    cancelText: t('admin.defaultSettings.userDefaults.syncCancel'),
+                    content: t('admin.defaultSettings.userDefaults.syncDescription'),
+                    okText: t('admin.defaultSettings.userDefaults.syncConfirm'),
                     onOk: () => handleSave(true),
+                    title: t('admin.defaultSettings.userDefaults.syncTitle'),
                   });
                 }}
               >
-                保存并同步到用户设置
+                {t('admin.defaultSettings.userDefaults.saveAndSync')}
               </Button>
             )}
           </Flexbox>

@@ -14,6 +14,11 @@ Feature: Module App production acceptance
     When I open the Module App developer console
     Then the Module App developer console should render
 
+  Scenario: Open the authenticated developer console on a phone viewport
+    Given the Module App production gate environment is configured
+    When I open the Module App developer console on a phone viewport
+    Then the Module App developer console should render without horizontal overflow
+
   Scenario: Observe durable executable action and workflow progress
     Given the Module App production gate environment is configured
     When I open the configured Module App runtime page with its workflow run

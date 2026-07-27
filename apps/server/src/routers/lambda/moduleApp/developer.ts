@@ -35,6 +35,10 @@ export const moduleAppDeveloperProcedures = {
     return ctx.moduleAppDeveloperModel.getFinance(ctx.userId);
   }),
 
+  getMyDeveloperFinanceSummary: moduleAppProcedure.query(async ({ ctx }) => {
+    return ctx.moduleAppDeveloperModel.getFinanceSummary(ctx.userId);
+  }),
+
   getMyPublisherProfile: moduleAppProcedure.query(async ({ ctx }) => {
     return ctx.moduleAppDeveloperModel.getPublisherProfile(ctx.userId);
   }),
@@ -49,6 +53,18 @@ export const moduleAppDeveloperProcedures = {
     .input(moduleAppDeveloperListInputSchema)
     .query(async ({ ctx, input }) => {
       return ctx.moduleAppDeveloperModel.listSubmissions({ ...input, userId: ctx.userId });
+    }),
+
+  listMyDeveloperPayouts: moduleAppProcedure
+    .input(moduleAppDeveloperListInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.moduleAppDeveloperModel.listPayouts({ ...input, userId: ctx.userId });
+    }),
+
+  listMyDeveloperRevenue: moduleAppProcedure
+    .input(moduleAppDeveloperListInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.moduleAppDeveloperModel.listRevenue({ ...input, userId: ctx.userId });
     }),
 
   listMyDeveloperVersions: moduleAppProcedure

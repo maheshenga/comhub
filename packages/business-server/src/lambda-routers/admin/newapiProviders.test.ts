@@ -60,7 +60,9 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
 
 const instanceId = '00000000-0000-4000-8000-000000000001';
 
-const dependencyImpact = (blocking: Array<{ code: string; count: number; title: string }> = []) => ({
+const dependencyImpact = (
+  blocking: Array<{ code: string; count: number; title: string }> = [],
+) => ({
   blocking,
   canProceed: blocking.length === 0,
   immediateEffects: [],
@@ -730,6 +732,41 @@ describe('adminNewapiProvidersRouter', () => {
     ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'PROVIDER_DELETE_BLOCKED' });
 
     expect(db.delete).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a model enablement batch when any model is missing', async () => {
+    const returning = vi
+      .fn()
+      .mockResolvedValueOnce([{ modelId: 'existing-model' }])
+      .mockResolvedValueOnce([]);
+    const db: any = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db)),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({ returning })),
+        })),
+      })),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any).setModelsEnabled({
+        enabled: false,
+        instanceId,
+        models: [
+          { modelId: 'existing-model', modelType: 'chat' },
+          { modelId: 'missing-model', modelType: 'chat' },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 });

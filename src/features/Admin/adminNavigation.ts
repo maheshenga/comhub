@@ -4,7 +4,6 @@ import {
   ADMIN_BASE_PATH,
   ADMIN_CATALOG,
   ADMIN_CATALOG_GROUPS,
-  ADMIN_LEGACY_ROUTES,
   type AdminCatalogItem,
   type AdminFeatureStatus,
   type AdminNavGroupKey,
@@ -57,13 +56,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = ADMIN_CATALOG_GROUPS.map((group
 
 const ADMIN_PATH_CAPABILITIES = new Map(
   ADMIN_CATALOG.map((item) => [item.path, getAdminCatalogAccessCapabilities(item)] as const),
-);
-
-const ADMIN_NAV_ALIASES = Object.fromEntries(
-  ADMIN_LEGACY_ROUTES.map(({ segment, targetSegment }) => [
-    `${ADMIN_BASE_PATH}/${segment}`,
-    `${ADMIN_BASE_PATH}/${targetSegment}`,
-  ]),
 );
 
 const ADMIN_ROLE_DEFAULT_PATHS: Record<AdminRole, string> = {
@@ -131,12 +123,6 @@ const allAdminItems = ADMIN_NAV_GROUPS.flatMap((group) =>
 
 export const getAdminSelectedKey = (pathname: string) => {
   const cleanPath = normalizeAdminPath(pathname);
-  const alias = Object.entries(ADMIN_NAV_ALIASES).find(
-    ([from]) => cleanPath === from || cleanPath.startsWith(`${from}/`),
-  )?.[1];
-
-  if (alias) return alias;
-
   return (
     allAdminItems.find((item) => cleanPath === item.path || cleanPath.startsWith(`${item.path}/`))
       ?.path ?? ADMIN_BASE_PATH

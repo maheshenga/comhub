@@ -1,11 +1,12 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Tabs, Typography } from 'antd';
+import { confirmModal, Tabs } from '@lobehub/ui/base-ui';
+import { Typography } from 'antd';
 import { Laptop } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
+import { useBlocker, useLocation, useSearchParams } from 'react-router';
 
 import {
   ADMIN_DESKTOP_OVERVIEW_SWR_KEY,
@@ -24,7 +25,16 @@ import UpdateSettingsPage from './UpdateSettingsPage';
 
 const DesktopControlCenter = memo(() => {
   const { t } = useTranslation('subscription');
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [dirty, setDirtyState] = useState(false);
+  const dirtyRef = useRef(false);
+  const allowNavigationRef = useRef(false);
+  const setDirty = useCallback((next: boolean) => {
+    dirtyRef.current = next;
+    setDirtyState(next);
+  }, []);
+  const blocker = useBlocker(() => dirtyRef.current && !allowNavigationRef.current);
   const activeKey = resolveDesktopControlCenterTab(searchParams.get('tab'));
   const settings = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('desktop-update'), () =>
     adminCommercialService.getSettingsSection('desktop-update'),
@@ -33,12 +43,62 @@ const DesktopControlCenter = memo(() => {
     adminCommercialService.getDesktopOverview(),
   );
 
-  const changeTab = (tab: string) => {
+  const confirmDiscard = useCallback(
+    (onConfirm: () => void, onCancel?: () => void) =>
+      confirmModal({
+        cancelText: t('admin.desktopControl.unsaved.cancel'),
+        content: t('admin.desktopControl.unsaved.description'),
+        okText: t('admin.desktopControl.unsaved.discard'),
+        onCancel,
+        onOk: onConfirm,
+        title: t('admin.desktopControl.unsaved.title'),
+      }),
+    [t],
+  );
+
+  const commitTabChange = (tab: string) => {
+    allowNavigationRef.current = true;
+    setDirty(false);
     const nextSearchParams = new URLSearchParams(searchParams);
     if (tab === 'overview') nextSearchParams.delete('tab');
     else nextSearchParams.set('tab', tab);
     setSearchParams(nextSearchParams);
   };
+
+  const changeTab = (tab: string) => {
+    if (tab === activeKey) return;
+    if (dirtyRef.current) {
+      confirmDiscard(() => commitTabChange(tab));
+      return;
+    }
+    commitTabChange(tab);
+  };
+
+  useEffect(() => {
+    allowNavigationRef.current = false;
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+    confirmDiscard(
+      () => {
+        allowNavigationRef.current = true;
+        setDirty(false);
+        blocker.proceed();
+      },
+      () => blocker.reset(),
+    );
+  }, [blocker, confirmDiscard, setDirty]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty]);
 
   return (
     <Flexbox className={desktopControlCenterStyles.page} gap={16}>
@@ -52,22 +112,26 @@ const DesktopControlCenter = memo(() => {
         className={desktopControlCenterStyles.tabs}
         items={[
           {
-            children: <OverviewPage resource={overview} onConfigure={() => changeTab('updates')} />,
+            children: (
+              <OverviewPage resource={overview} onConfigure={() => void changeTab('updates')} />
+            ),
             key: 'overview',
             label: t('admin.desktopControl.tabs.overview'),
           },
           {
-            children: <DistributionPage overview={overview} settings={settings} />,
+            children: (
+              <DistributionPage overview={overview} settings={settings} onDirtyChange={setDirty} />
+            ),
             key: 'distribution',
             label: t('admin.desktopControl.tabs.distribution'),
           },
           {
-            children: <UpdateSettingsPage settings={settings} />,
+            children: <UpdateSettingsPage settings={settings} onDirtyChange={setDirty} />,
             key: 'updates',
             label: t('admin.desktopControl.tabs.updates'),
           },
           {
-            children: <BrandPage settings={settings} />,
+            children: <BrandPage settings={settings} onDirtyChange={setDirty} />,
             key: 'brand',
             label: t('admin.desktopControl.tabs.brand'),
           },
@@ -85,6 +149,7 @@ const DesktopControlCenter = memo(() => {
                       }
                     : undefined
                 }
+                onDirtyChange={setDirty}
                 onReleaseActivated={() => Promise.all([settings.mutate(), overview.mutate()])}
               />
             ),
@@ -92,7 +157,7 @@ const DesktopControlCenter = memo(() => {
             label: t('admin.desktopControl.tabs.buildProfile'),
           },
         ]}
-        onChange={changeTab}
+        onChange={(tab) => void changeTab(tab)}
       />
     </Flexbox>
   );

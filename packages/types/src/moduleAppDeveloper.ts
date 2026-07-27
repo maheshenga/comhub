@@ -123,6 +123,16 @@ export type ModuleAppDeveloperPayout = {
   totalAmount: number;
 };
 
+export type ModuleAppDeveloperRevenueListResult = {
+  items: ModuleAppDeveloperRevenueEntry[];
+  nextCursor: null | number;
+};
+
+export type ModuleAppDeveloperPayoutListResult = {
+  items: ModuleAppDeveloperPayout[];
+  nextCursor: null | number;
+};
+
 export type ModuleAppDeveloperFinance = {
   payouts: ModuleAppDeveloperPayout[];
   revenue: ModuleAppDeveloperRevenueEntry[];

@@ -31,6 +31,25 @@ const PlanModelRuleSchema = z.object({
 });
 
 const PlanModelRulesSchema = z.partialRecord(ModelTypeEnum, PlanModelRuleSchema).optional();
+const PlanModelRulesUpdateSchema = z.object({
+  modelRules: PlanModelRulesSchema,
+  plan: z.string().min(1),
+});
+const PlanModelRulesBatchSchema = z
+  .object({ updates: z.array(PlanModelRulesUpdateSchema).min(1).max(20) })
+  .superRefine(({ updates }, ctx) => {
+    const plans = new Set<string>();
+    updates.forEach((update, index) => {
+      if (plans.has(update.plan)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Duplicate plan in batch',
+          path: ['updates', index, 'plan'],
+        });
+      }
+      plans.add(update.plan);
+    });
+  });
 
 const normalizePurchaseUrl = (value: unknown) => {
   const raw = typeof value === 'string' ? value.trim() : '';
@@ -179,6 +198,30 @@ const toPlanCatalogAuditSnapshot = (row?: PlanCatalogAuditRow | null) => {
   );
 };
 
+const updatePlanModelRules = async (
+  tx: Transaction,
+  input: z.infer<typeof PlanModelRulesUpdateSchema>,
+) => {
+  const existing = await tx.query.planCatalog.findFirst({
+    where: eq(planCatalog.plan, input.plan),
+  });
+  if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
+
+  if (input.plan === Plans.Free) {
+    await assertFreePlanKeepsDefaultModels(tx, input.modelRules as PlanModelRules | null);
+  }
+
+  const nextPlanCatalog = { ...existing, modelRules: input.modelRules ?? null };
+  const result = await tx
+    .update(planCatalog)
+    .set({ modelRules: input.modelRules ?? null, updatedAt: new Date() })
+    .where(eq(planCatalog.plan, input.plan))
+    .returning({ plan: planCatalog.plan });
+  if (result.length === 0) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
+
+  return { existing, nextPlanCatalog };
+};
+
 export const adminPlansRouter = router({
   delete: financeWriteProcedure
     .input(z.object({ plan: z.string().min(1) }))
@@ -227,7 +270,7 @@ export const adminPlansRouter = router({
   }),
 
   setModelRules: financeWriteProcedure
-    .input(z.object({ modelRules: PlanModelRulesSchema, plan: z.string().min(1) }))
+    .input(PlanModelRulesUpdateSchema)
     .mutation(async ({ ctx, input }) => {
       await runRequiredAdminAuditMutation<any>(ctx, {
         audit: ({ existing, nextPlanCatalog }) => ({
@@ -240,31 +283,40 @@ export const adminPlansRouter = router({
           resourceId: input.plan,
           resourceType: 'plan_catalog',
         }),
-        mutation: async (tx) => {
-          const existing = await tx.query.planCatalog.findFirst({
-            where: eq(planCatalog.plan, input.plan),
-          });
-
-          if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
-
-          if (input.plan === Plans.Free) {
-            await assertFreePlanKeepsDefaultModels(tx, input.modelRules as PlanModelRules | null);
-          }
-
-          const nextPlanCatalog = { ...existing, modelRules: input.modelRules ?? null };
-          const result = await tx
-            .update(planCatalog)
-            .set({ modelRules: input.modelRules ?? null, updatedAt: new Date() })
-            .where(eq(planCatalog.plan, input.plan))
-            .returning({ plan: planCatalog.plan });
-
-          if (result.length === 0)
-            throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
-
-          return { existing, nextPlanCatalog };
-        },
+        mutation: (tx) => updatePlanModelRules(tx, input),
       });
       return { ok: true };
+    }),
+
+  setModelRulesBatch: financeWriteProcedure
+    .input(PlanModelRulesBatchSchema)
+    .mutation(async ({ ctx, input }) => {
+      await runRequiredAdminAuditMutation<any>(ctx, {
+        audit: (changes) => ({
+          action: 'plan.setModelRulesBatch',
+          payload: {
+            changes: changes.map(
+              ({
+                existing,
+                nextPlanCatalog,
+              }: Awaited<ReturnType<typeof updatePlanModelRules>>) => ({
+                after: toPlanCatalogAuditSnapshot(nextPlanCatalog),
+                before: toPlanCatalogAuditSnapshot(existing),
+              }),
+            ),
+            count: changes.length,
+          },
+          resourceType: 'plan_catalog',
+        }),
+        mutation: async (tx) => {
+          const changes = [];
+          for (const update of input.updates) {
+            changes.push(await updatePlanModelRules(tx, update));
+          }
+          return changes;
+        },
+      });
+      return { count: input.updates.length, ok: true };
     }),
 
   upsert: financeWriteProcedure.input(PlanInputSchema).mutation(async ({ ctx, input }) => {

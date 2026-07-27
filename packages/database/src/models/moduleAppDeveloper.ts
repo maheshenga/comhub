@@ -3,7 +3,10 @@ import type {
   ModuleAppDeveloperAppListResult,
   ModuleAppDeveloperFinance,
   ModuleAppDeveloperPackageSummary,
+  ModuleAppDeveloperPayoutListResult,
   ModuleAppDeveloperPublisherProfile,
+  ModuleAppDeveloperRevenueListResult,
+  ModuleAppDeveloperRevenueSummary,
   ModuleAppDeveloperSubmissionListResult,
   ModuleAppDeveloperVersionSummary,
   ModuleAppPublisherProfileInput,
@@ -431,40 +434,62 @@ export class ModuleAppDeveloperModel extends ModuleAppCatalogModel {
     });
 
   getFinance = async (userId: string): Promise<ModuleAppDeveloperFinance> => {
-    const publisher = await this.getPublisherByUserId(userId);
-    if (!publisher) return { payouts: [], revenue: [], summary: [] };
-    const [summaryRows, revenue, payouts] = await Promise.all([
-      this.db
-        .select({
-          currency: moduleAppRevenueEntries.currency,
-          pendingAmount: sql<number>`coalesce(sum(case when ${moduleAppRevenueEntries.status} = 'pending' or (${moduleAppRevenueEntries.type} = 'reversal' and ${moduleAppRevenueAccruals.status} = 'pending') then ${moduleAppRevenueEntries.developerAmount} else 0 end), 0)`,
-          settledAmount: sql<number>`coalesce(sum(case when ${moduleAppRevenueEntries.status} = 'settled' or (${moduleAppRevenueEntries.type} = 'reversal' and ${moduleAppRevenueAccruals.status} = 'settled') then ${moduleAppRevenueEntries.developerAmount} else 0 end), 0)`,
-          totalAmount: sql<number>`coalesce(sum(${moduleAppRevenueEntries.developerAmount}), 0)`,
-        })
-        .from(moduleAppRevenueEntries)
-        .leftJoin(
-          moduleAppRevenueAccruals,
-          and(
-            eq(moduleAppRevenueAccruals.orderId, moduleAppRevenueEntries.orderId),
-            eq(moduleAppRevenueAccruals.type, 'accrual'),
-          ),
-        )
-        .where(eq(moduleAppRevenueEntries.publisherId, publisher.id))
-        .groupBy(moduleAppRevenueEntries.currency),
-      this.db.query.moduleAppRevenueEntries.findMany({
-        limit: 50,
-        orderBy: [desc(moduleAppRevenueEntries.createdAt), desc(moduleAppRevenueEntries.id)],
-        where: eq(moduleAppRevenueEntries.publisherId, publisher.id),
-      }),
-      this.db.query.moduleAppPayoutBatches.findMany({
-        limit: 20,
-        orderBy: [desc(moduleAppPayoutBatches.createdAt), desc(moduleAppPayoutBatches.id)],
-        where: eq(moduleAppPayoutBatches.publisherId, publisher.id),
-      }),
+    const [summary, revenue, payouts] = await Promise.all([
+      this.getFinanceSummary(userId),
+      this.listRevenue({ limit: 50, userId }),
+      this.listPayouts({ limit: 20, userId }),
     ]);
 
+    return { payouts: payouts.items, revenue: revenue.items, summary };
+  };
+
+  getFinanceSummary = async (userId: string): Promise<ModuleAppDeveloperRevenueSummary[]> => {
+    const publisher = await this.getPublisherByUserId(userId);
+    if (!publisher) return [];
+    const summaryRows = await this.db
+      .select({
+        currency: moduleAppRevenueEntries.currency,
+        pendingAmount: sql<number>`coalesce(sum(case when ${moduleAppRevenueEntries.status} = 'pending' or (${moduleAppRevenueEntries.type} = 'reversal' and ${moduleAppRevenueAccruals.status} = 'pending') then ${moduleAppRevenueEntries.developerAmount} else 0 end), 0)`,
+        settledAmount: sql<number>`coalesce(sum(case when ${moduleAppRevenueEntries.status} = 'settled' or (${moduleAppRevenueEntries.type} = 'reversal' and ${moduleAppRevenueAccruals.status} = 'settled') then ${moduleAppRevenueEntries.developerAmount} else 0 end), 0)`,
+        totalAmount: sql<number>`coalesce(sum(${moduleAppRevenueEntries.developerAmount}), 0)`,
+      })
+      .from(moduleAppRevenueEntries)
+      .leftJoin(
+        moduleAppRevenueAccruals,
+        and(
+          eq(moduleAppRevenueAccruals.orderId, moduleAppRevenueEntries.orderId),
+          eq(moduleAppRevenueAccruals.type, 'accrual'),
+        ),
+      )
+      .where(eq(moduleAppRevenueEntries.publisherId, publisher.id))
+      .groupBy(moduleAppRevenueEntries.currency);
+
+    return summaryRows.map((row) => ({
+      currency: row.currency,
+      pendingAmount: Number(row.pendingAmount),
+      settledAmount: Number(row.settledAmount),
+      totalAmount: Number(row.totalAmount),
+    }));
+  };
+
+  listPayouts = async (params: {
+    cursor?: number;
+    limit?: number;
+    userId: string;
+  }): Promise<ModuleAppDeveloperPayoutListResult> => {
+    const cursor = Math.max(0, Math.floor(params.cursor ?? 0));
+    const limit = Math.min(50, Math.max(1, Math.floor(params.limit ?? 20)));
+    const publisher = await this.getPublisherByUserId(params.userId);
+    if (!publisher) return { items: [], nextCursor: null };
+    const rows = await this.db.query.moduleAppPayoutBatches.findMany({
+      limit: limit + 1,
+      offset: cursor,
+      orderBy: [desc(moduleAppPayoutBatches.createdAt), desc(moduleAppPayoutBatches.id)],
+      where: eq(moduleAppPayoutBatches.publisherId, publisher.id),
+    });
+
     return {
-      payouts: payouts.map((payout) => ({
+      items: rows.slice(0, limit).map((payout) => ({
         createdAt: payout.createdAt,
         currency: payout.currency,
         id: payout.id,
@@ -473,7 +498,28 @@ export class ModuleAppDeveloperModel extends ModuleAppCatalogModel {
         status: payout.status,
         totalAmount: payout.totalAmount,
       })),
-      revenue: revenue.map((entry) => ({
+      nextCursor: rows.length > limit ? cursor + limit : null,
+    };
+  };
+
+  listRevenue = async (params: {
+    cursor?: number;
+    limit?: number;
+    userId: string;
+  }): Promise<ModuleAppDeveloperRevenueListResult> => {
+    const cursor = Math.max(0, Math.floor(params.cursor ?? 0));
+    const limit = Math.min(50, Math.max(1, Math.floor(params.limit ?? 20)));
+    const publisher = await this.getPublisherByUserId(params.userId);
+    if (!publisher) return { items: [], nextCursor: null };
+    const rows = await this.db.query.moduleAppRevenueEntries.findMany({
+      limit: limit + 1,
+      offset: cursor,
+      orderBy: [desc(moduleAppRevenueEntries.createdAt), desc(moduleAppRevenueEntries.id)],
+      where: eq(moduleAppRevenueEntries.publisherId, publisher.id),
+    });
+
+    return {
+      items: rows.slice(0, limit).map((entry) => ({
         appId: entry.appId,
         createdAt: entry.createdAt,
         currency: entry.currency,
@@ -482,12 +528,7 @@ export class ModuleAppDeveloperModel extends ModuleAppCatalogModel {
         status: entry.status as 'pending' | 'reversed' | 'settled',
         type: entry.type,
       })),
-      summary: summaryRows.map((row) => ({
-        currency: row.currency,
-        pendingAmount: Number(row.pendingAmount),
-        settledAmount: Number(row.settledAmount),
-        totalAmount: Number(row.totalAmount),
-      })),
+      nextCursor: rows.length > limit ? cursor + limit : null,
     };
   };
 }

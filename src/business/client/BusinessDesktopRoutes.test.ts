@@ -2,14 +2,13 @@ import { matchRoutes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MODULE_ADMIN_ROUTE_IMPORTS } from '@/business/client/moduleAdminRouteImports';
-import { ADMIN_CATALOG, ADMIN_LEGACY_ROUTES } from '@/features/Admin/adminCatalog';
+import { ADMIN_CATALOG } from '@/features/Admin/adminCatalog';
 import {
   MODULE_ADMIN_ROUTE_TREE,
   type ModuleAdminRouteNode,
 } from '@/features/Admin/moduleApps/navigation/catalog';
 
 import {
-  ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS,
   ADMIN_SETTINGS_ROUTE_REGISTRY,
   ADMIN_SETTINGS_ROUTE_SEGMENTS,
 } from './adminSettingsRouteRegistry';
@@ -36,15 +35,22 @@ describe('BusinessDesktopRoutes', () => {
     expect(new Set(registryVisibleSegments).size).toBe(registryVisibleSegments.length);
   });
 
-  it('keeps legacy segments reachable but outside the visible catalog', () => {
-    expect(ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS).toEqual(
-      ADMIN_LEGACY_ROUTES.map((item) => item.segment),
+  it('does not register removed compatibility segments', () => {
+    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).not.toEqual(
+      expect.arrayContaining([
+        'pricing',
+        'topup',
+        'change-requests',
+        'topics',
+        'files',
+        'documents',
+        'recommendations',
+        'expert-plaza',
+        'notifications',
+        'operations',
+        'system-defaults',
+      ]),
     );
-
-    for (const segment of ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS) {
-      expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain(segment);
-      expect(ADMIN_CATALOG.map((item) => item.segment)).not.toContain(segment);
-    }
   });
 
   it('mounts admin only under the settings route tree', () => {

@@ -2,189 +2,25 @@
 
 import type {
   ModuleAppDeveloperAppSummary,
-  ModuleAppDeveloperFinance,
   ModuleAppDeveloperPackageSummary,
+  ModuleAppDeveloperPayoutListResult,
   ModuleAppDeveloperPublisherProfile,
+  ModuleAppDeveloperRevenueListResult,
+  ModuleAppDeveloperRevenueSummary,
   ModuleAppDeveloperVersionSummary,
 } from '@lobechat/types';
 import { Icon, Skeleton, Text } from '@lobehub/ui';
 import { Button, confirmModal, Input, Tabs, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
 import { EyeOff, RefreshCw, Rocket, RotateCcw } from 'lucide-react';
 import { type FormEvent, memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import useSWR from 'swr';
 
 import ModuleAppPackageUploader from '@/features/ModuleAppMarket/PackageUploader';
 import { moduleAppService } from '@/services/moduleApp';
 
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  actionRow: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-  `,
-  appHeader: css`
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: start;
-
-    @media (width < 640px) {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  `,
-  empty: css`
-    padding-block: 40px;
-    color: ${cssVar.colorTextSecondary};
-    text-align: center;
-  `,
-  error: css`
-    color: ${cssVar.colorError};
-  `,
-  field: css`
-    display: grid;
-    gap: 6px;
-    max-width: 480px;
-  `,
-  frame: css`
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-
-    box-sizing: border-box;
-    width: 100%;
-    max-width: 1200px;
-    margin-inline: auto;
-    padding: 16px;
-
-    @media (width >= 768px) {
-      padding: 24px;
-    }
-  `,
-  heading: css`
-    margin: 0;
-    font-size: 20px;
-    line-height: 28px;
-  `,
-  label: css`
-    font-size: 13px;
-    font-weight: 500;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  metricGrid: css`
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-block: 1px solid ${cssVar.colorBorderSecondary};
-
-    @media (width < 720px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  `,
-  metric: css`
-    min-width: 0;
-    padding-block: 14px;
-    padding-inline: 16px;
-    border-inline-end: 1px solid ${cssVar.colorBorderSecondary};
-
-    &:last-child {
-      border-inline-end: 0;
-    }
-
-    @media (width < 720px) {
-      &:nth-child(2) {
-        border-inline-end: 0;
-      }
-
-      &:nth-child(-n + 2) {
-        border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-      }
-    }
-  `,
-  metricValue: css`
-    font-size: 22px;
-    font-weight: 600;
-    line-height: 30px;
-  `,
-  muted: css`
-    font-size: 12px;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  notice: css`
-    padding-block: 12px;
-    padding-inline: 14px;
-    border-inline-start: 3px solid ${cssVar.colorWarning};
-
-    color: ${cssVar.colorTextSecondary};
-
-    background: ${cssVar.colorWarningBg};
-  `,
-  row: css`
-    display: grid;
-    gap: 10px;
-    padding-block: 14px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-
-    &:last-child {
-      border-block-end: 0;
-    }
-  `,
-  section: css`
-    display: grid;
-    gap: 14px;
-  `,
-  sectionHeader: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-  `,
-  status: css`
-    display: inline-flex;
-    align-items: center;
-    align-self: start;
-
-    width: fit-content;
-    padding-block: 2px;
-    padding-inline: 7px;
-    border-radius: ${cssVar.borderRadiusSM};
-
-    font-size: 12px;
-    color: ${cssVar.colorTextSecondary};
-
-    background: ${cssVar.colorFillTertiary};
-  `,
-  statusGood: css`
-    color: ${cssVar.colorSuccess};
-    background: ${cssVar.colorSuccessBg};
-  `,
-  statusBad: css`
-    color: ${cssVar.colorError};
-    background: ${cssVar.colorErrorBg};
-  `,
-  subgrid: css`
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px 16px;
-
-    @media (width < 720px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  `,
-  title: css`
-    margin: 0;
-    font-size: 15px;
-    line-height: 22px;
-    overflow-wrap: anywhere;
-  `,
-  versionList: css`
-    margin-block-start: 2px;
-    padding-inline-start: 14px;
-    border-inline-start: 2px solid ${cssVar.colorBorderSecondary};
-  `,
-}));
+import { styles } from './styles';
 
 const statusClass = (status: string) =>
   [
@@ -207,9 +43,54 @@ const statusClass = (status: string) =>
     .filter(Boolean)
     .join(' ');
 
-const Status = ({ value }: { value: string }) => (
-  <span className={statusClass(value)}>{value}</span>
-);
+const Status = ({ value }: { value: string }) => {
+  const { t } = useTranslation('common');
+  return (
+    <span className={statusClass(value)}>
+      {t(['moduleApps.developer.status.', value].join('') as any, value)}
+    </span>
+  );
+};
+
+const ResourceError = ({ onRetry }: { onRetry: () => void }) => {
+  const { t } = useTranslation('common');
+  return (
+    <div className={styles.section} role="alert">
+      <div className={styles.error}>{t('moduleApps.developer.loadError')}</div>
+      <div>
+        <Button onClick={onRetry}>{t('moduleApps.developer.retry')}</Button>
+      </div>
+    </div>
+  );
+};
+
+const PaginationControls = ({
+  canNext,
+  canPrevious,
+  loading,
+  onNext,
+  onPrevious,
+}: {
+  canNext: boolean;
+  canPrevious: boolean;
+  loading?: boolean;
+  onNext: () => void;
+  onPrevious: () => void;
+}) => {
+  const { t } = useTranslation('common');
+  if (!canNext && !canPrevious) return null;
+
+  return (
+    <div className={styles.actionRow}>
+      <Button disabled={!canPrevious || loading} onClick={onPrevious}>
+        {t('moduleApps.developer.previous')}
+      </Button>
+      <Button disabled={!canNext || loading} loading={loading} onClick={onNext}>
+        {t('moduleApps.developer.next')}
+      </Button>
+    </div>
+  );
+};
 
 const Metric = ({ label, value }: { label: string; value: number | string }) => (
   <div className={styles.metric}>
@@ -308,8 +189,7 @@ const VersionList = memo<{
   };
 
   if (versions.isLoading) return <Skeleton active paragraph={{ rows: 2 }} title={false} />;
-  if (versions.error)
-    return <div className={styles.error}>{t('moduleApps.developer.loadError')}</div>;
+  if (versions.error) return <ResourceError onRetry={() => void versions.mutate()} />;
 
   return (
     <div className={styles.versionList}>
@@ -435,8 +315,9 @@ DeveloperAppRow.displayName = 'DeveloperAppRow';
 const Applications = memo<{
   apps: ModuleAppDeveloperAppSummary[];
   canManage: boolean;
+  onCreate: () => void;
   onChanged: () => Promise<unknown>;
-}>(({ apps, canManage, onChanged }) => {
+}>(({ apps, canManage, onChanged, onCreate }) => {
   const { t } = useTranslation('common');
   const totals = useMemo(
     () =>
@@ -466,7 +347,14 @@ const Applications = memo<{
           ))}
         </div>
       ) : (
-        <div className={styles.empty}>{t('moduleApps.developer.noApps')}</div>
+        <div className={styles.empty}>
+          <div>{t('moduleApps.developer.noApps')}</div>
+          {canManage ? (
+            <Button type="primary" onClick={onCreate}>
+              {t('moduleApps.developer.submitFirstPackage')}
+            </Button>
+          ) : null}
+        </div>
       )}
     </div>
   );
@@ -526,11 +414,11 @@ Submissions.displayName = 'Submissions';
 const formatMoney = (amount: number, currency: string) =>
   new Intl.NumberFormat(undefined, { currency, style: 'currency' }).format(amount);
 
-const Finance = memo<{ data: ModuleAppDeveloperFinance }>(({ data }) => {
+const FinanceSummary = memo<{ data: ModuleAppDeveloperRevenueSummary[] }>(({ data }) => {
   const { t } = useTranslation('common');
   return (
     <div className={styles.section}>
-      {data.summary.map((summary) => (
+      {data.map((summary) => (
         <div className={styles.metricGrid} key={summary.currency}>
           <Metric
             label={t('moduleApps.developer.totalRevenue')}
@@ -544,25 +432,47 @@ const Finance = memo<{ data: ModuleAppDeveloperFinance }>(({ data }) => {
             label={t('moduleApps.developer.settledRevenue')}
             value={formatMoney(summary.settledAmount, summary.currency)}
           />
-          <Metric
-            label={t('moduleApps.developer.payouts')}
-            value={data.payouts.filter((payout) => payout.currency === summary.currency).length}
-          />
+          <Metric label={t('moduleApps.developer.currency')} value={summary.currency} />
         </div>
       ))}
-      {!data.summary.length ? (
+      {!data.length ? (
         <div className={styles.empty}>{t('moduleApps.developer.noRevenue')}</div>
       ) : null}
-      {data.revenue.map((entry) => (
+    </div>
+  );
+});
+FinanceSummary.displayName = 'FinanceSummary';
+
+const RevenueList = memo<{ data: ModuleAppDeveloperRevenueListResult }>(({ data }) => {
+  const { t } = useTranslation('common');
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.title}>{t('moduleApps.developer.revenue')}</h3>
+      {data.items.map((entry) => (
         <div className={styles.row} key={entry.id}>
           <div className={styles.sectionHeader}>
             <span>{formatMoney(entry.developerAmount, entry.currency)}</span>
             <Status value={entry.status} />
           </div>
-          <div className={styles.muted}>{entry.type}</div>
+          <div className={styles.muted}>
+            {t(['moduleApps.developer.revenueType.', entry.type].join('') as any, entry.type)}
+          </div>
         </div>
       ))}
-      {data.payouts.map((payout) => (
+      {!data.items.length ? (
+        <div className={styles.empty}>{t('moduleApps.developer.noRevenue')}</div>
+      ) : null}
+    </div>
+  );
+});
+RevenueList.displayName = 'RevenueList';
+
+const PayoutList = memo<{ data: ModuleAppDeveloperPayoutListResult }>(({ data }) => {
+  const { t } = useTranslation('common');
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.title}>{t('moduleApps.developer.payouts')}</h3>
+      {data.items.map((payout) => (
         <div className={styles.row} key={payout.id}>
           <div className={styles.sectionHeader}>
             <span>{formatMoney(payout.totalAmount, payout.currency)}</span>
@@ -571,53 +481,175 @@ const Finance = memo<{ data: ModuleAppDeveloperFinance }>(({ data }) => {
           <div className={styles.muted}>{payout.recipientMask ?? '-'}</div>
         </div>
       ))}
+      {!data.items.length ? (
+        <div className={styles.empty}>{t('moduleApps.developer.noPayouts')}</div>
+      ) : null}
     </div>
   );
 });
-Finance.displayName = 'Finance';
+PayoutList.displayName = 'PayoutList';
+
+const ApplicationsTab = memo<{
+  canManage: boolean;
+  onOpenSubmissions: () => void;
+}>(({ canManage, onOpenSubmissions }) => {
+  const [cursorStack, setCursorStack] = useState([0]);
+  const cursor = cursorStack.at(-1) ?? 0;
+  const resource = useSWR(['moduleApp.listMyDeveloperApps', cursor], () =>
+    moduleAppService.listMyDeveloperApps({ cursor, limit: 20 }),
+  );
+
+  if (resource.isLoading) return <Skeleton active paragraph={{ rows: 5 }} />;
+  if (resource.error) return <ResourceError onRetry={() => void resource.mutate()} />;
+
+  return (
+    <div className={styles.section}>
+      <Applications
+        apps={resource.data?.items ?? []}
+        canManage={canManage}
+        onChanged={resource.mutate}
+        onCreate={onOpenSubmissions}
+      />
+      <PaginationControls
+        canNext={resource.data?.nextCursor != null}
+        canPrevious={cursorStack.length > 1}
+        loading={resource.isLoading}
+        onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
+        onNext={() =>
+          setCursorStack((current) => [...current, resource.data?.nextCursor ?? cursor])
+        }
+      />
+    </div>
+  );
+});
+ApplicationsTab.displayName = 'ApplicationsTab';
+
+const SubmissionsTab = memo<{ publisherVerified: boolean }>(({ publisherVerified }) => {
+  const [cursorStack, setCursorStack] = useState([0]);
+  const cursor = cursorStack.at(-1) ?? 0;
+  const resource = useSWR(['moduleApp.listMyDeveloperSubmissions', cursor], () =>
+    moduleAppService.listMyDeveloperSubmissions({ cursor, limit: 20 }),
+  );
+
+  if (resource.isLoading) return <Skeleton active paragraph={{ rows: 5 }} />;
+  if (resource.error) return <ResourceError onRetry={() => void resource.mutate()} />;
+
+  return (
+    <div className={styles.section}>
+      <Submissions
+        items={resource.data?.items ?? []}
+        publisherVerified={publisherVerified}
+        onSubmitted={async () => void (await resource.mutate())}
+      />
+      <PaginationControls
+        canNext={resource.data?.nextCursor != null}
+        canPrevious={cursorStack.length > 1}
+        loading={resource.isLoading}
+        onPrevious={() => setCursorStack((current) => current.slice(0, -1))}
+        onNext={() =>
+          setCursorStack((current) => [...current, resource.data?.nextCursor ?? cursor])
+        }
+      />
+    </div>
+  );
+});
+SubmissionsTab.displayName = 'SubmissionsTab';
+
+const FinanceTab = memo(() => {
+  const [revenueCursorStack, setRevenueCursorStack] = useState([0]);
+  const [payoutCursorStack, setPayoutCursorStack] = useState([0]);
+  const revenueCursor = revenueCursorStack.at(-1) ?? 0;
+  const payoutCursor = payoutCursorStack.at(-1) ?? 0;
+  const summary = useSWR(['moduleApp.getMyDeveloperFinanceSummary'], () =>
+    moduleAppService.getMyDeveloperFinanceSummary(),
+  );
+  const revenue = useSWR(['moduleApp.listMyDeveloperRevenue', revenueCursor], () =>
+    moduleAppService.listMyDeveloperRevenue({ cursor: revenueCursor, limit: 20 }),
+  );
+  const payouts = useSWR(['moduleApp.listMyDeveloperPayouts', payoutCursor], () =>
+    moduleAppService.listMyDeveloperPayouts({ cursor: payoutCursor, limit: 20 }),
+  );
+
+  return (
+    <div className={styles.section}>
+      {summary.isLoading ? <Skeleton active paragraph={{ rows: 2 }} /> : null}
+      {summary.error ? <ResourceError onRetry={() => void summary.mutate()} /> : null}
+      {summary.data ? <FinanceSummary data={summary.data} /> : null}
+
+      {revenue.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : null}
+      {revenue.error ? <ResourceError onRetry={() => void revenue.mutate()} /> : null}
+      {revenue.data ? (
+        <>
+          <RevenueList data={revenue.data} />
+          <PaginationControls
+            canNext={revenue.data.nextCursor != null}
+            canPrevious={revenueCursorStack.length > 1}
+            onPrevious={() => setRevenueCursorStack((current) => current.slice(0, -1))}
+            onNext={() =>
+              setRevenueCursorStack((current) => [
+                ...current,
+                revenue.data?.nextCursor ?? revenueCursor,
+              ])
+            }
+          />
+        </>
+      ) : null}
+
+      {payouts.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : null}
+      {payouts.error ? <ResourceError onRetry={() => void payouts.mutate()} /> : null}
+      {payouts.data ? (
+        <>
+          <PayoutList data={payouts.data} />
+          <PaginationControls
+            canNext={payouts.data.nextCursor != null}
+            canPrevious={payoutCursorStack.length > 1}
+            onPrevious={() => setPayoutCursorStack((current) => current.slice(0, -1))}
+            onNext={() =>
+              setPayoutCursorStack((current) => [
+                ...current,
+                payouts.data?.nextCursor ?? payoutCursor,
+              ])
+            }
+          />
+        </>
+      ) : null}
+    </div>
+  );
+});
+FinanceTab.displayName = 'FinanceTab';
+
+type DeveloperTab = 'apps' | 'finance' | 'packages' | 'profile';
+const resolveDeveloperTab = (value: null | string): DeveloperTab =>
+  value === 'finance' || value === 'packages' || value === 'profile' ? value : 'apps';
 
 const ModuleAppDeveloper = memo(() => {
   const { t } = useTranslation('common');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = resolveDeveloperTab(searchParams.get('tab'));
   const profile = useSWR(['moduleApp.getMyPublisherProfile'], () =>
     moduleAppService.getMyPublisherProfile(),
   );
-  const apps = useSWR(['moduleApp.listMyDeveloperApps'], () =>
-    moduleAppService.listMyDeveloperApps({ limit: 50 }),
-  );
-  const submissions = useSWR(['moduleApp.listMyDeveloperSubmissions'], () =>
-    moduleAppService.listMyDeveloperSubmissions({ limit: 50 }),
-  );
-  const finance = useSWR(['moduleApp.getMyDeveloperFinance'], () =>
-    moduleAppService.getMyDeveloperFinance(),
-  );
-
-  const loading = profile.isLoading || apps.isLoading || submissions.isLoading || finance.isLoading;
-  const error = profile.error || apps.error || submissions.error || finance.error;
   const profileData = profile.data ?? null;
 
-  if (loading) {
+  const changeTab = (tab: DeveloperTab) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'apps') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
+
+  if (profile.isLoading) {
     return (
       <section className={styles.frame}>
         <Skeleton active paragraph={{ rows: 8 }} />
       </section>
     );
   }
-  if (error) {
+  if (profile.error) {
     return (
       <section className={styles.frame}>
         <Text type="danger">{t('moduleApps.developer.loadError')}</Text>
-        <Button
-          onClick={() =>
-            void Promise.all([
-              profile.mutate(),
-              apps.mutate(),
-              submissions.mutate(),
-              finance.mutate(),
-            ])
-          }
-        >
-          {t('moduleApps.developer.retry')}
-        </Button>
+        <Button onClick={() => void profile.mutate()}>{t('moduleApps.developer.retry')}</Button>
       </section>
     );
   }
@@ -645,35 +677,25 @@ const ModuleAppDeveloper = memo(() => {
             </div>
           ) : null}
           <Tabs
+            activeKey={activeTab}
             items={[
               {
                 children: (
-                  <Applications
-                    apps={apps.data?.items ?? []}
+                  <ApplicationsTab
                     canManage={profileData.status === 'verified'}
-                    onChanged={apps.mutate}
+                    onOpenSubmissions={() => changeTab('packages')}
                   />
                 ),
                 key: 'apps',
                 label: t('moduleApps.developer.apps'),
               },
               {
-                children: (
-                  <Submissions
-                    items={submissions.data?.items ?? []}
-                    publisherVerified={profileData.status === 'verified'}
-                    onSubmitted={async () => {
-                      await Promise.all([submissions.mutate(), apps.mutate()]);
-                    }}
-                  />
-                ),
+                children: <SubmissionsTab publisherVerified={profileData.status === 'verified'} />,
                 key: 'packages',
                 label: t('moduleApps.developer.packages'),
               },
               {
-                children: (
-                  <Finance data={finance.data ?? { payouts: [], revenue: [], summary: [] }} />
-                ),
+                children: <FinanceTab />,
                 key: 'finance',
                 label: t('moduleApps.developer.finance'),
               },
@@ -683,6 +705,7 @@ const ModuleAppDeveloper = memo(() => {
                 label: t('moduleApps.developer.profile'),
               },
             ]}
+            onChange={(tab) => changeTab(resolveDeveloperTab(tab))}
           />
         </>
       )}

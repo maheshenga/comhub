@@ -1,18 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import {
-  Alert,
-  Button,
-  Descriptions,
-  Drawer,
-  Input,
-  message,
-  Select,
-  Space,
-  Tabs,
-  Tag,
-} from 'antd';
+import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
+import { Alert, Descriptions, Drawer, Input, message, Space, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -77,7 +67,8 @@ const buildOrderAuditUrl = (orderId: string) => {
 
 const AdminOrdersPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [cursor, setCursor] = useState(0);
+  const [cursorStack, setCursorStack] = useState([0]);
+  const cursor = cursorStack.at(-1) ?? 0;
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [userId, setUserId] = useState('');
   const [actingId, setActingId] = useState<string | null>(null);
@@ -263,7 +254,7 @@ const AdminOrdersPage = memo(() => {
             children: (
               <Flexbox gap={16}>
                 <Flexbox horizontal align="center" gap={12}>
-                  <Select<OrderStatus>
+                  <Select
                     allowClear
                     placeholder={t('admin.orders.filter.status', '状态')}
                     style={{ width: 160 }}
@@ -273,7 +264,7 @@ const AdminOrdersPage = memo(() => {
                     ).map((value) => ({ label: value, value }))}
                     onChange={(value: OrderStatus) => {
                       setStatus(value);
-                      setCursor(0);
+                      setCursorStack([0]);
                     }}
                   />
                   <Input.Search
@@ -282,7 +273,7 @@ const AdminOrdersPage = memo(() => {
                     style={{ width: 260 }}
                     onSearch={(value: string) => {
                       setUserId(value);
-                      setCursor(0);
+                      setCursorStack([0]);
                     }}
                   />
                 </Flexbox>
@@ -292,10 +283,24 @@ const AdminOrdersPage = memo(() => {
                   loading={isLoading}
                   rowKey="id"
                 />
-                {data?.nextCursor != null && (
-                  <Flexbox align="center">
-                    <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-                      {t('admin.orders.loadMore', '加载更多')}
+                {(cursorStack.length > 1 || data?.nextCursor != null) && (
+                  <Flexbox horizontal align="center" gap={8}>
+                    <Button
+                      disabled={cursorStack.length === 1}
+                      onClick={() =>
+                        setCursorStack((current) =>
+                          current.length > 1 ? current.slice(0, -1) : current,
+                        )
+                      }
+                    >
+                      {t('admin.pagination.previous', '上一页')}
+                    </Button>
+                    <Button
+                      disabled={data?.nextCursor == null}
+                      loading={isLoading}
+                      onClick={() => setCursorStack((current) => [...current, data!.nextCursor!])}
+                    >
+                      {t('admin.pagination.next', '下一页')}
                     </Button>
                   </Flexbox>
                 )}

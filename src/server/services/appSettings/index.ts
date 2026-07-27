@@ -8,6 +8,7 @@ import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
 import { type UserSettings } from '@/types/user/settings';
 
+import { bumpAppSettingsCacheVersion, getAppSettingsCacheVersion } from './cacheVersion';
 import { decryptAppSettingSecret } from './secrets';
 
 export {
@@ -74,10 +75,13 @@ const CACHED_KEYS = [
 
 const TTL_MS = 30_000;
 
-type CachedSettings = { at: number; data: Record<string, unknown> };
+type CachedSettings = { at: number; data: Record<string, unknown>; version: null | string };
 
 let cachedSettings: CachedSettings | null = null;
 let cachedSettingsByDb = new WeakMap<LobeChatDatabase, CachedSettings>();
+let pendingSettings: null | Promise<Record<string, unknown>> = null;
+let pendingSettingsByDb = new WeakMap<LobeChatDatabase, Promise<Record<string, unknown>>>();
+let localCacheGeneration = 0;
 
 const normalizeString = (value: unknown) => {
   if (typeof value !== 'string') return null;
@@ -152,7 +156,9 @@ export type PublicCustomizationConfig = {
   skillUseButtonLabel?: string;
 };
 
-const normalizePublicHelpMenuItems = (items: unknown): PublicCustomizationConfig['helpMenuItems'] => {
+const normalizePublicHelpMenuItems = (
+  items: unknown,
+): PublicCustomizationConfig['helpMenuItems'] => {
   if (!Array.isArray(items)) return undefined;
 
   const normalized = items
@@ -254,8 +260,7 @@ export const getServerFileS3Config = async (db?: LobeChatDatabase): Promise<Serv
       process.env.S3_PUBLIC_DOMAIN ??
       process.env.NEXT_PUBLIC_S3_DOMAIN,
     region: normalizeString(region) ?? process.env.S3_REGION,
-    secretAccessKey:
-      normalizeString(decryptedSecretAccessKey) ?? process.env.S3_SECRET_ACCESS_KEY,
+    secretAccessKey: normalizeString(decryptedSecretAccessKey) ?? process.env.S3_SECRET_ACCESS_KEY,
     setAcl: normalizeBoolean(setAcl, process.env.S3_SET_ACL === '1'),
   };
 };
@@ -277,36 +282,52 @@ export const serializeModelIdList = (value: unknown) => {
 };
 
 const readCachedSettings = async (db?: LobeChatDatabase): Promise<Record<string, unknown>> => {
-  const now = Date.now();
-  const explicitCache = db ? cachedSettingsByDb.get(db) : cachedSettings;
+  const existingPending = db ? pendingSettingsByDb.get(db) : pendingSettings;
+  if (existingPending) return existingPending;
 
-  if (explicitCache && now - explicitCache.at < TTL_MS) return explicitCache.data;
+  const load = async () => {
+    const now = Date.now();
+    const loadGeneration = localCacheGeneration;
+    const explicitCache = db ? cachedSettingsByDb.get(db) : cachedSettings;
+    const sharedVersion = await getAppSettingsCacheVersion();
+
+    if (
+      explicitCache &&
+      now - explicitCache.at < TTL_MS &&
+      (sharedVersion === null || explicitCache.version === sharedVersion)
+    ) {
+      return explicitCache.data;
+    }
+
+    try {
+      const serverDB = db ?? (await getServerDB());
+      const rows = await serverDB.query.appSettings.findMany({
+        where: inArray(appSettings.key, [...CACHED_KEYS]),
+      });
+
+      const data = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+      const nextCache = { at: now, data, version: sharedVersion };
+      if (loadGeneration === localCacheGeneration) {
+        if (db) cachedSettingsByDb.set(db, nextCache);
+        else cachedSettings = nextCache;
+      }
+
+      return data;
+    } catch (error) {
+      if (explicitCache) return explicitCache.data;
+      throw error;
+    }
+  };
+
+  const request = load();
+  if (db) pendingSettingsByDb.set(db, request);
+  else pendingSettings = request;
 
   try {
-    const serverDB = db ?? (await getServerDB());
-    const rows = await serverDB.query.appSettings.findMany({
-      where: inArray(appSettings.key, [...CACHED_KEYS]),
-    });
-
-    const data = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-    const nextCache = { at: now, data };
-    if (db) {
-      cachedSettingsByDb.set(db, nextCache);
-    } else {
-      cachedSettings = nextCache;
-    }
-
-    return data;
-  } catch {
-    const data: Record<string, unknown> = {};
-    const nextCache = { at: now, data };
-    if (db) {
-      cachedSettingsByDb.set(db, nextCache);
-    } else {
-      cachedSettings = nextCache;
-    }
-
-    return data;
+    return await request;
+  } finally {
+    if (db) pendingSettingsByDb.delete(db);
+    else pendingSettings = null;
   }
 };
 
@@ -514,11 +535,7 @@ export const getServerDefaultModelSuggestions = async ({
 };
 
 export type ServerModelPolicyUsageType =
-  | 'chat'
-  | 'embeddings'
-  | 'generate_object'
-  | 'image'
-  | 'video';
+  'chat' | 'embeddings' | 'generate_object' | 'image' | 'video';
 
 export type ServerModelPolicyConfig = {
   allowlist: string[];
@@ -570,7 +587,11 @@ export const getServerModelPolicyConfig = async (
   };
 };
 
-export const invalidateServerAppSettings = () => {
+export const invalidateServerAppSettings = async () => {
+  localCacheGeneration += 1;
   cachedSettings = null;
   cachedSettingsByDb = new WeakMap<LobeChatDatabase, CachedSettings>();
+  pendingSettings = null;
+  pendingSettingsByDb = new WeakMap<LobeChatDatabase, Promise<Record<string, unknown>>>();
+  await bumpAppSettingsCacheVersion();
 };

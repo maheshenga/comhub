@@ -430,11 +430,11 @@ export const ADMIN_CATALOG = [
   {
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > mobile',
-    description: 'Configure the mobile client brand, navigation, discovery, and app entries',
+    description: '统一管理移动端品牌、底部导航、发现内容和应用入口',
     group: 'client-integrations',
     icon: 'mobile',
     id: 'mobile',
-    label: 'Mobile client',
+    label: '移动端控制中心',
     owner: 'client',
     path: pathFor('mobile'),
     readCapability: ADMIN_CAPABILITIES.systemRead,
@@ -521,19 +521,5 @@ export const ADMIN_CATALOG = [
 
 export const getAdminCatalogAccessCapabilities = (item: AdminCatalogItem) =>
   item.accessCapabilities ?? [item.readCapability];
-
-export const ADMIN_LEGACY_ROUTES = [
-  { segment: 'pricing', targetSegment: 'model-billing-matrix' },
-  { segment: 'topup', targetSegment: 'orders' },
-  { segment: 'change-requests', targetSegment: 'subscriptions' },
-  { segment: 'topics', targetSegment: 'content-resources' },
-  { segment: 'files', targetSegment: 'content-resources' },
-  { segment: 'documents', targetSegment: 'content-resources' },
-  { segment: 'recommendations', targetSegment: 'content-operations' },
-  { segment: 'expert-plaza', targetSegment: 'content-operations' },
-  { segment: 'notifications', targetSegment: 'content-operations' },
-  { segment: 'operations', targetSegment: 'content-operations' },
-  { segment: 'system-defaults', targetSegment: 'ai-runtime-defaults' },
-] as const;
 
 export type AdminCatalogId = (typeof ADMIN_CATALOG)[number]['id'];

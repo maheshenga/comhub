@@ -163,6 +163,8 @@ describe('ModuleAppDeveloperModel', () => {
     ]);
     await serverDB.insert(moduleAppPayoutBatches).values([
       { currency: 'CNY', publisherId: profile.id, status: 'paid', totalAmount: 80 },
+      { currency: 'CNY', publisherId: profile.id, status: 'pending', totalAmount: 60 },
+      { currency: 'CNY', publisherId: profile.id, status: 'processing', totalAmount: 40 },
       { currency: 'CNY', publisherId: otherProfile.id, status: 'paid', totalAmount: 120 },
     ]);
 
@@ -266,9 +268,38 @@ describe('ModuleAppDeveloperModel', () => {
     await expect(
       model.setPublication({ appId: app.id, published: false, userId: OTHER_USER_ID }),
     ).rejects.toThrow('MODULE_APP_DEVELOPER_APP_NOT_FOUND');
-    await expect(model.getFinance(USER_ID)).resolves.toMatchObject({
-      payouts: [{ totalAmount: 80 }],
-      summary: [{ currency: 'CNY', pendingAmount: 0, settledAmount: 0, totalAmount: 0 }],
+    const finance = await model.getFinance(USER_ID);
+    expect(finance.payouts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ totalAmount: 80 })]),
+    );
+    expect(finance.summary).toEqual([
+      { currency: 'CNY', pendingAmount: 0, settledAmount: 0, totalAmount: 0 },
+    ]);
+    const firstRevenuePage = await model.listRevenue({ limit: 2, userId: USER_ID });
+    const secondRevenuePage = await model.listRevenue({
+      cursor: firstRevenuePage.nextCursor!,
+      limit: 2,
+      userId: USER_ID,
+    });
+    expect(firstRevenuePage.nextCursor).toBe(2);
+    expect(secondRevenuePage.nextCursor).toBeNull();
+    expect(
+      new Set([...firstRevenuePage.items, ...secondRevenuePage.items].map(({ id }) => id)).size,
+    ).toBe(4);
+
+    const firstPayoutPage = await model.listPayouts({ limit: 2, userId: USER_ID });
+    const secondPayoutPage = await model.listPayouts({
+      cursor: firstPayoutPage.nextCursor!,
+      limit: 2,
+      userId: USER_ID,
+    });
+    expect(firstPayoutPage.nextCursor).toBe(2);
+    expect(secondPayoutPage.nextCursor).toBeNull();
+    expect(
+      new Set([...firstPayoutPage.items, ...secondPayoutPage.items].map(({ id }) => id)).size,
+    ).toBe(3);
+    await expect(model.listPayouts({ userId: OTHER_USER_ID })).resolves.toMatchObject({
+      items: [{ totalAmount: 120 }],
     });
     await new ModuleAppPublisherModel(serverDB).suspendPublisher({ publisherId: profile.id });
     await expect(model.listVersions({ appId: app.id, userId: USER_ID })).resolves.toHaveLength(1);

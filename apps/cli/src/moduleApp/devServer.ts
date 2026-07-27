@@ -1,5 +1,6 @@
+import { type FSWatcher, watch } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import path from 'node:path';
 
 import { validateModuleAppProject } from './project';
@@ -37,6 +38,8 @@ const channel='comhub.module-app-sdk.v1';
 const nonce=crypto.randomUUID().replaceAll('-','');
 const frame=document.querySelector('#module-app');
 const rows=[];
+const reloadEvents=new EventSource('/__module_app_events');
+reloadEvents.addEventListener('change',()=>frame.contentWindow?.location.reload());
 frame.title=${safeJson(input.displayName)};
 frame.src=${safeJson(input.entryUrl)}+((${safeJson(input.entryUrl)}.includes('?')?'&':'?')+'nonce='+nonce);
 window.addEventListener('message',(event)=>{
@@ -62,7 +65,33 @@ window.addEventListener('message',(event)=>{
     const row=rows.find((item)=>item.rowKey===message.input?.rowKey&&item.tableKey===message.input?.tableKey);
     if(row){row.status='archived';row.updatedAt=new Date().toISOString()}
     result=row||null;
-  }else if(message.method==='data.transaction')result=[];
+  }else if(message.method==='data.transaction'){
+    const staged=rows.map((row)=>({...row,values:{...row.values}}));
+    const transactionResult=[];
+    let transactionError;
+    for(const operation of message.input?.operations||[]){
+      if(operation.operation==='insert'){
+        const now=new Date().toISOString();
+        const row={createdAt:now,installationId:'00000000-0000-4000-8000-000000000000',rowKey:operation.rowKey||crypto.randomUUID(),status:'active',tableKey:operation.tableKey,updatedAt:now,values:operation.values||{}};
+        staged.push(row);
+        transactionResult.push(row);
+        continue;
+      }
+      const row=staged.find((item)=>item.rowKey===operation.rowKey&&item.tableKey===operation.tableKey);
+      if(!row){transactionError='MODULE_APP_DEV_ROW_NOT_FOUND';break}
+      row.updatedAt=new Date().toISOString();
+      if(operation.operation==='update')row.values={...row.values,...operation.values};
+      else if(operation.operation==='archive')row.status='archived';
+      else{transactionError='MODULE_APP_DEV_OPERATION_UNSUPPORTED';break}
+      transactionResult.push(row);
+    }
+    if(transactionError){
+      frame.contentWindow.postMessage({channel,error:{code:transactionError},id:message.id,nonce,ok:false,type:'response'},location.origin);
+      return;
+    }
+    result=transactionResult;
+    rows.splice(0,rows.length,...staged);
+  }
   else if(message.method==='tasks.getRun')result=null;
   else if(message.method==='tasks.cancel')result={id:message.input?.runId,status:'cancelled'};
   else{
@@ -92,10 +121,35 @@ export const startModuleAppDevServer = async (input: {
   const outputStat = await stat(outputRealPath);
   const contentRoot = outputStat.isDirectory() ? outputRealPath : path.dirname(outputRealPath);
   const entry = outputStat.isDirectory() ? 'index.html' : path.basename(outputRealPath);
+  const reloadClients = new Set<ServerResponse>();
+  let reloadTimer: NodeJS.Timeout | undefined;
+  let watcher: FSWatcher;
+  const notifyReload = () => {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      for (const client of reloadClients) client.write('event: change\ndata: reload\n\n');
+    }, 80);
+  };
+  try {
+    watcher = watch(contentRoot, { recursive: true }, notifyReload);
+  } catch {
+    watcher = watch(contentRoot, notifyReload);
+  }
 
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://module-app.local');
+      if (url.pathname === '/__module_app_events') {
+        response.writeHead(200, {
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/event-stream',
+        });
+        response.write(': connected\n\n');
+        reloadClients.add(response);
+        request.once('close', () => reloadClients.delete(response));
+        return;
+      }
       if (url.pathname === '/') {
         const html = hostPage({
           displayName: manifest.app.displayName,
@@ -148,9 +202,13 @@ export const startModuleAppDevServer = async (input: {
 
   return {
     close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      ),
+      new Promise<void>((resolve, reject) => {
+        clearTimeout(reloadTimer);
+        watcher.close();
+        for (const client of reloadClients) client.end();
+        reloadClients.clear();
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
     url: `http://${host}:${actualPort}`,
   };
 };

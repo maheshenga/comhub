@@ -43,11 +43,7 @@ const readSettings = async (db: any) => {
 };
 
 const saveSetting = async (db: any, key: AppSettingKey, value: unknown) => {
-  const normalizedValue = normalizeAppSettingValue(
-    key,
-    value,
-    APP_SETTING_WRITE_SURFACES.pptAdmin,
-  );
+  const normalizedValue = normalizeAppSettingValue(key, value, APP_SETTING_WRITE_SURFACES.pptAdmin);
 
   await db
     .insert(appSettings)
@@ -73,23 +69,17 @@ const settingSchema = <T>(key: AppSettingKey) =>
 
 const inputSchema = z.object({
   allowPdfExport: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptAllowPdfExport).optional(),
-  allowPptxDownload: settingSchema<boolean>(
-    APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-  ).optional(),
+  allowPptxDownload: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptAllowPptxDownload).optional(),
   apiKey: settingSchema<string>(APP_SETTING_KEYS.docmeePptApiKey).optional(),
   auditEnabled: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptAuditEnabled).optional(),
   baseUrl: settingSchema<string>(APP_SETTING_KEYS.docmeePptBaseUrl).optional(),
   clearApiKey: z.boolean().optional(),
-  creatorVersion: settingSchema<'v1' | 'v2'>(
-    APP_SETTING_KEYS.docmeePptCreatorVersion,
-  ).optional(),
+  creatorVersion: settingSchema<'v1' | 'v2'>(APP_SETTING_KEYS.docmeePptCreatorVersion).optional(),
   dailyLimit: settingSchema<null | number>(APP_SETTING_KEYS.docmeePptDailyLimit).optional(),
   enabled: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptEnabled).optional(),
   lang: settingSchema<string>(APP_SETTING_KEYS.docmeePptDefaultLang).optional(),
   themeColor: settingSchema<null | string>(APP_SETTING_KEYS.docmeePptThemeColor).optional(),
-  tokenTtlMinutes: settingSchema<number>(
-    APP_SETTING_KEYS.docmeePptTokenTtlMinutes,
-  ).optional(),
+  tokenTtlMinutes: settingSchema<number>(APP_SETTING_KEYS.docmeePptTokenTtlMinutes).optional(),
 });
 
 export const adminPptRouter = router({
@@ -156,11 +146,7 @@ export const adminPptRouter = router({
       mutation: async (tx) => {
         await Promise.all([
           saveSetting(tx, APP_SETTING_KEYS.docmeePptAllowPdfExport, next.allowPdfExport),
-          saveSetting(
-            tx,
-            APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-            next.allowPptxDownload,
-          ),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptAllowPptxDownload, next.allowPptxDownload),
           saveSetting(tx, APP_SETTING_KEYS.docmeePptAuditEnabled, next.auditEnabled),
           saveSetting(tx, APP_SETTING_KEYS.docmeePptBaseUrl, next.baseUrl),
           saveSetting(tx, APP_SETTING_KEYS.docmeePptCreatorVersion, next.creatorVersion),
@@ -176,7 +162,7 @@ export const adminPptRouter = router({
       },
     });
 
-    invalidateServerAppSettings();
+    await invalidateServerAppSettings();
 
     return { ok: true };
   }),

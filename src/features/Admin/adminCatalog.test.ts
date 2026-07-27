@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_CATALOG,
   ADMIN_CATALOG_GROUPS,
-  ADMIN_LEGACY_ROUTES,
   getAdminCatalogAccessCapabilities,
 } from './adminCatalog';
 
@@ -28,37 +27,6 @@ describe('adminCatalog', () => {
     expect(new Set(ADMIN_CATALOG.map((item) => item.path)).size).toBe(ADMIN_CATALOG.length);
   });
 
-  it('keeps compatibility routes outside the visible catalog', () => {
-    expect(ADMIN_LEGACY_ROUTES).toEqual([
-      { segment: 'pricing', targetSegment: 'model-billing-matrix' },
-      { segment: 'topup', targetSegment: 'orders' },
-      { segment: 'change-requests', targetSegment: 'subscriptions' },
-      { segment: 'topics', targetSegment: 'content-resources' },
-      { segment: 'files', targetSegment: 'content-resources' },
-      { segment: 'documents', targetSegment: 'content-resources' },
-      { segment: 'recommendations', targetSegment: 'content-operations' },
-      { segment: 'expert-plaza', targetSegment: 'content-operations' },
-      { segment: 'notifications', targetSegment: 'content-operations' },
-      { segment: 'operations', targetSegment: 'content-operations' },
-      { segment: 'system-defaults', targetSegment: 'ai-runtime-defaults' },
-    ]);
-    expect(ADMIN_CATALOG.map((item) => item.segment)).not.toEqual(
-      expect.arrayContaining([
-        'pricing',
-        'topup',
-        'change-requests',
-        'topics',
-        'files',
-        'documents',
-        'recommendations',
-        'expert-plaza',
-        'notifications',
-        'operations',
-        'system-defaults',
-      ]),
-    );
-  });
-
   it('assigns default-setting pages to the responsible admin domains', () => {
     const byId = Object.fromEntries(ADMIN_CATALOG.map((item) => [item.id, item]));
 
@@ -76,7 +44,9 @@ describe('adminCatalog', () => {
     });
     expect(byId.mobile).toMatchObject({
       backendDomains: ['settings'],
+      description: '统一管理移动端品牌、底部导航、发现内容和应用入口',
       group: 'client-integrations',
+      label: '移动端控制中心',
       owner: 'client',
       path: '/settings/admin/mobile',
       readCapability: ADMIN_CAPABILITIES.systemRead,

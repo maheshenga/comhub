@@ -29,7 +29,9 @@ vi.mock('@/server/services/newapiInstance', () => ({
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
   runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
-    const result = await options.mutation(ctx.serverDB);
+    const result = ctx.serverDB.transaction
+      ? await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx))
+      : await options.mutation(ctx.serverDB);
     await recordAdminAudit(ctx, await options.audit(result));
     return result;
   }),
@@ -58,8 +60,9 @@ const createDb = ({
   const deleteFrom = vi.fn(() => ({ where }));
   const set = vi.fn(() => ({ where }));
   const update = vi.fn(() => ({ set }));
+  const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db));
 
-  return {
+  const db = {
     __mocks: {
       onConflictDoUpdate,
       returning,
@@ -88,11 +91,15 @@ const createDb = ({
         findFirst: vi.fn().mockResolvedValue({ banned: false, role }),
       },
     },
+    transaction,
     update,
   } as any;
+  return db;
 };
 
-const planDeleteImpact = (blocking: Array<{ code: string; count: number; title: string }> = []) => ({
+const planDeleteImpact = (
+  blocking: Array<{ code: string; count: number; title: string }> = [],
+) => ({
   blocking,
   canProceed: blocking.length === 0,
   immediateEffects: [{ code: 'PLAN_CATALOG_DELETE', count: 1, title: 'delete' }],
@@ -389,6 +396,69 @@ describe('adminPlansRouter', () => {
         resourceId: Plans.Premium,
       }),
     );
+  });
+
+  it('saves a batch of plan model rules in one audited transaction', async () => {
+    const db = createDb();
+    db.query.planCatalog.findFirst
+      .mockResolvedValueOnce({ displayName: 'Premium', modelRules: null, plan: Plans.Premium })
+      .mockResolvedValueOnce({ displayName: 'Ultimate', modelRules: null, plan: Plans.Ultimate });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).setModelRulesBatch({
+        updates: [
+          {
+            modelRules: { chat: { allowlist: ['premium-*'], mode: 'allowlist' } },
+            plan: Plans.Premium,
+          },
+          {
+            modelRules: { chat: { allowlist: ['business-*'], mode: 'allowlist' } },
+            plan: Plans.Ultimate,
+          },
+        ],
+      }),
+    ).resolves.toEqual({ count: 2, ok: true });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(recordAdminAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects duplicate plans before starting a batch transaction', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).setModelRulesBatch({
+        updates: [
+          { modelRules: undefined, plan: Plans.Premium },
+          { modelRules: undefined, plan: Plans.Premium },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not audit a partially failed plan model rules batch', async () => {
+    const db = createDb();
+    db.query.planCatalog.findFirst
+      .mockResolvedValueOnce({ displayName: 'Premium', modelRules: null, plan: Plans.Premium })
+      .mockResolvedValueOnce(null);
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).setModelRulesBatch({
+        updates: [
+          { modelRules: undefined, plan: Plans.Premium },
+          { modelRules: undefined, plan: Plans.Ultimate },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
   it('prevents finance admins from blocking the active default model on the free plan', async () => {

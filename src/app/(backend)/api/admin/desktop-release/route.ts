@@ -136,7 +136,7 @@ export const POST = async (req: NextRequest) => {
       const count = await db.transaction((tx: any) =>
         writeDesktopReleasePublicationSettings(tx, publication),
       );
-      invalidateServerAppSettings();
+      await invalidateServerAppSettings();
       return NextResponse.json({ count, ok: true });
     } catch (error) {
       return NextResponse.json({ error: (error as Error).message }, { status: 400 });
@@ -180,7 +180,7 @@ export const POST = async (req: NextRequest) => {
           updated: true,
         };
       });
-      if (result.updated) invalidateServerAppSettings();
+      if (result.updated) await invalidateServerAppSettings();
       return NextResponse.json({ count: result.count, ok: true });
     }
 

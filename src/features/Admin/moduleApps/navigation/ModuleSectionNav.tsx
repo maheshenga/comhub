@@ -103,6 +103,7 @@ const OPERATIONS_IDS = new Set<ModuleAdminRouteId>([
 export interface ModuleSectionNavProps {
   appId?: string;
   mode?: 'center' | 'detail';
+  onNavigate?: () => void;
   role?: null | string;
   variant?: 'center' | 'detail';
 }
@@ -110,93 +111,99 @@ export interface ModuleSectionNavProps {
 const resolveDetailPath = (path: string, appId?: string) =>
   appId ? path.replace(':appId', encodeURIComponent(appId)) : path;
 
-const ModuleSectionNav = memo<ModuleSectionNavProps>(({ appId, mode, role, variant }) => {
-  const { t } = useTranslation('common');
-  const translate = (key: string) => t(key as any);
-  const profileRole = useUserStore(
-    (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
-  );
-  const resolvedRole = role ?? profileRole;
-  const resolvedMode = mode ?? variant ?? 'center';
-  const sections =
-    resolvedMode === 'detail'
-      ? getModuleAppSectionsForRole(resolvedRole)
-      : getModuleCenterSectionsForRole(resolvedRole);
-  const labelKeys = resolvedMode === 'detail' ? DETAIL_LABEL_KEYS : CENTER_LABEL_KEYS;
-
-  const renderLink = (section: ModuleAdminSection, nested = false) => {
-    const labelKey = labelKeys[section.id];
-    if (!labelKey) return null;
-
-    return (
-      <NavLink
-        end
-        className={`${styles.link}${nested ? ` ${styles.nestedLink}` : ''}`}
-        key={section.id}
-        title={translate(`moduleApps.admin.center.sectionDescriptions.${labelKey}`)}
-        to={resolveDetailPath(MODULE_ADMIN_ROUTE_PATHS[section.id], appId)}
-      >
-        {translate(
-          `moduleApps.admin.center.${
-            resolvedMode === 'detail' ? 'detailNavigation' : 'navigation'
-          }.${labelKey}`,
-        )}
-      </NavLink>
+const ModuleSectionNav = memo<ModuleSectionNavProps>(
+  ({ appId, mode, onNavigate, role, variant }) => {
+    const { t } = useTranslation('common');
+    const translate = (key: string) => t(key as any);
+    const profileRole = useUserStore(
+      (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
     );
-  };
+    const resolvedRole = role ?? profileRole;
+    const resolvedMode = mode ?? variant ?? 'center';
+    const sections =
+      resolvedMode === 'detail'
+        ? getModuleAppSectionsForRole(resolvedRole)
+        : getModuleCenterSectionsForRole(resolvedRole);
+    const labelKeys = resolvedMode === 'detail' ? DETAIL_LABEL_KEYS : CENTER_LABEL_KEYS;
 
-  if (resolvedMode === 'detail') {
+    const renderLink = (section: ModuleAdminSection, nested = false) => {
+      const labelKey = labelKeys[section.id];
+      if (!labelKey) return null;
+
+      return (
+        <NavLink
+          end
+          className={`${styles.link}${nested ? ` ${styles.nestedLink}` : ''}`}
+          key={section.id}
+          title={translate(`moduleApps.admin.center.sectionDescriptions.${labelKey}`)}
+          to={resolveDetailPath(MODULE_ADMIN_ROUTE_PATHS[section.id], appId)}
+          onClick={onNavigate}
+        >
+          {translate(
+            `moduleApps.admin.center.${
+              resolvedMode === 'detail' ? 'detailNavigation' : 'navigation'
+            }.${labelKey}`,
+          )}
+        </NavLink>
+      );
+    };
+
+    if (resolvedMode === 'detail') {
+      return (
+        <nav
+          aria-label={translate('moduleApps.admin.center.detailNavigation.label')}
+          className={styles.nav}
+        >
+          {sections.map((section) => renderLink(section))}
+        </nav>
+      );
+    }
+
+    const financeSections = sections.filter((section) => FINANCE_IDS.has(section.id));
+    const operationsSections = sections.filter((section) => OPERATIONS_IDS.has(section.id));
+    const ungroupedSections = sections.filter(
+      (section) => !FINANCE_IDS.has(section.id) && !OPERATIONS_IDS.has(section.id),
+    );
+
     return (
       <nav
-        aria-label={translate('moduleApps.admin.center.detailNavigation.label')}
+        aria-label={translate('moduleApps.admin.center.navigation.label')}
         className={styles.nav}
       >
-        {sections.map((section) => renderLink(section))}
+        {ungroupedSections
+          .filter((section) => section.id !== 'module-audit')
+          .map((section) => renderLink(section))}
+        {financeSections.length ? (
+          <div
+            aria-label={translate('moduleApps.admin.center.navigation.finance')}
+            className={styles.group}
+            role="group"
+          >
+            <div className={styles.groupLabel}>
+              {translate('moduleApps.admin.center.navigation.finance')}
+            </div>
+            {financeSections.map((section) => renderLink(section, true))}
+          </div>
+        ) : null}
+        {operationsSections.length ? (
+          <div
+            aria-label={translate('moduleApps.admin.center.navigation.operations')}
+            className={styles.group}
+            role="group"
+          >
+            <div className={styles.groupLabel}>
+              {translate('moduleApps.admin.center.navigation.operations')}
+            </div>
+            {operationsSections.map((section) => renderLink(section, true))}
+          </div>
+        ) : null}
+        {ungroupedSections
+          .filter((section) => section.id === 'module-audit')
+          .map((section) => renderLink(section))}
       </nav>
     );
-  }
-
-  const financeSections = sections.filter((section) => FINANCE_IDS.has(section.id));
-  const operationsSections = sections.filter((section) => OPERATIONS_IDS.has(section.id));
-  const ungroupedSections = sections.filter(
-    (section) => !FINANCE_IDS.has(section.id) && !OPERATIONS_IDS.has(section.id),
-  );
-
-  return (
-    <nav aria-label={translate('moduleApps.admin.center.navigation.label')} className={styles.nav}>
-      {ungroupedSections
-        .filter((section) => section.id !== 'module-audit')
-        .map((section) => renderLink(section))}
-      {financeSections.length ? (
-        <div
-          aria-label={translate('moduleApps.admin.center.navigation.finance')}
-          className={styles.group}
-          role="group"
-        >
-          <div className={styles.groupLabel}>
-            {translate('moduleApps.admin.center.navigation.finance')}
-          </div>
-          {financeSections.map((section) => renderLink(section, true))}
-        </div>
-      ) : null}
-      {operationsSections.length ? (
-        <div
-          aria-label={translate('moduleApps.admin.center.navigation.operations')}
-          className={styles.group}
-          role="group"
-        >
-          <div className={styles.groupLabel}>
-            {translate('moduleApps.admin.center.navigation.operations')}
-          </div>
-          {operationsSections.map((section) => renderLink(section, true))}
-        </div>
-      ) : null}
-      {ungroupedSections
-        .filter((section) => section.id === 'module-audit')
-        .map((section) => renderLink(section))}
-    </nav>
-  );
-});
+  },
+);
 
 ModuleSectionNav.displayName = 'ModuleSectionNav';
 

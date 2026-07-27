@@ -5,8 +5,8 @@ import { Alert, Form, Input, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { type BuildProfileFormValues, WINDOWS_ASSET_KINDS } from './buildProfileForm';
 import DesktopBuildAssetUpload from './DesktopBuildAssetUpload';
-import { WINDOWS_ASSET_KINDS, type BuildProfileFormValues } from './buildProfileForm';
 import { desktopControlCenterStyles } from './styles';
 
 interface BuildProfileEditorProps {
@@ -14,15 +14,16 @@ interface BuildProfileEditorProps {
   form: ReturnType<typeof Form.useForm<BuildProfileFormValues>>[0];
   identityLocked?: boolean;
   onAssetUploaded: (kind: DesktopBuildAssetKind, asset: DesktopBuildAsset) => void;
+  onValuesChange?: () => void;
   profileId: string;
 }
 
 const BuildProfileEditor = memo<BuildProfileEditorProps>(
-  ({ assets, form, identityLocked, onAssetUploaded, profileId }) => {
+  ({ assets, form, identityLocked, onAssetUploaded, onValuesChange, profileId }) => {
     const { t } = useTranslation('subscription');
 
     return (
-      <Form<BuildProfileFormValues> form={form} layout="vertical">
+      <Form<BuildProfileFormValues> form={form} layout="vertical" onValuesChange={onValuesChange}>
         <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
           {t('admin.desktopBuild.profile.title')}
         </Typography.Title>

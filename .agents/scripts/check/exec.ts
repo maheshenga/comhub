@@ -4,12 +4,21 @@ import path from 'node:path';
 import { exists, mountDir, rootDir } from './paths';
 import type { RepoMount, RunResult } from './types';
 
+const quoteWindowsCommandArgument = (value: string) =>
+  `"${value.replaceAll('%', '%%').replaceAll('"', '""')}"`;
+
 export const run = (command: string, args: string[], cwd: string): Promise<RunResult> =>
   new Promise((resolvePromise) => {
-    const child = spawn(command, args, {
+    const isWindowsCommandShim = process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(command);
+    const spawnCommand = isWindowsCommandShim ? (process.env.ComSpec ?? 'cmd.exe') : command;
+    const spawnArgs = isWindowsCommandShim
+      ? ['/d', '/s', '/c', `call ${[command, ...args].map(quoteWindowsCommandArgument).join(' ')}`]
+      : args;
+    const child = spawn(spawnCommand, spawnArgs, {
       cwd,
       env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsVerbatimArguments: isWindowsCommandShim,
     });
     let stdout = '';
     let stderr = '';

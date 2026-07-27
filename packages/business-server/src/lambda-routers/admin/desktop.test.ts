@@ -818,6 +818,7 @@ describe('adminDesktopRouter', () => {
       .saveBuildProfileDraft({
         assets: manifest,
         createIfMissing: true,
+        expectedRevision: 0,
         name: 'ComHub',
         payload,
         profileId: PROFILE_ID,
@@ -835,6 +836,29 @@ describe('adminDesktopRouter', () => {
       expect.anything(),
       expect.objectContaining({ audit: expect.any(Function), mutation: expect.any(Function) }),
     );
+  });
+
+  it('maps stale draft revisions to a conflict without creating an audit record', async () => {
+    mocks.model.saveDraft.mockRejectedValueOnce(
+      new Error('DESKTOP_BUILD_PROFILE_REVISION_CONFLICT'),
+    );
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .saveBuildProfileDraft({
+          assets: manifest,
+          expectedRevision: 1,
+          name: 'ComHub',
+          payload,
+          profileId: PROFILE_ID,
+        }),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: 'DESKTOP_BUILD_PROFILE_REVISION_CONFLICT',
+    });
+
+    expect(mocks.audit.records).not.toHaveBeenCalledWith('create');
   });
 
   it('archives profiles through a required audit transaction without deleting drafts', async () => {

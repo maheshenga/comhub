@@ -163,6 +163,23 @@ describe('DesktopBuildModel', () => {
     );
   });
 
+  it('allows only one concurrent save from the same expected revision', async () => {
+    const initial = await saveDraft({ expectedRevision: 0 });
+
+    const results = await Promise.allSettled([
+      saveDraft({ expectedRevision: initial.revision, profileId: initial.profileId }),
+      saveDraft({ expectedRevision: initial.revision, profileId: initial.profileId }),
+    ]);
+
+    expect(results.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(({ status }) => status === 'rejected')).toMatchObject([
+      { reason: expect.objectContaining({ message: 'DESKTOP_BUILD_PROFILE_REVISION_CONFLICT' }) },
+    ]);
+    await expect(model().getProfile(initial.profileId)).resolves.toMatchObject({
+      currentRevision: initial.revision + 1,
+    });
+  });
+
   it('rejects implicit profile creation', async () => {
     await expect(
       model().saveDraft({

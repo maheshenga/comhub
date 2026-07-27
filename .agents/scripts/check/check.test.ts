@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { diffStat, renderDiffsForStdout } from './autofix';
 import { hostRootFromGitdir } from './delegate';
-import { toolCommand } from './exec';
+import { run, toolCommand } from './exec';
 import { setConfig } from './paths';
 import { lobehubPipelines } from './pipelines';
 import {
@@ -70,6 +70,24 @@ describe('toolCommand', () => {
       await rm(tempRoot, { force: true, recursive: true });
     }
   });
+
+  it.runIf(process.platform === 'win32')(
+    'preserves parentheses when invoking Windows command shims',
+    async () => {
+      const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'comhub-check-run-'));
+      const shim = path.join(tempRoot, 'probe.cmd');
+
+      try {
+        await writeFile(shim, '@echo off\r\n@echo ok\r\n');
+        await expect(run(shim, ['src/app/(backend)/route.ts'], tempRoot)).resolves.toMatchObject({
+          code: 0,
+          stdout: expect.stringContaining('ok'),
+        });
+      } finally {
+        await rm(tempRoot, { force: true, recursive: true });
+      }
+    },
+  );
 });
 
 describe('pipelineFor', () => {

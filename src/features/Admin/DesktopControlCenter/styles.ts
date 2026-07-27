@@ -5,7 +5,9 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
-    padding: 12px 0;
+
+    padding-block: 12px;
+    padding-inline: 0;
   `,
   buildProfileActions: css`
     display: flex;
@@ -24,6 +26,10 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
     display: flex;
     flex-direction: column;
     gap: 24px;
+  `,
+  buildProfileSelectorLabel: css`
+    font-size: 13px;
+    color: ${cssVar.colorTextSecondary};
   `,
   channelGrid: css`
     display: grid;
@@ -62,10 +68,11 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
   `,
   platformSummary: css`
     overflow: hidden;
+
     min-height: 88px;
     padding: 12px;
-    border-inline-end: 1px solid ${cssVar.colorBorderSecondary};
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+    border-inline-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   sectionTitle: css`
     margin: 0 !important;
@@ -79,7 +86,8 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
   statusItem: css`
     min-width: 0;
     min-height: 76px;
-    padding: 14px 16px;
+    padding-block: 14px;
+    padding-inline: 16px;
     border-inline-end: 1px solid ${cssVar.colorBorderSecondary};
 
     &:last-child {
@@ -92,8 +100,8 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
   `,
   statusLabel: css`
     display: block;
-    color: ${cssVar.colorTextSecondary};
     font-size: 12px;
+    color: ${cssVar.colorTextSecondary};
   `,
   tableWrapper: css`
     overflow-x: auto;

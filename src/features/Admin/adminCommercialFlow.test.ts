@@ -60,22 +60,15 @@ describe('admin commercial flow pages', () => {
 
   it('keeps recharge package management inside the orders management surface', () => {
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
-    const topupRoute = readRepoFile('src/routes/(main)/admin/topup/index.tsx');
 
     expect(ordersPage).toContain('AdminTopUpPackagesPage');
     expect(ordersPage).toContain("key: 'orders'");
     expect(ordersPage).toContain("key: 'topup'");
-    expect(topupRoute).toContain(
-      "import AdminMergedRoutePage from '@/features/Admin/AdminMergedRoutePage'",
-    );
-    expect(topupRoute).toContain('`${ADMIN_BASE_PATH}/orders`');
-    expect(topupRoute).not.toContain('AdminTopUpPackagesPage');
   });
 
   it('keeps plan change request handling inside the subscriptions management surface', () => {
     const subscriptionsPage = readRepoFile('src/features/Admin/AdminSubscriptionsPage.tsx');
     const subscriptionsRoute = readRepoFile('src/routes/(main)/admin/subscriptions/index.tsx');
-    const changeRequestsRoute = readRepoFile('src/routes/(main)/admin/change-requests/index.tsx');
 
     expect(subscriptionsPage).toContain('AdminChangeRequestsPage');
     expect(subscriptionsPage).toContain("key: 'subscriptions'");
@@ -83,11 +76,6 @@ describe('admin commercial flow pages', () => {
     expect(subscriptionsRoute).toContain(
       "import AdminSubscriptionsPage from '@/features/Admin/AdminSubscriptionsPage'",
     );
-    expect(changeRequestsRoute).toContain(
-      "import AdminMergedRoutePage from '@/features/Admin/AdminMergedRoutePage'",
-    );
-    expect(changeRequestsRoute).toContain('`${ADMIN_BASE_PATH}/subscriptions`');
-    expect(changeRequestsRoute).not.toContain('AdminChangeRequestsPage');
   });
 
   it('uses one shared assign-plan modal for user list and user detail operations', () => {
@@ -645,12 +633,15 @@ describe('admin commercial flow pages', () => {
   });
 
   it('exposes module app product and price management from the selected app view', () => {
-    const moduleAppsPage = readRepoFile('src/features/Admin/moduleApps/index.tsx');
+    const productsPage = readRepoFile(
+      'src/features/Admin/moduleApps/apps/products/ModuleAppProductsPage.tsx',
+    );
+    const routeCatalog = readRepoFile('src/features/Admin/moduleApps/navigation/catalog.ts');
 
-    expect(moduleAppsPage).toContain("import ProductManager from './ProductManager'");
-    expect(moduleAppsPage).toContain('<ProductManager appId={selectedAppId} />');
-    expect(moduleAppsPage).toContain("key: 'products'");
-    expect(moduleAppsPage).toContain("label: 'Products'");
+    expect(productsPage).toContain("import ProductManager from '../../ProductManager'");
+    expect(productsPage).toContain('<ProductManager appId={app.id} canWrite={canWrite} />');
+    expect(routeCatalog).toContain("{ id: 'module-app-products', segment: 'products' }");
+    expect(routeCatalog).toContain("createSection('module-app-products', 'Products')");
   });
 
   it('localizes centralized dangerous action confirmation microcopy', () => {

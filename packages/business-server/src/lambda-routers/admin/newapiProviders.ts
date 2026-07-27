@@ -283,7 +283,7 @@ export const adminNewapiProvidersRouter = router({
           action: command.auditAction,
           payload: reason ? { reason } : undefined,
           resourceId: input.id,
-        resourceType: 'admin_newapi_instances',
+          resourceType: 'admin_newapi_instances',
         }),
         mutation: async (tx) => {
           const impact = await getModelDependencyImpact(tx, {
@@ -655,7 +655,7 @@ export const adminNewapiProvidersRouter = router({
           action: 'newapiInstanceModels.remove',
           payload: { modelId: input.modelId, modelType: input.modelType },
           resourceId: input.instanceId,
-        resourceType: 'admin_newapi_instance_models',
+          resourceType: 'admin_newapi_instance_models',
         }),
         mutation: async (tx) => {
           const impact = await getModelDependencyImpact(tx, {
@@ -752,6 +752,53 @@ export const adminNewapiProvidersRouter = router({
       });
       invalidateNewapiInstancesCache();
       return { ok: true };
+    }),
+
+  setModelsEnabled: modelOpsWriteProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+        instanceId: z.string().uuid(),
+        models: z
+          .array(
+            z.object({
+              modelId: z.string().min(1),
+              modelType: z.enum(NEWAPI_MODEL_TYPES),
+            }),
+          )
+          .min(1)
+          .max(500),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstanceModels.setEnabledBatch',
+          payload: { count: input.models.length, enabled: input.enabled, models: input.models },
+          resourceId: input.instanceId,
+          resourceType: 'admin_newapi_instance_models',
+        }),
+        mutation: async (tx) => {
+          for (const model of input.models) {
+            const updated = await tx
+              .update(adminNewapiInstanceModels)
+              .set({ enabled: input.enabled, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(adminNewapiInstanceModels.instanceId, input.instanceId),
+                  eq(adminNewapiInstanceModels.modelId, model.modelId),
+                  eq(adminNewapiInstanceModels.modelType, model.modelType),
+                ),
+              )
+              .returning({ modelId: adminNewapiInstanceModels.modelId });
+            if (updated.length === 0) {
+              throw new TRPCError({ code: 'NOT_FOUND', message: 'Model not found' });
+            }
+          }
+        },
+      });
+      invalidateNewapiInstancesCache();
+      return { count: input.models.length, ok: true };
     }),
 
   // ─── Aggregated view for runtime usage ─────────────────────────────────────

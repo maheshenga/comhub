@@ -1,20 +1,17 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
+import { Button, confirmModal, Modal, Select, Tabs } from '@lobehub/ui/base-ui';
 import {
-  Button,
   Drawer,
   Empty,
   Form,
   Input,
   InputNumber,
   message,
-  Modal,
   Popconfirm,
-  Select,
   Switch,
   Table,
-  Tabs,
   Tag,
   Tooltip,
 } from 'antd';
@@ -191,7 +188,7 @@ const InstanceFormModal = memo<{
 
   return (
     <Modal
-      destroyOnClose
+      destroyOnHidden
       confirmLoading={submitting}
       open={open}
       width={560}
@@ -420,16 +417,11 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
 
       setBatchUpdating(enabled ? 'enable' : 'disable');
       try {
-        await Promise.all(
-          targetRows.map((row) =>
-            adminCommercialService.updateAiProviderInstanceModel({
-              data: { enabled },
-              instanceId,
-              modelId: row.modelId,
-              modelType: row.modelType,
-            }),
-          ),
-        );
+        await adminCommercialService.setAiProviderInstanceModelsEnabled({
+          enabled,
+          instanceId,
+          models: targetRows.map(({ modelId, modelType }) => ({ modelId, modelType })),
+        });
         message.success(
           enabled
             ? t('admin.providers.models.enableAllSuccess', '已启用当前类型模型')
@@ -513,7 +505,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       };
       const impact = await adminCommercialService.getAiProviderModelDeleteImpact(target);
 
-      Modal.confirm({
+      confirmModal({
         content: <AdminDependencyImpactPreview impact={impact} />,
         okButtonProps: { danger: true, disabled: !impact.canProceed },
         okText: t('admin.providers.models.confirmRemove', '移除'),

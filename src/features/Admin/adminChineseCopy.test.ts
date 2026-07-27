@@ -22,7 +22,6 @@ const filesWithAdminCopy = [
   'src/features/Admin/AdminUserDetailDrawer.tsx',
   'src/routes/(main)/admin/audit/index.tsx',
   'src/routes/(main)/admin/subscriptions/index.tsx',
-  'src/routes/(main)/admin/topup/index.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
   'src/features/Admin/AdminFileStoragePage.tsx',
@@ -87,20 +86,19 @@ describe('admin Chinese copy', () => {
   });
 
   it('keeps subscription customer-facing business pages in Chinese', () => {
-    expect(subscription['mobile.tabs.ariaLabel']).toBe('商业设置');
     expect(zhCNSubscription['mobile.tabs.ariaLabel']).toBe('商业设置');
-    expect(subscription['tab.plans']).toBe('套餐');
-    expect(subscription['tab.usage']).toBe('用量');
-    expect(subscription['tab.credits']).toBe('积分');
-    expect(subscription['tab.billing']).toBe('账单');
-    expect(subscription['tab.referral']).toBe('推荐奖励');
+    expect(zhCNSubscription['tab.plans']).toBe('套餐');
+    expect(zhCNSubscription['tab.usage']).toBe('用量');
+    expect(zhCNSubscription['tab.credits']).toBe('积分');
+    expect(zhCNSubscription['tab.billing']).toBe('账单');
+    expect(zhCNSubscription['tab.referral']).toBe('推荐奖励');
 
-    expect(subscription['billing.history']).toBe('账单记录');
-    expect(subscription['credits.ledger.empty']).toBe('暂无积分流水');
-    expect(subscription['plans.current']).toBe('当前套餐');
-    expect(subscription['payment.success.title']).toBe('订阅成功');
-    expect(subscription['referral.stats.title']).toBe('推荐概览');
-    expect(subscription['usage.title']).toBe('本月用量');
+    expect(zhCNSubscription['billing.history']).toBe('账单记录');
+    expect(zhCNSubscription['credits.ledger.empty']).toBe('暂无积分流水');
+    expect(zhCNSubscription['plans.current']).toBe('当前套餐');
+    expect(zhCNSubscription['payment.success.title']).toBe('订阅成功');
+    expect(zhCNSubscription['referral.stats.title']).toBe('推荐概览');
+    expect(zhCNSubscription['usage.title']).toBe('本月用量');
 
     for (const key of [
       'billing.history',
@@ -109,7 +107,7 @@ describe('admin Chinese copy', () => {
       'referral.stats.title',
       'usage.title',
     ] as const) {
-      expect(subscription[key]).not.toContain('????');
+      expect(zhCNSubscription[key]).not.toContain('????');
     }
   });
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Flexbox, Skeleton } from '@lobehub/ui';
+import { Flexbox, Skeleton } from '@lobehub/ui';
+import { Button, confirmModal } from '@lobehub/ui/base-ui';
 import { Alert } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -48,7 +49,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   actionRow: css`
     position: sticky;
     z-index: 3;
-    bottom: 0;
+    inset-block-end: 0;
 
     display: flex;
     flex-wrap: wrap;
@@ -57,7 +58,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     justify-content: flex-end;
 
     margin-inline: -24px;
-    padding: 12px 24px;
+    padding-block: 12px;
+    padding-inline: 24px;
     border-block-start: 1px solid ${cssVar.colorBorderSecondary};
 
     background: color-mix(in srgb, ${cssVar.colorBgContainer} 94%, transparent);
@@ -256,11 +258,17 @@ const AdminMobileSettingsPage = memo(() => {
 
   useEffect(() => {
     if (blockerState !== 'blocked') return;
-    const shouldLeave = window.confirm(
-      tr('admin.mobile.unsavedChanges', 'You have unsaved mobile settings. Leave this page?'),
-    );
-    if (shouldLeave) proceed();
-    else reset();
+    confirmModal({
+      cancelText: tr('admin.mobile.unsavedStay', 'Keep editing'),
+      content: tr(
+        'admin.mobile.unsavedChanges',
+        'You have unsaved mobile settings. Leave this page?',
+      ),
+      okText: tr('admin.mobile.unsavedLeave', 'Leave'),
+      onCancel: reset,
+      onOk: proceed,
+      title: tr('admin.mobile.unsavedTitle', 'Discard unsaved mobile settings?'),
+    });
   }, [blockerState, proceed, reset, tr]);
 
   useEffect(() => {
@@ -293,8 +301,16 @@ const AdminMobileSettingsPage = memo(() => {
   };
 
   const restoreDefaults = () => {
-    if (!window.confirm(tr('admin.mobile.restoreConfirm', 'Restore mobile defaults?'))) return;
-    updateForm(cloneConfig(DEFAULT_MOBILE_CONFIG));
+    confirmModal({
+      cancelText: tr('admin.mobile.restoreCancel', 'Cancel'),
+      content: tr(
+        'admin.mobile.restoreDescription',
+        'Current draft values will be replaced by the mobile defaults.',
+      ),
+      okText: tr('admin.mobile.restoreDefaults', 'Restore defaults'),
+      onOk: () => updateForm(cloneConfig(DEFAULT_MOBILE_CONFIG)),
+      title: tr('admin.mobile.restoreConfirm', 'Restore mobile defaults?'),
+    });
   };
 
   if (loading) {
@@ -394,7 +410,7 @@ const AdminMobileSettingsPage = memo(() => {
       </section>
 
       <div className={styles.actionRow}>
-        <Button onClick={restoreDefaults}>
+        <Button onClick={() => void restoreDefaults()}>
           {tr('admin.mobile.restoreDefaults', 'Restore defaults')}
         </Button>
         <Button disabled={!canSave} loading={saving} onClick={() => void save()}>

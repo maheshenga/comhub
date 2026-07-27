@@ -100,8 +100,11 @@ const {
   },
   mockModuleAppDeveloperModel: {
     getFinance: vi.fn(),
+    getFinanceSummary: vi.fn(),
     getPublisherProfile: vi.fn(),
     listApplications: vi.fn(),
+    listPayouts: vi.fn(),
+    listRevenue: vi.fn(),
     listSubmissions: vi.fn(),
     listVersions: vi.fn(),
     rollbackVersion: vi.fn(),
@@ -303,8 +306,11 @@ describe('moduleApp router registration', () => {
       revenue: [],
       summary: [],
     });
+    mockModuleAppDeveloperModel.getFinanceSummary.mockResolvedValue([]);
     mockModuleAppDeveloperModel.getPublisherProfile.mockResolvedValue(null);
     mockModuleAppDeveloperModel.listApplications.mockResolvedValue({ items: [], nextCursor: null });
+    mockModuleAppDeveloperModel.listPayouts.mockResolvedValue({ items: [], nextCursor: null });
+    mockModuleAppDeveloperModel.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     mockModuleAppDeveloperModel.listSubmissions.mockResolvedValue({ items: [], nextCursor: null });
     mockModuleAppDeveloperModel.listVersions.mockResolvedValue([]);
     mockModuleAppDeveloperModel.rollbackVersion.mockResolvedValue({ ok: true });
@@ -408,11 +414,23 @@ describe('moduleApp router registration', () => {
     const caller = createCaller();
 
     await caller.listMyDeveloperApps({});
+    await caller.listMyDeveloperPayouts({});
+    await caller.listMyDeveloperRevenue({});
     await caller.listMyDeveloperSubmissions({});
     await caller.publishMyDeveloperApp({ appId: APP_ID });
     await caller.upsertMyPublisherProfile({ displayName: 'Developer Studio' });
 
     expect(mockModuleAppDeveloperModel.listApplications).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 20,
+      userId: 'user-1',
+    });
+    expect(mockModuleAppDeveloperModel.listPayouts).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 20,
+      userId: 'user-1',
+    });
+    expect(mockModuleAppDeveloperModel.listRevenue).toHaveBeenCalledWith({
       cursor: 0,
       limit: 20,
       userId: 'user-1',
@@ -468,6 +486,7 @@ describe('moduleApp router registration', () => {
       getLaunchContext: { inputs: 1, type: 'query' },
       getLicense: { inputs: 1, type: 'query' },
       getMyDeveloperFinance: { inputs: 0, type: 'query' },
+      getMyDeveloperFinanceSummary: { inputs: 0, type: 'query' },
       getMyPublisherProfile: { inputs: 0, type: 'query' },
       getRecord: { inputs: 1, type: 'query' },
       getRuntimeManifest: { inputs: 1, type: 'query' },
@@ -479,6 +498,8 @@ describe('moduleApp router registration', () => {
       listInstallationSecrets: { inputs: 1, type: 'query' },
       listMarketplace: { inputs: 1, type: 'query' },
       listMyDeveloperApps: { inputs: 1, type: 'query' },
+      listMyDeveloperPayouts: { inputs: 1, type: 'query' },
+      listMyDeveloperRevenue: { inputs: 1, type: 'query' },
       listMyDeveloperSubmissions: { inputs: 1, type: 'query' },
       listMyDeveloperVersions: { inputs: 1, type: 'query' },
       listMobileApps: { inputs: 1, type: 'query' },
@@ -516,6 +537,7 @@ describe('moduleApp router registration', () => {
       getLaunchContext: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
       getLicense: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
       getMyDeveloperFinance: null,
+      getMyDeveloperFinanceSummary: null,
       getMyPublisherProfile: null,
       getRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
       getRuntimeManifest: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
@@ -527,6 +549,8 @@ describe('moduleApp router registration', () => {
       listInstallationSecrets: '21d355edace3fd4479dc17131bfe8844a9ba90f88cfe630d4afc9df8c8070d23',
       listMarketplace: '5b4111c42b1b67721865e703b17f57207ab663914acbbd1885433bbe9a624d27',
       listMyDeveloperApps: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
+      listMyDeveloperPayouts: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
+      listMyDeveloperRevenue: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
       listMyDeveloperSubmissions:
         '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
       listMyDeveloperVersions: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',

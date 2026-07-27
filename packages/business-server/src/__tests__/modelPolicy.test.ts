@@ -19,8 +19,8 @@ const createDb = (settings: Record<string, unknown>) =>
   }) as any;
 
 describe('assertModelPolicyAllowed', () => {
-  beforeEach(() => {
-    invalidateServerAppSettings();
+  beforeEach(async () => {
+    await invalidateServerAppSettings();
   });
 
   it('skips checks when model policy is disabled', async () => {

@@ -1,15 +1,14 @@
 import { createHash } from 'node:crypto';
 
-import { moduleAppPackageManifestV2Schema, type ModuleAppPackageManifest } from '@lobechat/types';
+import {
+  type ModuleAppPackageArchiveLimits,
+  unzipModuleAppPackage,
+  validateModuleAppBuildSource,
+} from '@lobechat/module-app-build';
+import { type ModuleAppPackageManifest, moduleAppPackageManifestV2Schema } from '@lobechat/types';
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
-
-import {
-  unzipModuleAppPackage,
-  validateModuleAppBuildSource,
-  type ModuleAppPackageArchiveLimits,
-} from '@lobechat/module-app-build';
 
 type ManifestV2 = Extract<ModuleAppPackageManifest, { manifestVersion: 2 }>;
 
@@ -266,6 +265,8 @@ describe('validateModuleAppBuildSource', () => {
     ['install.ps1', strToU8('Write-Host unsafe')],
     ['binary.bin', new Uint8Array([0x7f, 0x45, 0x4c, 0x46])],
     ['eicar.txt', strToU8('X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*')],
+    ['.env.production', strToU8('API_KEY=do-not-package')],
+    ['dist/config.txt', strToU8('-----BEGIN RSA PRIVATE KEY-----\nnot-a-real-key')],
   ])('rejects statically unsafe file %s', async (path, data) => {
     await expectCode(
       validate(createArchive({ ...validFiles(), [path]: data })),

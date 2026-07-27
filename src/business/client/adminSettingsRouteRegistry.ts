@@ -3,7 +3,6 @@ import type { ComponentType } from 'react';
 import { MODULE_ADMIN_ROUTE_IMPORTS } from '@/business/client/moduleAdminRouteImports';
 import {
   ADMIN_CATALOG,
-  ADMIN_LEGACY_ROUTES,
   type AdminCatalogId,
   type AdminFeatureStatus,
 } from '@/features/Admin/adminCatalog';
@@ -13,7 +12,6 @@ import {
 } from '@/features/Admin/moduleApps/navigation/catalog';
 
 type ImportPage = () => Promise<{ default: ComponentType } | ComponentType>;
-type AdminLegacyRouteSegment = (typeof ADMIN_LEGACY_ROUTES)[number]['segment'];
 
 const ADMIN_PAGE_IMPORTS: Record<Exclude<AdminCatalogId, 'modules'>, ImportPage> = {
   'ai-runtime-defaults': () => import('@/routes/(main)/admin/ai-runtime-defaults'),
@@ -55,20 +53,6 @@ const buildModuleRouteRegistryItem = (
   status: 'experimental',
 });
 
-const ADMIN_LEGACY_PAGE_IMPORTS: Record<AdminLegacyRouteSegment, ImportPage> = {
-  'change-requests': () => import('@/routes/(main)/admin/change-requests'),
-  'documents': () => import('@/routes/(main)/admin/documents'),
-  'expert-plaza': () => import('@/routes/(main)/admin/expert-plaza'),
-  'files': () => import('@/routes/(main)/admin/files'),
-  'notifications': () => import('@/routes/(main)/admin/notifications'),
-  'operations': () => import('@/routes/(main)/admin/operations'),
-  'pricing': () => import('@/routes/(main)/admin/pricing'),
-  'recommendations': () => import('@/routes/(main)/admin/recommendations'),
-  'system-defaults': () => import('@/routes/(main)/admin/system-defaults'),
-  'topup': () => import('@/routes/(main)/admin/topup'),
-  'topics': () => import('@/routes/(main)/admin/topics'),
-};
-
 export type AdminSettingsRouteRegistryItem = {
   children?: readonly AdminSettingsRouteRegistryItem[];
   debugId: string;
@@ -93,21 +77,7 @@ const visibleRoutes: AdminSettingsRouteRegistryItem[] = ADMIN_CATALOG.flatMap((i
       ],
 );
 
-const compatibilityRoutes: AdminSettingsRouteRegistryItem[] = ADMIN_LEGACY_ROUTES.map(
-  ({ segment }) => ({
-    debugId: `Desktop > Admin > Legacy > ${segment}`,
-    id: `legacy-${segment}`,
-    importPage: ADMIN_LEGACY_PAGE_IMPORTS[segment],
-    segment,
-    status: 'compatibility',
-  }),
-);
-
-export const ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS = ADMIN_LEGACY_ROUTES.map(
-  (route) => route.segment,
-);
-
-export const ADMIN_SETTINGS_ROUTE_REGISTRY = [...visibleRoutes, ...compatibilityRoutes];
+export const ADMIN_SETTINGS_ROUTE_REGISTRY = visibleRoutes;
 export const ADMIN_SETTINGS_ROUTE_SEGMENTS = ADMIN_SETTINGS_ROUTE_REGISTRY.map(
   (route) => route.segment ?? '',
 );
