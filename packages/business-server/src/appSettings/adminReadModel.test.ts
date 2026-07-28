@@ -216,6 +216,10 @@ describe('payment admin read model', () => {
         key: APP_SETTING_KEYS.paymentWechatPlatformCertificate,
         value: 'platform-certificate',
       },
+      {
+        key: APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
+        value: 'platform-serial',
+      },
       { key: APP_SETTING_KEYS.paymentPublicBaseUrl, value: 'https://app.example.com' },
     ] satisfies Array<{ key: AppSettingKey; value: unknown }>;
     const snapshot = new AppSettingsSnapshot(

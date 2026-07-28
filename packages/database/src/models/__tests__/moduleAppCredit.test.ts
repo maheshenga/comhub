@@ -6,7 +6,9 @@ import { getTestDB } from '../../core/getTestDB';
 import {
   creditAccounts,
   creditLedgerEntries,
+  creditLots,
   creditReservations,
+  creditSettlementFailures,
   users,
   workspaceCreditAccounts,
   workspaceCreditLedgerEntries,
@@ -23,6 +25,7 @@ beforeEach(async () => {
   await serverDB.delete(creditReservations);
   await serverDB.delete(workspaceCreditLedgerEntries);
   await serverDB.delete(workspaceCreditAccounts);
+  await serverDB.delete(creditLots);
   await serverDB.delete(creditLedgerEntries);
   await serverDB.delete(creditAccounts);
   await serverDB.delete(workspaces);
@@ -186,6 +189,168 @@ describe('ModuleAppCreditModel', () => {
         ),
       }),
     ).toHaveLength(1);
+  });
+
+  it('persists a failed settlement and resolves it after an idempotent retry', async () => {
+    const model = new ModuleAppCreditModel(serverDB);
+    const reservation = await model.reserve({
+      amount: 80,
+      idempotencyKey: 'settlement-recovery',
+      payer: { scopeType: 'personal', userId: USER_ID },
+    });
+    const payload = {
+      actualAmount: 65,
+      metadata: { operationId: 'operation-recovery' },
+      reservationId: reservation.id,
+    };
+
+    await model.recordSettlementFailure({
+      actualAmount: payload.actualAmount,
+      error: new Error('TEMPORARY_DATABASE_FAILURE'),
+      payload,
+      reservationId: reservation.id,
+    });
+
+    await expect(
+      serverDB.query.creditReservations.findFirst({
+        where: eq(creditReservations.id, reservation.id),
+      }),
+    ).resolves.toMatchObject({ actualAmount: 65, status: 'settlement_failed' });
+    await expect(
+      serverDB.query.creditSettlementFailures.findFirst({
+        where: eq(creditSettlementFailures.reservationId, reservation.id),
+      }),
+    ).resolves.toMatchObject({
+      actualAmount: 65,
+      attempts: 1,
+      errorMessage: 'TEMPORARY_DATABASE_FAILURE',
+      payload,
+      status: 'pending',
+    });
+
+    const settled = await model.settle(payload);
+    await model.resolveSettlementFailure(reservation.id);
+
+    expect(settled).toMatchObject({ actualAmount: 65, status: 'settled' });
+    await expect(model.settle(payload)).resolves.toMatchObject({
+      ledgerEntryId: settled.ledgerEntryId,
+      status: 'settled',
+    });
+    await expect(
+      serverDB.query.creditSettlementFailures.findFirst({
+        where: eq(creditSettlementFailures.reservationId, reservation.id),
+      }),
+    ).resolves.toMatchObject({ status: 'resolved' });
+    await expect(
+      serverDB.query.creditAccounts.findFirst({ where: eq(creditAccounts.userId, USER_ID) }),
+    ).resolves.toMatchObject({ balance: 35, totalDebited: 65 });
+  });
+
+  it('does not reopen a released reservation when a stale settlement reports failure', async () => {
+    const model = new ModuleAppCreditModel(serverDB);
+    const reservation = await model.reserve({
+      amount: 80,
+      idempotencyKey: 'released-settlement-race',
+      payer: { scopeType: 'personal', userId: USER_ID },
+    });
+    await model.release({ reason: 'Generation failed', reservationId: reservation.id });
+
+    await expect(
+      model.recordSettlementFailure({
+        actualAmount: 65,
+        error: new Error('STALE_SETTLEMENT_ATTEMPT'),
+        payload: { actualAmount: 65, reservationId: reservation.id },
+        reservationId: reservation.id,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      serverDB.query.creditReservations.findFirst({
+        where: eq(creditReservations.id, reservation.id),
+      }),
+    ).resolves.toMatchObject({ actualAmount: null, status: 'released' });
+    await expect(
+      serverDB.query.creditSettlementFailures.findFirst({
+        where: eq(creditSettlementFailures.reservationId, reservation.id),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('tracks personal settlements using the commercial source priority before lot expiry', async () => {
+    const grants = await serverDB
+      .insert(creditLedgerEntries)
+      .values([
+        {
+          amount: 50,
+          balanceAfter: 50,
+          referenceId: 'subscription-lot',
+          referenceType: 'subscription_snapshot_period',
+          title: 'Subscription Credits',
+          type: 'subscription_grant',
+          userId: USER_ID,
+        },
+        {
+          amount: 50,
+          balanceAfter: 100,
+          referenceId: 'topup-lot',
+          referenceType: 'top_up_order',
+          title: 'Top-up Credits',
+          type: 'topup',
+          userId: USER_ID,
+        },
+      ])
+      .returning({ id: creditLedgerEntries.id, referenceId: creditLedgerEntries.referenceId });
+    const subscriptionGrant = grants.find(({ referenceId }) => referenceId === 'subscription-lot');
+    const topUpGrant = grants.find(({ referenceId }) => referenceId === 'topup-lot');
+    await serverDB.insert(creditLots).values([
+      {
+        expiresAt: new Date('2099-12-01T00:00:00.000Z'),
+        grantLedgerEntryId: subscriptionGrant!.id,
+        grantedAmount: 50,
+        referenceId: 'subscription-lot',
+        referenceType: 'subscription_snapshot_period',
+        source: 'subscription',
+        userId: USER_ID,
+      },
+      {
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+        grantLedgerEntryId: topUpGrant!.id,
+        grantedAmount: 50,
+        referenceId: 'topup-lot',
+        referenceType: 'top_up_order',
+        source: 'topup',
+        userId: USER_ID,
+      },
+    ]);
+    const model = new ModuleAppCreditModel(serverDB);
+    const reservation = await model.reserve({
+      amount: 30,
+      idempotencyKey: 'source-priority',
+      payer: { scopeType: 'personal', userId: USER_ID },
+    });
+
+    await model.settle({ actualAmount: 30, metadata: {}, reservationId: reservation.id });
+
+    await expect(
+      serverDB.query.creditLots.findFirst({
+        where: eq(creditLots.referenceId, 'subscription-lot'),
+      }),
+    ).resolves.toMatchObject({ consumedAmount: 30 });
+    await expect(
+      serverDB.query.creditLots.findFirst({ where: eq(creditLots.referenceId, 'topup-lot') }),
+    ).resolves.toMatchObject({ consumedAmount: 0 });
+    await expect(
+      serverDB.query.creditLedgerEntries.findFirst({
+        where: and(
+          eq(creditLedgerEntries.referenceType, 'module_app_credit_reservation'),
+          eq(creditLedgerEntries.referenceId, reservation.id),
+        ),
+      }),
+    ).resolves.toMatchObject({
+      metadata: {
+        allocations: [{ amount: 30, source: 'subscription' }],
+        creditLotAllocations: [expect.objectContaining({ amount: 30, source: 'subscription' })],
+      },
+    });
   });
 
   it('supports a general AI ledger identity without changing reservation semantics', async () => {

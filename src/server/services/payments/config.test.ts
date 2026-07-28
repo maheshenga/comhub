@@ -33,6 +33,7 @@ const configuredPayment = (): ServerPaymentConfig => ({
   enabled: true,
   moduleAppEnabled: true,
   publicBaseUrl: 'https://app.example.com',
+  subscriptionEnabled: true,
   topUpEnabled: true,
   wechat: {
     apiBaseUrl: 'https://api.mch.weixin.qq.com',
@@ -94,6 +95,7 @@ describe('payment configuration', () => {
     vi.stubEnv('PAYMENT_WECHAT_MERCHANT_PRIVATE_KEY', 'merchant-private-key');
     vi.stubEnv('PAYMENT_WECHAT_MERCHANT_SERIAL_NO', 'merchant-serial');
     vi.stubEnv('PAYMENT_WECHAT_PLATFORM_CERTIFICATE', 'platform-certificate');
+    vi.stubEnv('PAYMENT_WECHAT_PLATFORM_CERTIFICATE_SERIAL_NO', 'platform-serial');
     const db = {
       query: { appSettings: { findMany: vi.fn().mockResolvedValue([]) } },
     } as unknown as LobeChatDatabase;
@@ -115,6 +117,10 @@ describe('payment configuration', () => {
     });
     vi.stubEnv('PAYMENT_ENABLED', 'true');
     vi.stubEnv('PAYMENT_TOP_UP_ENABLED', 'true');
+    vi.stubEnv('PAYMENT_ALIPAY_APP_ID', 'alipay-app');
+    vi.stubEnv('PAYMENT_ALIPAY_MERCHANT_PRIVATE_KEY', 'environment-private-key');
+    vi.stubEnv('PAYMENT_ALIPAY_PUBLIC_KEY', 'environment-public-key');
+    vi.stubEnv('PAYMENT_ALIPAY_SELLER_ID', 'alipay-seller');
     vi.stubEnv('PAYMENT_WECHAT_ENABLED', 'true');
     vi.stubEnv('PAYMENT_WECHAT_API_V3_KEY', '12345678901234567890123456789012');
     vi.stubEnv('PAYMENT_WECHAT_APP_ID', 'wechat-app');
@@ -122,6 +128,7 @@ describe('payment configuration', () => {
     vi.stubEnv('PAYMENT_WECHAT_MERCHANT_PRIVATE_KEY', 'merchant-private-key');
     vi.stubEnv('PAYMENT_WECHAT_MERCHANT_SERIAL_NO', 'merchant-serial');
     vi.stubEnv('PAYMENT_WECHAT_PLATFORM_CERTIFICATE', 'platform-certificate');
+    vi.stubEnv('PAYMENT_WECHAT_PLATFORM_CERTIFICATE_SERIAL_NO', 'platform-serial');
     const db = {
       query: {
         appSettings: {

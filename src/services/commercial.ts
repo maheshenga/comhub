@@ -1,4 +1,10 @@
-import type { PaymentCreateResult, PaymentMethod, PaymentMethodId } from '@lobechat/types';
+import type {
+  PaymentCreateResult,
+  PaymentMethod,
+  PaymentMethodId,
+  Plans,
+  SubscriptionCycleType,
+} from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 import {
@@ -76,6 +82,25 @@ class CommercialService {
     lambdaClient.payment.createPaymentOrder.mutate(input) as Promise<
       PaymentCreateResult & { orderId: string }
     >;
+
+  getSubscriptionPaymentMethods = async () =>
+    lambdaClient.payment.getSubscriptionPaymentMethods.query() as Promise<PaymentMethod[]>;
+
+  createSubscriptionPaymentOrder = async (input: {
+    cycle: SubscriptionCycleType;
+    idempotencyKey: string;
+    method?: PaymentMethodId;
+    plan: Plans;
+  }) =>
+    lambdaClient.payment.createSubscriptionPaymentOrder.mutate(input) as Promise<
+      PaymentCreateResult & { orderId: string }
+    >;
+
+  getSubscriptionPaymentStatus = async (orderId: string) =>
+    lambdaClient.payment.getSubscriptionPaymentStatus.query({ orderId });
+
+  recoverSubscriptionPaymentOrder = async (idempotencyKey: string) =>
+    lambdaClient.payment.recoverSubscriptionPaymentOrder.mutate({ idempotencyKey });
 
   getPaymentStatus = async (orderId: string) =>
     lambdaClient.payment.getPaymentStatus.query({ orderId });

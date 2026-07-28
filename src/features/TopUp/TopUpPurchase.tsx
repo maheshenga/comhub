@@ -67,6 +67,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const displayCredits = (credits: number) => `${credits / 1_000_000}M`;
 const CHECKOUT_RECOVERY_REQUIRED = 'TOP_UP_PAYMENT_CHECKOUT_RECOVERY_REQUIRED';
+const TERMINAL_TOP_UP_PAYMENT_STATUSES = new Set(['canceled', 'expired', 'failed', 'refunded']);
 
 const isTopUpCheckoutRecoveryRequired = (error: unknown) =>
   error instanceof Error && error.message.includes(CHECKOUT_RECOVERY_REQUIRED);
@@ -109,7 +110,7 @@ export const TopUpPurchase = () => {
       try {
         const recovered = await commercialService.recoverPaymentOrder(key);
         setOrderId(recovered.orderId);
-        setRecoveryRequired(recovered.status === 'pending');
+        setRecoveryRequired(recovered.recoveryRequired);
         setCheckout(recovered.checkout?.type === 'qrcode' ? recovered.checkout : undefined);
       } catch {
         setError(
@@ -157,7 +158,8 @@ export const TopUpPurchase = () => {
   }, [cnyPackages, paymentIntentRestored, selectedPackage]);
 
   useEffect(() => {
-    if (paymentStatus.data?.status === 'paid') {
+    if (!orderId || paymentStatus.data?.orderId !== orderId) return;
+    if (paymentStatus.data.status === 'paid') {
       setCheckout(undefined);
       setRecoveryRequired(false);
       if (idempotencyKey) clearTopUpPaymentIntent(idempotencyKey);
@@ -166,12 +168,15 @@ export const TopUpPurchase = () => {
         mutate(['commercial.getCreditAccountSummary']),
         mutate(['commercial.listTopUpOrders']),
       ]);
-    } else if (paymentStatus.data?.status === 'failed') {
+    } else if (TERMINAL_TOP_UP_PAYMENT_STATUSES.has(paymentStatus.data.status)) {
       setCheckout(undefined);
       setRecoveryRequired(false);
-      if (idempotencyKey) clearTopUpPaymentIntent(idempotencyKey);
+      if (idempotencyKey) {
+        clearTopUpPaymentIntent(idempotencyKey);
+        setIdempotencyKey(undefined);
+      }
     }
-  }, [idempotencyKey, paymentStatus.data?.status]);
+  }, [idempotencyKey, orderId, paymentStatus.data?.orderId, paymentStatus.data?.status]);
 
   const submit = async () => {
     if (!selectedMethod || !selectedPackage) return;
@@ -179,6 +184,8 @@ export const TopUpPurchase = () => {
     setSubmitting(true);
     setError(undefined);
     setRecoveryRequired(false);
+    setCheckout(undefined);
+    setOrderId(undefined);
     try {
       const intent = getOrCreateTopUpPaymentIntent({
         method: selectedMethod,
@@ -210,9 +217,11 @@ export const TopUpPurchase = () => {
     label: t(`topup.online.methods.${item.id}`, item.label),
     value: item.id,
   }));
-  const paid = paymentStatus.data?.status === 'paid';
-  const failed = paymentStatus.data?.status === 'failed';
-  const awaitingPayment = Boolean(orderId && !paid && !failed);
+  const statusMatchesOrder = Boolean(orderId && paymentStatus.data?.orderId === orderId);
+  const paid = statusMatchesOrder && paymentStatus.data?.status === 'paid';
+  const terminalFailure =
+    statusMatchesOrder && TERMINAL_TOP_UP_PAYMENT_STATUSES.has(paymentStatus.data?.status ?? '');
+  const awaitingPayment = Boolean(orderId && !paid && !terminalFailure);
 
   return (
     <section aria-labelledby="topup-online-title">
@@ -225,7 +234,7 @@ export const TopUpPurchase = () => {
         </Flexbox>
         {error && <Alert showIcon message={error} type="error" />}
         {paid && <Alert showIcon message={t('topup.online.paid', '充值已到账')} type="success" />}
-        {failed && (
+        {terminalFailure && (
           <Alert
             showIcon
             message={t('topup.online.failed', '支付未完成，请重新发起')}
@@ -235,7 +244,7 @@ export const TopUpPurchase = () => {
         {awaitingPayment && !recoveryRequired && (
           <Alert showIcon message={t('topup.online.pending', '等待支付确认')} type="info" />
         )}
-        {recoveryRequired && !paid && !failed && (
+        {recoveryRequired && !paid && !terminalFailure && (
           <Alert
             showIcon
             type="warning"

@@ -47,10 +47,13 @@ const moduleAppPaymentMocks = vi.hoisted(() => ({
   reconcilePendingPayments: vi.fn(),
   reconcileRefund: vi.fn(),
   refundOrder: vi.fn(),
+  resolvePendingRefund: vi.fn(),
 }));
 
 const moduleAppPaymentModelMocks = vi.hoisted(() => ({
   acknowledgeDiscrepancy: vi.fn(),
+  getPaymentAttemptByOrderId: vi.fn(),
+  getRefundByOrderId: vi.fn(),
   listDiscrepancies: vi.fn(),
 }));
 
@@ -380,6 +383,14 @@ describe('admin module apps router', () => {
     moduleAppPaymentMocks.reconcilePayment.mockResolvedValue({ status: 'paid' });
     moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValue({ count: 0, results: [] });
     moduleAppPaymentMocks.reconcileRefund.mockResolvedValue({ status: 'succeeded' });
+    moduleAppPaymentMocks.resolvePendingRefund.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'refunded',
+    });
+    moduleAppPaymentModelMocks.getPaymentAttemptByOrderId.mockResolvedValue({ provider: 'zpay' });
+    moduleAppPaymentModelMocks.getRefundByOrderId.mockResolvedValue({
+      providerRefundId: 'zpay-refund-1',
+    });
     moduleAppPaymentModelMocks.acknowledgeDiscrepancy.mockResolvedValue({ status: 'resolved' });
     moduleAppPaymentModelMocks.listDiscrepancies.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppPublisherMocks.createPublisher.mockResolvedValue({
@@ -897,6 +908,40 @@ describe('admin module apps router', () => {
       expect.anything(),
       expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
     );
+  });
+
+  it('manually resolves a pending provider refund through required audit', async () => {
+    const caller = createCaller();
+    await expect(
+      caller.moduleApps.resolvePaymentRefund({
+        note: 'checked Z-Pay merchant portal',
+        orderId: ORDER_ID,
+        resolution: 'succeeded',
+      }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+    expect(moduleAppPaymentMocks.resolvePendingRefund).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
+      orderId: ORDER_ID,
+      resolution: 'succeeded',
+    });
+    expect(mockGetServerPaymentConfig).not.toHaveBeenCalled();
+    expect(mockCreatePaymentAdapter).not.toHaveBeenCalled();
+    expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
+    );
+    const options = vi.mocked(runRequiredAdminAuditExternalEffect).mock.calls.at(-1)?.[1];
+    expect(await options?.audit('succeeded', { status: 'refunded' })).toMatchObject({
+      action: 'module_app.payment_refund_manually_resolved',
+      payload: {
+        note: 'checked Z-Pay merchant portal',
+        provider: 'zpay',
+        refundReference: 'zpay-refund-1',
+        resolution: 'succeeded',
+        resultStatus: 'refunded',
+        terminalStatus: 'succeeded',
+      },
+    });
   });
 
   it('does not call the refund provider when its required started audit fails', async () => {

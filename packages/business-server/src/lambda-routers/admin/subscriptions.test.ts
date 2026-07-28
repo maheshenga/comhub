@@ -25,10 +25,22 @@ vi.mock('./audit', () => ({
   }),
 }));
 
-const createDb = () => {
+const createDb = (
+  requests: Array<Record<string, unknown>> = [
+    {
+      cycle: 'monthly',
+      fromPlan: 'free',
+      id: 'request-1',
+      status: 'pending',
+      toPlan: 'starter',
+      userId: 'target-user',
+    },
+  ],
+) => {
   const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const selectForUpdate = vi.fn().mockResolvedValue(requests);
   const db = {
-    __mocks: { updateWhere },
+    __mocks: { selectForUpdate, updateWhere },
     query: {
       subscriptionChangeRequests: {
         findFirst: vi.fn().mockResolvedValue({
@@ -41,6 +53,11 @@ const createDb = () => {
         findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
       },
     },
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({ for: selectForUpdate })),
+      })),
+    })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: updateWhere })),
     })),
@@ -74,7 +91,7 @@ describe('adminSubscriptionsRouter bulk commands', () => {
       }),
     ).resolves.toEqual({ results: [{ ok: true, requestId: 'request-1' }] });
 
-    expect(activateSubscriptionChangeRequest).toHaveBeenCalledWith('request-1');
+    expect(activateSubscriptionChangeRequest).toHaveBeenCalledWith('request-1', { tx: db });
     expect(recordAdminAuditStrict).toHaveBeenCalledWith(
       expect.objectContaining({ serverDB: db, userId: 'finance-user' }),
       expect.objectContaining({
@@ -127,15 +144,12 @@ describe('adminSubscriptionsRouter bulk commands', () => {
     );
   });
 
-  it('writes a failed per-target audit while retaining the aggregate bulk result', async () => {
+  it('rolls back the whole approval batch when any request is missing', async () => {
     const activateSubscriptionChangeRequest = vi.fn().mockResolvedValue(undefined);
     vi.mocked(CommercialModel).mockImplementation(
       () => ({ activateSubscriptionChangeRequest }) as any,
     );
     const db = createDb();
-    db.query.subscriptionChangeRequests.findFirst
-      .mockResolvedValueOnce({ id: 'request-1', status: 'pending', userId: 'target-user' })
-      .mockResolvedValueOnce(undefined);
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSubscriptionsRouter.createCaller({ userId: 'finance-user' } as any);
@@ -147,28 +161,14 @@ describe('adminSubscriptionsRouter bulk commands', () => {
         },
         requestIds: ['request-1', 'missing-request'],
       }),
-    ).resolves.toEqual({
-      results: [
-        { ok: true, requestId: 'request-1' },
-        { error: 'NOT_FOUND', ok: false, requestId: 'missing-request' },
-      ],
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'CHANGE_REQUEST_NOT_FOUND',
     });
 
-    expect(recordAdminAuditStrict).toHaveBeenCalledTimes(2);
-    expect(recordAdminAuditStrict).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        payload: expect.objectContaining({ error: 'NOT_FOUND', result: 'failed' }),
-        resourceId: 'missing-request',
-      }),
-      expect.objectContaining({ correlationId: expect.any(String), status: 'failed' }),
-    );
-    expect(recordAdminAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        payload: expect.objectContaining({ failed: 1, succeeded: 1, total: 2 }),
-      }),
-    );
+    expect(activateSubscriptionChangeRequest).not.toHaveBeenCalled();
+    expect(recordAdminAuditStrict).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
   it('rejects conflicting legacy and envelope reasons before bulk rejection', async () => {

@@ -57,6 +57,7 @@ export type PaymentTableLabels = Partial<{
   providerTrade: string;
   paymentMethod: string;
   refund: string;
+  resolveRefund: string;
   retry: string;
   retryPayment: string;
   retryRefund: string;
@@ -81,6 +82,7 @@ type PaymentTableProps = {
   onRetry?: () => void;
   onRetryPayment?: (outTradeNo: string, provider: PaymentProvider) => void;
   onRetryRefund?: (orderId: string) => void;
+  onResolveRefund?: (orderId: string) => void;
   statusLabels?: Record<string, string>;
 };
 
@@ -102,6 +104,7 @@ const defaultLabels = {
   previous: 'Previous page',
   providerTrade: 'Provider trade',
   refund: 'Refund payment',
+  resolveRefund: 'Verify pending refund',
   retry: 'Retry',
   retryPayment: 'Retry payment query',
   retryRefund: 'Retry refund status',
@@ -142,6 +145,7 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
     onRetry,
     onRetryPayment,
     onRetryRefund,
+    onResolveRefund,
     statusLabels,
   }) => {
     const copy = { ...defaultLabels, ...labels };
@@ -242,14 +246,33 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
                       {copy.retryPayment}
                     </Button>
                   ) : null}
-                  {row.orderId && row.paymentStatus === 'paid' && onOpenRefund ? (
+                  {row.orderId &&
+                  row.paymentStatus === 'paid' &&
+                  row.refundStatus !== 'requested' &&
+                  row.refundStatus !== 'succeeded' &&
+                  onOpenRefund ? (
                     <Button onClick={() => onOpenRefund(row)}>{copy.refund}</Button>
                   ) : null}
-                  {row.orderId && row.paymentStatus === 'paid' && onOpenOfflineRefund ? (
+                  {row.orderId &&
+                  row.paymentStatus === 'paid' &&
+                  row.refundStatus !== 'requested' &&
+                  row.refundStatus !== 'succeeded' &&
+                  onOpenOfflineRefund ? (
                     <Button onClick={() => onOpenOfflineRefund(row)}>{copy.offlineRefund}</Button>
                   ) : null}
-                  {row.orderId && row.refundStatus && onRetryRefund ? (
+                  {row.orderId &&
+                  row.refundStatus &&
+                  (row.provider !== 'zpay' || row.refundStatus !== 'requested') &&
+                  onRetryRefund ? (
                     <Button onClick={() => onRetryRefund(row.orderId)}>{copy.retryRefund}</Button>
+                  ) : null}
+                  {row.orderId &&
+                  row.provider === 'zpay' &&
+                  row.refundStatus === 'requested' &&
+                  onResolveRefund ? (
+                    <Button onClick={() => onResolveRefund(row.orderId)}>
+                      {copy.resolveRefund}
+                    </Button>
                   ) : null}
                   {row.orderId && row.orderStatus !== 'paid' && onOpenSettle ? (
                     <Button onClick={() => onOpenSettle(row)}>{copy.settle}</Button>

@@ -1,6 +1,6 @@
 import { AgentRuntimeError } from '@lobechat/model-runtime';
-import { ChatErrorType, Plans } from '@lobechat/types';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { ChatErrorType, Plans, subscriptionEntitlementSnapshotSchema } from '@lobechat/types';
+import { and, desc, eq, gte, isNull, or } from 'drizzle-orm';
 import { normalizeAiModelType } from 'model-bank';
 
 import { planCatalog, userPlanSnapshots } from '@/database/schemas';
@@ -8,15 +8,7 @@ import { type PlanModelRules } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 
 export type PlanModelRuleType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'asr'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'asr' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -70,53 +62,41 @@ const getRuleForModelType = (rules: PlanModelRules, modelType: PlanModelRuleType
   };
 };
 
-const ensureActivePlanSnapshot = async (db: LobeChatDatabase, userId: string) => {
+const getEffectivePlanSnapshot = async (db: LobeChatDatabase, userId: string) => {
   const now = new Date();
-
-  await db
-    .update(userPlanSnapshots)
-    .set({ status: 'expired', updatedAt: now })
-    .where(
-      and(
-        eq(userPlanSnapshots.userId, userId),
-        eq(userPlanSnapshots.status, 'active'),
-        lt(userPlanSnapshots.endsAt, now),
-      ),
-    );
 
   const activeSnapshot = await db.query.userPlanSnapshots.findFirst({
     orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-    where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
+    where: and(
+      eq(userPlanSnapshots.userId, userId),
+      eq(userPlanSnapshots.status, 'active'),
+      or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+    ),
   });
 
   if (activeSnapshot) return activeSnapshot;
 
-  const [freeSnapshot] = await db
-    .insert(userPlanSnapshots)
-    .values({
-      cycle: 'monthly',
-      currency: 'CNY',
-      externalSubscriptionId: `default-free-${userId}`,
-      metadata: { source: 'model_rules_expiry_fallback', unlimited: true },
-      monthlyCredits: 0,
-      monthlyPrice: 0,
-      plan: Plans.Free,
-      provider: 'system_default',
-      startedAt: now,
-      status: 'active',
-      userId,
-    })
-    .onConflictDoNothing()
-    .returning();
+  return { metadata: null, plan: Plans.Free };
+};
 
-  if (freeSnapshot) return freeSnapshot;
+const resolveSnapshotModelRules = async (
+  db: LobeChatDatabase,
+  snapshot: Awaited<ReturnType<typeof getEffectivePlanSnapshot>>,
+): Promise<PlanModelRules | null> => {
+  const metadata =
+    snapshot.metadata && typeof snapshot.metadata === 'object' && !Array.isArray(snapshot.metadata)
+      ? (snapshot.metadata as Record<string, unknown>)
+      : null;
 
-  return (
-    (await db.query.userPlanSnapshots.findFirst({
-      orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-      where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
-    })) ?? null
-  );
+  if (metadata && Object.hasOwn(metadata, 'entitlementSnapshot')) {
+    const entitlement = subscriptionEntitlementSnapshotSchema.parse(metadata.entitlementSnapshot);
+    return entitlement.modelRules as PlanModelRules | null;
+  }
+
+  const catalog = await db.query.planCatalog.findFirst({
+    where: eq(planCatalog.plan, snapshot.plan),
+  });
+  return (catalog?.modelRules ?? null) as PlanModelRules | null;
 };
 
 interface AssertPlanModelAllowedParams {
@@ -147,13 +127,8 @@ export const assertPlanModelAllowed = async ({
   const trimmed = model?.trim();
   if (!trimmed) return;
 
-  const snapshot = await ensureActivePlanSnapshot(db, userId);
-  if (!snapshot) return;
-
-  const catalog = await db.query.planCatalog.findFirst({
-    where: eq(planCatalog.plan, snapshot.plan),
-  });
-  const rules = catalog?.modelRules as PlanModelRules | undefined | null;
+  const snapshot = await getEffectivePlanSnapshot(db, userId);
+  const rules = await resolveSnapshotModelRules(db, snapshot);
   if (!rules) return;
 
   const { normalizedModelType, rule } = getRuleForModelType(rules, modelType);
@@ -190,13 +165,8 @@ export const resolvePlanModelRules = async ({
   db,
   userId,
 }: ResolvePlanModelRulesParams): Promise<PlanModelRules | null> => {
-  const snapshot = await ensureActivePlanSnapshot(db, userId);
-  if (!snapshot) return null;
-
-  const catalog = await db.query.planCatalog.findFirst({
-    where: eq(planCatalog.plan, snapshot.plan),
-  });
-  return (catalog?.modelRules ?? null) as PlanModelRules | null;
+  const snapshot = await getEffectivePlanSnapshot(db, userId);
+  return resolveSnapshotModelRules(db, snapshot);
 };
 
 /**

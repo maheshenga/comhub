@@ -1,18 +1,34 @@
 import { createHash } from 'node:crypto';
 
 import { BRANDING_PROVIDER } from '@lobechat/business-const';
+import { CREDITS_PER_DOLLAR, USD_TO_CNY } from '@lobechat/const/currency';
 import {
   AgentRuntimeError,
+  type ASRPayload,
+  type ASRUsage,
   type ChatStreamPayload,
   resolveImageSinglePrice,
   resolveVideoSinglePrice,
 } from '@lobechat/model-runtime';
-import { ChatErrorType, type ModuleAppBillingPayer } from '@lobechat/types';
-import { getTextInputUnitRate, getTextOutputUnitRate } from '@lobechat/utils';
-import { type AiProviderModelListItem } from 'model-bank';
+import {
+  aiUsagePricingRuleSchema,
+  ChatErrorType,
+  type ModuleAppBillingPayer,
+} from '@lobechat/types';
+import {
+  getAudioInputUnitRate,
+  getTextInputUnitRate,
+  getTextOutputUnitRate,
+} from '@lobechat/utils';
+import { type AiProviderModelListItem, type Pricing } from 'model-bank';
+import { z } from 'zod';
 
 import { AiProviderModel } from '@/database/models/aiProvider';
-import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
+import {
+  type AiUsageCreditQuote,
+  type AiUsageRouteMetadata,
+  CommercialModel,
+} from '@/database/models/commercial';
 import { ModuleAppCreditModel } from '@/database/models/moduleAppCredit';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { type LobeChatDatabase } from '@/database/type';
@@ -38,9 +54,119 @@ const APPROX_IMAGE_INPUT_TOKENS = 1024;
 const APPROX_VIDEO_INPUT_TOKENS = 2048;
 const DEFAULT_ESTIMATED_OUTPUT_TOKENS = 1024;
 const MIN_ESTIMATED_OUTPUT_TOKENS = 256;
-const MAX_ESTIMATED_OUTPUT_TOKENS = 8192;
+const HARD_MAX_ESTIMATED_OUTPUT_TOKENS = 1_000_000;
 const MAX_RESERVATION_IDEMPOTENCY_KEY_LENGTH = 240;
+const ASR_ESTIMATED_AUDIO_TOKENS_PER_SECOND = 50;
+const ASR_ESTIMATED_MIN_BYTES_PER_SECOND = 1000;
+const ASR_ESTIMATED_OUTPUT_TOKENS = 2000;
+const ASR_MISSING_USAGE_MAX_USD = 0.01;
 const EXTERNAL_SUBSCRIPTION_PROVIDERS = new Set(['supergrok']);
+const MAX_PRICING_SNAPSHOT_RATE = 1_000_000_000_000;
+const MAX_PRICING_SNAPSHOT_UNITS = 100;
+const MAX_PRICING_SNAPSHOT_TIERS = 10_000;
+const MAX_PRICING_SNAPSHOT_LOOKUP_ENTRIES = 10_000;
+
+const pricingSnapshotRateSchema = z.number().finite().nonnegative().max(MAX_PRICING_SNAPSHOT_RATE);
+const pricingUnitNameSchema = z.enum([
+  'textInput',
+  'textOutput',
+  'textInput_cacheRead',
+  'textInput_cacheWrite',
+  'audioInput',
+  'audioOutput',
+  'audioInput_cacheRead',
+  'imageGeneration',
+  'imageInput',
+  'imageInput_cacheRead',
+  'imageOutput',
+  'videoInput',
+  'videoGeneration',
+]);
+const pricingUnitTypeSchema = z.enum([
+  'millionTokens',
+  'millionCharacters',
+  'image',
+  'video',
+  'megapixel',
+  'second',
+]);
+const pricingUnitBaseShape = {
+  name: pricingUnitNameSchema,
+  unit: pricingUnitTypeSchema,
+};
+const pricingLookupRatesSchema = z
+  .record(z.string().min(1).max(240), pricingSnapshotRateSchema)
+  .refine(
+    (rates) => Object.keys(rates).length <= MAX_PRICING_SNAPSHOT_LOOKUP_ENTRIES,
+    'pricing lookup contains too many entries',
+  );
+const pricingSnapshotSchema = z
+  .object({
+    approximatePricePerImage: pricingSnapshotRateSchema.optional(),
+    approximatePricePerVideo: pricingSnapshotRateSchema.optional(),
+    currency: z.enum(['CNY', 'USD']).optional(),
+    units: z
+      .array(
+        z.discriminatedUnion('strategy', [
+          z
+            .object({
+              ...pricingUnitBaseShape,
+              originalRate: pricingSnapshotRateSchema.optional(),
+              rate: pricingSnapshotRateSchema,
+              strategy: z.literal('fixed'),
+            })
+            .strict(),
+          z
+            .object({
+              ...pricingUnitBaseShape,
+              strategy: z.literal('tiered'),
+              tiers: z
+                .array(
+                  z
+                    .object({
+                      originalRate: pricingSnapshotRateSchema.optional(),
+                      rate: pricingSnapshotRateSchema,
+                      upTo: z.union([
+                        z.number().finite().nonnegative().max(Number.MAX_SAFE_INTEGER),
+                        z.literal('infinity'),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .max(MAX_PRICING_SNAPSHOT_TIERS),
+            })
+            .strict(),
+          z
+            .object({
+              ...pricingUnitBaseShape,
+              lookup: z
+                .object({
+                  originalPrices: pricingLookupRatesSchema.optional(),
+                  prices: pricingLookupRatesSchema,
+                  pricingParams: z.array(z.string().min(1).max(240)).max(100),
+                })
+                .strict(),
+              strategy: z.literal('lookup'),
+            })
+            .strict(),
+        ]),
+      )
+      .max(MAX_PRICING_SNAPSHOT_UNITS),
+  })
+  .strict();
+
+const commercialPricingQuoteSchema = z
+  .object({
+    baseEstimatedCredits: z.number().finite().positive().max(Number.MAX_SAFE_INTEGER),
+    creditsPerDollar: z.number().finite().positive().max(MAX_PRICING_SNAPSHOT_RATE),
+    matchedPricingRule: aiUsagePricingRuleSchema.nullable(),
+    modelPricing: pricingSnapshotSchema.optional(),
+    modelPricingSource: z.enum(['database', 'missing', 'model-bank']),
+    pricingMultiplier: z.number().finite().positive().max(1000),
+    quotedAt: z.string().datetime(),
+    version: z.literal(1),
+  })
+  .strict();
 
 const buildCommercialReservationIdempotencyKey = (
   payer: ModuleAppBillingPayer,
@@ -119,29 +245,42 @@ const estimatePayloadInputTokens = (payload: ChatStreamPayload) =>
     payload.messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0),
   );
 
-const estimatePayloadOutputTokens = (payload: ChatStreamPayload) => {
+const estimatePayloadOutputTokens = (
+  payload: ChatStreamPayload,
+  modelCard?: Pick<AiProviderModelListItem, 'contextWindowTokens'>,
+) => {
   const requestedTokens =
     typeof payload.max_tokens === 'number' && payload.max_tokens > 0
       ? payload.max_tokens
       : DEFAULT_ESTIMATED_OUTPUT_TOKENS;
 
+  const modelLimit =
+    typeof modelCard?.contextWindowTokens === 'number' && modelCard.contextWindowTokens > 0
+      ? modelCard.contextWindowTokens
+      : HARD_MAX_ESTIMATED_OUTPUT_TOKENS;
+
   return (
-    Math.max(MIN_ESTIMATED_OUTPUT_TOKENS, Math.min(MAX_ESTIMATED_OUTPUT_TOKENS, requestedTokens)) *
+    Math.max(MIN_ESTIMATED_OUTPUT_TOKENS, Math.min(modelLimit, requestedTokens)) *
     Math.max(1, payload.n ?? 1)
   );
 };
 
 const estimatePayloadCreditsFromPricing = (
   payload: ChatStreamPayload,
-  modelCard?: Pick<AiProviderModelListItem, 'pricing'>,
+  modelCard?: Pick<AiProviderModelListItem, 'contextWindowTokens' | 'pricing'>,
 ) => {
   const inputRate = getTextInputUnitRate(modelCard?.pricing);
   const outputRate = getTextOutputUnitRate(modelCard?.pricing);
 
   if (!inputRate && !outputRate) return undefined;
 
-  const inputCredits = Math.ceil(estimatePayloadInputTokens(payload) * (inputRate ?? 0));
-  const outputCredits = Math.ceil(estimatePayloadOutputTokens(payload) * (outputRate ?? 0));
+  const currencyFactor = modelCard?.pricing?.currency === 'CNY' ? 1 / USD_TO_CNY : 1;
+  const inputCredits = Math.ceil(
+    estimatePayloadInputTokens(payload) * (inputRate ?? 0) * currencyFactor,
+  );
+  const outputCredits = Math.ceil(
+    estimatePayloadOutputTokens(payload, modelCard) * (outputRate ?? 0) * currencyFactor,
+  );
 
   return Math.max(1, inputCredits + outputCredits);
 };
@@ -155,7 +294,7 @@ const getProviderModelCard = async ({
 }: {
   db: LobeChatDatabase;
   model: string;
-  modelType?: 'chat' | 'embedding';
+  modelType?: AiProviderModelListItem['type'];
   provider: string;
   userId: string;
 }) => {
@@ -218,8 +357,114 @@ export const estimateCommercialEmbeddingsCredits = async ({
   const inputRate = getTextInputUnitRate(modelCard?.pricing);
   if (!inputRate) return undefined;
 
-  return Math.max(1, Math.ceil(estimateEmbeddingInputTokens(input) * inputRate));
+  const currencyFactor = modelCard?.pricing?.currency === 'CNY' ? 1 / USD_TO_CNY : 1;
+  return Math.max(1, Math.ceil(estimateEmbeddingInputTokens(input) * inputRate * currencyFactor));
 };
+
+const getAsrEstimatedUsage = (
+  payload: ASRPayload,
+): Required<Pick<ASRUsage, 'durationSeconds' | 'inputAudioTokens' | 'totalOutputTokens'>> => {
+  const durationSeconds = Math.max(
+    1,
+    Math.ceil(payload.file.size / ASR_ESTIMATED_MIN_BYTES_PER_SECOND),
+  );
+
+  return {
+    durationSeconds,
+    inputAudioTokens: durationSeconds * ASR_ESTIMATED_AUDIO_TOKENS_PER_SECOND,
+    totalOutputTokens: ASR_ESTIMATED_OUTPUT_TOKENS,
+  };
+};
+
+const resolveAsrUsdCost = (
+  pricing: AiProviderModelListItem['pricing'],
+  usage: ASRUsage,
+): number | undefined => {
+  if (!pricing) return undefined;
+
+  const audioUnit = pricing.units.find((unit) => unit.name === 'audioInput');
+  const audioRate = getAudioInputUnitRate(pricing) ?? 0;
+  const textInputRate = getTextInputUnitRate(pricing) ?? 0;
+  const textOutputRate = getTextOutputUnitRate(pricing) ?? 0;
+  const audioTokens =
+    usage.inputAudioTokens ??
+    (usage.totalInputTokens !== undefined
+      ? Math.max(0, usage.totalInputTokens - (usage.inputTextTokens ?? 0))
+      : 0);
+  const audioCost =
+    audioUnit?.unit === 'second'
+      ? (usage.durationSeconds ?? 0) * audioRate
+      : (audioTokens * audioRate) / 1_000_000;
+  const textInputCost = ((usage.inputTextTokens ?? 0) * textInputRate) / 1_000_000;
+  const textOutputCost = ((usage.totalOutputTokens ?? 0) * textOutputRate) / 1_000_000;
+  const cost = audioCost + textInputCost + textOutputCost;
+  const usdCost = pricing.currency === 'CNY' ? cost / USD_TO_CNY : cost;
+
+  return Number.isFinite(usdCost) && usdCost > 0 ? usdCost : undefined;
+};
+
+const quoteCommercialAsrUsage = async ({
+  db,
+  model,
+  payload,
+  provider,
+  usage,
+  userId,
+}: {
+  db: LobeChatDatabase;
+  model: string;
+  payload: ASRPayload;
+  provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
+  usage?: ASRUsage;
+  userId: string;
+}) => {
+  const snapshot = await getServerModelPricingSnapshot({
+    db,
+    model,
+    provider,
+    type: 'asr',
+    userId,
+  });
+  const estimatedUsage = getAsrEstimatedUsage(payload);
+  const estimatedUsdCost = resolveAsrUsdCost(snapshot.pricing, estimatedUsage);
+  const audioUnit = snapshot.pricing?.units.find((unit) => unit.name === 'audioInput');
+  const billableProviderUsage =
+    usage && audioUnit?.unit === 'second' && usage.durationSeconds === undefined
+      ? { ...usage, durationSeconds: estimatedUsage.durationSeconds }
+      : usage;
+  const providerUsdCost = billableProviderUsage
+    ? resolveAsrUsdCost(snapshot.pricing, billableProviderUsage)
+    : undefined;
+  const usdCost =
+    providerUsdCost ??
+    (estimatedUsdCost === undefined
+      ? undefined
+      : Math.min(estimatedUsdCost, ASR_MISSING_USAGE_MAX_USD));
+  if (!usdCost) return undefined;
+
+  return { amount: Math.max(1, Math.ceil(usdCost * CREDITS_PER_DOLLAR)), usdCost };
+};
+
+export const estimateCommercialAsrCredits = async (
+  params: Omit<Parameters<typeof quoteCommercialAsrUsage>[0], 'usage'>,
+) => {
+  const snapshot = await getServerModelPricingSnapshot({
+    db: params.db,
+    model: params.model,
+    provider: params.provider,
+    type: 'asr',
+    userId: params.userId,
+  });
+  const usdCost = resolveAsrUsdCost(snapshot.pricing, getAsrEstimatedUsage(params.payload));
+  if (!usdCost) return undefined;
+
+  return Math.max(1, Math.ceil(usdCost * CREDITS_PER_DOLLAR));
+};
+
+export const resolveCommercialAsrCredits = async (
+  params: Parameters<typeof quoteCommercialAsrUsage>[0],
+) => (await quoteCommercialAsrUsage(params))?.amount;
 
 export const shouldChargeCommercialUsage = async ({
   db,
@@ -250,9 +495,39 @@ export type CommercialBillableUsageType = CommercialAiUsageType | 'image' | 'vid
 export interface CommercialUsageReservationHandle {
   estimatedCredits: number;
   operationId: string;
+  pricingQuote?: CommercialPricingQuote;
   reservationId: string;
   usageType: CommercialBillableUsageType;
 }
+
+export interface CommercialPricingQuote {
+  baseEstimatedCredits: number;
+  creditsPerDollar: number;
+  matchedPricingRule: AiUsageCreditQuote['matchedPricingRule'];
+  modelPricing?: Pricing;
+  modelPricingSource: 'database' | 'missing' | 'model-bank';
+  pricingMultiplier: number;
+  quotedAt: string;
+  version: 1;
+}
+
+export const isCommercialPricingQuote = (value: unknown): value is CommercialPricingQuote => {
+  return commercialPricingQuoteSchema.safeParse(value).success;
+};
+
+export const applyCommercialPricingQuoteToCredits = (
+  baseCredits: number,
+  pricingQuote?: CommercialPricingQuote,
+) => {
+  const normalizedBase = Math.max(0, Number.isFinite(baseCredits) ? baseCredits : 0);
+  if (!pricingQuote) return Math.ceil(normalizedBase);
+
+  return Math.ceil(
+    (normalizedBase / CREDITS_PER_DOLLAR) *
+      pricingQuote.creditsPerDollar *
+      pricingQuote.pricingMultiplier,
+  );
+};
 
 export const isCommercialUsageReservationHandle = (
   value: unknown,
@@ -270,6 +545,7 @@ export const isCommercialUsageReservationHandle = (
     Number.isFinite(handle.estimatedCredits) &&
     handle.estimatedCredits > 0 &&
     typeof handle.usageType === 'string' &&
+    (handle.pricingQuote === undefined || isCommercialPricingQuote(handle.pricingQuote)) &&
     (!usageType || handle.usageType === usageType)
   );
 };
@@ -291,6 +567,13 @@ const hasReliablePricing = (
   }
   if (usageType === 'embeddings') {
     return isPositiveFinite(getTextInputUnitRate(pricing));
+  }
+  if (usageType === 'asr') {
+    return (
+      isPositiveFinite(getAudioInputUnitRate(pricing)) ||
+      isPositiveFinite(getTextInputUnitRate(pricing)) ||
+      isPositiveFinite(getTextOutputUnitRate(pricing))
+    );
   }
   if (usageType === 'image') {
     const singlePrice = resolveImageSinglePrice(pricing);
@@ -401,7 +684,7 @@ const FALLBACK_INPUT_RATE_USD_PER_M = 3;
 const FALLBACK_OUTPUT_RATE_USD_PER_M = 15;
 
 export type CostSource = 'fallback-rate' | 'gateway' | 'local-pricing';
-export type CommercialAiUsageType = 'chat' | 'embeddings' | 'generate_object';
+export type CommercialAiUsageType = 'asr' | 'chat' | 'embeddings' | 'generate_object';
 export type CommercialUsagePayload = {
   cost?: number;
   totalInputTokens?: number;
@@ -446,7 +729,8 @@ const resolveEffectiveCost = (
   const outputRate = getTextOutputUnitRate(modelCard?.pricing);
 
   if (inputRate !== undefined || outputRate !== undefined) {
-    const usdCost = (inputTokens * (inputRate ?? 0) + outputTokens * (outputRate ?? 0)) / 1_000_000;
+    const cost = (inputTokens * (inputRate ?? 0) + outputTokens * (outputRate ?? 0)) / 1_000_000;
+    const usdCost = modelCard?.pricing?.currency === 'CNY' ? cost / USD_TO_CNY : cost;
 
     if (usdCost > 0) {
       return { costSource: 'local-pricing', usdCost };
@@ -591,7 +875,7 @@ export const reserveCommercialAiUsage = async ({
   });
   if (!shouldCharge) return null;
 
-  const amount = Math.max(
+  const baseEstimatedCredits = Math.max(
     1,
     Math.ceil(
       typeof estimatedCredits === 'number' && Number.isFinite(estimatedCredits)
@@ -599,6 +883,37 @@ export const reserveCommercialAiUsage = async ({
         : 1,
     ),
   );
+  const [modelPricingSnapshot, creditQuote] = await Promise.all([
+    getServerModelPricingSnapshot({
+      db,
+      model,
+      provider,
+      type:
+        usageType === 'generate_object'
+          ? 'chat'
+          : usageType === 'embeddings'
+            ? 'embedding'
+            : usageType,
+      userId,
+    }),
+    new CommercialModel(db, userId).quoteCreditsForAiUsage({
+      model,
+      provider,
+      routeMetadata,
+      usage: { cost: baseEstimatedCredits / CREDITS_PER_DOLLAR },
+    }),
+  ]);
+  const pricingQuote: CommercialPricingQuote = {
+    baseEstimatedCredits,
+    creditsPerDollar: creditQuote.creditsPerDollar,
+    matchedPricingRule: creditQuote.matchedPricingRule,
+    modelPricing: modelPricingSnapshot.pricing,
+    modelPricingSource: modelPricingSnapshot.source,
+    pricingMultiplier: creditQuote.pricingMultiplier,
+    quotedAt: new Date().toISOString(),
+    version: 1,
+  };
+  const amount = Math.max(1, creditQuote.amount);
   const creditModel = reservationTtlMs
     ? new ModuleAppCreditModel(db, { reservationTtlMs })
     : new ModuleAppCreditModel(db);
@@ -610,6 +925,7 @@ export const reserveCommercialAiUsage = async ({
     metadata: {
       model,
       operationId,
+      pricingQuote,
       provider,
       ...(routeMetadata ? { routeMetadata } : {}),
       usageType,
@@ -622,11 +938,13 @@ export const reserveCommercialAiUsage = async ({
 
 export const settleCommercialAiUsageReservation = async ({
   actualCredits,
+  actualCreditsAreBase = false,
   db,
   estimatedCredits,
   model,
   operationId,
   provider,
+  pricingQuote,
   reservationId,
   routeMetadata,
   title = 'AI Usage',
@@ -635,11 +953,13 @@ export const settleCommercialAiUsageReservation = async ({
   userId,
 }: {
   actualCredits?: number;
+  actualCreditsAreBase?: boolean;
   db: LobeChatDatabase;
   estimatedCredits?: number;
   model: string;
   operationId: string;
   provider: string;
+  pricingQuote?: CommercialPricingQuote;
   reservationId: string;
   routeMetadata?: AiUsageRouteMetadata;
   title?: string;
@@ -655,6 +975,9 @@ export const settleCommercialAiUsageReservation = async ({
         : (estimatedCredits ?? 1),
     ),
   );
+  if (actualCreditsAreBase && actualCredits !== undefined) {
+    actualAmount = applyCommercialPricingQuoteToCredits(actualCredits, pricingQuote);
+  }
   let billingMetadata: Record<string, unknown> = {
     ...(actualCredits === undefined
       ? { costSource: 'estimated-reservation' }
@@ -662,21 +985,33 @@ export const settleCommercialAiUsageReservation = async ({
   };
 
   if (usage && usageType !== 'image' && usageType !== 'video') {
-    const modelCard = await getProviderModelCard({
-      db,
-      model,
-      modelType: usageType === 'embeddings' ? 'embedding' : 'chat',
-      provider,
-      userId,
-    });
+    const modelCard = pricingQuote?.modelPricing
+      ? { pricing: pricingQuote.modelPricing }
+      : await getProviderModelCard({
+          db,
+          model,
+          modelType:
+            usageType === 'embeddings' ? 'embedding' : usageType === 'asr' ? 'asr' : 'chat',
+          provider,
+          userId,
+        });
     const resolved = resolveEffectiveCost(usage, modelCard, usageType);
     if (resolved) {
-      const quote = await new CommercialModel(db, userId).quoteCreditsForAiUsage({
-        model,
-        provider,
-        routeMetadata,
-        usage: { cost: resolved.usdCost },
-      });
+      const quote = pricingQuote
+        ? {
+            amount: Math.ceil(
+              resolved.usdCost * pricingQuote.creditsPerDollar * pricingQuote.pricingMultiplier,
+            ),
+            creditsPerDollar: pricingQuote.creditsPerDollar,
+            matchedPricingRule: pricingQuote.matchedPricingRule,
+            pricingMultiplier: pricingQuote.pricingMultiplier,
+          }
+        : await new CommercialModel(db, userId).quoteCreditsForAiUsage({
+            model,
+            provider,
+            routeMetadata,
+            usage: { cost: resolved.usdCost },
+          });
       actualAmount = Math.max(0, quote.amount);
       billingMetadata = {
         chargedCredits: actualAmount,
@@ -689,7 +1024,8 @@ export const settleCommercialAiUsageReservation = async ({
     }
   }
 
-  return new ModuleAppCreditModel(db).settle({
+  const creditModel = new ModuleAppCreditModel(db);
+  const settlementInput = {
     actualAmount,
     ledger: {
       description: `Consumed on ${provider}/${model}`,
@@ -698,6 +1034,7 @@ export const settleCommercialAiUsageReservation = async ({
     },
     metadata: {
       ...billingMetadata,
+      ...(pricingQuote ? { pricingQuote } : {}),
       estimatedCredits: Math.max(1, Math.ceil(estimatedCredits ?? 1)),
       model,
       operationId,
@@ -709,7 +1046,25 @@ export const settleCommercialAiUsageReservation = async ({
       usageType,
     },
     reservationId,
-  });
+  };
+
+  try {
+    const settled = await creditModel.settle(settlementInput);
+    await creditModel.resolveSettlementFailure(reservationId);
+    return settled;
+  } catch (error) {
+    try {
+      await creditModel.recordSettlementFailure({
+        actualAmount,
+        error,
+        payload: settlementInput,
+        reservationId,
+      });
+    } catch (persistenceError) {
+      console.error('[billing] failed to persist settlement failure', persistenceError);
+    }
+    throw error;
+  }
 };
 
 export const releaseCommercialAiUsageReservation = async ({

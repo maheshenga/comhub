@@ -34,6 +34,7 @@ const serverDB: LobeChatDatabase = await getTestDB();
 
 const createAdapter = (): ModuleAppPaymentAdapter => ({
   createOutTradeNo: ({ orderId }) => `out-${orderId}`,
+  createRefundRequestNo: vi.fn(() => 'refund-1'),
   create: vi.fn(async ({ orderId }: Parameters<ModuleAppPaymentAdapter['create']>[0]) => ({
     checkout: {
       fields: { order_id: orderId },
@@ -48,8 +49,28 @@ const createAdapter = (): ModuleAppPaymentAdapter => ({
   method: 'alipay',
   provider: 'alipay',
   query: vi.fn(),
-  refund: vi.fn(async () => ({ providerRefundId: 'refund-1', status: 'succeeded' as const })),
+  refund: vi.fn(async (input: Parameters<ModuleAppPaymentAdapter['refund']>[0]) => ({
+    providerRefundId: input.refundRequestNo ?? 'refund-1',
+    status: 'succeeded' as const,
+  })),
   verifyNotification: vi.fn(),
+});
+
+const createZPayAdapter = (): ModuleAppPaymentAdapter => ({
+  ...createAdapter(),
+  create: vi.fn(async ({ orderId }: Parameters<ModuleAppPaymentAdapter['create']>[0]) => ({
+    checkout: {
+      fields: { order_id: orderId },
+      method: 'POST' as const,
+      type: 'form' as const,
+      url: 'https://pay.example.com/checkout',
+    },
+    method: 'zpay_alipay' as const,
+    outTradeNo: `out-${orderId}`,
+    provider: 'zpay' as const,
+  })),
+  method: 'zpay_alipay',
+  provider: 'zpay',
 });
 
 beforeEach(async () => {
@@ -450,8 +471,116 @@ describe('ModuleAppPaymentService', () => {
     );
   });
 
+  it('persists an idempotent refund claim before calling the provider', async () => {
+    const adapter = createAdapter();
+    (adapter.refund as ReturnType<typeof vi.fn>).mockImplementation(
+      async (input: Parameters<ModuleAppPaymentAdapter['refund']>[0]) => {
+        const refundRequestNo = input.refundRequestNo;
+        if (!refundRequestNo) throw new Error('refund request number missing');
+        await expect(
+          serverDB.query.moduleAppPaymentRefunds.findFirst({
+            where: (refund, { eq }) => eq(refund.providerRefundId, refundRequestNo),
+          }),
+        ).resolves.toMatchObject({ status: 'requested' });
+        return { providerRefundId: refundRequestNo, status: 'succeeded' as const };
+      },
+    );
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-refund-claim',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-refund-claim',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+    expect(adapter.refund).toHaveBeenCalledOnce();
+  });
+
+  it('finishes a succeeded refund without an adapter after local rollback fails', async () => {
+    const adapter = createAdapter();
+    const realRevenueService = new ModuleAppOrderRevenueService(serverDB);
+    const refundOrder = vi
+      .fn<ModuleAppOrderRevenueService['refundOrder']>()
+      .mockRejectedValueOnce(new Error('LOCAL_REFUND_DOWN'))
+      .mockImplementation(realRevenueService.refundOrder);
+    const revenueService = {
+      refundOrder,
+      settleOrder: realRevenueService.settleOrder,
+    };
+    const service = new ModuleAppPaymentService(serverDB, adapter, undefined, revenueService);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-refund-local-recovery',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-refund-local-recovery',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'original customer request' }),
+    ).rejects.toThrow('LOCAL_REFUND_DOWN');
+    await expect(serverDB.query.moduleAppPaymentRefunds.findFirst()).resolves.toMatchObject({
+      reason: 'original customer request',
+      status: 'succeeded',
+    });
+    await expect(serverDB.query.moduleAppOrders.findFirst()).resolves.toMatchObject({
+      status: 'paid',
+    });
+
+    const recoveryService = new ModuleAppPaymentService(
+      serverDB,
+      undefined,
+      undefined,
+      revenueService,
+    );
+    await expect(
+      recoveryService.refundOrder({ orderId: order.id, reason: 'retry reason is ignored' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+
+    expect(adapter.refund).toHaveBeenCalledOnce();
+    expect(refundOrder).toHaveBeenCalledTimes(2);
+    expect(refundOrder).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reason: 'original customer request' }),
+    );
+    await expect(serverDB.query.moduleAppPaymentRefunds.findFirst()).resolves.toMatchObject({
+      status: 'succeeded',
+    });
+    await expect(serverDB.query.moduleAppPaymentAttempts.findFirst()).resolves.toMatchObject({
+      status: 'refunded',
+    });
+    await expect(serverDB.query.moduleAppOrders.findFirst()).resolves.toMatchObject({
+      status: 'refunded',
+    });
+  });
+
   it('keeps an accepted asynchronous refund pending until reconciliation succeeds', async () => {
     const adapter = createAdapter();
+    (adapter.createRefundRequestNo as ReturnType<typeof vi.fn>).mockReturnValue('refund-pending');
+    adapter.queryRefund = vi.fn().mockResolvedValue({ status: 'succeeded' });
     (adapter.refund as ReturnType<typeof vi.fn>).mockResolvedValue({
       providerRefundId: 'refund-pending',
       status: 'pending',
@@ -488,6 +617,123 @@ describe('ModuleAppPaymentService', () => {
     await expect(serverDB.query.moduleAppPaymentAttempts.findFirst()).resolves.toMatchObject({
       status: 'paid',
     });
+    await expect(
+      service.reconcileRefund({ actorUserId: USER_ID, orderId: order.id }),
+    ).rejects.toThrow('MODULE_APP_PAYMENT_REFUND_RECONCILIATION_TOO_EARLY');
+    expect(adapter.queryRefund).not.toHaveBeenCalled();
+    await serverDB
+      .update(moduleAppPaymentRefunds)
+      .set({ updatedAt: new Date(Date.now() - 61_000) })
+      .where(eq(moduleAppPaymentRefunds.orderId, order.id));
+    await expect(
+      service.reconcileRefund({ actorUserId: USER_ID, orderId: order.id }),
+    ).resolves.toEqual({ status: 'succeeded' });
+    await expect(serverDB.query.moduleAppOrders.findFirst()).resolves.toMatchObject({
+      status: 'refunded',
+    });
+  });
+
+  it('manually confirms a pending ZPay refund and reverses module commerce', async () => {
+    const adapter = createZPayAdapter();
+    (adapter.createRefundRequestNo as ReturnType<typeof vi.fn>).mockReturnValue(
+      'refund-zpay-pending',
+    );
+    (adapter.refund as ReturnType<typeof vi.fn>).mockResolvedValue({
+      providerRefundId: 'refund-zpay-pending',
+      status: 'pending',
+    });
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-zpay-manual-success',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'zpay',
+      providerTransactionId: 'trade-zpay-manual-success',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+    await service.refundOrder({ orderId: order.id, reason: 'customer request' });
+    await expect(
+      new ModuleAppPaymentService(serverDB, undefined).resolvePendingRefund({
+        actorUserId: USER_ID,
+        orderId: order.id,
+        resolution: 'succeeded',
+      }),
+    ).rejects.toThrow('MODULE_APP_PAYMENT_REFUND_RESOLUTION_TOO_EARLY');
+    await serverDB
+      .update(moduleAppPaymentRefunds)
+      .set({ updatedAt: new Date(Date.now() - 61_000) })
+      .where(eq(moduleAppPaymentRefunds.orderId, order.id));
+
+    await expect(
+      new ModuleAppPaymentService(serverDB, undefined).resolvePendingRefund({
+        actorUserId: USER_ID,
+        orderId: order.id,
+        resolution: 'succeeded',
+      }),
+    ).resolves.toMatchObject({ duplicate: false, status: 'refunded' });
+    await expect(serverDB.query.moduleAppPaymentRefunds.findFirst()).resolves.toMatchObject({
+      status: 'succeeded',
+    });
+    await expect(serverDB.query.moduleAppOrders.findFirst()).resolves.toMatchObject({
+      status: 'refunded',
+    });
+  });
+
+  it('allows one module refund retry after ZPay is manually confirmed not refunded', async () => {
+    const adapter = createZPayAdapter();
+    (adapter.createRefundRequestNo as ReturnType<typeof vi.fn>).mockReturnValue(
+      'refund-zpay-retry',
+    );
+    (adapter.refund as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ providerRefundId: 'refund-zpay-retry', status: 'pending' })
+      .mockResolvedValueOnce({ providerRefundId: 'refund-zpay-retry', status: 'succeeded' });
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-zpay-manual-failure',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'zpay',
+      providerTransactionId: 'trade-zpay-manual-failure',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+    await service.refundOrder({ orderId: order.id, reason: 'customer request' });
+    await serverDB
+      .update(moduleAppPaymentRefunds)
+      .set({ updatedAt: new Date(Date.now() - 61_000) })
+      .where(eq(moduleAppPaymentRefunds.orderId, order.id));
+    await expect(
+      new ModuleAppPaymentService(serverDB, undefined).resolvePendingRefund({
+        actorUserId: USER_ID,
+        orderId: order.id,
+        resolution: 'failed',
+      }),
+    ).resolves.toEqual({ duplicate: false, orderId: order.id, status: 'failed' });
+
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'operator verified retry' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+    expect(adapter.refund).toHaveBeenCalledTimes(2);
+    expect(adapter.refund).toHaveBeenLastCalledWith(
+      expect.objectContaining({ refundRequestNo: 'refund-zpay-retry' }),
+    );
   });
 
   it('rejects a pending order before calling the refund provider', async () => {

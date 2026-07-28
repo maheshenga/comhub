@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
+
 import { asrRouter } from '../asr';
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -25,7 +27,10 @@ vi.mock('@/server/services/file', () => ({
 const caller = asrRouter.createCaller({ jwtPayload: { userId: 'u1' }, userId: 'u1' } as any);
 
 beforeEach(() => {
-  transcribeMock.mockResolvedValue({ text: 'hello world' });
+  transcribeMock.mockResolvedValue({
+    text: 'hello world',
+    usage: { durationSeconds: 3, totalTokens: 150 },
+  });
 });
 
 afterEach(() => {
@@ -48,6 +53,15 @@ describe('asrRouter.transcribe', () => {
     expect(payload.file).toBeInstanceOf(File);
     expect(payload.fileName).toBe('clip.mp3');
     expect(await payload.file.text()).toBe('audio-bytes');
+    expect(initModelRuntimeFromDB).toHaveBeenCalledWith(expect.anything(), 'u1', 'openai', {
+      model: 'whisper-1',
+      modelType: 'asr',
+      workspaceId: undefined,
+    });
+    expect(transcribeMock.mock.calls[0][1]).toEqual({
+      metadata: { operationId: expect.stringMatching(/^asr:/) },
+      user: 'u1',
+    });
   });
 
   it('resolves a fileId by downloading the bytes from storage', async () => {

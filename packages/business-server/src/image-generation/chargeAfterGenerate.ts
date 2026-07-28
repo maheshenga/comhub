@@ -1,6 +1,7 @@
 import { type ModelPricingContext } from '@lobechat/model-runtime';
 
 import {
+  applyCommercialPricingQuoteToCredits,
   isCommercialUsageReservationHandle,
   releaseCommercialAiUsageReservation,
   settleCommercialAiUsageReservation,
@@ -74,13 +75,17 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
     modelUsage,
     pricing,
   });
-  const multiplier = await resolveGenerationPricingMultiplier({
-    db,
-    model: metadata.modelId,
-    provider,
-    routeMetadata: metadata.routeMetadata,
-  });
-  const credits = Math.ceil(baseCredits * multiplier);
+  const credits = reservation?.pricingQuote
+    ? applyCommercialPricingQuoteToCredits(baseCredits, reservation.pricingQuote)
+    : Math.ceil(
+        baseCredits *
+          (await resolveGenerationPricingMultiplier({
+            db,
+            model: metadata.modelId,
+            provider,
+            routeMetadata: metadata.routeMetadata,
+          })),
+      );
 
   if (reservation) {
     await settleCommercialAiUsageReservation({
@@ -90,6 +95,7 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
       model: metadata.modelId,
       operationId: reservation.operationId,
       provider,
+      pricingQuote: reservation.pricingQuote,
       reservationId: reservation.reservationId,
       routeMetadata: metadata.routeMetadata,
       title: 'Image Generation',

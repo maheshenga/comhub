@@ -11,6 +11,7 @@ const moduleApps = vi.hoisted(() => ({
   reconcilePendingPayments: vi.fn(),
   refundOrder: vi.fn(),
   refundPaymentOrder: vi.fn(),
+  resolvePaymentRefund: vi.fn(),
   retryPaymentQuery: vi.fn(),
   retryRefundStatus: vi.fn(),
   settleOrder: vi.fn(),
@@ -170,5 +171,65 @@ describe('ModulePaymentsPage', () => {
     expect(reason).toHaveValue('Duplicate payment');
     expect(storageWrite).not.toHaveBeenCalled();
     storageWrite.mockRestore();
+  });
+
+  it('requires evidence before manually resolving a pending ZPay refund', async () => {
+    const orderId = '00000000-0000-4000-8000-000000000001';
+    state.data = {
+      items: [
+        {
+          appId: 'app-1',
+          appName: 'Commerce App',
+          auditEventIds: [],
+          currency: 'CNY',
+          discrepancyIds: [],
+          id: 'attempt-1',
+          licenseIds: ['license-1'],
+          method: 'zpay_alipay',
+          orderId,
+          orderStatus: 'paid',
+          outTradeNo: 'trade-1',
+          paymentEventIds: [],
+          paymentStatus: 'paid',
+          payoutBatchIds: [],
+          provider: 'zpay',
+          refundIds: ['refund-1'],
+          refundStatus: 'requested',
+          revenueEntryIds: ['revenue-1'],
+          totalAmount: '88.00',
+        },
+      ],
+      nextCursor: null,
+    };
+    moduleApps.resolvePaymentRefund.mockResolvedValue({ status: 'refunded' });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/finance/payments']}>
+        <ModulePaymentsPage canWrite />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'moduleApps.admin.payments.actions.resolveRefund' }),
+    );
+    const confirm = screen.getByRole('button', {
+      name: 'moduleApps.admin.payments.manualResolution.confirm',
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.payments.manualResolution.note'), {
+      target: { value: 'merchant portal shows refund completed' },
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.payments.manualResolution.outcome'), {
+      target: { value: 'succeeded' },
+    });
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(moduleApps.resolvePaymentRefund).toHaveBeenCalledWith({
+        note: 'merchant portal shows refund completed',
+        orderId,
+        resolution: 'succeeded',
+      }),
+    );
   });
 });

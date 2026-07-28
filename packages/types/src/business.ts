@@ -3,6 +3,23 @@ import { z } from 'zod';
 import { Plans } from './subscription';
 import { type ReferralStatusString } from './user/preference';
 
+const pricingRuleSelectorSchema = z.string().trim().min(1).max(240);
+
+export const aiUsagePricingRuleSchema = z
+  .object({
+    creditsPerDollar: z.number().finite().positive().max(1_000_000_000_000).optional(),
+    group: pricingRuleSelectorSchema.optional(),
+    instanceId: pricingRuleSelectorSchema.optional(),
+    model: pricingRuleSelectorSchema.optional(),
+    multiplier: z.number().finite().positive().max(1000).optional(),
+    provider: pricingRuleSelectorSchema.optional(),
+    providerType: pricingRuleSelectorSchema.optional(),
+  })
+  .strict();
+
+export const aiUsagePricingRulesSchema = z.array(aiUsagePricingRuleSchema).max(10_000);
+export type AiUsagePricingRule = z.infer<typeof aiUsagePricingRuleSchema>;
+
 export const SubscriptionStatusEnum = {
   Active: 'active',
   Canceled: 'canceled',
@@ -74,6 +91,7 @@ export interface CreditSourceSummary {
 
 export interface CreditConsumeAllocation {
   amount: number;
+  lotId?: string;
   source: CreditSourceType;
 }
 
@@ -187,12 +205,18 @@ export interface TopUpOrderHistoryItem {
   amount: number;
   createdAt: Date;
   credits: number;
+  creditsExpiresAt?: Date | null;
   currency: string;
+  expiresAt?: Date | null;
   externalOrderId?: string | null;
   id: string;
   paidAt?: Date | null;
   provider?: string | null;
   redemptionCodeId?: string | null;
+  refundAmount?: number | null;
+  refundedAt?: Date | null;
+  refundReference?: string | null;
+  refundStatus?: 'failed' | 'pending' | 'succeeded' | null;
   source?: TopUpOrderSourceType | null;
   status: TopUpOrderStatusType;
 }

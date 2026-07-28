@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_IDS, type AdminCompactUser, Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, asc, count, desc, eq, like, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNull, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
@@ -20,7 +20,6 @@ import {
   router,
 } from '@/libs/trpc/lambda';
 
-import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
@@ -285,7 +284,7 @@ export const adminUsersRouter = router({
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { userId } = input;
-      await syncExpiredSubscriptionsToFree(ctx.serverDB);
+      const now = new Date();
       const [user, creditAccount, latestSnapshot, recentLedger, recentOrders, recentAudit] =
         await Promise.all([
           ctx.serverDB.query.users.findFirst({ where: eq(users.id, userId) }),
@@ -293,8 +292,12 @@ export const adminUsersRouter = router({
             where: eq(creditAccounts.userId, userId),
           }),
           ctx.serverDB.query.userPlanSnapshots.findFirst({
-            orderBy: desc(userPlanSnapshots.createdAt),
-            where: eq(userPlanSnapshots.userId, userId),
+            orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+            where: and(
+              eq(userPlanSnapshots.userId, userId),
+              eq(userPlanSnapshots.status, 'active'),
+              or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+            ),
           }),
           ctx.serverDB.query.creditLedgerEntries.findMany({
             limit: 20,
@@ -336,8 +339,7 @@ export const adminUsersRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await syncExpiredSubscriptionsToFree(ctx.serverDB);
-
+      const now = new Date();
       const escapeLike = (s: string) => s.replaceAll(/[%_\\]/g, '\\$&');
       const searchWhere = input.query
         ? or(
@@ -368,7 +370,12 @@ export const adminUsersRouter = router({
           userId: userPlanSnapshots.userId,
         })
         .from(userPlanSnapshots)
-        .where(eq(userPlanSnapshots.status, 'active'))
+        .where(
+          and(
+            eq(userPlanSnapshots.status, 'active'),
+            or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+          ),
+        )
         .as('latest_plan_snapshot');
 
       const joinLatestSnapshot = and(

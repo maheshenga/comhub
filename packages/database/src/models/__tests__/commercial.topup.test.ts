@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getTestDB } from '../../core/getTestDB';
 import {
   creditAccounts,
+  creditDebts,
   creditLedgerEntries,
+  creditLots,
   topUpOrders,
   topUpPackages,
   userPlanSnapshots,
@@ -24,7 +25,7 @@ const seedActiveStarterPlan = async () => {
   await serverDB.insert(userPlanSnapshots).values({
     currency: 'USD',
     cycle: 'monthly',
-    monthlyCredits: 600 * CREDITS_PER_DOLLAR,
+    monthlyCredits: 0,
     monthlyPrice: 19.9,
     plan: Plans.Starter,
     provider: 'manual_preview',
@@ -37,6 +38,8 @@ const seedActiveStarterPlan = async () => {
 
 describe('CommercialModel topUpOrders', () => {
   beforeEach(async () => {
+    await serverDB.delete(creditDebts);
+    await serverDB.delete(creditLots);
     await serverDB.delete(creditLedgerEntries);
     await serverDB.delete(topUpOrders);
     await serverDB.delete(creditAccounts);
@@ -70,6 +73,8 @@ describe('CommercialModel topUpOrders', () => {
   });
 
   afterEach(async () => {
+    await serverDB.delete(creditDebts);
+    await serverDB.delete(creditLots);
     await serverDB.delete(creditLedgerEntries);
     await serverDB.delete(topUpOrders);
     await serverDB.delete(creditAccounts);
@@ -231,6 +236,124 @@ describe('CommercialModel topUpOrders', () => {
       await expect(model.bindOnlineTopUpPayment(input)).resolves.toMatchObject({ claimed: false });
     });
 
+    it('atomically recovers one paid refund claim with its request reference', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await serverDB
+        .update(topUpOrders)
+        .set({ refundReference: null, refundStatus: 'pending', status: 'paid' })
+        .where(eq(topUpOrders.id, order.id));
+
+      const claims = await Promise.all([
+        model.claimOnlineTopUpRefund({
+          orderId: order.id,
+          refundReference: 'topup-refund-recovery-a',
+        }),
+        model.claimOnlineTopUpRefund({
+          orderId: order.id,
+          refundReference: 'topup-refund-recovery-b',
+        }),
+      ]);
+      const wonClaims = claims.filter((claim) => claim.claimed);
+      const persistedReference = wonClaims[0]?.order.refundReference;
+
+      expect(wonClaims).toHaveLength(1);
+      expect(persistedReference).toMatch(/^topup-refund-recovery-[ab]$/);
+      expect(claims.every((claim) => claim.order.refundReference === persistedReference)).toBe(
+        true,
+      );
+      await expect(
+        model.claimOnlineTopUpRefund({
+          orderId: order.id,
+          refundReference: 'topup-refund-conflict',
+        }),
+      ).resolves.toMatchObject({
+        claimed: false,
+        order: { refundReference: persistedReference },
+      });
+    });
+
+    it('does not advance a refund with a different expected request reference', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await serverDB
+        .update(topUpOrders)
+        .set({
+          refundReference: 'topup-refund-canonical',
+          refundStatus: 'pending',
+          status: 'paid',
+        })
+        .where(eq(topUpOrders.id, order.id));
+
+      await expect(
+        model.updateOnlineTopUpRefundStatus({
+          expectedRefundReference: 'topup-refund-stale',
+          expectedStatus: 'pending',
+          orderId: order.id,
+          refundReference: 'topup-refund-replacement',
+          status: 'succeeded',
+        }),
+      ).resolves.toMatchObject({
+        refundReference: 'topup-refund-canonical',
+        refundStatus: 'pending',
+      });
+      await expect(
+        model.updateOnlineTopUpRefundStatus({
+          expectedRefundReference: 'topup-refund-canonical',
+          expectedStatus: 'pending',
+          orderId: order.id,
+          refundReference: 'topup-refund-canonical',
+          status: 'succeeded',
+        }),
+      ).resolves.toMatchObject({
+        refundReference: 'topup-refund-canonical',
+        refundStatus: 'succeeded',
+      });
+    });
+
+    it('atomically recovers one uncredited refund claim with its request reference', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await serverDB
+        .update(topUpOrders)
+        .set({ refundReference: null, refundStatus: 'pending' })
+        .where(eq(topUpOrders.id, order.id));
+
+      const claims = await Promise.all([
+        model.claimUncreditedOnlineTopUpRefund({
+          orderId: order.id,
+          refundReference: 'topup-uncredited-refund-a',
+        }),
+        model.claimUncreditedOnlineTopUpRefund({
+          orderId: order.id,
+          refundReference: 'topup-uncredited-refund-b',
+        }),
+      ]);
+      const wonClaims = claims.filter((claim) => claim.claimed);
+      const persistedReference = wonClaims[0]?.order.refundReference;
+
+      expect(wonClaims).toHaveLength(1);
+      expect(persistedReference).toMatch(/^topup-uncredited-refund-[ab]$/);
+      expect(claims.every((claim) => claim.order.refundReference === persistedReference)).toBe(
+        true,
+      );
+    });
+
     it('keeps the first persisted checkout as the canonical recovery action', async () => {
       const model = new CommercialModel(serverDB, testUserId);
       const { order } = await model.createOnlineTopUpOrder({
@@ -341,6 +464,159 @@ describe('CommercialModel topUpOrders', () => {
           where: (entry, { eq }) => eq(entry.referenceId, order.id),
         }),
       ).resolves.toHaveLength(1);
+    });
+
+    it('expires unused purchased credits when their lot reaches its validity date', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await model.bindOnlineTopUpPayment({
+        externalOrderId: 'wechat-order-expiry',
+        method: 'wechat_pay',
+        orderId: order.id,
+        provider: 'wechat_pay',
+      });
+      await model.settleOnlineTopUpOrder({
+        amount: '19.900000',
+        currency: 'CNY',
+        externalOrderId: 'wechat-order-expiry',
+        method: 'wechat_pay',
+        orderId: order.id,
+        paymentReference: 'wechat-transaction-expiry',
+        provider: 'wechat_pay',
+      });
+      await serverDB
+        .update(creditLots)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(creditLots.referenceId, order.id));
+
+      await model.getCreditAccountSummary();
+
+      await expect(
+        serverDB.query.creditAccounts.findFirst({
+          where: eq(creditAccounts.userId, testUserId),
+        }),
+      ).resolves.toMatchObject({ balance: 0 });
+      await expect(
+        serverDB.query.creditLots.findFirst({ where: eq(creditLots.referenceId, order.id) }),
+      ).resolves.toMatchObject({ expiredAmount: 2_000_000_000, status: 'expired' });
+    });
+
+    it('records debt when a refund reverses already-consumed purchased credits', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await model.bindOnlineTopUpPayment({
+        externalOrderId: 'wechat-order-refund',
+        method: 'wechat_pay',
+        orderId: order.id,
+        provider: 'wechat_pay',
+      });
+      await model.settleOnlineTopUpOrder({
+        amount: '19.900000',
+        currency: 'CNY',
+        externalOrderId: 'wechat-order-refund',
+        method: 'wechat_pay',
+        orderId: order.id,
+        paymentReference: 'wechat-transaction-refund',
+        provider: 'wechat_pay',
+      });
+      await model.postCharge({
+        credits: 500_000_000,
+        model: 'test-model',
+        provider: 'test-provider',
+        source: 'top-up-refund-test',
+        userId: testUserId,
+      });
+
+      await expect(
+        model.refundOnlineTopUpOrder({
+          amount: '19.900000',
+          method: 'wechat_pay',
+          orderId: order.id,
+          provider: 'wechat_pay',
+          refundReference: 'refund-1',
+        }),
+      ).resolves.toMatchObject({ debtAmount: 500_000_000 });
+      await expect(
+        serverDB.query.creditDebts.findFirst({ where: eq(creditDebts.userId, testUserId) }),
+      ).resolves.toMatchObject({ amount: 500_000_000, status: 'open' });
+    });
+
+    it('reconstructs a legacy paid top-up lot before refunding it', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const { order } = await model.createOnlineTopUpOrder({
+        idempotencyKey: crypto.randomUUID(),
+        method: 'wechat_pay',
+        packageId: onlinePackageId,
+        provider: 'wechat_pay',
+      });
+      await model.bindOnlineTopUpPayment({
+        externalOrderId: 'wechat-order-legacy-refund',
+        method: 'wechat_pay',
+        orderId: order.id,
+        provider: 'wechat_pay',
+      });
+      await model.settleOnlineTopUpOrder({
+        amount: '19.900000',
+        currency: 'CNY',
+        externalOrderId: 'wechat-order-legacy-refund',
+        method: 'wechat_pay',
+        orderId: order.id,
+        paymentReference: 'wechat-transaction-legacy-refund',
+        provider: 'wechat_pay',
+      });
+      await serverDB.delete(creditLots).where(eq(creditLots.referenceId, order.id));
+      await serverDB
+        .update(creditAccounts)
+        .set({
+          balance: 1_500_000_000,
+          totalDebited: 500_000_000,
+        })
+        .where(eq(creditAccounts.userId, testUserId));
+      await serverDB.insert(creditLedgerEntries).values({
+        amount: -500_000_000,
+        balanceAfter: 1_500_000_000,
+        metadata: {},
+        referenceId: 'legacy-consume',
+        referenceType: 'ai_usage',
+        title: 'Legacy Usage',
+        type: 'consume',
+        userId: testUserId,
+      });
+
+      await expect(
+        model.refundOnlineTopUpOrder({
+          amount: '19.900000',
+          method: 'wechat_pay',
+          orderId: order.id,
+          provider: 'wechat_pay',
+          refundReference: 'legacy-refund-1',
+        }),
+      ).resolves.toMatchObject({ debtAmount: 500_000_000, removedAmount: 1_500_000_000 });
+      await expect(
+        serverDB.query.creditLots.findFirst({ where: eq(creditLots.referenceId, order.id) }),
+      ).resolves.toMatchObject({
+        consumedAmount: 500_000_000,
+        refundedAmount: 1_500_000_000,
+        status: 'refunded',
+      });
+      await expect(
+        serverDB.query.creditAccounts.findFirst({
+          where: eq(creditAccounts.userId, testUserId),
+        }),
+      ).resolves.toMatchObject({ balance: 0 });
+      await expect(
+        serverDB.query.creditDebts.findFirst({ where: eq(creditDebts.userId, testUserId) }),
+      ).resolves.toMatchObject({ amount: 500_000_000, status: 'open' });
     });
   });
 

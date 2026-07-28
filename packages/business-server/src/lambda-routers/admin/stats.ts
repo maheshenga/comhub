@@ -1,16 +1,18 @@
-import { and, count, eq, gte, sql } from 'drizzle-orm';
+import { and, count, eq, gte, isNull, or, sql } from 'drizzle-orm';
 
 import { redemptionCodes, topUpOrders, userPlanSnapshots, users } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
-import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
-
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
+
+const effectiveActiveSubscription = (now: Date) =>
+  and(
+    eq(userPlanSnapshots.status, 'active'),
+    or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+  );
 
 export const adminStatsRouter = router({
   overview: financeReadProcedure.query(async ({ ctx }) => {
-    await syncExpiredSubscriptionsToFree(ctx.serverDB);
-
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -32,7 +34,7 @@ export const adminStatsRouter = router({
       ctx.serverDB
         .select({ value: count() })
         .from(userPlanSnapshots)
-        .where(eq(userPlanSnapshots.status, 'active')),
+        .where(effectiveActiveSubscription(now)),
       ctx.serverDB
         .select({
           value: sql<number>`COALESCE(SUM(${topUpOrders.amount}), 0)`,
@@ -45,10 +47,7 @@ export const adminStatsRouter = router({
         })
         .from(userPlanSnapshots)
         .where(
-          and(
-            eq(userPlanSnapshots.status, 'active'),
-            gte(userPlanSnapshots.startedAt, thirtyDaysAgo),
-          ),
+          and(effectiveActiveSubscription(now), gte(userPlanSnapshots.startedAt, thirtyDaysAgo)),
         ),
     ]);
 
@@ -86,12 +85,11 @@ export const adminStatsRouter = router({
   }),
 
   subscriptionsByPlan: financeReadProcedure.query(async ({ ctx }) => {
-    await syncExpiredSubscriptionsToFree(ctx.serverDB);
-
+    const now = new Date();
     const rows = await ctx.serverDB
       .select({ count: count(), plan: userPlanSnapshots.plan })
       .from(userPlanSnapshots)
-      .where(eq(userPlanSnapshots.status, 'active'))
+      .where(effectiveActiveSubscription(now))
       .groupBy(userPlanSnapshots.plan);
 
     return rows.map((r: { count: number; plan: string }) => ({
@@ -101,8 +99,6 @@ export const adminStatsRouter = router({
   }),
 
   revenueByMonth: financeReadProcedure.query(async ({ ctx }) => {
-    await syncExpiredSubscriptionsToFree(ctx.serverDB);
-
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
@@ -122,9 +118,7 @@ export const adminStatsRouter = router({
         month: sql<string>`to_char(date_trunc('month', ${userPlanSnapshots.startedAt}), 'YYYY-MM')`,
       })
       .from(userPlanSnapshots)
-      .where(
-        and(eq(userPlanSnapshots.status, 'active'), gte(userPlanSnapshots.startedAt, sixMonthsAgo)),
-      )
+      .where(and(effectiveActiveSubscription(now), gte(userPlanSnapshots.startedAt, sixMonthsAgo)))
       .groupBy(sql`date_trunc('month', ${userPlanSnapshots.startedAt})`)
       .orderBy(sql`date_trunc('month', ${userPlanSnapshots.startedAt})`);
 

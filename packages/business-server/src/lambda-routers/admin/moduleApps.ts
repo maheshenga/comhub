@@ -154,6 +154,10 @@ const SettleOrderInputSchema = OrderIdInputSchema.extend({
 const RefundOrderInputSchema = OrderIdInputSchema.extend({
   reason: z.string().min(1).max(1000),
 });
+const ResolvePendingRefundInputSchema = OrderIdInputSchema.extend({
+  note: z.string().trim().min(1).max(500),
+  resolution: z.enum(['failed', 'succeeded']),
+});
 const OfflineRefundOrderInputSchema = RefundOrderInputSchema.extend({
   offlineRefundReference: z.string().trim().min(1).max(240),
 });
@@ -662,6 +666,37 @@ export const adminModuleAppsRouter = router({
             actorUserId: ctx.userId,
             orderId: input.orderId,
             reason: input.reason,
+          }),
+      });
+    }),
+
+  resolvePaymentRefund: financeWriteProcedure
+    .input(ResolvePendingRefundInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const paymentModel = new ModuleAppPaymentModel(ctx.serverDB);
+      const [attempt, refund] = await Promise.all([
+        paymentModel.getPaymentAttemptByOrderId(input.orderId),
+        paymentModel.getRefundByOrderId(input.orderId),
+      ]);
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status, result) => ({
+          action: 'module_app.payment_refund_manually_resolved',
+          payload: {
+            note: input.note,
+            provider: attempt?.provider ?? null,
+            refundReference: refund?.providerRefundId ?? null,
+            resolution: input.resolution,
+            resultStatus: result?.status ?? null,
+            terminalStatus: status,
+          },
+          resourceId: input.orderId,
+          resourceType: 'moduleAppOrder',
+        }),
+        effect: async () =>
+          new ModuleAppPaymentService(ctx.serverDB, undefined).resolvePendingRefund({
+            actorUserId: ctx.userId,
+            orderId: input.orderId,
+            resolution: input.resolution,
           }),
       });
     }),

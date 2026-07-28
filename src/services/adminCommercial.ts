@@ -593,6 +593,11 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.refundOrder.mutate(input),
     refundPaymentOrder: (input: { orderId: string; reason: string }) =>
       lambdaClient.admin.moduleApps.refundPaymentOrder.mutate(input),
+    resolvePaymentRefund: (input: {
+      note: string;
+      orderId: string;
+      resolution: 'failed' | 'succeeded';
+    }) => lambdaClient.admin.moduleApps.resolvePaymentRefund.mutate(input),
     retryPaymentQuery: (input: { outTradeNo: string; provider?: PaymentProvider }) =>
       lambdaClient.admin.moduleApps.retryPaymentQuery.mutate(input),
     retryRefundStatus: (input: { orderId: string }) =>
@@ -666,6 +671,15 @@ class AdminCommercialService {
   ) => lambdaClient.admin.orders.settle.mutate({ ...params, command });
 
   // Unified payment center
+  listCreditSettlementFailures = async (params?: {
+    cursor?: number;
+    limit?: number;
+    status?: 'pending' | 'resolved';
+  }) => lambdaClient.admin.payments.listCreditSettlementFailures.query(params);
+
+  retryCreditSettlementFailure = async (failureId: string) =>
+    lambdaClient.admin.payments.retryCreditSettlementFailure.mutate({ failureId });
+
   listTopUpPayments = async (params?: {
     cursor?: number;
     limit?: number;
@@ -680,6 +694,39 @@ class AdminCommercialService {
 
   reconcilePendingTopUpPayments = async (limit = 100) =>
     lambdaClient.admin.payments.reconcilePendingTopUpPayments.mutate({ limit });
+
+  refundTopUpPayment = async (input: { orderId: string; reason: string }) =>
+    lambdaClient.admin.payments.refundTopUpPayment.mutate(input);
+
+  resolveTopUpPaymentRefund = async (input: {
+    note: string;
+    orderId: string;
+    resolution: 'failed' | 'succeeded';
+  }) => lambdaClient.admin.payments.resolveTopUpPaymentRefund.mutate(input);
+
+  listSubscriptionPayments = async (params?: {
+    cursor?: number;
+    limit?: number;
+    orderId?: string;
+    provider?: PaymentProvider;
+    status?: 'pending' | 'paid' | 'canceled' | 'expired' | 'failed' | 'refunded';
+    userId?: string;
+  }) => lambdaClient.admin.payments.listSubscriptionPayments.query(params);
+
+  reconcileSubscriptionPayment = async (orderId: string) =>
+    lambdaClient.admin.payments.reconcileSubscriptionPayment.mutate({ orderId });
+
+  reconcilePendingSubscriptionPayments = async (limit = 100) =>
+    lambdaClient.admin.payments.reconcilePendingSubscriptionPayments.mutate({ limit });
+
+  refundSubscriptionPayment = async (input: { orderId: string; reason: string }) =>
+    lambdaClient.admin.payments.refundSubscriptionPayment.mutate(input);
+
+  resolveSubscriptionPaymentRefund = async (input: {
+    note: string;
+    orderId: string;
+    resolution: 'failed' | 'succeeded';
+  }) => lambdaClient.admin.payments.resolveSubscriptionPaymentRefund.mutate(input);
 
   getReferralStats = async () => lambdaClient.admin.referral.getReferralStats.query();
 

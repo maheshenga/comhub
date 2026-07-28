@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+import { describe, expect, it } from 'vitest';
 
-import { resolveAiUsagePricing } from '../commercial';
+import { parseAiUsagePricingRules, resolveAiUsagePricing } from '../commercial';
 
 describe('resolveAiUsagePricing', () => {
   const rules = [
@@ -122,5 +122,19 @@ describe('resolveAiUsagePricing', () => {
       expect.objectContaining({ instanceId: 'instance-vip', multiplier: 2.5 }),
     );
     expect(result.multiplier).toBe(2.5);
+  });
+});
+
+describe('parseAiUsagePricingRules', () => {
+  it('rejects malformed pricing configuration instead of silently disabling all rules', () => {
+    expect(() => parseAiUsagePricingRules({ model: 'gpt-test' })).toThrow();
+    expect(() => parseAiUsagePricingRules([{ model: 'gpt-test', multiplier: -1 }])).toThrow();
+    expect(() =>
+      parseAiUsagePricingRules([{ model: 'gpt-test', multiplier: 1, typo: true }]),
+    ).toThrow();
+  });
+
+  it('accepts an absent setting as an intentionally empty rule set', () => {
+    expect(parseAiUsagePricingRules(undefined)).toEqual([]);
   });
 });

@@ -65,6 +65,10 @@ export const createPaymentAdapter = (
           config.wechat.platformCertificate,
           'PAYMENT_WECHAT_PLATFORM_CERTIFICATE_REQUIRED',
         ),
+        platformCertificateSerialNo: required(
+          config.wechat.platformCertificateSerialNo,
+          'PAYMENT_WECHAT_PLATFORM_CERTIFICATE_SERIAL_NO_REQUIRED',
+        ),
       });
     }
     case 'zpay_alipay':

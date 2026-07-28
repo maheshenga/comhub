@@ -1,3 +1,4 @@
+import { Plans } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -6,22 +7,30 @@ import { paymentRouter } from './payment';
 
 const {
   bindOnlineTopUpPayment,
+  bindSubscriptionPayment,
   createOnlineTopUpOrder,
+  createSubscriptionPaymentOrder,
   createOperationalPaymentConfig,
   createPaymentAdapter,
   getServerPaymentConfig,
   reconcilePayment,
+  reconcileSubscriptionPayment,
   resolvePaymentMethod,
   storeOnlineTopUpCheckout,
+  storeSubscriptionPaymentCheckout,
 } = vi.hoisted(() => ({
   bindOnlineTopUpPayment: vi.fn(),
+  bindSubscriptionPayment: vi.fn(),
   createOnlineTopUpOrder: vi.fn(),
+  createSubscriptionPaymentOrder: vi.fn(),
   createOperationalPaymentConfig: vi.fn(),
   createPaymentAdapter: vi.fn(),
   getServerPaymentConfig: vi.fn(),
   reconcilePayment: vi.fn(),
+  reconcileSubscriptionPayment: vi.fn(),
   resolvePaymentMethod: vi.fn(),
   storeOnlineTopUpCheckout: vi.fn(),
+  storeSubscriptionPaymentCheckout: vi.fn(),
 }));
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -31,8 +40,11 @@ vi.mock('@/database/core/db-adaptor', () => ({
 vi.mock('@/database/models/commercial', () => ({
   CommercialModel: class {
     bindOnlineTopUpPayment = bindOnlineTopUpPayment;
+    bindSubscriptionPayment = bindSubscriptionPayment;
     createOnlineTopUpOrder = createOnlineTopUpOrder;
+    createSubscriptionPaymentOrder = createSubscriptionPaymentOrder;
     storeOnlineTopUpCheckout = storeOnlineTopUpCheckout;
+    storeSubscriptionPaymentCheckout = storeSubscriptionPaymentCheckout;
   },
 }));
 
@@ -46,6 +58,20 @@ vi.mock('@/server/services/payments/config', () => ({
 }));
 
 vi.mock('@/server/services/payments/factory', () => ({ createPaymentAdapter }));
+
+vi.mock('@/server/services/payments/subscriptionPayment', () => ({
+  SubscriptionPaymentService: class {
+    constructor(
+      _db: unknown,
+      private readonly resolveAdapter: (provider: string, method: string) => unknown,
+    ) {}
+
+    reconcilePayment = async (input: unknown) => {
+      await this.resolveAdapter('wechat_pay', 'wechat_pay');
+      return reconcileSubscriptionPayment(input);
+    };
+  },
+}));
 
 vi.mock('@/server/services/payments/topUpPayment', () => ({
   TopUpPaymentService: class {
@@ -72,11 +98,13 @@ describe('paymentRouter', () => {
     getServerPaymentConfig.mockResolvedValue({
       enabled: true,
       publicBaseUrl: 'https://app.example.com',
+      subscriptionEnabled: true,
       topUpEnabled: true,
     });
     createOperationalPaymentConfig.mockImplementation((config) => ({
       ...config,
       enabled: true,
+      subscriptionEnabled: true,
       topUpEnabled: true,
       wechat: { enabled: true },
     }));
@@ -102,6 +130,32 @@ describe('paymentRouter', () => {
       },
     });
     storeOnlineTopUpCheckout.mockResolvedValue({ checkout });
+    createSubscriptionPaymentOrder.mockResolvedValue({
+      created: true,
+      order: {
+        amount: 68,
+        checkout: null,
+        currency: 'CNY',
+        cycle: 'monthly',
+        expiresAt: new Date('2026-07-28T00:30:00.000Z'),
+        externalOrderId: null,
+        id: orderId,
+        method: 'wechat_pay',
+        provider: 'wechat_pay',
+        snapshot: { displayName: 'Starter' },
+      },
+    });
+    bindSubscriptionPayment.mockResolvedValue({
+      claimed: true,
+      order: {
+        checkout: null,
+        externalOrderId: 'subscription-trade-no',
+        id: orderId,
+        method: 'wechat_pay',
+        provider: 'wechat_pay',
+      },
+    });
+    storeSubscriptionPaymentCheckout.mockResolvedValue({ checkout });
     createPaymentAdapter.mockReturnValue({
       create: vi.fn().mockResolvedValue({
         checkout,
@@ -235,5 +289,65 @@ describe('paymentRouter', () => {
       'wechat_pay',
     );
     expect(reconcilePayment).toHaveBeenCalledWith({ idempotencyKey, userId: 'user-1' });
+  });
+
+  it('creates and persists a subscription checkout', async () => {
+    createPaymentAdapter.mockReturnValue({
+      create: vi.fn().mockResolvedValue({
+        checkout,
+        method: 'wechat_pay',
+        outTradeNo: 'subscription-trade-no',
+        provider: 'wechat_pay',
+      }),
+      createOutTradeNo: vi.fn(() => 'subscription-trade-no'),
+      method: 'wechat_pay',
+      provider: 'wechat_pay',
+    });
+    const caller = paymentRouter.createCaller({ userId: 'user-1' } as any);
+
+    await expect(
+      caller.createSubscriptionPaymentOrder({
+        cycle: 'monthly',
+        idempotencyKey,
+        method: 'wechat_pay',
+        plan: Plans.Starter,
+      }),
+    ).resolves.toEqual({
+      checkout,
+      method: 'wechat_pay',
+      orderId,
+      outTradeNo: 'subscription-trade-no',
+      provider: 'wechat_pay',
+    });
+    expect(createSubscriptionPaymentOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ cycle: 'monthly', plan: Plans.Starter }),
+    );
+    expect(storeSubscriptionPaymentCheckout).toHaveBeenCalledWith({ checkout, orderId });
+  });
+
+  it('recovers a subscription order with operational provider access', async () => {
+    getServerPaymentConfig.mockResolvedValue({
+      enabled: false,
+      publicBaseUrl: 'https://app.example.com',
+      subscriptionEnabled: false,
+      topUpEnabled: false,
+      wechat: { enabled: false },
+    });
+    reconcileSubscriptionPayment.mockResolvedValue({
+      checkout: null,
+      orderId,
+      providerStatus: 'pending',
+      recoveryRequired: true,
+      status: 'pending',
+    });
+    const caller = paymentRouter.createCaller({ userId: 'user-1' } as any);
+
+    await expect(caller.recoverSubscriptionPaymentOrder({ idempotencyKey })).resolves.toMatchObject(
+      { orderId, recoveryRequired: true },
+    );
+    expect(reconcileSubscriptionPayment).toHaveBeenCalledWith({
+      idempotencyKey,
+      userId: 'user-1',
+    });
   });
 });

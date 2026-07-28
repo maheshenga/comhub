@@ -24,6 +24,7 @@ export const createPaymentWebhookHandler =
       headers: Record<string, string>;
       provider: PaymentProvider;
     }) => Promise<unknown>;
+    onError?: (error: unknown, context: { method: string; provider: PaymentProvider }) => void;
   }) =>
   async (request: Request, context: { params: Promise<{ provider: string }> }) => {
     const parsedProvider = paymentProviderSchema.safeParse((await context.params).provider);
@@ -50,7 +51,8 @@ export const createPaymentWebhookHandler =
         provider,
       });
       return provider === 'wechat_pay' ? wechatResponse(true) : plainText('success');
-    } catch {
+    } catch (error) {
+      dependencies.onError?.(error, { method: request.method, provider });
       return provider === 'wechat_pay' ? wechatResponse(false) : plainText('failure');
     }
   };
@@ -59,6 +61,9 @@ const handler = createPaymentWebhookHandler({
   handle: async (input) => {
     const db = await getServerDB();
     return handlePaymentWebhook({ ...input, db });
+  },
+  onError: (error, context) => {
+    console.error('[payment-webhook] processing failed', context, error);
   },
 });
 

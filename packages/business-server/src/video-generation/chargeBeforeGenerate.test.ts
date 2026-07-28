@@ -27,7 +27,10 @@ vi.mock('@/server/services/appSettings', () => ({
 describe('video chargeBeforeGenerate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.reserveCommercialAiUsage.mockResolvedValue({ id: 'reservation-1' });
+    mocks.reserveCommercialAiUsage.mockResolvedValue({
+      amount: 577_500,
+      id: 'reservation-1',
+    });
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
       key === 'pricing.creditMultiplier'
         ? 1.65
@@ -54,7 +57,7 @@ describe('video chargeBeforeGenerate', () => {
     );
     expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        estimatedCredits: 577_500,
+        estimatedCredits: 250_000,
         operationId: expect.stringMatching(/^video:/),
         reservationTtlMs: 2 * 60 * 60 * 1000,
         usageType: 'video',
@@ -66,6 +69,10 @@ describe('video chargeBeforeGenerate', () => {
   });
 
   it('checks video budget with NewAPI route metadata pricing', async () => {
+    mocks.reserveCommercialAiUsage.mockResolvedValue({
+      amount: 750_000,
+      id: 'reservation-1',
+    });
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
       key === 'pricing.creditMultiplier'
         ? 1
@@ -88,7 +95,7 @@ describe('video chargeBeforeGenerate', () => {
 
     expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        estimatedCredits: 750_000,
+        estimatedCredits: 250_000,
         routeMetadata: {
           groupKey: 'pro',
           groupMultiplier: 1.5,

@@ -798,6 +798,11 @@ export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
     APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
     ['PAYMENT_WECHAT_MERCHANT_SERIAL_NO'],
   );
+  const wechatPlatformCertificateSerialNo = paymentText(
+    snapshot,
+    APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
+    ['PAYMENT_WECHAT_PLATFORM_CERTIFICATE_SERIAL_NO'],
+  );
   const wechatConfigured = Boolean(
     wechatAppId &&
     wechatMchId &&
@@ -805,7 +810,8 @@ export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
     wechatMerchantPrivateKey &&
     wechatApiV3Key &&
     Buffer.byteLength(wechatApiV3Key, 'utf8') === 32 &&
-    wechatPlatformCertificate,
+    wechatPlatformCertificate &&
+    wechatPlatformCertificateSerialNo,
   );
   const zpayMerchantId = paymentText(snapshot, APP_SETTING_KEYS.paymentZpayMerchantId, [
     'PAYMENT_ZPAY_MERCHANT_ID',
@@ -916,6 +922,12 @@ export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
         false,
       ),
       publicBaseUrl,
+      subscriptionEnabled: paymentBoolean(
+        snapshot,
+        APP_SETTING_KEYS.paymentSubscriptionEnabled,
+        ['PAYMENT_SUBSCRIPTION_ENABLED'],
+        false,
+      ),
       topUpEnabled: paymentBoolean(
         snapshot,
         APP_SETTING_KEYS.paymentTopUpEnabled,
@@ -940,6 +952,7 @@ export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
         merchantSerialNo: wechatMerchantSerialNo,
         platformCertificateConfigured: Boolean(wechatPlatformCertificate),
         platformCertificateMasked: maskAppSettingSecret(wechatPlatformCertificate),
+        platformCertificateSerialNo: wechatPlatformCertificateSerialNo,
       },
       zpay: {
         alipayEnabled: zpayAlipayEnabled,

@@ -8,6 +8,8 @@ const service = vi.hoisted(() => ({
   listTopUpPayments: vi.fn(),
   reconcilePendingTopUpPayments: vi.fn(),
   reconcileTopUpPayment: vi.fn(),
+  refundTopUpPayment: vi.fn(),
+  resolveTopUpPaymentRefund: vi.fn(),
 }));
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
@@ -56,6 +58,19 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     </button>
   ),
   Input: (props: any) => <input {...props} />,
+  Modal: ({ children, okButtonProps, okText, onCancel, onOk, open, title }: any) =>
+    open ? (
+      <div role="dialog">
+        <h2>{title}</h2>
+        {children}
+        <button type="button" onClick={onCancel}>
+          cancel
+        </button>
+        <button type="button" {...okButtonProps} onClick={onOk}>
+          {okText}
+        </button>
+      </div>
+    ) : null,
   Select: ({ options, onChange, ...props }: any) => (
     <select {...props} onChange={(event) => onChange?.(event.target.value)}>
       {options?.map((option: any) => (
@@ -65,6 +80,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       ))}
     </select>
   ),
+  TextArea: (props: any) => <textarea {...props} />,
   toast,
 }));
 vi.mock('antd', () => ({
@@ -146,6 +162,8 @@ describe('TopUpPaymentsPage', () => {
           paidAt: null,
           paymentReference: null,
           provider: 'alipay',
+          refundReference: null,
+          refundStatus: null,
           status: 'pending',
           updatedAt: new Date().toISOString(),
           userEmail: 'user@example.com',
@@ -167,6 +185,46 @@ describe('TopUpPaymentsPage', () => {
 
     await waitFor(() => expect(service.reconcileTopUpPayment).toHaveBeenCalledWith(orderId));
     expect(mocks.mutate).toHaveBeenCalledOnce();
+  });
+
+  it('allows reconciliation when a canceled payment still has an unresolved refund', async () => {
+    const orderId = '00000000-0000-4000-8000-000000000001';
+    state.data = {
+      items: [
+        {
+          amount: '19.90',
+          createdAt: new Date().toISOString(),
+          credits: '199000000',
+          currency: 'CNY',
+          externalOrderId: 'trade-1',
+          id: orderId,
+          idempotencyKey: '00000000-0000-4000-8000-000000000002',
+          method: 'alipay',
+          packageId: 'starter',
+          paidAt: new Date().toISOString(),
+          paymentReference: 'trade-1',
+          provider: 'alipay',
+          refundReference: 'refund-1',
+          refundStatus: 'pending',
+          status: 'canceled',
+          updatedAt: new Date().toISOString(),
+          userEmail: 'user@example.com',
+          userId: 'user-1',
+          userName: null,
+        },
+      ],
+      nextCursor: null,
+    };
+    service.reconcileTopUpPayment.mockResolvedValue({ orderId, status: 'refunded' });
+
+    render(
+      <MemoryRouter initialEntries={['/admin/payments?tab=topups']}>
+        <TopUpPaymentsPage canWrite />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'admin.payments.topups.reconcile' }));
+
+    await waitFor(() => expect(service.reconcileTopUpPayment).toHaveBeenCalledWith(orderId));
   });
 
   it('warns when a pending reconciliation batch has partial failures', async () => {
@@ -193,5 +251,115 @@ describe('TopUpPaymentsPage', () => {
     );
     expect(toast.success).not.toHaveBeenCalled();
     expect(mocks.mutate).toHaveBeenCalledOnce();
+  });
+
+  it('requires a reason and submits a paid top-up refund', async () => {
+    const orderId = '00000000-0000-4000-8000-000000000001';
+    state.data = {
+      items: [
+        {
+          amount: '19.90',
+          createdAt: new Date().toISOString(),
+          credits: '199000000',
+          currency: 'CNY',
+          externalOrderId: 'trade-1',
+          id: orderId,
+          idempotencyKey: '00000000-0000-4000-8000-000000000002',
+          method: 'alipay',
+          packageId: 'starter',
+          paidAt: new Date().toISOString(),
+          paymentReference: 'trade-1',
+          provider: 'alipay',
+          refundReference: null,
+          refundStatus: null,
+          status: 'paid',
+          updatedAt: new Date().toISOString(),
+          userEmail: 'user@example.com',
+          userId: 'user-1',
+          userName: null,
+        },
+      ],
+      nextCursor: null,
+    };
+    service.refundTopUpPayment.mockResolvedValue({ debtAmount: 0, status: 'refunded' });
+    render(
+      <MemoryRouter initialEntries={['/admin/payments?tab=topups']}>
+        <TopUpPaymentsPage canWrite />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.payments.topups.refund' }));
+    fireEvent.change(screen.getByLabelText('admin.payments.topups.refundReason'), {
+      target: { value: 'duplicate charge' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'admin.payments.topups.confirmRefund' }));
+
+    await waitFor(() =>
+      expect(service.refundTopUpPayment).toHaveBeenCalledWith({
+        orderId,
+        reason: 'duplicate charge',
+      }),
+    );
+    expect(mocks.mutate).toHaveBeenCalledOnce();
+  });
+
+  it('requires a verification note before resolving a pending ZPay refund', async () => {
+    const orderId = '00000000-0000-4000-8000-000000000001';
+    state.data = {
+      items: [
+        {
+          amount: '19.900000',
+          createdAt: '2026-07-29T00:00:00.000Z',
+          credits: '1000',
+          currency: 'CNY',
+          externalOrderId: 'zpay-order-1',
+          id: orderId,
+          idempotencyKey: '00000000-0000-4000-8000-000000000002',
+          method: 'zpay_alipay',
+          packageId: 'starter',
+          paidAt: '2026-07-29T00:00:00.000Z',
+          paymentReference: 'zpay-trade-1',
+          provider: 'zpay',
+          refundReference: 'zr-request-1',
+          refundStatus: 'pending',
+          status: 'paid',
+          updatedAt: '2026-07-29T00:00:00.000Z',
+          userEmail: 'user@example.com',
+          userId: 'user-1',
+          userName: null,
+        },
+      ],
+      nextCursor: null,
+    };
+    service.resolveTopUpPaymentRefund.mockResolvedValue({ status: 'failed' });
+
+    render(
+      <MemoryRouter initialEntries={['/admin/payments?tab=topups']}>
+        <TopUpPaymentsPage canWrite />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'admin.payments.topups.manualResolution.action' }),
+    );
+    const confirm = screen.getByRole('button', {
+      name: 'admin.payments.topups.manualResolution.confirm',
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('admin.payments.topups.manualResolution.note'), {
+      target: { value: '  no refund record in merchant portal  ' },
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('admin.payments.topups.manualResolution.outcome'), {
+      target: { value: 'failed' },
+    });
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(service.resolveTopUpPaymentRefund).toHaveBeenCalledWith({
+        note: 'no refund record in merchant portal',
+        orderId,
+        resolution: 'failed',
+      }),
+    );
   });
 });

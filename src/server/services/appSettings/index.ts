@@ -535,7 +535,7 @@ export const getServerDefaultModelSuggestions = async ({
 };
 
 export type ServerModelPolicyUsageType =
-  'chat' | 'embeddings' | 'generate_object' | 'image' | 'video';
+  'asr' | 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video';
 
 export type ServerModelPolicyConfig = {
   allowlist: string[];

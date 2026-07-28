@@ -1256,11 +1256,26 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
           { headers: options?.headers, signal: options?.signal },
         );
 
-        const text =
-          typeof transcription === 'string' ? transcription : ((transcription as any).text ?? '');
+        const response = typeof transcription === 'string' ? undefined : (transcription as any);
+        const text = typeof transcription === 'string' ? transcription : (response?.text ?? '');
+        const providerUsage = response?.usage;
+        const usage =
+          providerUsage?.type === 'duration'
+            ? { durationSeconds: providerUsage.seconds }
+            : providerUsage?.type === 'tokens'
+              ? {
+                  inputAudioTokens: providerUsage.input_token_details?.audio_tokens,
+                  inputTextTokens: providerUsage.input_token_details?.text_tokens,
+                  totalInputTokens: providerUsage.input_tokens,
+                  totalOutputTokens: providerUsage.output_tokens,
+                  totalTokens: providerUsage.total_tokens,
+                }
+              : Number.isFinite(response?.duration)
+                ? { durationSeconds: response.duration }
+                : undefined;
         log('transcription completed, text length: %d', text.length);
 
-        return { text };
+        return { text, ...(usage ? { usage } : {}) };
       } catch (error) {
         throw this.handleError(error);
       }

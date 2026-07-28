@@ -541,7 +541,8 @@ export const buildPricingRulesFromRows = (rows: MatrixRow[]): MatrixPricingRule[
   rows.flatMap((row) => {
     const hasMultiplier =
       Number.isFinite(row.pricingMultiplier) && Number(row.pricingMultiplier) > 0;
-    const hasCreditsPerDollar = Number.isFinite(row.creditsPerDollar);
+    const hasCreditsPerDollar =
+      Number.isFinite(row.creditsPerDollar) && Number(row.creditsPerDollar) > 0;
     if (!hasMultiplier && !hasCreditsPerDollar) return [];
 
     return [

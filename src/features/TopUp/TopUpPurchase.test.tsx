@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +12,7 @@ const paymentIntent = vi.hoisted(() => ({
   create: vi.fn(),
   read: vi.fn(),
 }));
+const swrState = vi.hoisted(() => ({ paymentStatus: 'pending' }));
 const translate = (key: string) => key;
 
 vi.mock('@/business/client/commercialRefresh', () => ({
@@ -57,7 +58,13 @@ vi.mock('swr', () => ({
       };
     }
     if (name === 'payment.getPaymentStatus') {
-      return { data: { status: 'pending' }, isLoading: false };
+      return {
+        data: {
+          orderId: '00000000-0000-4000-8000-000000000002',
+          status: swrState.paymentStatus,
+        },
+        isLoading: false,
+      };
     }
     return { data: undefined, isLoading: false };
   },
@@ -68,8 +75,16 @@ vi.mock('@lobehub/ui', () => ({
   Icon: () => null,
 }));
 vi.mock('@lobehub/ui/base-ui', () => ({
-  Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
+  Button: ({
+    children,
+    disabled,
+    onClick,
+  }: {
+    children?: ReactNode;
+    disabled?: boolean;
+    onClick?: () => void;
+  }) => (
+    <button disabled={disabled} type="button" onClick={onClick}>
       {children}
     </button>
   ),
@@ -93,6 +108,7 @@ vi.mock('antd', () => ({
 describe('TopUpPurchase', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    swrState.paymentStatus = 'pending';
     paymentIntent.read.mockReturnValue({
       idempotencyKey: '00000000-0000-4000-8000-000000000001',
       method: 'alipay',
@@ -112,7 +128,7 @@ describe('TopUpPurchase', () => {
     });
   });
 
-  it('automatically reconciles a restored intent without resubmitting its checkout form', async () => {
+  it('uses the recoveryRequired contract when reconciling a restored intent', async () => {
     render(<TopUpPurchase />);
 
     await waitFor(() =>
@@ -121,8 +137,42 @@ describe('TopUpPurchase', () => {
       ),
     );
     expect(checkout.submit).not.toHaveBeenCalled();
-    expect(
-      await screen.findByRole('button', { name: 'topup.online.queryStatus' }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'topup.online.queryStatus' })).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent('topup.online.pending');
+  });
+
+  it('clears an expired intent and allows a new payment order', async () => {
+    swrState.paymentStatus = 'expired';
+    paymentIntent.create.mockReturnValue({
+      idempotencyKey: '00000000-0000-4000-8000-000000000003',
+      method: 'alipay',
+      packageId: 'starter',
+    });
+    vi.mocked(commercialService.createPaymentOrder).mockResolvedValue({
+      checkout: { type: 'qrcode', url: 'https://pay.example.com/qr/new' },
+      method: 'alipay',
+      orderId: '00000000-0000-4000-8000-000000000004',
+      outTradeNo: 'top-up-out-trade-no-new',
+      provider: 'alipay',
+    });
+    checkout.submit.mockReturnValue({
+      type: 'qrcode',
+      url: 'https://pay.example.com/qr/new',
+    });
+
+    render(<TopUpPurchase />);
+
+    await waitFor(() =>
+      expect(paymentIntent.clear).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'topup.online.pay' }));
+
+    await waitFor(() =>
+      expect(commercialService.createPaymentOrder).toHaveBeenCalledWith({
+        idempotencyKey: '00000000-0000-4000-8000-000000000003',
+        method: 'alipay',
+        packageId: 'starter',
+      }),
+    );
   });
 });

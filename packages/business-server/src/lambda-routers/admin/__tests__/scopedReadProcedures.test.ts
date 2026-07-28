@@ -15,7 +15,11 @@ describe('scoped admin read procedures', () => {
         'listAccounts: financeReadProcedure',
       ],
       orders: ['getDetail: financeReadProcedure', 'list: financeReadProcedure'],
-      payments: ['listTopUpPayments: financeReadProcedure'],
+      payments: [
+        'listCreditSettlementFailures: financeReadProcedure',
+        'listSubscriptionPayments: financeReadProcedure',
+        'listTopUpPayments: financeReadProcedure',
+      ],
       plans: ['getDeleteImpact: financeReadProcedure', 'list: financeReadProcedure'],
       subscriptions: [
         'getUserSubscription: financeReadProcedure',
@@ -139,7 +143,7 @@ describe('scoped admin read procedures', () => {
     }
   });
 
-  it('keeps synchronization-backed user queries write-bound', () => {
+  it('keeps sensitive user queries scoped without write side effects', () => {
     const users = readRouter('users');
 
     expect(users).toContain(
@@ -147,12 +151,9 @@ describe('scoped admin read procedures', () => {
     );
     expect(users).toContain('fullDetail: supportWriteProcedure');
     expect(users).toContain('list: supportWriteProcedure');
-    expect(users).toMatch(
-      /fullDetail: supportWriteProcedure .*? await syncExpiredSubscriptionsToFree\(ctx\.serverDB\)/,
-    );
-    expect(users).toMatch(
-      /list: supportWriteProcedure .*? await syncExpiredSubscriptionsToFree\(ctx\.serverDB\)/,
-    );
+    expect(users).not.toContain('syncExpiredSubscriptionsToFree');
+    expect(users).toContain("eq(userPlanSnapshots.status, 'active')");
+    expect(users).toContain('isNull(userPlanSnapshots.endsAt)');
   });
 
   it('isolates Module App reads and edits from content administration', () => {

@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { reserveCommercialAiUsage } from '@/business/server/commercialBilling';
-import {
-  estimateVideoCharge,
-  resolveGenerationPricingMultiplier,
-} from '@/business/server/generationBilling';
+import { estimateVideoCharge } from '@/business/server/generationBilling';
 import { getServerModelPricing } from '@/business/server/serverModelPricing';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import type { NewGeneration, NewGenerationBatch } from '@/database/schemas';
@@ -61,18 +58,10 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
 
   const pricing = await getServerModelPricing({ db, model, provider, type: 'video', userId });
   const { estimatedCredits, totalCost } = estimateVideoCharge(pricing, generationParams);
-  const multiplier = await resolveGenerationPricingMultiplier({
-    db,
-    model,
-    provider,
-    routeMetadata,
-  });
-  const adjustedCredits = Math.ceil(estimatedCredits * multiplier);
-
   const operationId = `video:${randomUUID()}`;
   const reservation = await reserveCommercialAiUsage({
     db: db!,
-    estimatedCredits: adjustedCredits,
+    estimatedCredits,
     model,
     operationId,
     provider,
@@ -86,9 +75,12 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
 
   return {
     prechargeResult: {
-      costDetail: { totalCost, totalCredits: adjustedCredits },
-      estimatedCredits: adjustedCredits,
+      costDetail: { totalCost, totalCredits: reservation.amount },
+      estimatedCredits: reservation.amount,
       operationId,
+      ...((reservation.metadata as Record<string, unknown> | undefined)?.pricingQuote
+        ? { pricingQuote: (reservation.metadata as any).pricingQuote }
+        : {}),
       reservationId: reservation.id,
       usageType: 'video',
     },

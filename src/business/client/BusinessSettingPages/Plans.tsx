@@ -1,21 +1,10 @@
 'use client';
 
-import { Plans as SubscriptionPlan } from '@lobechat/types';
-import { Flexbox, Icon, Segmented } from '@lobehub/ui';
-import {
-  Alert,
-  Button,
-  Collapse,
-  Empty,
-  Input,
-  message,
-  Modal,
-  Skeleton,
-  Table,
-  Tag,
-  Tooltip,
-} from 'antd';
-import { createStyles, cssVar } from 'antd-style';
+import { Plans as SubscriptionPlan, type SubscriptionCycleType } from '@lobechat/types';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { Button, Modal, Segmented } from '@lobehub/ui/base-ui';
+import { Alert, Collapse, Empty, Input, message, Skeleton, Table, Tag, Tooltip } from 'antd';
+import { createStaticStyles, cx } from 'antd-style';
 import {
   BookOpen,
   Check,
@@ -27,13 +16,18 @@ import {
   Sparkles,
   Ticket,
 } from 'lucide-react';
-import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { Card } from '@/components/antd-compat/Card';
 import { PUBLIC_PLAN_FAQ_SWR_KEY } from '@/const/adminCacheKeys';
 import { DEFAULT_PLAN_FAQ_ITEMS } from '@/const/billingPresentation';
+import {
+  SubscriptionCheckoutModal,
+  type SubscriptionCheckoutTarget,
+} from '@/features/Payments/SubscriptionCheckoutModal';
+import { readSubscriptionPaymentIntent } from '@/features/Payments/subscriptionIntent';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
@@ -41,7 +35,7 @@ import { useServerConfigStore } from '@/store/serverConfig';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
-import { getPlanPurchaseUrl } from './planPurchase';
+import { resolvePlanPurchaseAction } from './planPurchase';
 import {
   getAvailableBillingCycles,
   getDefaultMobilePlanTarget,
@@ -86,7 +80,7 @@ type PlanCatalogItem = PlanCatalog[number];
 type ComparisonRow = { feature: string; key: string } & Record<string, ReactNode>;
 const LOADING_BILLING_CYCLES: BillingCycle[] = ['yearly', 'monthly'];
 
-const useStyles = createStyles(({ css, cx, token }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
   action: css`
     height: 38px;
     border-radius: 8px;
@@ -108,7 +102,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
   benefitIcon: css`
     flex: none;
     margin-block-start: 2px;
-    color: ${token.colorSuccess};
+    color: ${cssVar.colorSuccess};
   `,
   card: css`
     position: relative;
@@ -129,8 +123,8 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     }
   `,
   currentCard: css`
-    border-color: ${token.colorPrimary};
-    box-shadow: 0 0 0 1px ${token.colorPrimaryBorder};
+    border-color: ${cssVar.colorPrimary};
+    box-shadow: 0 0 0 1px ${cssVar.colorPrimaryBorder};
   `,
   cycleWrap: css`
     display: flex;
@@ -186,6 +180,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
   `,
   introTitle: css`
     margin: 0;
+
     font-size: 28px;
     font-weight: 700;
     line-height: 1.2;
@@ -195,7 +190,6 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     display: flex;
     gap: 12px;
     align-items: center;
-
     min-width: 0;
   `,
   mobileCycleWrap: css`
@@ -226,8 +220,8 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     overscroll-behavior-inline: contain;
 
     > .ant-card {
-      flex-basis: min(320px, calc(100vw - 48px));
       scroll-snap-align: start;
+      flex-basis: min(320px, calc(100vw - 48px));
     }
   `,
   mobileTouchTarget: css`
@@ -244,7 +238,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     inset-inline-end: 16px;
 
     font-size: 12px;
-    color: ${token.orange6};
+    color: ${cssVar.colorWarning};
   `,
   price: css`
     display: flex;
@@ -285,13 +279,13 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     cursor: pointer;
 
     &:focus-visible {
-      outline: 2px solid ${token.colorPrimary};
+      outline: 2px solid ${cssVar.colorPrimary};
       outline-offset: 2px;
     }
   `,
   selectedCard: css`
-    border-color: ${token.colorPrimary};
-    box-shadow: 0 0 0 2px ${token.colorPrimaryBorder};
+    border-color: ${cssVar.colorPrimary};
+    box-shadow: 0 0 0 2px ${cssVar.colorPrimaryBorder};
   `,
   subtitle: css`
     min-height: 40px;
@@ -313,15 +307,12 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     align-items: center;
     justify-content: space-between;
   `,
-  wrapper: cx(
-    subscriptionPageStyles.caption,
-    css`
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      color: ${cssVar.colorText};
-    `,
-  ),
+  wrapper: css`
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    color: ${cssVar.colorText};
+  `,
   supportActions: css`
     display: flex;
     flex-wrap: wrap;
@@ -453,7 +444,6 @@ const ResponsivePlanSection = ({
 };
 
 const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
-  const { styles, cx } = useStyles();
   const { t } = useTranslation('subscription');
   const { currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
@@ -461,6 +451,9 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
+  const [checkoutTarget, setCheckoutTarget] = useState<SubscriptionCheckoutTarget>();
+  const [checkoutLoadingPlan, setCheckoutLoadingPlan] = useState<SubscriptionPlan>();
+  const recoveredIntentKey = useRef<string | undefined>(undefined);
   const helpMenuItems = useServerConfigStore((s) => s.serverConfig.customization?.helpMenuItems);
 
   const {
@@ -478,6 +471,10 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
     error: planFaqError,
     mutate: mutatePlanFaq,
   } = useClientDataSWR(PUBLIC_PLAN_FAQ_SWR_KEY, () => commercialService.listPlanFaq());
+  const { data: subscriptionPaymentMethods, mutate: mutateSubscriptionPaymentMethods } =
+    useClientDataSWR(['subscription-payment-methods'], () =>
+      commercialService.getSubscriptionPaymentMethods(),
+    );
 
   const visiblePlans = useMemo(() => {
     const configuredPlans = (planCatalog || [])
@@ -537,6 +534,21 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   const mobileSelectedPrice = mobileSelectedCatalogPlan
     ? resolvePlanCyclePrice(mobileSelectedCatalogPlan, activeBillingCycle)
     : undefined;
+
+  useEffect(() => {
+    const intent = readSubscriptionPaymentIntent();
+    if (!intent || recoveredIntentKey.current === intent.idempotencyKey) return;
+
+    recoveredIntentKey.current = intent.idempotencyKey;
+    const catalogPlan = getCatalogPlan(planCatalog, intent.plan);
+    const price = resolvePlanCyclePrice(catalogPlan, intent.cycle);
+    setCheckoutTarget({
+      cycle: intent.cycle,
+      displayName: catalogPlan?.displayName || t(`plans.plan.${intent.plan}.title`),
+      plan: intent.plan,
+      priceLabel: price.isAvailable ? price.label : t('plans.payment.recovering', '恢复未完成支付'),
+    });
+  }, [planCatalog, t]);
 
   const comparisonColumns = useMemo(
     () => [
@@ -658,14 +670,40 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
       : PLAN_FEATURES_FALLBACK[plan];
   };
 
-  const handleUpgradeClick = (catalogPlan?: PlanCatalogItem) => {
-    const purchaseUrl = getPlanPurchaseUrl(catalogPlan);
-    if (purchaseUrl) {
-      window.open(purchaseUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
+  const handleUpgradeClick = async (
+    plan: SubscriptionPlan,
+    catalogPlan: PlanCatalogItem | undefined,
+    cycle: SubscriptionCycleType,
+  ) => {
+    setCheckoutLoadingPlan(plan);
+    try {
+      const methods = subscriptionPaymentMethods ?? (await mutateSubscriptionPaymentMethods());
+      const action = resolvePlanPurchaseAction({
+        hasOnlinePaymentMethods: Boolean(methods?.length),
+        plan: catalogPlan,
+      });
 
-    message.info(t('billing.purchaseDisabledHint', '在线支付暂未开放，请联系管理员升级套餐。'));
+      if (action.type === 'checkout') {
+        const price = resolvePlanCyclePrice(catalogPlan, cycle);
+        setCheckoutTarget({
+          cycle,
+          displayName: catalogPlan?.displayName || t(`plans.plan.${plan}.title`),
+          plan,
+          priceLabel: price.label,
+        });
+        return;
+      }
+      if (action.type === 'external') {
+        window.open(action.url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      message.info(t('billing.purchaseDisabledHint'));
+    } catch {
+      message.error(t('plans.payment.methodsFailed', '支付方式加载失败，请稍后重试'));
+    } finally {
+      setCheckoutLoadingPlan(undefined);
+    }
   };
 
   const handleRedeem = async () => {
@@ -706,7 +744,12 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
               mobileSelectedCatalogPlan.displayName ||
               t(`plans.plan.${mobileSelectedPlan ?? SubscriptionPlan.Free}.title`),
           }),
-          onClick: () => handleUpgradeClick(mobileSelectedCatalogPlan),
+          onClick: () =>
+            void handleUpgradeClick(
+              mobileSelectedPlan!,
+              mobileSelectedCatalogPlan,
+              activeBillingCycle,
+            ),
         }
       : {
           label: t('billing.redeem.title'),
@@ -717,7 +760,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   return (
     <>
       <BusinessSettingsPageShell
-        className={styles.wrapper}
+        className={cx(subscriptionPageStyles.caption, styles.wrapper)}
         mobile={mobile}
         mobileAction={mobileAction}
         title="套餐"
@@ -915,8 +958,11 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                                 className={styles.action}
                                 disabled={!price.isAvailable}
                                 icon={<Icon icon={ChevronRight} />}
+                                loading={checkoutLoadingPlan === plan}
                                 type="primary"
-                                onClick={() => handleUpgradeClick(catalogPlan)}
+                                onClick={() =>
+                                  void handleUpgradeClick(plan, catalogPlan, activeBillingCycle)
+                                }
                               >
                                 {price.isAvailable ? '升级' : '暂未配置'}
                               </Button>
@@ -1106,6 +1152,10 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
           </Flexbox>
         </ResponsivePlanSection>
       </BusinessSettingsPageShell>
+      <SubscriptionCheckoutModal
+        target={checkoutTarget}
+        onClose={() => setCheckoutTarget(undefined)}
+      />
       <Modal
         confirmLoading={redeeming}
         okText="确认兑换"

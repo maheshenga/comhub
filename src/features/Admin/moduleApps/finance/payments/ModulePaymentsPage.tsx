@@ -13,6 +13,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import PendingRefundResolutionModal, {
+  type PendingRefundResolution,
+} from '../../../payments/PendingRefundResolutionModal';
 import CursorPager from '../../CursorPager';
 import PaymentReconciliationTable, {
   type ModuleAppPaymentDiagnosticRow,
@@ -80,6 +83,9 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
   const [operationResult, setOperationResult] = useState<string>();
   const [paymentReference, setPaymentReference] = useState('');
   const [reason, setReason] = useState('');
+  const [resolution, setResolution] = useState<PendingRefundResolution>();
+  const [resolutionNote, setResolutionNote] = useState('');
+  const [resolutionTarget, setResolutionTarget] = useState<ModuleAppPaymentDiagnosticRow>();
   const [submitting, setSubmitting] = useState(false);
   const paymentStatus = searchParams.get('paymentStatus') ?? undefined;
   const refundStatus = searchParams.get('refundStatus') ?? undefined;
@@ -225,6 +231,26 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
       setBusyAction(undefined);
     }
   };
+  const closeResolution = () => {
+    if (busyAction?.startsWith('resolve:')) return;
+    setResolutionTarget(undefined);
+    setResolution(undefined);
+    setResolutionNote('');
+  };
+  const submitResolution = async () => {
+    if (!resolutionTarget || !resolution || !resolutionNote.trim()) return;
+    const result = await runDirectAction(`resolve:${resolutionTarget.orderId}`, () =>
+      adminCommercialService.moduleApps.resolvePaymentRefund({
+        note: resolutionNote.trim(),
+        orderId: resolutionTarget.orderId,
+        resolution,
+      }),
+    );
+    if (result) {
+      toast.success(t('moduleApps.admin.payments.manualResolution.operationSuccess'));
+      closeResolution();
+    }
+  };
   const actionIsValid =
     action === 'settle'
       ? Boolean(paymentReference.trim())
@@ -362,6 +388,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
               paymentMethod: t('moduleApps.admin.payments.columns.paymentMethod'),
               providerTrade: t('moduleApps.admin.payments.columns.providerTrade'),
               refund: t('moduleApps.admin.payments.actions.refund'),
+              resolveRefund: t('moduleApps.admin.payments.actions.resolveRefund'),
               retryPayment: t('moduleApps.admin.payments.actions.retryPayment'),
               retryRefund: t('moduleApps.admin.payments.actions.retryRefund'),
               settle: t('moduleApps.admin.payments.actions.settle'),
@@ -377,6 +404,10 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
                 }),
               )
             }
+            onResolveRefund={(targetOrderId) => {
+              const target = data?.items.find((item) => item.orderId === targetOrderId);
+              if (target) setResolutionTarget(target);
+            }}
             onRetryPayment={(outTradeNo, provider) =>
               runDirectAction(`payment:${outTradeNo}`, () =>
                 adminCommercialService.moduleApps.retryPaymentQuery({ outTradeNo, provider }),
@@ -448,6 +479,32 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
           </div>
         </Modal>
       ) : null}
+      <PendingRefundResolutionModal
+        busy={busyAction?.startsWith('resolve:') ?? false}
+        note={resolutionNote}
+        open={Boolean(resolutionTarget)}
+        resolution={resolution}
+        title={t('moduleApps.admin.payments.manualResolution.title')}
+        labels={{
+          cancel: t('cancel'),
+          chooseOutcome: t('moduleApps.admin.payments.manualResolution.chooseOutcome'),
+          confirm: t('moduleApps.admin.payments.manualResolution.confirm'),
+          description: t('moduleApps.admin.payments.manualResolution.description'),
+          note: t('moduleApps.admin.payments.manualResolution.note'),
+          notRefunded: t('moduleApps.admin.payments.manualResolution.notRefunded'),
+          outcome: t('moduleApps.admin.payments.manualResolution.outcome'),
+          refunded: t('moduleApps.admin.payments.manualResolution.refunded'),
+        }}
+        summary={
+          resolutionTarget
+            ? `${resolutionTarget.appName} · ${resolutionTarget.currency} ${resolutionTarget.totalAmount}`
+            : ''
+        }
+        onCancel={closeResolution}
+        onConfirm={submitResolution}
+        onNoteChange={setResolutionNote}
+        onResolutionChange={setResolution}
+      />
     </section>
   );
 });

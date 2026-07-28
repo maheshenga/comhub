@@ -933,7 +933,7 @@ export const createRouterRuntime = ({
       return this.runWithFallback(
         payload.model,
         (runtime) => runtime.transcribe!(payload, options),
-        { user: options?.user },
+        { metadata: options?.metadata, user: options?.user },
       );
     }
   };

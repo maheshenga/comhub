@@ -6,10 +6,10 @@ import {
   type PaymentMethodId,
   type PaymentProvider,
 } from '@lobechat/types';
-import { Button, Input, Select, toast } from '@lobehub/ui/base-ui';
+import { Button, Input, Modal, Select, TextArea, toast } from '@lobehub/ui/base-ui';
 import { Alert, Space, type TableProps, Tag } from 'antd';
 import { createStaticStyles } from 'antd-style';
-import { RefreshCw, Search } from 'lucide-react';
+import { RefreshCw, RotateCcw, Search, ShieldCheck } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -20,6 +20,10 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
+
+import PendingRefundResolutionModal, {
+  type PendingRefundResolution,
+} from './PendingRefundResolutionModal';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   controls: css`
@@ -47,6 +51,10 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: grid;
     gap: 16px;
     min-width: 0;
+  `,
+  refundForm: css`
+    display: grid;
+    gap: 8px;
   `,
   toolbar: css`
     display: flex;
@@ -85,6 +93,8 @@ type TopUpPaymentRow = {
   paidAt: Date | null | string;
   paymentReference: null | string;
   provider: PaymentProvider;
+  refundReference: null | string;
+  refundStatus: 'failed' | 'pending' | 'succeeded' | null;
   status: TopUpPaymentStatus;
   updatedAt: Date | string;
   userEmail: null | string;
@@ -135,6 +145,11 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
   const [userDraft, setUserDraft] = useState(userId);
   const [filterError, setFilterError] = useState<string>();
   const [busyAction, setBusyAction] = useState<string>();
+  const [refundOrder, setRefundOrder] = useState<TopUpPaymentRow>();
+  const [refundReason, setRefundReason] = useState('');
+  const [resolutionOrder, setResolutionOrder] = useState<TopUpPaymentRow>();
+  const [resolution, setResolution] = useState<PendingRefundResolution>();
+  const [resolutionNote, setResolutionNote] = useState('');
 
   useEffect(() => setOrderDraft(orderIdParam), [orderIdParam]);
   useEffect(() => setUserDraft(userId), [userId]);
@@ -207,6 +222,76 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
     }
   };
 
+  const closeRefund = () => {
+    if (busyAction?.startsWith('refund:')) return;
+    setRefundOrder(undefined);
+    setRefundReason('');
+  };
+
+  const submitRefund = async () => {
+    if (!refundOrder || !refundReason.trim()) return;
+    await runReconciliation(
+      `refund:${refundOrder.id}`,
+      () =>
+        adminCommercialService.refundTopUpPayment({
+          orderId: refundOrder.id,
+          reason: refundReason.trim(),
+        }),
+      (result: { debtAmount?: number; status: string }) => {
+        if (result.status === 'pending') {
+          toast.warning(
+            t(
+              'admin.payments.topups.refundPending',
+              'The provider is still processing this refund. Reconcile or retry later.',
+            ),
+          );
+        } else {
+          toast.success(t('admin.payments.topups.refundSuccess', 'Refund completed'));
+        }
+        setRefundOrder(undefined);
+        setRefundReason('');
+      },
+    );
+  };
+
+  const closeResolution = () => {
+    if (busyAction?.startsWith('resolve:')) return;
+    setResolutionOrder(undefined);
+    setResolution(undefined);
+    setResolutionNote('');
+  };
+
+  const submitResolution = async () => {
+    if (!resolutionOrder || !resolution || !resolutionNote.trim()) return;
+    await runReconciliation(
+      `resolve:${resolutionOrder.id}`,
+      () =>
+        adminCommercialService.resolveTopUpPaymentRefund({
+          note: resolutionNote.trim(),
+          orderId: resolutionOrder.id,
+          resolution,
+        }),
+      () => {
+        if (resolution === 'failed') {
+          toast.warning(
+            t(
+              'admin.payments.topups.manualResolution.retryEnabled',
+              'Marked as not refunded. A new refund attempt is now allowed.',
+            ),
+          );
+        } else {
+          toast.success(
+            t(
+              'admin.payments.topups.manualResolution.completed',
+              'Refund confirmation applied and local balances were updated.',
+            ),
+          );
+        }
+        closeResolution();
+      },
+    );
+  };
+
   const columns = [
     {
       dataIndex: 'id',
@@ -248,8 +333,18 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
     {
       dataIndex: 'status',
       key: 'status',
-      render: (value: TopUpPaymentStatus) => (
-        <Tag color={statusColor[value]}>{t(`admin.payments.topups.status.${value}`, value)}</Tag>
+      render: (value: TopUpPaymentStatus, row: TopUpPaymentRow) => (
+        <Space direction="vertical" size={2}>
+          <Tag color={statusColor[value]}>{t(`admin.payments.topups.status.${value}`, value)}</Tag>
+          {row.refundStatus && value !== 'refunded' ? (
+            <small>
+              {t(
+                `admin.payments.topups.refundStatus.${row.refundStatus}`,
+                `Refund ${row.refundStatus}`,
+              )}
+            </small>
+          ) : null}
+        </Space>
       ),
       title: t('admin.payments.topups.columns.status', 'Status'),
     },
@@ -268,22 +363,57 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
     },
     {
       key: 'actions',
-      render: (_: unknown, row: TopUpPaymentRow) =>
-        canWrite && ['failed', 'pending'].includes(row.status) ? (
-          <Button
-            loading={busyAction === row.id}
-            size="small"
-            onClick={() =>
-              runReconciliation(row.id, () => adminCommercialService.reconcileTopUpPayment(row.id))
-            }
-          >
-            {t('admin.payments.topups.reconcile', 'Reconcile')}
-          </Button>
-        ) : (
-          '-'
-        ),
+      render: (_: unknown, row: TopUpPaymentRow) => {
+        if (!canWrite) return '-';
+        const canReconcile =
+          ['expired', 'failed', 'pending'].includes(row.status) ||
+          (row.status === 'canceled' && ['failed', 'pending'].includes(row.refundStatus ?? ''));
+        const canRefund =
+          row.status === 'paid' &&
+          row.refundStatus !== 'pending' &&
+          row.refundStatus !== 'succeeded';
+        const canResolveRefund = row.provider === 'zpay' && row.refundStatus === 'pending';
+        if (!canReconcile && !canRefund && !canResolveRefund) return '-';
+        return (
+          <Space wrap size={4}>
+            {canReconcile ? (
+              <Button
+                loading={busyAction === row.id}
+                size="small"
+                onClick={() =>
+                  runReconciliation(row.id, () =>
+                    adminCommercialService.reconcileTopUpPayment(row.id),
+                  )
+                }
+              >
+                {t('admin.payments.topups.reconcile', 'Reconcile')}
+              </Button>
+            ) : null}
+            {canRefund ? (
+              <Button
+                icon={<RotateCcw aria-hidden size={14} />}
+                loading={busyAction === `refund:${row.id}`}
+                size="small"
+                onClick={() => setRefundOrder(row)}
+              >
+                {t('admin.payments.topups.refund', 'Refund')}
+              </Button>
+            ) : null}
+            {canResolveRefund ? (
+              <Button
+                icon={<ShieldCheck aria-hidden size={14} />}
+                loading={busyAction === `resolve:${row.id}`}
+                size="small"
+                onClick={() => setResolutionOrder(row)}
+              >
+                {t('admin.payments.topups.manualResolution.action', 'Verify refund')}
+              </Button>
+            ) : null}
+          </Space>
+        );
+      },
       title: t('admin.actions', 'Actions'),
-      width: 120,
+      width: 190,
     },
   ];
 
@@ -361,7 +491,7 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
               { label: t('admin.payments.topups.filters.all', 'All'), value: '' },
               { label: t('admin.payments.provider.alipay', 'Alipay'), value: 'alipay' },
               { label: t('admin.payments.provider.wechat', 'WeChat Pay'), value: 'wechat_pay' },
-              { label: 'Z-Pay', value: 'zpay' },
+              { label: t('admin.payments.provider.zpay', 'Z-Pay'), value: 'zpay' },
             ]}
             onChange={(value) => updateParams({ provider: String(value || '') || null })}
           />
@@ -429,6 +559,71 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
           </Button>
         </Space>
       )}
+      <Modal
+        cancelText={t('cancel', 'Cancel')}
+        confirmLoading={Boolean(busyAction?.startsWith('refund:'))}
+        okButtonProps={{ disabled: !refundReason.trim() }}
+        okText={t('admin.payments.topups.confirmRefund', 'Confirm refund')}
+        open={Boolean(refundOrder)}
+        title={t('admin.payments.topups.refundTitle', 'Refund top-up payment')}
+        onCancel={closeRefund}
+        onOk={submitRefund}
+      >
+        <div className={styles.refundForm}>
+          <div>
+            {refundOrder
+              ? `${refundOrder.currency} ${refundOrder.amount} · ${refundOrder.id}`
+              : null}
+          </div>
+          <label>
+            {t('admin.payments.topups.refundReason', 'Refund reason')}
+            <TextArea
+              required
+              maxLength={500}
+              value={refundReason}
+              onChange={(event) => setRefundReason(event.target.value)}
+            />
+          </label>
+        </div>
+      </Modal>
+      <PendingRefundResolutionModal
+        busy={Boolean(busyAction?.startsWith('resolve:'))}
+        note={resolutionNote}
+        open={Boolean(resolutionOrder)}
+        resolution={resolution}
+        title={t('admin.payments.topups.manualResolution.title', 'Verify pending refund')}
+        labels={{
+          cancel: t('cancel', 'Cancel'),
+          chooseOutcome: t(
+            'admin.payments.topups.manualResolution.chooseOutcome',
+            'Choose the provider outcome',
+          ),
+          confirm: t('admin.payments.topups.manualResolution.confirm', 'Apply decision'),
+          description: t(
+            'admin.payments.topups.manualResolution.description',
+            'Check the Z-Pay merchant portal before deciding. An incorrect decision can duplicate a refund or leave credits unreversed.',
+          ),
+          note: t('admin.payments.topups.manualResolution.note', 'Verification note'),
+          notRefunded: t(
+            'admin.payments.topups.manualResolution.notRefunded',
+            'Not refunded - allow retry',
+          ),
+          outcome: t('admin.payments.topups.manualResolution.outcome', 'Provider outcome'),
+          refunded: t(
+            'admin.payments.topups.manualResolution.refunded',
+            'Refunded - reverse credits',
+          ),
+        }}
+        summary={
+          resolutionOrder
+            ? `${resolutionOrder.currency} ${resolutionOrder.amount} · ${resolutionOrder.id}`
+            : ''
+        }
+        onCancel={closeResolution}
+        onConfirm={submitResolution}
+        onNoteChange={setResolutionNote}
+        onResolutionChange={setResolution}
+      />
     </section>
   );
 });

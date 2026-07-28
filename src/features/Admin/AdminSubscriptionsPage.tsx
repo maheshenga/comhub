@@ -215,7 +215,7 @@ const AdminSubscriptionsPage = memo(() => {
                     columns={columns}
                     dataSource={items}
                     loading={isLoading}
-                    rowKey="userId"
+                    rowKey="id"
                   />
                 )}
 

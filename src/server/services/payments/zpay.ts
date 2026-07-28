@@ -69,12 +69,18 @@ export class ZPayClient implements ModuleAppPaymentAdapter {
 
   createOutTradeNo: ModuleAppPaymentAdapter['createOutTradeNo'] = ({ orderId, purpose }) => {
     const prefix = this.method === 'zpay_alipay' ? 'za' : 'zw';
-    const purposePrefix = purpose === 'module_app' ? 'm' : 't';
+    const purposePrefix = purpose === 'module_app' ? 'm' : purpose === 'subscription' ? 's' : 't';
     return `${purposePrefix}${prefix}${createHash('sha256')
       .update(`${purpose}:${orderId}`)
       .digest('hex')
       .slice(0, 29)}`;
   };
+
+  createRefundRequestNo: ModuleAppPaymentAdapter['createRefundRequestNo'] = (input) =>
+    `zr${createHash('sha256')
+      .update(`${input.outTradeNo}:${input.refundAmount}`)
+      .digest('hex')
+      .slice(0, 30)}`;
 
   create: ModuleAppPaymentAdapter['create'] = async (input) => {
     if (input.currency !== 'CNY') throw new Error('ZPAY_CURRENCY_UNSUPPORTED');
@@ -115,7 +121,7 @@ export class ZPayClient implements ModuleAppPaymentAdapter {
     if (payload.out_trade_no !== outTradeNo) throw new Error('ZPAY_QUERY_ORDER_MISMATCH');
     const expectedType = this.method === 'zpay_alipay' ? 'alipay' : 'wxpay';
     if (payload.type !== expectedType) throw new Error('ZPAY_QUERY_METHOD_MISMATCH');
-    if (payload.pid !== undefined && String(payload.pid) !== this.options.merchantId) {
+    if (String(payload.pid ?? '') !== this.options.merchantId) {
       throw new Error('ZPAY_QUERY_MERCHANT_MISMATCH');
     }
     const tradeNo = typeof payload.trade_no === 'string' ? payload.trade_no : undefined;
@@ -141,7 +147,7 @@ export class ZPayClient implements ModuleAppPaymentAdapter {
     if (order.out_trade_no !== input.outTradeNo) throw new Error('ZPAY_QUERY_ORDER_MISMATCH');
     const expectedType = this.method === 'zpay_alipay' ? 'alipay' : 'wxpay';
     if (order.type !== expectedType) throw new Error('ZPAY_QUERY_METHOD_MISMATCH');
-    if (order.pid !== undefined && String(order.pid) !== this.options.merchantId) {
+    if (String(order.pid ?? '') !== this.options.merchantId) {
       throw new Error('ZPAY_QUERY_MERCHANT_MISMATCH');
     }
     const tradeNo = typeof order.trade_no === 'string' ? order.trade_no : '';
@@ -152,23 +158,27 @@ export class ZPayClient implements ModuleAppPaymentAdapter {
       throw new Error('ZPAY_REFUND_TOTAL_AMOUNT_MISMATCH');
     }
     if (refundAmount.fen > totalAmount.fen) throw new Error('ZPAY_REFUND_AMOUNT_INVALID');
-    const payload = await this.request(
-      '/api.php',
-      {
-        act: 'refund',
-        key: this.options.merchantKey,
-        money: refundAmount.decimal,
-        pid: this.options.merchantId,
-        trade_no: tradeNo,
-      },
-      'POST',
-    );
+    const providerRefundId = input.refundRequestNo ?? this.createRefundRequestNo(input);
+    let payload: Record<string, unknown>;
+    try {
+      payload = await this.request(
+        '/api.php',
+        {
+          act: 'refund',
+          key: this.options.merchantKey,
+          money: refundAmount.decimal,
+          pid: this.options.merchantId,
+          trade_no: tradeNo,
+        },
+        'POST',
+      );
+    } catch {
+      // ZPay cannot query refunds, so a lost POST response must not trigger an automatic retry.
+      return { providerRefundId, status: 'pending' };
+    }
     const succeeded = Number(payload.code) === 1;
     return {
-      providerRefundId: `zpay_${createHash('sha256')
-        .update(`${tradeNo}:${input.refundAmount}`)
-        .digest('hex')
-        .slice(0, 32)}`,
+      providerRefundId,
       status: succeeded ? 'succeeded' : 'failed',
     };
   };

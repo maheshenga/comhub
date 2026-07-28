@@ -325,6 +325,17 @@ describe('adminModelBillingMatrix', () => {
     expect(buildPricingRulesFromRows(rows)).toEqual([]);
   });
 
+  it('ignores non-positive credits-per-dollar overrides when serializing pricing rules', () => {
+    const rows = buildMatrixRows({
+      models,
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    }).map((row) => ({ ...row, creditsPerDollar: 0 }));
+
+    expect(buildPricingRulesFromRows(rows)).toEqual([]);
+  });
+
   it('serializes pricing rules with group keys', () => {
     const rows = buildMatrixRows({
       models: [

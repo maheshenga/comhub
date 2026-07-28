@@ -255,13 +255,35 @@ export class ModuleAppPaymentModel {
     orderId: string;
     status: 'requested' | 'succeeded' | 'failed';
   }) => {
+    const now = new Date();
     const [refund] = await this.db
       .update(moduleAppPaymentRefunds)
-      .set({ status: input.status })
+      .set({ status: input.status, updatedAt: now })
       .where(eq(moduleAppPaymentRefunds.orderId, input.orderId))
       .returning();
     if (!refund) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
     return refund;
+  };
+
+  transitionRefundStatus = async (input: {
+    expectedStatus: 'requested' | 'succeeded' | 'failed';
+    orderId: string;
+    status: 'requested' | 'succeeded' | 'failed';
+  }) => {
+    const [refund] = await this.db
+      .update(moduleAppPaymentRefunds)
+      .set({ status: input.status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(moduleAppPaymentRefunds.orderId, input.orderId),
+          eq(moduleAppPaymentRefunds.status, input.expectedStatus),
+        ),
+      )
+      .returning();
+    if (refund) return { refund, transitioned: true as const };
+    const existing = await this.getRefundByOrderId(input.orderId);
+    if (!existing) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
+    return { refund: existing, transitioned: false as const };
   };
 
   listPendingPaymentAttempts = (limit = 100) =>

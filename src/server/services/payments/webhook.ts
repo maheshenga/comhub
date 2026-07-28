@@ -2,11 +2,16 @@ import type { PaymentMethodId, PaymentProvider } from '@lobechat/types';
 import { and, eq } from 'drizzle-orm';
 
 import { ModuleAppPaymentService } from '@/business/server/module-apps/payments/service';
-import { moduleAppPaymentAttempts, topUpOrders } from '@/database/schemas';
+import {
+  moduleAppPaymentAttempts,
+  subscriptionPaymentOrders,
+  topUpOrders,
+} from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
 import { createOperationalPaymentConfig, getServerPaymentConfig } from './config';
 import { createPaymentAdapter } from './factory';
+import { SubscriptionPaymentService } from './subscriptionPayment';
 import { TopUpPaymentService } from './topUpPayment';
 
 const resolveNotificationMethod = (provider: PaymentProvider, body: string): PaymentMethodId => {
@@ -32,12 +37,19 @@ export const handlePaymentWebhook = async (input: {
   if (!event) throw new Error('PAYMENT_NOTIFICATION_INVALID');
   if (event.provider !== input.provider) throw new Error('PAYMENT_PROVIDER_MISMATCH');
 
-  const [moduleAttempt, topUpOrder] = await Promise.all([
+  const [moduleAttempt, subscriptionOrder, topUpOrder] = await Promise.all([
     input.db.query.moduleAppPaymentAttempts.findFirst({
       columns: { id: true, method: true },
       where: and(
         eq(moduleAppPaymentAttempts.provider, event.provider),
         eq(moduleAppPaymentAttempts.outTradeNo, event.outTradeNo),
+      ),
+    }),
+    input.db.query.subscriptionPaymentOrders.findFirst({
+      columns: { id: true, method: true },
+      where: and(
+        eq(subscriptionPaymentOrders.provider, event.provider),
+        eq(subscriptionPaymentOrders.externalOrderId, event.outTradeNo),
       ),
     }),
     input.db.query.topUpOrders.findFirst({
@@ -52,8 +64,22 @@ export const handlePaymentWebhook = async (input: {
     if (moduleAttempt.method !== method) throw new Error('PAYMENT_METHOD_MISMATCH');
     return new ModuleAppPaymentService(input.db, adapter).handleNormalizedEvent(event);
   }
+  if (subscriptionOrder) {
+    if (subscriptionOrder.method !== method) throw new Error('PAYMENT_METHOD_MISMATCH');
+    return new SubscriptionPaymentService(input.db, (provider, candidateMethod) => {
+      if (provider !== adapter.provider || candidateMethod !== adapter.method) {
+        throw new Error('SUBSCRIPTION_PAYMENT_ADAPTER_MISMATCH');
+      }
+      return adapter;
+    }).handleNormalizedEvent(event, method);
+  }
   if (topUpOrder) {
-    return new TopUpPaymentService(input.db).handleNormalizedEvent(event, method);
+    return new TopUpPaymentService(input.db, (provider, candidateMethod) => {
+      if (provider !== adapter.provider || candidateMethod !== adapter.method) {
+        throw new Error('TOP_UP_PAYMENT_ADAPTER_MISMATCH');
+      }
+      return adapter;
+    }).handleNormalizedEvent(event, method);
   }
   throw new Error('PAYMENT_ORDER_NOT_FOUND');
 };

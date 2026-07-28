@@ -92,6 +92,7 @@ describe('ZPayClient', () => {
       code: 1,
       money: '12.34',
       out_trade_no: outTradeNo,
+      pid: 'merchant-1',
       status: 1,
       trade_no: 'trade-1',
       type: 'alipay',
@@ -111,9 +112,10 @@ describe('ZPayClient', () => {
         outTradeNo,
         reason: 'requested',
         refundAmount: '5.000000',
+        refundRequestNo: 'zr-request-1',
         totalAmount: '12.340000',
       }),
-    ).resolves.toMatchObject({ status: 'succeeded' });
+    ).resolves.toMatchObject({ providerRefundId: 'zr-request-1', status: 'succeeded' });
 
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: 'GET' });
     const refundUrl = fetch.mock.calls[2]?.[0] as URL;
@@ -122,6 +124,35 @@ describe('ZPayClient', () => {
     expect(refundRequest.method).toBe('POST');
     expect(String(refundRequest.body)).toContain('money=5.00');
     expect(String(refundRequest.body)).toContain('key=merchant-secret');
+  });
+
+  it('keeps a refund pending when the POST result is unknown', async () => {
+    const outTradeNo = 'tza12345678901234567890123456789';
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          code: 1,
+          money: '12.34',
+          out_trade_no: outTradeNo,
+          pid: 'merchant-1',
+          status: 1,
+          trade_no: 'trade-1',
+          type: 'alipay',
+        }),
+      )
+      .mockRejectedValueOnce(new DOMException('timed out', 'AbortError'));
+
+    await expect(
+      createClient(fetch).refund({
+        outTradeNo,
+        reason: 'requested',
+        refundAmount: '5.000000',
+        refundRequestNo: 'zr-request-unknown',
+        totalAmount: '12.340000',
+      }),
+    ).resolves.toEqual({ providerRefundId: 'zr-request-unknown', status: 'pending' });
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -135,6 +166,7 @@ describe('ZPayClient', () => {
         code: 1,
         money: '12.34',
         out_trade_no: outTradeNo,
+        pid: 'merchant-1',
         status: 1,
         trade_no: 'trade-1',
         type: 'alipay',
