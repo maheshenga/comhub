@@ -11,6 +11,7 @@ import {
   type BindReferralCodeParams,
   type QueryCommercialListParams,
   type QueryCreditLedgerParams,
+  type UpdateAutoTopUpSettingParams,
   type UpdateReferralCodeParams,
 } from '@/types/business';
 
@@ -43,8 +44,28 @@ class CommercialService {
     return lambdaClient.spend.getAccountSummary.query();
   };
 
+  getAutoTopUpSetting = async () => {
+    return lambdaClient.spend.getAutoTopUpSetting.query();
+  };
+
+  getResourceUsage = async () => {
+    return lambdaClient.spend.getResourceUsage.query();
+  };
+
   listCreditLedger = async (params?: QueryCreditLedgerParams) => {
     return lambdaClient.spend.listLedger.query(params ?? {});
+  };
+
+  listCreditPackages = async (params?: QueryCommercialListParams) => {
+    return lambdaClient.spend.listCreditPackages.query(params ?? {});
+  };
+
+  listBillingOrders = async (params?: QueryCommercialListParams) => {
+    return lambdaClient.spend.listBillingOrders.query(params ?? {});
+  };
+
+  updateAutoTopUpSetting = async (params: UpdateAutoTopUpSettingParams) => {
+    return lambdaClient.spend.updateAutoTopUpSetting.mutate(params);
   };
 
   getReferralOverview = async () => {

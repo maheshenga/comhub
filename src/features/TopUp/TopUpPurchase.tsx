@@ -166,6 +166,8 @@ export const TopUpPurchase = () => {
       void Promise.all([
         refreshCommercialEntitlementState(),
         mutate(['commercial.getCreditAccountSummary']),
+        mutate(['commercial.listBillingOrders']),
+        mutate(['commercial.listCreditPackages']),
         mutate(['commercial.listTopUpOrders']),
       ]);
     } else if (TERMINAL_TOP_UP_PAYMENT_STATUSES.has(paymentStatus.data.status)) {

@@ -72,9 +72,18 @@ const DEFAULT_PLAN_CATALOG = {
   },
 } as const;
 
+type PlanCatalogSeedOverrides = {
+  currency?: string;
+  displayName?: string;
+  monthlyCredits?: number;
+  monthlyPrice?: number;
+  sortOrder?: number;
+  yearlyPrice?: number;
+};
+
 const seedPlanCatalogEntry = async (
   plan: Plans,
-  overrides: Partial<(typeof DEFAULT_PLAN_CATALOG)[Plans]> & {
+  overrides: PlanCatalogSeedOverrides & {
     features?: string[];
     isActive?: boolean;
     metadata?: Record<string, unknown>;
@@ -687,6 +696,175 @@ describe('CommercialModel', () => {
       expect(summary.breakdown.topup.available).toBe(300_000);
       expect(summary.breakdown.referral.available).toBe(0);
       expect(summary.breakdown.other.available).toBe(0);
+    });
+  });
+
+  describe('resource usage', () => {
+    it('syncs active plan quotas before reading resource usage', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, {
+        metadata: { storageQuotaMb: 256, vectorQuota: 480 },
+      });
+      await serverDB.insert(userPlanSnapshots).values({
+        cycle: 'monthly',
+        currency: 'USD',
+        monthlyCredits: 600 * CREDITS_PER_DOLLAR,
+        monthlyPrice: 19.9,
+        plan: Plans.Starter,
+        provider: 'manual_preview',
+        startedAt: new Date(),
+        status: 'active',
+        userId,
+      });
+
+      await expect(commercialModel.getResourceUsage()).resolves.toMatchObject({
+        storage: { quota: 256 * 1024 * 1024, used: 0 },
+        vector: { quota: 480, used: 0 },
+      });
+    });
+  });
+
+  describe('credit packages', () => {
+    it('lists active, depleted, and expired credit lots with their remaining balances', async () => {
+      const createdAt = new Date('2026-07-20T08:00:00.000Z');
+      const ledgerRows = await serverDB
+        .insert(creditLedgerEntries)
+        .values(
+          [
+            { amount: 10_000_000, referenceId: 'active', title: 'Active' },
+            { amount: 5_000_000, referenceId: 'depleted', title: 'Depleted' },
+            { amount: 3_000_000, referenceId: 'expired', title: 'Expired' },
+          ].map((item) => ({
+            ...item,
+            balanceAfter: item.amount,
+            createdAt,
+            referenceType: 'seed_credit_package',
+            type: 'topup' as const,
+            userId,
+          })),
+        )
+        .returning();
+
+      await serverDB.insert(creditLots).values([
+        {
+          consumedAmount: 2_000_000,
+          createdAt,
+          grantLedgerEntryId: ledgerRows[0].id,
+          grantedAmount: 10_000_000,
+          referenceId: 'active',
+          referenceType: 'seed_credit_package',
+          source: 'topup',
+          userId,
+        },
+        {
+          consumedAmount: 5_000_000,
+          createdAt,
+          grantLedgerEntryId: ledgerRows[1].id,
+          grantedAmount: 5_000_000,
+          referenceId: 'depleted',
+          referenceType: 'seed_credit_package',
+          source: 'topup',
+          userId,
+        },
+        {
+          createdAt,
+          expiredAmount: 3_000_000,
+          grantLedgerEntryId: ledgerRows[2].id,
+          grantedAmount: 3_000_000,
+          referenceId: 'expired',
+          referenceType: 'seed_credit_package',
+          source: 'topup',
+          status: 'expired',
+          userId,
+        },
+      ]);
+
+      await expect(commercialModel.listCreditPackages({ limit: 20 })).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            referenceId: 'active',
+            remainingAmount: 8_000_000,
+            status: 'active',
+          }),
+          expect.objectContaining({
+            referenceId: 'depleted',
+            remainingAmount: 0,
+            status: 'depleted',
+          }),
+          expect.objectContaining({
+            referenceId: 'expired',
+            remainingAmount: 0,
+            status: 'expired',
+          }),
+        ]),
+      );
+    });
+  });
+
+  describe('billing orders', () => {
+    it('merges online top-up and subscription payments while excluding redemption grants', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, { currency: 'CNY', monthlyPrice: 68 });
+      const { order: subscriptionOrder } = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'monthly',
+        idempotencyKey: 'billing-history-subscription',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      const topUpCreatedAt = new Date('2026-07-20T08:00:00.000Z');
+      const subscriptionPaidAt = new Date('2026-07-21T08:00:00.000Z');
+      const [topUpOrder] = await serverDB
+        .insert(topUpOrders)
+        .values({
+          amount: 19.9,
+          createdAt: topUpCreatedAt,
+          credits: 200_000_000,
+          currency: 'CNY',
+          paidAt: topUpCreatedAt,
+          provider: 'alipay',
+          source: 'alipay',
+          status: 'paid',
+          userId,
+        })
+        .returning();
+      const [redemptionOrder] = await serverDB
+        .insert(topUpOrders)
+        .values({
+          amount: 0,
+          createdAt: new Date('2026-07-22T08:00:00.000Z'),
+          credits: 50_000_000,
+          currency: 'CREDITS',
+          provider: 'redemption',
+          source: 'redemption',
+          status: 'paid',
+          userId,
+        })
+        .returning();
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({ createdAt: subscriptionPaidAt, paidAt: subscriptionPaidAt, status: 'paid' })
+        .where(eq(subscriptionPaymentOrders.id, subscriptionOrder.id));
+
+      const result = await commercialModel.listBillingOrders({ limit: 20 });
+
+      expect(result.map((item) => item.id)).toEqual([subscriptionOrder.id, topUpOrder.id]);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            amount: 68,
+            displayName: 'Starter',
+            kind: 'subscription',
+            plan: Plans.Starter,
+            status: 'paid',
+          }),
+          expect.objectContaining({
+            amount: 19.9,
+            credits: 200_000_000,
+            kind: 'topup',
+            status: 'paid',
+          }),
+        ]),
+      );
+      expect(result.some((item) => item.id === redemptionOrder.id)).toBe(false);
     });
   });
 

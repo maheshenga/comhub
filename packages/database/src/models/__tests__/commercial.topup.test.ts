@@ -636,6 +636,19 @@ describe('CommercialModel topUpOrders', () => {
 
       expect(getCurrentPlan).not.toHaveBeenCalled();
     });
+
+    it('rejects enabling auto top-up until recurring payment authorization is available', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+
+      await expect(
+        model.updateAutoTopUpSetting({
+          enabled: true,
+          monthlyLimit: null,
+          targetBalance: 120_000_000,
+          threshold: 40_000_000,
+        }),
+      ).rejects.toThrow('AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE');
+    });
   });
 
   describe('cancelTopUpOrder', () => {

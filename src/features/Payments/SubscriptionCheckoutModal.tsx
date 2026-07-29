@@ -12,7 +12,7 @@ import { Button, Modal, Segmented } from '@lobehub/ui/base-ui';
 import { Alert, QRCode, Typography } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { commercialService } from '@/services/commercial';
@@ -122,7 +122,11 @@ export const SubscriptionCheckoutModal = ({ onClose, target }: SubscriptionCheck
     if (paymentStatus === 'paid') {
       if (idempotencyKey) clearSubscriptionPaymentIntent(idempotencyKey);
       setCheckout(undefined);
-      void refreshCommercialEntitlementState();
+      void Promise.all([
+        refreshCommercialEntitlementState(),
+        mutate(['commercial.listBillingOrders']),
+        mutate(['commercial.listCreditPackages']),
+      ]);
       return;
     }
     if (!TERMINAL_SUBSCRIPTION_PAYMENT_STATUSES.has(paymentStatus ?? '')) return;

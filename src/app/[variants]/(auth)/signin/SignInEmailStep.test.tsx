@@ -43,24 +43,22 @@ vi.mock('antd', async (importOriginal) => {
 
   return {
     ...actual,
-    Badge: {
-      Ribbon: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    },
+    Badge: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Divider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Form,
   };
 });
 
 describe('SignInEmailStep', () => {
-  it('uses the admin-configured brand title and name in the upstream sign-in card', () => {
+  it('uses the admin-configured name without replacing the upstream sign-in hierarchy', () => {
     render(
       <SignInEmailStep
+        serverConfigInit
         disableEmailPassword={false}
         form={mocks.form as any}
         isSocialOnly={false}
         loading={false}
         oAuthSSOProviders={[]}
-        serverConfigInit
         socialLoading={null}
         onCheckUser={vi.fn()}
         onGoToSignup={vi.fn()}
@@ -70,8 +68,9 @@ describe('SignInEmailStep', () => {
       />,
     );
 
-    expect(screen.getByText('Admin auth title')).toBeInTheDocument();
     expect(screen.getByText('Sign in to ComHub Runtime')).toBeInTheDocument();
+    expect(screen.queryByText('Admin auth title')).not.toBeInTheDocument();
     expect(screen.queryByText('Sign in to LobeHub')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'betterAuth.signin.nextStep' })).toBeInTheDocument();
   });
 });

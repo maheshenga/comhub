@@ -29,30 +29,40 @@ describe('mobile business settings presentation', () => {
     expect(source).not.toContain('minWidth={0}');
   });
 
-  it('uses mobile record cards and hides non-executable purchase controls on Credits', async () => {
+  it('uses the shared online checkout and real settings routes on Credits', async () => {
     const source = await readBusinessPage('Credits');
+    const costEstimateSource = await readFile(
+      path.join(process.cwd(), 'src/business/client/BusinessSettingPages/CostEstimateAlert.tsx'),
+      'utf8',
+    );
 
-    expect(source).toContain('buildTopUpOrderRecord');
+    expect(source).toContain('TopUpPurchase');
     expect(source).toContain('buildCreditLedgerRecord');
+    expect(source).toContain('CostEstimateAlert');
+    expect(source).toContain('AutoTopUpSettings');
+    expect(source).toContain('CreditPackageList');
     expect(source).toContain('mobile ? (');
     expect(source).toContain('mobileAction={mobileAction}');
     expect(source).toContain('defaultOpen={false}');
-    expect(source).toContain('setRedemptionOpen(true)');
-    expect(source).toContain('setOrdersOpen(true)');
-    expect(source).toContain('setLedgerOpen(true)');
-    expect(source).toContain("suffix={'M'}");
-    expect(source).not.toContain("addonAfter={'M'}");
+    expect(source).toContain('href="/settings/usage"');
+    expect(source).toContain('href="/settings/billing"');
+    expect(source).not.toContain('在线支付暂未接入');
+    expect(costEstimateSource).toContain("t('credits.costEstimateHint.unavailable')");
+    expect(costEstimateSource).not.toContain('setSettings');
   });
 
-  it('uses a collapsed mobile change history and upgrade action on Billing', async () => {
+  it('uses real payment orders as billing history and keeps plan changes secondary', async () => {
     const source = await readBusinessPage('Billing');
 
+    expect(source).toContain('buildBillingOrderRecord');
     expect(source).toContain('buildBillingChangeRecord');
+    expect(source).toContain('commercialService.listBillingOrders');
+    expect(source).toContain("title={'账单历史'}");
+    expect(source).toContain('href="/settings/usage"');
     expect(source).toContain("href: '/settings/plans'");
     expect(source).toContain('defaultOpen={false}');
     expect(source).toContain('BusinessMobileRecordList');
-    expect(source).toContain('setHistoryOpen(true)');
-    expect(source).toContain('open={mobile ? historyOpen : undefined}');
+    expect(source).toContain('setBillingHistoryOpen(true)');
     expect(source).toContain("t('billing.summary.currentCycleAmount')");
   });
 
@@ -68,8 +78,9 @@ describe('mobile business settings presentation', () => {
     expect(source).not.toContain('`${label}已复制`');
   });
 
-  it('passes mobile through to UsageTable and keeps the query inside UsageTable', async () => {
+  it('matches the upstream usage information architecture without legacy charts', async () => {
     const usagePage = await readBusinessPage('Usage');
+    const pageReturn = usagePage.slice(usagePage.lastIndexOf('return ('));
     const usageTable = await readFile(
       path.join(process.cwd(), 'src/routes/(main)/settings/stats/features/usage/UsageTable.tsx'),
       'utf8',
@@ -82,7 +93,16 @@ describe('mobile business settings presentation', () => {
       'utf8',
     );
 
-    expect(usagePage).toContain('<UsageTable dateStrings={month} mobile={mobile} />');
+    expect(usagePage).toContain('<UsageTable mobile={mobile} />');
+    expect(usagePage).toContain('commercialService.getResourceUsage');
+    expect(usagePage).toContain("title={'总览'}");
+    expect(usagePage).not.toContain('UsageCards');
+    expect(usagePage).not.toContain('UsageTrends');
+    expect(usagePage).not.toContain('DatePicker');
+    expect(usagePage).not.toContain('Segmented');
+    expect(pageReturn.indexOf('{coreSection}')).toBeLessThan(
+      pageReturn.indexOf('{detailsSection}'),
+    );
     expect(usageTable).toContain('mobile ? (');
     expect(usageTable).toContain('buildUsageRecord');
     expect(usageTable.match(/usageService\.findByMonth/g)).toHaveLength(1);

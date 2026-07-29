@@ -10,7 +10,11 @@ import type {
   TopUpOrderHistoryItem,
   TopUpPackageItem,
 } from '@lobechat/types';
-import { Plans } from '@lobechat/types';
+import {
+  AUTO_TOP_UP_AVAILABLE,
+  AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE_ERROR,
+  Plans,
+} from '@lobechat/types';
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import {
@@ -159,7 +163,7 @@ export class CommercialTopUpModel {
     if (!setting) return defaultAutoTopUpSetting;
 
     return {
-      enabled: setting.enabled,
+      enabled: AUTO_TOP_UP_AVAILABLE && setting.enabled,
       monthlyLimit: setting.monthlyLimit,
       monthlyTopUpAmount: setting.monthlyTopUpAmount ?? 0,
       targetBalance: setting.targetBalance ?? defaultAutoTopUpSetting.targetBalance,
@@ -174,6 +178,10 @@ export class CommercialTopUpModel {
   ): Promise<AutoTopUpSetting> => {
     if (input.targetBalance <= input.threshold) {
       throw new Error('AUTO_TOP_UP_TARGET_NOT_EXCEED_THRESHOLD');
+    }
+
+    if (input.enabled && !AUTO_TOP_UP_AVAILABLE) {
+      throw new Error(AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE_ERROR);
     }
 
     const currentPlan = await getCurrentPlan();

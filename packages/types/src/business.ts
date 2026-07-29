@@ -116,6 +116,25 @@ export const TopUpOrderSourceEnum = {
 
 export type TopUpOrderSourceType = (typeof TopUpOrderSourceEnum)[keyof typeof TopUpOrderSourceEnum];
 
+export type BillingOrderKind = 'subscription' | 'topup';
+
+export interface BillingOrderHistoryItem {
+  amount: number;
+  createdAt: Date;
+  credits?: number | null;
+  currency: string;
+  cycle?: SubscriptionCycleType | null;
+  displayName?: string | null;
+  externalOrderId?: string | null;
+  id: string;
+  kind: BillingOrderKind;
+  method?: string | null;
+  paidAt?: Date | null;
+  plan?: Plans | null;
+  provider?: string | null;
+  status: TopUpOrderStatusType;
+}
+
 export interface CreditAccountSummary {
   balance: number;
   breakdown: Record<CreditSourceType, CreditSourceSummary>;
@@ -124,6 +143,10 @@ export interface CreditAccountSummary {
   totalDebited: number;
   updatedAt?: Date | null;
 }
+
+export const AUTO_TOP_UP_AVAILABLE = false;
+export const AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE_ERROR =
+  'AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE';
 
 export interface AutoTopUpSetting {
   enabled: boolean;
@@ -150,6 +173,24 @@ export interface CreditLedgerEntryItem {
 export interface CreditLedgerListResult {
   items: CreditLedgerEntryItem[];
   nextCursor?: string;
+}
+
+export type CreditPackageStatusType = 'active' | 'depleted' | 'expired';
+
+export interface CreditPackageHistoryItem {
+  consumedAmount: number;
+  createdAt: Date;
+  expiredAmount: number;
+  expiresAt?: Date | null;
+  grantedAmount: number;
+  id: string;
+  referenceId: string;
+  referenceType: string;
+  refundedAmount: number;
+  remainingAmount: number;
+  source: CreditSourceType;
+  status: CreditPackageStatusType;
+  updatedAt: Date;
 }
 
 export interface SubscriptionSummary {
@@ -181,6 +222,17 @@ export interface SubscriptionChangeRequestItem {
 export interface CommercialOverview {
   account: CreditAccountSummary;
   subscription: SubscriptionSummary;
+}
+
+export interface CommercialResourceUsage {
+  storage: {
+    quota: number | null;
+    used: number;
+  };
+  vector: {
+    quota: number | null;
+    used: number;
+  };
 }
 
 export interface ReferralOverview {

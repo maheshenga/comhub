@@ -1,19 +1,20 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
-import { Alert, Button, Empty } from 'antd';
+import { Alert, Empty, Tag } from 'antd';
 import { createStaticStyles } from 'antd-style';
-import { Check, X } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { memo, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 import {
+  type BillingOrderHistoryItem,
   type SubscriptionChangeRequestItem,
   type SubscriptionChangeRequestStatusType,
 } from '@/types/business';
@@ -23,11 +24,12 @@ import BusinessMobileRecordList from './mobile/BusinessMobileRecordList';
 import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
 import {
   buildBillingChangeRecord,
+  buildBillingOrderRecord,
   type BusinessRecordFormatters,
 } from './mobile/businessRecordBuilders';
-import RedemptionPanel from './RedemptionPanel';
 import {
   formatBusinessDate,
+  formatCredits,
   formatCurrencyAmount,
   getBillingStatusTranslationKey,
   getSubscriptionCycleTranslationKey,
@@ -60,28 +62,23 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     align-self: flex-start;
     min-height: 44px;
   `,
+  planFeatures: css`
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px 16px;
+  `,
 }));
-
-const includedBenefits = [
-  '每月算力积分',
-  '文件存储',
-  '标准模型服务',
-  '社区智能体市场',
-  '社区插件市场',
-];
-
-const excludedBenefits = [
-  '全球主流模型自定义 API 服务',
-  '无限对话历史',
-  '智能网页搜索',
-  '专属高级插件',
-];
 
 const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('subscription');
   const { currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
-  const historyRef = useRef<HTMLDivElement>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const billingHistoryRef = useRef<HTMLDivElement>(null);
+  const [billingHistoryOpen, setBillingHistoryOpen] = useState(false);
+  const [planChangeHistoryOpen, setPlanChangeHistoryOpen] = useState(false);
+  const { data: planCatalog = [], isLoading: isPlanCatalogLoading } = useClientDataSWR(
+    ['business-plan-catalog'],
+    () => commercialService.listPlanCatalog(),
+  );
   const { data: pendingChangeRequest } = useClientDataSWR(
     ['business-subscription-change-request'],
     () => commercialService.getPendingSubscriptionChangeRequest(),
@@ -94,12 +91,27 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
   } = useClientDataSWR(['business-subscription-change-history'], () =>
     commercialService.listSubscriptionChangeRequests({ limit: 20 }),
   );
-  const hasBillingHistory = changeRequests.length > 0;
+  const {
+    data: billingOrders = [],
+    error: billingHistoryError,
+    isLoading: isBillingHistoryLoading,
+    mutate: refreshBillingHistory,
+  } = useClientDataSWR(['commercial.listBillingOrders'], () =>
+    commercialService.listBillingOrders({ limit: 20 }),
+  );
+  const currentCatalogPlan = planCatalog.find((item) => item.plan === currentPlan);
+  const planFeatures = (currentCatalogPlan?.features || []).filter(Boolean);
+  const hasBillingHistory = billingOrders.length > 0;
+  const hasPlanChangeHistory = changeRequests.length > 0;
   const cycleLabel = t(getSubscriptionCycleTranslationKey(subscriptionSummary?.cycle));
   const nextDate = subscriptionSummary?.renewsAt ?? subscriptionSummary?.endsAt;
   const billingStatusLabel = t(getBillingStatusTranslationKey(subscriptionSummary?.status));
-  const recordFormatters = useMemo<Pick<BusinessRecordFormatters, 'formatDate' | 't'>>(
+  const recordFormatters = useMemo<
+    Pick<BusinessRecordFormatters, 'formatCredits' | 'formatCurrency' | 'formatDate' | 't'>
+  >(
     () => ({
+      formatCredits,
+      formatCurrency: (value, currency) => formatCurrencyAmount(value, currency ?? undefined),
       formatDate: formatBusinessDate,
       t: (key, options) => t(key as any, options as any),
     }),
@@ -107,9 +119,42 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
   );
 
   const handleViewBillingHistory = () => {
-    if (mobile) setHistoryOpen(true);
-    historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (mobile) setBillingHistoryOpen(true);
+    billingHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const billingHistoryColumns = useMemo<TableColumnType<BillingOrderHistoryItem>[]>(
+    () => [
+      {
+        dataIndex: 'id',
+        ellipsis: true,
+        key: 'id',
+        render: (value: string, record) => record.externalOrderId || value,
+        title: '订单号',
+      },
+      {
+        dataIndex: 'status',
+        key: 'status',
+        render: (value: BillingOrderHistoryItem['status']) => (
+          <Tag>{t('topup.status.' + value, value)}</Tag>
+        ),
+        title: '交易状态',
+      },
+      {
+        dataIndex: 'amount',
+        key: 'amount',
+        render: (value, record) => formatCurrencyAmount(value, record.currency),
+        title: '金额',
+      },
+      {
+        dataIndex: 'paidAt',
+        key: 'paidAt',
+        render: (value) => formatBusinessDate(value),
+        title: '付款日期',
+      },
+    ],
+    [t],
+  );
 
   const changeRequestColumns = useMemo<TableColumnType<SubscriptionChangeRequestItem>[]>(
     () => [
@@ -152,7 +197,7 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   return (
     <BusinessSettingsPageShell mobile={mobile} mobileAction={mobileAction} title={'账单'}>
-      <BusinessSettingsSection mobile={mobile} title={'订阅摘要'}>
+      <BusinessSettingsSection mobile={mobile} title={'账单摘要'}>
         {mobile ? (
           <Flexbox gap={16}>
             <div className={styles.mobileSummaryGrid}>
@@ -196,13 +241,18 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
               <div className={subscriptionPageStyles.caption}>
                 {t('billing.summary.amountDisclaimer')}
               </div>
-              <Button
-                className={styles.mobileTouchTarget}
-                type={'link'}
-                onClick={handleViewBillingHistory}
-              >
-                {t('billing.planChangeHistory')}
-              </Button>
+              <Flexbox horizontal gap={8} wrap="wrap">
+                <Button
+                  className={styles.mobileTouchTarget}
+                  type={'link'}
+                  onClick={handleViewBillingHistory}
+                >
+                  账单历史
+                </Button>
+                <Button className={styles.mobileTouchTarget} href="/settings/usage" type={'link'}>
+                  查看用量
+                </Button>
+              </Flexbox>
             </div>
             {pendingChangeAlert}
           </Flexbox>
@@ -218,9 +268,9 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
                   )}
                 </div>
                 <div className={subscriptionPageStyles.caption}>
-                  此金额来自当前套餐快照；真实收款、退款与开票仍以管理员后台订单记录为准。
+                  此金额来自当前套餐快照，实际支付记录以账单历史为准。
                   <Button size={'small'} type={'link'} onClick={handleViewBillingHistory}>
-                    查看变更记录
+                    查看账单历史
                   </Button>
                 </div>
               </div>
@@ -240,6 +290,9 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
                 <Button href="/settings/plans" size={'small'} type={'link'}>
                   升级计划
                 </Button>
+                <Button href="/settings/usage" size={'small'} type={'link'}>
+                  查看用量
+                </Button>
               </div>
             </div>
             {pendingChangeAlert}
@@ -249,45 +302,69 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
       <BusinessSettingsSection mobile={mobile} title={'当前套餐'}>
         <Flexbox gap={16}>
           <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
-            <PlanIcon plan={currentPlan} type={'combine'} />
+            <Flexbox gap={4}>
+              <PlanIcon plan={currentPlan} type={'combine'} />
+              <span className={subscriptionPageStyles.caption}>
+                {currentCatalogPlan?.displayName || t(`plans.plan.${currentPlan}.title`)}
+              </span>
+            </Flexbox>
             {mobile ? null : (
               <Button href="/settings/plans" type={'primary'}>
                 升级
               </Button>
             )}
           </Flexbox>
-          <div className={subscriptionPageStyles.cardGrid}>
-            <div>
-              {includedBenefits.map((item) => (
+          {isPlanCatalogLoading ? (
+            <div className={subscriptionPageStyles.caption}>正在加载套餐权益...</div>
+          ) : planFeatures.length > 0 ? (
+            <div className={styles.planFeatures}>
+              {planFeatures.map((item) => (
                 <div className={subscriptionPageStyles.caption} key={item}>
                   <Icon color={'#16a34a'} icon={Check} size={14} /> {item}
                 </div>
               ))}
             </div>
-            <div>
-              {excludedBenefits.map((item) => (
-                <div className={subscriptionPageStyles.caption} key={item}>
-                  <Icon color={'#ef4444'} icon={X} size={14} /> {item}
-                </div>
-              ))}
-            </div>
-          </div>
+          ) : (
+            <div className={subscriptionPageStyles.caption}>后台暂未配置当前套餐权益。</div>
+          )}
         </Flexbox>
       </BusinessSettingsSection>
-      <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'兑换码'}>
-        <RedemptionPanel
-          onSuccess={() => {
-            void refreshCommercialEntitlementState();
-          }}
-        />
-      </BusinessSettingsSection>
-      <div ref={historyRef}>
+      <div ref={billingHistoryRef}>
+        <BusinessSettingsSection
+          mobile={mobile}
+          open={mobile ? billingHistoryOpen : undefined}
+          title={'账单历史'}
+          onOpenChange={mobile ? setBillingHistoryOpen : undefined}
+        >
+          {mobile ? (
+            <BusinessMobileRecordList
+              emptyDescription={'暂无账单记录'}
+              error={billingHistoryError ? t('mobile.error.title') : undefined}
+              isLoading={isBillingHistoryLoading}
+              records={billingOrders.map((item) => buildBillingOrderRecord(item, recordFormatters))}
+              sheetTitle={'账单详情'}
+              onRetry={() => void refreshBillingHistory()}
+            />
+          ) : (
+            <InlineTable
+              columns={billingHistoryColumns as any}
+              dataSource={billingOrders}
+              loading={isBillingHistoryLoading}
+              rowKey={(record) => record.id}
+              locale={{
+                emptyText: <Empty description={hasBillingHistory ? undefined : '暂无账单记录'} />,
+              }}
+            />
+          )}
+        </BusinessSettingsSection>
+      </div>
+      <div>
         <BusinessSettingsSection
           defaultOpen={false}
           mobile={mobile}
-          open={mobile ? historyOpen : undefined}
+          open={mobile ? planChangeHistoryOpen : undefined}
           title={'套餐变更记录'}
-          onOpenChange={mobile ? setHistoryOpen : undefined}
+          onOpenChange={mobile ? setPlanChangeHistoryOpen : undefined}
         >
           {mobile ? (
             <BusinessMobileRecordList
@@ -308,7 +385,7 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
               rowKey={(record) => record.id}
               locale={{
                 emptyText: (
-                  <Empty description={hasBillingHistory ? undefined : '暂无套餐变更记录'} />
+                  <Empty description={hasPlanChangeHistory ? undefined : '暂无套餐变更记录'} />
                 ),
               }}
             />

@@ -352,6 +352,18 @@ describe('DesktopControlCenter', () => {
     expect(screen.getByText('admin.desktopControl.policy.enabled')).toBeInTheDocument();
   });
 
+  it('keeps the control center available when legacy settings omit desktop update config', () => {
+    renderControlCenter({
+      settingsData: {
+        ...defaultSettingsData,
+        desktopUpdateConfig: undefined,
+      } as any,
+    });
+
+    expect(screen.getByRole('heading', { name: 'admin.desktopControl.title' })).toBeInTheDocument();
+    expect(screen.getByText('admin.desktopControl.tabs.buildProfile')).toBeInTheDocument();
+  });
+
   it('offers first-use profile creation when no desktop build profile exists', () => {
     renderControlCenter({ emptyProfiles: true, search: 'tab=build-profile' });
 

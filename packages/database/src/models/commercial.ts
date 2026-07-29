@@ -3,12 +3,15 @@ import type {
   AdminDependencyImpact,
   AiUsagePricingRule,
   AutoTopUpSetting,
+  BillingOrderHistoryItem,
   CommercialOverview,
+  CommercialResourceUsage,
   CreateSubscriptionChangeRequestParams,
   CreateTopUpOrderParams,
   CreditAccountSummary,
   CreditConsumeAllocation,
   CreditLedgerListResult,
+  CreditPackageHistoryItem,
   CreditSourceSummary,
   CreditSourceType,
   ModuleAppNormalizedPaymentEvent,
@@ -40,6 +43,7 @@ import {
   appSettings,
   creditAccounts,
   creditLedgerEntries,
+  creditLots,
   planCatalog,
   redemptionCodes,
   referralProfiles,
@@ -47,13 +51,17 @@ import {
   referralRewards,
   subscriptionChangeRequests,
   subscriptionPaymentOrders,
+  topUpOrders,
   userPlanSnapshots,
   users,
 } from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
 import { addCalendarMonths, addCalendarYears } from './commercial/calendar';
 import { CreditLotModel } from './commercial/creditLot';
+import { buildCommercialResourceUsage } from './commercial/resourceUsage';
 import { CommercialTopUpModel } from './commercial/topUp';
+import { EmbeddingModel } from './embedding';
+import { FileModel } from './file';
 
 const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
   currency: 'USD',
@@ -1552,6 +1560,50 @@ export class CommercialModel {
     };
   };
 
+  listCreditPackages = async (
+    params: QueryCommercialListParams = {},
+  ): Promise<CreditPackageHistoryItem[]> => {
+    const { limit = 100 } = params;
+
+    await this.syncLatestSubscriptionCredits();
+    await this.db.transaction(async (tx) => {
+      await new CreditLotModel(this.db, this.userId).expireDueLots(tx);
+    });
+
+    const rows = await this.db
+      .select({
+        consumedAmount: creditLots.consumedAmount,
+        createdAt: creditLots.createdAt,
+        expiredAmount: creditLots.expiredAmount,
+        expiresAt: creditLots.expiresAt,
+        grantedAmount: creditLots.grantedAmount,
+        id: creditLots.id,
+        referenceId: creditLots.referenceId,
+        referenceType: creditLots.referenceType,
+        refundedAmount: creditLots.refundedAmount,
+        source: creditLots.source,
+        status: creditLots.status,
+        updatedAt: creditLots.updatedAt,
+      })
+      .from(creditLots)
+      .where(eq(creditLots.userId, this.userId))
+      .orderBy(desc(creditLots.createdAt), desc(creditLots.id))
+      .limit(limit);
+
+    return rows.map((row) => {
+      const remainingAmount = Math.max(
+        0,
+        row.grantedAmount - row.consumedAmount - row.expiredAmount - row.refundedAmount,
+      );
+
+      return {
+        ...row,
+        remainingAmount,
+        status: row.status === 'expired' ? 'expired' : remainingAmount <= 0 ? 'depleted' : 'active',
+      };
+    });
+  };
+
   getLatestPlanSnapshot = async (db: LobeChatDatabase | Transaction = this.db) => {
     const now = new Date();
 
@@ -1595,6 +1647,24 @@ export class CommercialModel {
     ]);
 
     return { account, subscription };
+  };
+
+  getResourceUsage = async (): Promise<CommercialResourceUsage> => {
+    // Resource quotas are copied from the active subscription snapshot. Sync
+    // them before reading the account so a direct usage-page visit cannot race
+    // the commercial overview request and render an outdated unlimited quota.
+    await this.syncLatestSubscriptionCredits();
+
+    const [account, storageUsed, vectorUsed] = await Promise.all([
+      this.db.query.creditAccounts.findFirst({
+        columns: { storageQuota: true, vectorQuota: true },
+        where: eq(creditAccounts.userId, this.userId),
+      }),
+      new FileModel(this.db, this.userId).countUsage(),
+      new EmbeddingModel(this.db, this.userId).countUsage(),
+    ]);
+
+    return buildCommercialResourceUsage(account, { storageUsed, vectorUsed });
   };
 
   getCurrentPlan = async (): Promise<Plans> => {
@@ -3215,6 +3285,93 @@ export class CommercialModel {
       .where(eq(referralRelations.inviterUserId, this.userId))
       .orderBy(desc(referralRelations.createdAt), desc(referralRelations.id))
       .limit(limit);
+  };
+
+  listBillingOrders = async (
+    params: QueryCommercialListParams = {},
+  ): Promise<BillingOrderHistoryItem[]> => {
+    const { limit = 20 } = params;
+    const [topUpOrderRows, subscriptionOrderRows] = await Promise.all([
+      this.db
+        .select({
+          amount: topUpOrders.amount,
+          createdAt: topUpOrders.createdAt,
+          credits: topUpOrders.credits,
+          currency: topUpOrders.currency,
+          externalOrderId: topUpOrders.externalOrderId,
+          id: topUpOrders.id,
+          paidAt: topUpOrders.paidAt,
+          provider: topUpOrders.provider,
+          status: topUpOrders.status,
+        })
+        .from(topUpOrders)
+        .where(
+          and(
+            eq(topUpOrders.userId, this.userId),
+            or(
+              inArray(topUpOrders.provider, ['alipay', 'wechat_pay', 'zpay']),
+              inArray(topUpOrders.source, ['alipay', 'wechat_pay', 'zpay']),
+            ),
+          ),
+        )
+        .orderBy(desc(topUpOrders.createdAt), desc(topUpOrders.id))
+        .limit(limit),
+      this.db
+        .select({
+          amount: subscriptionPaymentOrders.amount,
+          createdAt: subscriptionPaymentOrders.createdAt,
+          currency: subscriptionPaymentOrders.currency,
+          cycle: subscriptionPaymentOrders.cycle,
+          externalOrderId: subscriptionPaymentOrders.externalOrderId,
+          id: subscriptionPaymentOrders.id,
+          method: subscriptionPaymentOrders.method,
+          paidAt: subscriptionPaymentOrders.paidAt,
+          plan: subscriptionPaymentOrders.plan,
+          provider: subscriptionPaymentOrders.provider,
+          snapshot: subscriptionPaymentOrders.snapshot,
+          status: subscriptionPaymentOrders.status,
+        })
+        .from(subscriptionPaymentOrders)
+        .where(eq(subscriptionPaymentOrders.userId, this.userId))
+        .orderBy(desc(subscriptionPaymentOrders.createdAt), desc(subscriptionPaymentOrders.id))
+        .limit(limit),
+    ]);
+
+    const topUpItems: BillingOrderHistoryItem[] = topUpOrderRows.map((order) => ({
+      amount: order.amount,
+      createdAt: order.createdAt,
+      credits: order.credits,
+      currency: order.currency,
+      displayName: null,
+      externalOrderId: order.externalOrderId,
+      id: order.id,
+      kind: 'topup',
+      paidAt: order.paidAt,
+      provider: order.provider,
+      status: order.status,
+    }));
+    const subscriptionItems: BillingOrderHistoryItem[] = subscriptionOrderRows.map((order) => ({
+      amount: order.amount,
+      createdAt: order.createdAt,
+      currency: order.currency,
+      cycle: order.cycle,
+      displayName: order.snapshot.displayName,
+      externalOrderId: order.externalOrderId,
+      id: order.id,
+      kind: 'subscription',
+      method: order.method,
+      paidAt: order.paidAt,
+      plan: order.plan,
+      provider: order.provider,
+      status: order.status,
+    }));
+
+    return [...topUpItems, ...subscriptionItems]
+      .toSorted((left, right) => {
+        const createdAtDelta = right.createdAt.getTime() - left.createdAt.getTime();
+        return createdAtDelta || right.id.localeCompare(left.id);
+      })
+      .slice(0, limit);
   };
 
   listTopUpOrders = (params: QueryCommercialListParams = {}): Promise<TopUpOrderHistoryItem[]> =>

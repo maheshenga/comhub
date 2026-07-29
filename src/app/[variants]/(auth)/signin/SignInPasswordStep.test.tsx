@@ -4,21 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { SignInPasswordStep } from './SignInPasswordStep';
 
 const mocks = vi.hoisted(() => ({
-  brand: {
-    authTitle: 'Admin auth title',
-  },
   form: {
     submit: vi.fn(),
   },
 }));
 
-vi.mock('@/features/Brand', () => ({
-  useBrand: () => mocks.brand,
-}));
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) =>
+      key === 'betterAuth.signin.passwordStep.title' ? 'Enter your password' : key,
   }),
 }));
 
@@ -34,7 +28,7 @@ vi.mock('antd', async (importOriginal) => {
 });
 
 describe('SignInPasswordStep', () => {
-  it('uses the admin-configured auth title in the upstream password step', () => {
+  it('uses the upstream password title and the account email as subtitle', () => {
     render(
       <SignInPasswordStep
         email="user@example.com"
@@ -47,7 +41,7 @@ describe('SignInPasswordStep', () => {
       />,
     );
 
-    expect(screen.getByText('Admin auth title')).toBeInTheDocument();
-    expect(screen.queryByText('Agent teammates that grow with you')).not.toBeInTheDocument();
+    expect(screen.getByText('Enter your password')).toBeInTheDocument();
+    expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 });

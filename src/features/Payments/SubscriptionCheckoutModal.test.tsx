@@ -14,6 +14,7 @@ const paymentIntent = vi.hoisted(() => ({
   read: vi.fn(),
 }));
 const swrState = vi.hoisted(() => ({ paymentStatus: 'expired' }));
+const swrMutate = vi.hoisted(() => vi.fn());
 
 vi.mock('@/business/client/commercialRefresh', () => ({
   refreshCommercialEntitlementState: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock('swr', () => ({
     }
     return { data: undefined, isLoading: false };
   },
+  mutate: swrMutate,
 }));
 vi.mock('@lobehub/ui', () => ({
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

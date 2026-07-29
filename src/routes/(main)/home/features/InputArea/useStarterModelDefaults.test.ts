@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { NEW_GLM_MODEL } from './starterModels';
+import { NEW_CLAUDE_MODEL } from './starterModels';
 import { useStarterModelDefaults } from './useStarterModelDefaults';
 
 const mocks = vi.hoisted(() => ({
@@ -25,30 +25,32 @@ describe('useStarterModelDefaults', () => {
   it('uses the OSS fallback home new model entries in the current product order', () => {
     const { result } = renderHook(() => useStarterModelDefaults());
 
-    expect(NEW_GLM_MODEL).toBe('glm-5.2');
-    expect(result.current.fallbackChatProvider).toBe('zhipu');
+    expect(NEW_CLAUDE_MODEL).toBe('claude-opus-5');
+    expect(result.current.fallbackChatProvider).toBe('anthropic');
     expect(result.current.defaultHomeNewModels).toEqual([
       {
-        model: 'glm-5.2',
-        provider: 'zhipu',
-        title: 'GLM-5.2',
+        model: 'claude-opus-5',
+        provider: 'anthropic',
+        title: 'Claude Opus 5',
         type: 'chat',
       },
       {
-        model: 'kimi-k2.7-code',
+        model: 'gemini-3.6-flash',
+        provider: 'google',
+        title: 'Gemini 3.6 Flash',
+        type: 'chat',
+      },
+      {
+        model: 'qwen3.8-max-preview',
+        provider: 'qwen',
+        title: 'Qwen3.8 Max Preview',
+        type: 'chat',
+      },
+      {
+        model: 'kimi-k3',
         provider: 'moonshot',
-        title: 'Kimi K2.7 Code',
+        title: 'Kimi K3',
         type: 'chat',
-      },
-      {
-        model: 'gpt-image-2',
-        title: 'GPT Image 2',
-        type: 'image',
-      },
-      {
-        model: 'dreamina-seedance-2-0-260128',
-        title: 'Seedance 2.0',
-        type: 'video',
       },
     ]);
   });
@@ -61,26 +63,28 @@ describe('useStarterModelDefaults', () => {
     expect(result.current.fallbackChatProvider).toBe('newapi');
     expect(result.current.defaultHomeNewModels).toEqual([
       {
-        model: 'glm-5.2',
+        model: 'claude-opus-5',
         provider: 'newapi',
-        title: 'GLM-5.2',
+        title: 'Claude Opus 5',
         type: 'chat',
       },
       {
-        model: 'kimi-k2.7-code',
+        model: 'gemini-3.6-flash',
         provider: 'newapi',
-        title: 'Kimi K2.7 Code',
+        title: 'Gemini 3.6 Flash',
         type: 'chat',
       },
       {
-        model: 'gpt-image-2',
-        title: 'GPT Image 2',
-        type: 'image',
+        model: 'qwen3.8-max-preview',
+        provider: 'newapi',
+        title: 'Qwen3.8 Max Preview',
+        type: 'chat',
       },
       {
-        model: 'dreamina-seedance-2-0-260128',
-        title: 'Seedance 2.0',
-        type: 'video',
+        model: 'kimi-k3',
+        provider: 'newapi',
+        title: 'Kimi K3',
+        type: 'chat',
       },
     ]);
   });

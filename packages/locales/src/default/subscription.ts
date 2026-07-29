@@ -64,11 +64,14 @@ export default {
   'downgradePlans.title': 'Switch to {{plan}}',
   'credits.autoTopUp.currentBalance': 'Current Balance',
   'credits.autoTopUp.desc': 'Ensure your credits never run out',
+  'credits.autoTopUp.loadError': 'Failed to load auto top-up settings',
   'credits.autoTopUp.noCustomerHint':
     'Purchase credits once to save a payment method before enabling auto top-up.',
   'credits.autoTopUp.noPaymentMethodHint':
     'No payment method on file. Auto top-up needs a saved card to charge automatically.',
   'credits.autoTopUp.purchaseCredits': 'Purchase Credits',
+  'credits.autoTopUp.retry': 'Retry',
+  'credits.autoTopUp.save': 'Save',
   'credits.autoTopUp.setupPaymentMethod': 'Add Payment Method',
   'credits.autoTopUp.monthlyLimit': 'Monthly Limit',
   'credits.autoTopUp.monthlyLimitDesc':
@@ -84,6 +87,8 @@ export default {
     'Auto top-up triggers when your credits fall to or below this level',
   'credits.autoTopUp.title': 'Auto Top-Up',
   'credits.autoTopUp.toggle': 'Enable Auto Top-Up',
+  'credits.autoTopUp.unavailable':
+    'Automatic charging is not supported by the current payment methods. Auto top-up remains disabled.',
   'credits.autoTopUp.upgradeHint': 'Subscribe to a paid plan to enable auto top-up',
   'credits.autoTopUp.validation.targetMustExceedThreshold':
     'Target balance must be greater than threshold',
@@ -93,6 +98,8 @@ export default {
   'credits.costEstimateHint.saveSuccess': 'Cost estimate alert settings saved',
   'credits.costEstimateHint.threshold': 'Warning Threshold',
   'credits.costEstimateHint.title': 'Cost Estimate Alert',
+  'credits.costEstimateHint.unavailable':
+    'Pre-send cost estimation is not connected in this deployment. Cost alerts remain disabled.',
   'credits.costEstimateHint.validation.threshold': 'Threshold must be greater than or equal to 0',
   'credits.packages.expired': 'Expired',
   'credits.packages.expiresIn': 'Expires in {{days}} days',
@@ -512,6 +519,7 @@ export default {
   'mobile.records.viewDetails': '查看详情',
   'mobile.tabs.ariaLabel': '商业设置',
   'mobile.usage.records.details': '用量记录详情',
+  'mobile.usage.records.credits': 'Credits used',
   'mobile.usage.records.empty': '当前月份暂无用量记录',
   'tab.billing': 'Billing',
   'tab.credits': 'Credits',

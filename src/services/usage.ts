@@ -2,6 +2,10 @@ import { lambdaClient } from '@/libs/trpc/client';
 import { type AgentUsageGranularity } from '@/types/usage/usageRecord';
 
 class UsageService {
+  findByDateRange = async (startAt: string, endAt: string) => {
+    return lambdaClient.usage.findByDateRange.query({ endAt, startAt });
+  };
+
   findByMonth = async (mo?: string) => {
     return lambdaClient.usage.findByMonth.query({ mo });
   };
