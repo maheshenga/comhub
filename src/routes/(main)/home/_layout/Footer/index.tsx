@@ -6,7 +6,7 @@ import { useAnalytics } from '@lobehub/analytics/react';
 import { type MenuProps } from '@lobehub/ui';
 import { ActionIcon, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
 import { DiscordIcon, GithubIcon } from '@lobehub/ui/icons';
-import { cssVar } from 'antd-style';
+import { createStaticStyles } from 'antd-style';
 import {
   Book,
   CircleHelp,
@@ -20,6 +20,7 @@ import {
   Send,
   Settings2,
   SettingsIcon,
+  Sparkles,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
@@ -52,6 +53,103 @@ import { createConfiguredHelpMenuItems } from './helpMenuItems';
 import { resolveFooterPromotionState } from './promotionPipeline';
 
 const AGENT_ONBOARDING_PROMO_SLUG = 'agent-onboarding-promo-v1';
+
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  memberCard: css`
+    isolation: isolate;
+    position: relative;
+
+    overflow: hidden;
+
+    margin-block-end: 4px;
+    padding: 10px;
+    border-radius: 8px;
+
+    background: ${cssVar.colorFillQuaternary};
+    box-shadow: 0 6px 18px ${cssVar.colorWarningBg};
+
+    transition:
+      transform 160ms ease,
+      background 160ms ease;
+
+    &::after {
+      pointer-events: none;
+      content: '';
+
+      position: absolute;
+      z-index: 0;
+      inset: 0;
+      transform: translate3d(-130%, 0, 0);
+
+      background: linear-gradient(
+        105deg,
+        transparent 35%,
+        rgb(255 255 255 / 22%) 50%,
+        transparent 65%
+      );
+    }
+
+    & > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+      background: ${cssVar.colorFillTertiary};
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      &::after {
+        animation: member-shine 8s ease-in-out infinite;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+
+      &:hover {
+        transform: none;
+      }
+    }
+
+    @keyframes member-shine {
+      0%,
+      72% {
+        transform: translate3d(-130%, 0, 0);
+      }
+
+      88%,
+      100% {
+        transform: translate3d(130%, 0, 0);
+      }
+    }
+  `,
+  memberDescription: css`
+    font-size: 12px;
+    line-height: 1.45;
+    color: ${cssVar.colorTextDescription};
+  `,
+  memberIcon: css`
+    color: ${cssVar.colorWarning};
+    filter: drop-shadow(0 2px 4px ${cssVar.colorWarningBg});
+  `,
+  memberLink: css`
+    display: block;
+    padding-inline: 8px;
+    color: inherit;
+    text-decoration: none;
+  `,
+  memberSparkle: css`
+    margin-inline-start: auto;
+    color: ${cssVar.colorWarning};
+    opacity: 0.72;
+  `,
+  memberTitle: css`
+    font-size: 13px;
+    line-height: 1.3;
+  `,
+}));
 
 const PRODUCT_HUNT_NOTIFICATION = {
   actionHref: 'https://www.producthunt.com/products/lobehub?launch=lobehub',
@@ -516,23 +614,18 @@ const Footer = memo(() => {
     <>
       {isHomeSidebar && enableBusinessFeatures && (
         <WorkspaceLink
-          style={{ color: 'inherit', display: 'block', paddingInline: 8, textDecoration: 'none' }}
+          className={styles.memberLink}
           to={brand.sidebarMemberUrl || '/settings/plans'}
         >
-          <Flexbox
-            gap={4}
-            padding={10}
-            style={{
-              border: `1px solid ${cssVar.colorBorderSecondary}`,
-              borderRadius: 8,
-              marginBlockEnd: 4,
-            }}
-          >
+          <Flexbox className={styles.memberCard} gap={5}>
             <Flexbox horizontal align="center" gap={6}>
-              <Icon icon={Crown} size={14} />
-              <strong style={{ fontSize: 13 }}>{brand.sidebarMemberLabel || '升级方案'}</strong>
+              <Icon className={styles.memberIcon} icon={Crown} size={15} />
+              <strong className={styles.memberTitle}>
+                {brand.sidebarMemberLabel || '升级方案'}
+              </strong>
+              <Icon className={styles.memberSparkle} icon={Sparkles} size={13} />
             </Flexbox>
-            <span style={{ fontSize: 12, opacity: 0.72 }}>解锁更多容量与高级功能。</span>
+            <span className={styles.memberDescription}>解锁更多容量与高级功能。</span>
           </Flexbox>
         </WorkspaceLink>
       )}

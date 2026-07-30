@@ -1,11 +1,11 @@
 import { useAgentId } from '@/features/ChatInput/hooks/useAgentId';
 import { useAgentModelSelection } from '@/features/ChatInput/hooks/useAgentModelSelection';
 import { useChatInputResourceAccess } from '@/features/ChatInput/hooks/useChatInputResourceAccess';
+import { resolveEnabledChatModel } from '@/helpers/resolveEnabledChatModel';
 import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
-import { type EnabledProviderWithModels } from '@/types/aiProvider';
 
 interface ResolveChatInputNoticeParams {
   currentChatModel?: unknown;
@@ -15,16 +15,6 @@ interface ResolveChatInputNoticeParams {
   isModelConfigReady: boolean;
   isResourceViewOnly?: boolean;
 }
-
-const findEnabledChatModel = (
-  enabledChatModelList: EnabledProviderWithModels[],
-  model: string,
-  provider: string,
-) => {
-  return enabledChatModelList
-    .find((item) => item.id === provider)
-    ?.children.find((item) => item.id === model);
-};
 
 export const resolveChatInputNotice = ({
   currentChatModel,
@@ -86,7 +76,7 @@ export const useChatInputNotice = (): ChatInputNotice | undefined => {
   const isModelConfigReady = useAiInfraStore((s) =>
     aiProviderSelectors.isInitAiProviderRuntimeState(s),
   );
-  const currentChatModel = findEnabledChatModel(enabledChatModelList, model, provider);
+  const currentChatModel = resolveEnabledChatModel(enabledChatModelList, model, provider)?.model;
   const { canUseResource, isGroupContext } = useChatInputResourceAccess();
 
   return resolveChatInputNotice({

@@ -230,6 +230,42 @@ describe('useChatInputNotice', () => {
     expect(result.current).toBeUndefined();
   });
 
+  it('does not mark a uniquely available managed model as offline when the saved provider is newapi', () => {
+    testState.aiInfra.isInitAiProviderRuntimeState = true;
+    testState.agent.model = 'glm-5.2';
+    testState.agent.provider = 'newapi';
+    testState.aiInfra.enabledChatModelList = [
+      {
+        children: [{ abilities: { functionCall: true }, id: 'glm-5.2' }],
+        id: 'managed-provider-id',
+      },
+    ];
+
+    const { result } = renderHook(() => useChatInputNotice());
+
+    expect(result.current).toBeUndefined();
+  });
+
+  it('keeps the offline warning when a newapi model maps to multiple managed providers', () => {
+    testState.aiInfra.isInitAiProviderRuntimeState = true;
+    testState.agent.model = 'shared-model';
+    testState.agent.provider = 'newapi';
+    testState.aiInfra.enabledChatModelList = [
+      {
+        children: [{ abilities: { functionCall: true }, id: 'shared-model' }],
+        id: 'managed-provider-a',
+      },
+      {
+        children: [{ abilities: { functionCall: true }, id: 'shared-model' }],
+        id: 'managed-provider-b',
+      },
+    ];
+
+    const { result } = renderHook(() => useChatInputNotice());
+
+    expect(result.current).toEqual({ key: 'input.modelUnavailable', type: 'warning' });
+  });
+
   it('does not return a model notice for heterogeneous agents', () => {
     testState.agent.agencyConfig = { heterogeneousProvider: { type: 'codex' } };
     testState.aiInfra.isInitAiProviderRuntimeState = true;

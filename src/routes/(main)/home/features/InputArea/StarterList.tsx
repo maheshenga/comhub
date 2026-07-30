@@ -3,7 +3,7 @@ import { Center, Skeleton, Tag, Tooltip } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { App } from 'antd';
 import { createStaticStyles, cx } from 'antd-style';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -13,10 +13,13 @@ import {
 import type { HomeNewModelItem } from '@/business/client/hooks/useHomeNewModels';
 import { useHomeNewModels } from '@/business/client/hooks/useHomeNewModels';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { resolveEnabledChatModel } from '@/helpers/resolveEnabledChatModel';
+import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
 import { usePermission } from '@/hooks/usePermission';
 import { agentService } from '@/services/agent';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
+import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 
 import { useResolvedHomeAgentId } from '../AgentSelect/useResolvedHomeAgentId';
 import { trackHomeModelShortcutClicked } from './starterListAnalytics';
@@ -59,6 +62,26 @@ const StarterList = memo(() => {
   const { defaultHomeNewModels, fallbackChatProvider } = useStarterModelDefaults();
   const { isLoading, items } = useHomeNewModels(defaultHomeNewModels);
   const applyBusinessModelModeConfig = useBusinessModelModeConfig();
+  const enabledChatModelList = useEnabledChatModels();
+  const isModelConfigReady = useAiInfraStore((s) =>
+    aiProviderSelectors.isInitAiProviderRuntimeState(s),
+  );
+  const resolvedItems = useMemo(
+    () =>
+      items.flatMap((item) => {
+        if (item.type !== 'chat') return [item];
+
+        const match = resolveEnabledChatModel(
+          enabledChatModelList,
+          item.model,
+          getStarterItemProvider(item, fallbackChatProvider),
+        );
+
+        return match ? [{ ...item, provider: match.provider }] : [];
+      }),
+    [enabledChatModelList, fallbackChatProvider, items],
+  );
+  const isStarterListLoading = isLoading || !isModelConfigReady;
 
   const handleClick = useCallback(
     async (item: HomeNewModelItem) => {
@@ -143,7 +166,7 @@ const StarterList = memo(() => {
       <Tag className={styles.newTag} size={'small'}>
         {t('starter.newLabel')}
       </Tag>
-      {isLoading
+      {isStarterListLoading
         ? defaultHomeNewModels.map((item, index) => (
             <Skeleton.Button
               active
@@ -155,7 +178,7 @@ const StarterList = memo(() => {
               }}
             />
           ))
-        : items.map((item) => {
+        : resolvedItems.map((item) => {
             const key = getStarterItemKey(item);
             const isSwitching = switchingKey === key;
             const button = (
