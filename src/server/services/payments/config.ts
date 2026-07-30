@@ -27,6 +27,7 @@ export const PAYMENT_SETTING_KEYS = [
   APP_SETTING_KEYS.paymentEnabled,
   APP_SETTING_KEYS.paymentModuleAppEnabled,
   APP_SETTING_KEYS.paymentPublicBaseUrl,
+  APP_SETTING_KEYS.paymentSubscriptionEnabled,
   APP_SETTING_KEYS.paymentTopUpEnabled,
   APP_SETTING_KEYS.paymentWechatApiBaseUrl,
   APP_SETTING_KEYS.paymentWechatApiV3Key,
@@ -36,6 +37,7 @@ export const PAYMENT_SETTING_KEYS = [
   APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
   APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
   APP_SETTING_KEYS.paymentWechatPlatformCertificate,
+  APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
   APP_SETTING_KEYS.paymentZpayAlipayEnabled,
   APP_SETTING_KEYS.paymentZpayApiBaseUrl,
   APP_SETTING_KEYS.paymentZpayEnabled,
@@ -73,6 +75,7 @@ export type ServerWechatPaymentConfig = {
   merchantPrivateKey?: string;
   merchantSerialNo?: string;
   platformCertificate?: string;
+  platformCertificateSerialNo?: string;
 };
 
 export type ServerZPayConfig = {
@@ -91,6 +94,7 @@ export type ServerPaymentConfig = {
   enabled: boolean;
   moduleAppEnabled: boolean;
   publicBaseUrl?: string;
+  subscriptionEnabled: boolean;
   topUpEnabled: boolean;
   wechat: ServerWechatPaymentConfig;
   zpay: ServerZPayConfig;
@@ -103,6 +107,7 @@ export const createOperationalPaymentConfig = (
   alipay: { ...config.alipay, enabled: true },
   enabled: true,
   moduleAppEnabled: true,
+  subscriptionEnabled: true,
   topUpEnabled: true,
   wechat: { ...config.wechat, enabled: true },
   zpay: {
@@ -155,11 +160,16 @@ const secretOrEnvironment = async (
   key: AppSettingKey,
   ...environmentNames: string[]
 ) => {
-  try {
-    const decrypted = await decryptAppSettingSecret(key, values.get(key));
-    return text(decrypted) ?? firstEnvironmentValue(...environmentNames);
-  } catch {
+  const stored = values.get(key);
+  if (stored === undefined || stored === null || stored === '') {
     return firstEnvironmentValue(...environmentNames);
+  }
+
+  try {
+    return text(await decryptAppSettingSecret(key, stored));
+  } catch {
+    // A damaged stored credential must disable its channel instead of reviving stale env secrets.
+    return undefined;
   }
 };
 
@@ -322,6 +332,11 @@ export const getServerPaymentConfig = async (
     APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
     'PAYMENT_WECHAT_MERCHANT_SERIAL_NO',
   );
+  const wechatPlatformCertificateSerialNo = valueOrEnvironment(
+    values,
+    APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
+    'PAYMENT_WECHAT_PLATFORM_CERTIFICATE_SERIAL_NO',
+  );
   const wechatApiBaseUrl =
     normalizeBaseUrl(
       valueOrEnvironment(
@@ -337,7 +352,8 @@ export const getServerPaymentConfig = async (
     wechatMerchantPrivateKey &&
     wechatApiV3Key &&
     Buffer.byteLength(wechatApiV3Key, 'utf8') === 32 &&
-    wechatPlatformCertificate,
+    wechatPlatformCertificate &&
+    wechatPlatformCertificateSerialNo,
   );
 
   const zpayMerchantId = valueOrEnvironment(
@@ -399,6 +415,12 @@ export const getServerPaymentConfig = async (
       'MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED',
     ),
     publicBaseUrl,
+    subscriptionEnabled: booleanOrEnvironment(
+      values,
+      APP_SETTING_KEYS.paymentSubscriptionEnabled,
+      false,
+      'PAYMENT_SUBSCRIPTION_ENABLED',
+    ),
     topUpEnabled: booleanOrEnvironment(
       values,
       APP_SETTING_KEYS.paymentTopUpEnabled,
@@ -420,6 +442,7 @@ export const getServerPaymentConfig = async (
       merchantPrivateKey: wechatMerchantPrivateKey,
       merchantSerialNo: wechatMerchantSerialNo,
       platformCertificate: wechatPlatformCertificate,
+      platformCertificateSerialNo: wechatPlatformCertificateSerialNo,
     },
     zpay: {
       alipayEnabled: booleanOrEnvironment(
@@ -454,6 +477,7 @@ export const listEnabledPaymentMethods = (
 ): PaymentMethod[] => {
   if (!config.enabled) return [];
   if (purpose === 'module_app' && !config.moduleAppEnabled) return [];
+  if (purpose === 'subscription' && !config.subscriptionEnabled) return [];
   if (purpose === 'top_up' && !config.topUpEnabled) return [];
 
   const methods: PaymentMethod[] = [];
@@ -495,5 +519,7 @@ export const buildPaymentCallbackUrl = (config: ServerPaymentConfig, provider: P
 
 export const buildPaymentReturnUrl = (config: ServerPaymentConfig, purpose: PaymentPurpose) => {
   if (!config.publicBaseUrl) throw new Error('PAYMENT_PUBLIC_BASE_URL_REQUIRED');
-  return `${config.publicBaseUrl}${purpose === 'module_app' ? '/apps' : '/topup'}`;
+  const pathname =
+    purpose === 'module_app' ? '/apps' : purpose === 'subscription' ? '/settings/plans' : '/topup';
+  return `${config.publicBaseUrl}${pathname}`;
 };

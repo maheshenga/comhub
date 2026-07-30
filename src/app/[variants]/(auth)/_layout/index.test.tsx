@@ -31,8 +31,12 @@ vi.mock('./AuthThemeButton', () => ({
   default: () => <button type="button">Theme</button>,
 }));
 
+vi.mock('./AuthFooterLinks', () => ({
+  default: () => <span>Terms · Privacy</span>,
+}));
+
 describe('AuthContainer', () => {
-  it('renders the admin-configured brand logo, label, and copyright in the upstream shell', () => {
+  it('keeps branding inside the upstream auth shell without replacing its footer', () => {
     render(
       <AuthContainer>
         <div>auth form</div>
@@ -44,6 +48,7 @@ describe('AuthContainer', () => {
       'src',
       '/runtime-auth-logo.svg',
     );
-    expect(screen.getByText('Copyright 2026 ComHub')).toBeInTheDocument();
+    expect(screen.getByText('Terms · Privacy')).toBeInTheDocument();
+    expect(screen.queryByText('Copyright 2026 ComHub')).not.toBeInTheDocument();
   });
 });

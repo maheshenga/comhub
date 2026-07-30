@@ -1,11 +1,16 @@
 import type {
   AutoTopUpSetting,
   CreditLedgerEntryType,
+  CreditSourceType,
+  ModuleAppPaymentEventType,
   PaymentCheckoutAction,
+  PaymentMethodId,
+  PaymentProvider,
   ReferralStatusString,
   SubscriptionChangeRequestReasonType,
   SubscriptionChangeRequestStatusType,
   SubscriptionCycleType,
+  SubscriptionPaymentOrderSnapshot,
   SubscriptionStatusType,
   TopUpOrderSourceType,
   TopUpOrderStatusType,
@@ -61,6 +66,7 @@ export const userPlanSnapshots = pgTable(
   (table) => [
     index('user_plan_snapshots_user_id_idx').on(table.userId),
     index('user_plan_snapshots_user_started_at_idx').on(table.userId, table.startedAt),
+    index('user_plan_snapshots_status_ends_at_idx').on(table.status, table.endsAt),
     uniqueIndex('user_plan_snapshots_one_active_per_user_unique')
       .on(table.userId)
       .where(sql`${table.status} = 'active'`),
@@ -221,6 +227,21 @@ export const creditLedgerEntries = pgTable(
       .where(
         sql`${table.referenceType} = 'subscription_snapshot_period' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'subscription_grant'`,
       ),
+    uniqueIndex('credit_ledger_entries_credit_lot_expiry_unique')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'credit_lot_expiry' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'expire'`,
+      ),
+    uniqueIndex('credit_ledger_entries_top_up_refund_unique')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'top_up_refund' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'refund'`,
+      ),
+    uniqueIndex('credit_ledger_entries_subscription_refund_unique')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'subscription_refund' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'refund'`,
+      ),
   ],
 );
 
@@ -292,7 +313,7 @@ export const creditReservations = pgTable(
     actualAmount: amountNumeric('actual_amount'),
     releasedAmount: amountNumeric('released_amount').default(0).notNull(),
     status: text('status')
-      .$type<'active' | 'expired' | 'released' | 'settled'>()
+      .$type<'active' | 'expired' | 'released' | 'settled' | 'settlement_failed'>()
       .default('active')
       .notNull(),
     idempotencyKey: text('idempotency_key').notNull().unique(),
@@ -323,12 +344,44 @@ export const creditReservations = pgTable(
     ),
     check(
       'credit_reservations_status_check',
-      sql`${table.status} IN ('active', 'expired', 'released', 'settled')`,
+      sql`${table.status} IN ('active', 'expired', 'released', 'settled', 'settlement_failed')`,
     ),
   ],
 );
 
 export type CreditReservationItem = typeof creditReservations.$inferSelect;
+
+export const creditSettlementFailures = pgTable(
+  'credit_settlement_failures',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    reservationId: uuid('reservation_id')
+      .references(() => creditReservations.id, { onDelete: 'cascade' })
+      .notNull()
+      .unique(),
+    actualAmount: amountNumeric('actual_amount').notNull(),
+    attempts: integer('attempts').notNull().default(1),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().default({}).notNull(),
+    status: text('status').$type<'pending' | 'resolved'>().notNull().default('pending'),
+    lastAttemptAt: timestamptz('last_attempt_at').notNull().defaultNow(),
+    resolvedAt: timestamptz('resolved_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index('credit_settlement_failures_status_updated_idx').on(table.status, table.updatedAt),
+    check(
+      'credit_settlement_failures_status_check',
+      sql`${table.status} IN ('pending', 'resolved')`,
+    ),
+    check('credit_settlement_failures_actual_amount_nonnegative', sql`${table.actualAmount} >= 0`),
+    check('credit_settlement_failures_attempts_positive', sql`${table.attempts} >= 1`),
+  ],
+);
+
+export type CreditSettlementFailureItem = typeof creditSettlementFailures.$inferSelect;
 export type WorkspaceCreditAccountItem = typeof workspaceCreditAccounts.$inferSelect;
 export type WorkspaceCreditLedgerEntryItem = typeof workspaceCreditLedgerEntries.$inferSelect;
 
@@ -354,12 +407,19 @@ export const topUpOrders = pgTable(
     redemptionCodeId: text('redemption_code_id'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     paidAt: timestamptz('paid_at'),
+    expiresAt: timestamptz('expires_at'),
+    creditsExpiresAt: timestamptz('credits_expires_at'),
+    refundedAt: timestamptz('refunded_at'),
+    refundAmount: amountNumeric('refund_amount'),
+    refundReference: text('refund_reference'),
+    refundStatus: text('refund_status').$type<'failed' | 'pending' | 'succeeded'>(),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     index('top_up_orders_user_id_idx').on(table.userId),
+    index('top_up_orders_status_expires_at_idx').on(table.status, table.expiresAt),
     uniqueIndex('top_up_orders_user_idempotency_unique')
       .on(table.userId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
@@ -367,11 +427,256 @@ export const topUpOrders = pgTable(
     uniqueIndex('top_up_orders_redemption_code_unique')
       .on(table.redemptionCodeId)
       .where(sql`${table.redemptionCodeId} IS NOT NULL`),
+    check(
+      'top_up_orders_refund_status_check',
+      sql`${table.refundStatus} IS NULL OR ${table.refundStatus} IN ('pending', 'succeeded', 'failed')`,
+    ),
   ],
 );
 
 export type NewTopUpOrder = typeof topUpOrders.$inferInsert;
 export type TopUpOrderItem = typeof topUpOrders.$inferSelect;
+
+export const subscriptionPaymentOrders = pgTable(
+  'subscription_payment_orders',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    status: text('status')
+      .$type<'canceled' | 'expired' | 'failed' | 'paid' | 'pending' | 'refunded'>()
+      .notNull()
+      .default('pending'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    plan: text('plan').$type<Plans>().notNull(),
+    cycle: text('cycle').$type<SubscriptionCycleType>().notNull(),
+    amount: amountNumeric('amount').notNull(),
+    currency: varchar('currency', { length: 16 }).notNull(),
+    snapshot: jsonb('snapshot').$type<SubscriptionPaymentOrderSnapshot>().notNull(),
+    activation: jsonb('activation').$type<Record<string, unknown>>(),
+    provider: text('provider').$type<PaymentProvider>().notNull(),
+    method: text('method').$type<PaymentMethodId>().notNull(),
+    externalOrderId: text('external_order_id'),
+    checkout: jsonb('checkout').$type<PaymentCheckoutAction>(),
+    paymentReference: text('payment_reference'),
+    activatedSnapshotId: uuid('activated_snapshot_id').references(() => userPlanSnapshots.id, {
+      onDelete: 'set null',
+    }),
+    expiresAt: timestamptz('expires_at').notNull(),
+    paidAt: timestamptz('paid_at'),
+    refundedAt: timestamptz('refunded_at'),
+    refundReference: text('refund_reference'),
+    refundStatus: text('refund_status').$type<'failed' | 'pending' | 'succeeded'>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('subscription_payment_orders_user_idempotency_unique').on(
+      table.userId,
+      table.idempotencyKey,
+    ),
+    uniqueIndex('subscription_payment_orders_provider_external_unique')
+      .on(table.provider, table.externalOrderId)
+      .where(sql`${table.externalOrderId} IS NOT NULL`),
+    index('subscription_payment_orders_status_expires_idx').on(table.status, table.expiresAt),
+    index('subscription_payment_orders_user_created_idx').on(table.userId, table.createdAt),
+    check(
+      'subscription_payment_orders_status_check',
+      sql`${table.status} IN ('pending', 'paid', 'failed', 'expired', 'canceled', 'refunded')`,
+    ),
+    check(
+      'subscription_payment_orders_cycle_check',
+      sql`${table.cycle} IN ('monthly', 'yearly', 'one_time', 'lifetime')`,
+    ),
+    check(
+      'subscription_payment_orders_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
+    check(
+      'subscription_payment_orders_method_check',
+      sql`${table.method} IN ('alipay', 'wechat_pay', 'zpay_alipay', 'zpay_wechat')`,
+    ),
+    check(
+      'subscription_payment_orders_provider_method_check',
+      sql`(${table.provider} = 'alipay' AND ${table.method} = 'alipay') OR (${table.provider} = 'wechat_pay' AND ${table.method} = 'wechat_pay') OR (${table.provider} = 'zpay' AND ${table.method} IN ('zpay_alipay', 'zpay_wechat'))`,
+    ),
+    check(
+      'subscription_payment_orders_refund_status_check',
+      sql`${table.refundStatus} IS NULL OR ${table.refundStatus} IN ('pending', 'succeeded', 'failed')`,
+    ),
+    check('subscription_payment_orders_amount_positive', sql`${table.amount} > 0`),
+  ],
+);
+
+export type SubscriptionPaymentOrderItem = typeof subscriptionPaymentOrders.$inferSelect;
+
+export const subscriptionPaymentEvents = pgTable(
+  'subscription_payment_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    orderId: uuid('order_id').references(() => subscriptionPaymentOrders.id, {
+      onDelete: 'set null',
+    }),
+    provider: text('provider').$type<PaymentProvider>().notNull(),
+    eventId: text('event_id').notNull(),
+    eventType: text('event_type').$type<ModuleAppPaymentEventType>().notNull(),
+    outTradeNo: text('out_trade_no').notNull(),
+    status: text('status')
+      .$type<'failed' | 'ignored' | 'processed' | 'received' | 'rejected'>()
+      .notNull()
+      .default('received'),
+    errorCode: text('error_code'),
+    payload: jsonb('payload').$type<Record<string, unknown>>().default({}).notNull(),
+    occurredAt: timestamptz('occurred_at').notNull(),
+    processedAt: timestamptz('processed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('subscription_payment_events_provider_event_unique').on(
+      table.provider,
+      table.eventId,
+    ),
+    index('subscription_payment_events_status_created_idx').on(table.status, table.createdAt),
+    index('subscription_payment_events_order_id_idx').on(table.orderId),
+    check(
+      'subscription_payment_events_type_check',
+      sql`${table.eventType} IN ('payment_succeeded', 'payment_failed', 'refund_succeeded')`,
+    ),
+    check(
+      'subscription_payment_events_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
+    check(
+      'subscription_payment_events_status_check',
+      sql`${table.status} IN ('received', 'processed', 'ignored', 'rejected', 'failed')`,
+    ),
+  ],
+);
+
+export type SubscriptionPaymentEventItem = typeof subscriptionPaymentEvents.$inferSelect;
+
+export const topUpPaymentEvents = pgTable(
+  'top_up_payment_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    orderId: uuid('order_id').references(() => topUpOrders.id, { onDelete: 'set null' }),
+    provider: text('provider').$type<PaymentProvider>().notNull(),
+    eventId: text('event_id').notNull(),
+    eventType: text('event_type').$type<ModuleAppPaymentEventType>().notNull(),
+    outTradeNo: text('out_trade_no').notNull(),
+    status: text('status')
+      .$type<'failed' | 'ignored' | 'processed' | 'received' | 'rejected'>()
+      .notNull()
+      .default('received'),
+    errorCode: text('error_code'),
+    payload: jsonb('payload').$type<Record<string, unknown>>().default({}).notNull(),
+    occurredAt: timestamptz('occurred_at').notNull(),
+    processedAt: timestamptz('processed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('top_up_payment_events_provider_event_unique').on(table.provider, table.eventId),
+    index('top_up_payment_events_status_created_idx').on(table.status, table.createdAt),
+    index('top_up_payment_events_order_id_idx').on(table.orderId),
+    check(
+      'top_up_payment_events_type_check',
+      sql`${table.eventType} IN ('payment_succeeded', 'payment_failed', 'refund_succeeded')`,
+    ),
+    check(
+      'top_up_payment_events_provider_check',
+      sql`${table.provider} IN ('alipay', 'wechat_pay', 'zpay')`,
+    ),
+    check(
+      'top_up_payment_events_status_check',
+      sql`${table.status} IN ('received', 'processed', 'ignored', 'rejected', 'failed')`,
+    ),
+  ],
+);
+
+export type TopUpPaymentEventItem = typeof topUpPaymentEvents.$inferSelect;
+
+export const creditLots = pgTable(
+  'credit_lots',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    grantLedgerEntryId: uuid('grant_ledger_entry_id')
+      .references(() => creditLedgerEntries.id, { onDelete: 'cascade' })
+      .notNull()
+      .unique(),
+    source: text('source').$type<CreditSourceType>().notNull(),
+    referenceType: text('reference_type').notNull(),
+    referenceId: text('reference_id').notNull(),
+    grantedAmount: amountNumeric('granted_amount').notNull(),
+    consumedAmount: amountNumeric('consumed_amount').notNull().default(0),
+    expiredAmount: amountNumeric('expired_amount').notNull().default(0),
+    refundedAmount: amountNumeric('refunded_amount').notNull().default(0),
+    status: text('status').$type<'active' | 'expired' | 'refunded'>().notNull().default('active'),
+    expiresAt: timestamptz('expires_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index('credit_lots_user_expiry_idx').on(table.userId, table.status, table.expiresAt),
+    uniqueIndex('credit_lots_reference_unique').on(
+      table.userId,
+      table.referenceType,
+      table.referenceId,
+    ),
+    check('credit_lots_granted_amount_positive', sql`${table.grantedAmount} > 0`),
+    check(
+      'credit_lots_source_check',
+      sql`${table.source} IN ('other', 'referral', 'subscription', 'topup')`,
+    ),
+    check('credit_lots_status_check', sql`${table.status} IN ('active', 'expired', 'refunded')`),
+    check(
+      'credit_lots_amounts_nonnegative',
+      sql`${table.consumedAmount} >= 0 AND ${table.expiredAmount} >= 0 AND ${table.refundedAmount} >= 0`,
+    ),
+    check(
+      'credit_lots_amounts_within_grant',
+      sql`${table.consumedAmount} + ${table.expiredAmount} + ${table.refundedAmount} <= ${table.grantedAmount}`,
+    ),
+  ],
+);
+
+export type CreditLotItem = typeof creditLots.$inferSelect;
+
+export const creditDebts = pgTable(
+  'credit_debts',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    amount: amountNumeric('amount').notNull(),
+    reason: text('reason').notNull(),
+    referenceType: text('reference_type').notNull(),
+    referenceId: text('reference_id').notNull(),
+    status: text('status').$type<'open' | 'resolved'>().notNull().default('open'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    resolvedAt: timestamptz('resolved_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('credit_debts_reference_unique').on(
+      table.userId,
+      table.referenceType,
+      table.referenceId,
+    ),
+    index('credit_debts_user_status_idx').on(table.userId, table.status),
+    check('credit_debts_amount_positive', sql`${table.amount} > 0`),
+    check('credit_debts_status_check', sql`${table.status} IN ('open', 'resolved')`),
+  ],
+);
+
+export type CreditDebtItem = typeof creditDebts.$inferSelect;
 
 export const referralProfiles = pgTable(
   'referral_profiles',

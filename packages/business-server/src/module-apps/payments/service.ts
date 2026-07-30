@@ -49,6 +49,14 @@ const formatAmount = (value: unknown) => {
   return amount.toFixed(6);
 };
 
+const REFUND_OPERATION_DELAY_MS = 60_000;
+
+const assertRefundCooldownElapsed = (updatedAt: Date, errorCode: string) => {
+  if (Date.now() - updatedAt.getTime() < REFUND_OPERATION_DELAY_MS) {
+    throw new Error(errorCode);
+  }
+};
+
 const assertPaymentUrl = (value: string) => {
   const url = new URL(value);
   const localHttp =
@@ -62,7 +70,7 @@ export class ModuleAppPaymentService {
 
   constructor(
     private readonly db: LobeChatDatabase,
-    private readonly adapter: ModuleAppPaymentAdapter,
+    private readonly adapter: ModuleAppPaymentAdapter | undefined,
     private readonly metrics: ModuleAppPaymentMetrics = {
       recordOperationalAge: recordModuleAppOperationalAge,
       recordVerificationFailure: recordModuleAppPaymentVerificationFailure,
@@ -86,6 +94,7 @@ export class ModuleAppPaymentService {
     returnUrl: string;
     rollout?: { appIds: string[]; publisherIds: string[] };
   }) => {
+    const adapter = this.requireDefaultAdapter();
     const order = await this.db.query.moduleAppOrders.findFirst({
       where: and(
         eq(moduleAppOrders.id, input.orderId),
@@ -114,17 +123,17 @@ export class ModuleAppPaymentService {
     if (!subject) throw new Error('MODULE_APP_PAYMENT_SUBJECT_REQUIRED');
     const notifyUrl = assertPaymentUrl(input.notifyUrl);
     const returnUrl = assertPaymentUrl(input.returnUrl);
-    const outTradeNo = this.adapter.createOutTradeNo({
+    const outTradeNo = adapter.createOutTradeNo({
       orderId: order.id,
       purpose: 'module_app',
     });
     const { attempt, created: attemptCreated } = await this.model.createPaymentAttempt({
       currency: snapshot.currency,
-      method: this.adapter.method,
+      method: adapter.method,
       notifyUrl,
       orderId: order.id,
       outTradeNo,
-      provider: this.adapter.provider,
+      provider: adapter.provider,
       returnUrl,
       subject,
       totalAmount,
@@ -141,7 +150,7 @@ export class ModuleAppPaymentService {
       throw new Error('MODULE_APP_PAYMENT_CHECKOUT_RECOVERY_REQUIRED');
     }
     const created = paymentCreateResultSchema.parse(
-      await this.adapter.create({
+      await adapter.create({
         currency: snapshot.currency,
         notifyUrl,
         orderId: order.id,
@@ -154,8 +163,8 @@ export class ModuleAppPaymentService {
     if (
       !created.checkout ||
       created.outTradeNo !== outTradeNo ||
-      created.provider !== this.adapter.provider ||
-      created.method !== this.adapter.method
+      created.provider !== adapter.provider ||
+      created.method !== adapter.method
     ) {
       throw new Error('MODULE_APP_PAYMENT_CREATE_INVALID');
     }
@@ -173,9 +182,10 @@ export class ModuleAppPaymentService {
   };
 
   handleNotification = async (input: { body: string; headers: Record<string, string> }) => {
+    const adapter = this.requireDefaultAdapter();
     let verified: unknown;
     try {
-      verified = await this.adapter.verifyNotification(input);
+      verified = await adapter.verifyNotification(input);
     } catch (error) {
       this.metrics.recordVerificationFailure(getVerificationFailureReason(error));
       throw error;
@@ -452,31 +462,61 @@ export class ModuleAppPaymentService {
   };
 
   reconcileRefund = async (input: { actorUserId: string; orderId: string }) => {
-    const [attempt, refund, order] = await Promise.all([
+    const [attempt, initialRefund, order] = await Promise.all([
       this.model.getPaymentAttemptByOrderId(input.orderId),
       this.model.getRefundByOrderId(input.orderId),
       this.db.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, input.orderId) }),
     ]);
-    if (!attempt || !refund || !order) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
-    const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
-    if (!adapter.queryRefund) throw new Error('MODULE_APP_PAYMENT_REFUND_QUERY_UNSUPPORTED');
-    const result = await adapter.queryRefund({
-      outRequestNo: refund.providerRefundId,
-      outTradeNo: attempt.outTradeNo,
-    });
-    if (result.status === 'pending') return result;
-    if (result.status === 'failed') {
-      await this.model.updateRefundStatus({ orderId: order.id, status: 'failed' });
-      await this.model.createDiscrepancy({
-        discrepancyKey: `refund:${refund.providerRefundId}:${result.status}`,
-        kind: 'refund_mismatch',
-        orderId: order.id,
-        outTradeNo: attempt.outTradeNo,
-        provider: attempt.provider,
-      });
-      return result;
+    if (!attempt || !initialRefund || !order) {
+      throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
     }
-    await this.model.updateRefundStatus({ orderId: order.id, status: 'succeeded' });
+    let refund = initialRefund;
+    if (refund.status === 'requested') {
+      assertRefundCooldownElapsed(
+        refund.updatedAt,
+        'MODULE_APP_PAYMENT_REFUND_RECONCILIATION_TOO_EARLY',
+      );
+    }
+    if (refund.status !== 'succeeded') {
+      const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
+      if (!adapter.queryRefund) throw new Error('MODULE_APP_PAYMENT_REFUND_QUERY_UNSUPPORTED');
+      const result = await adapter.queryRefund({
+        outRequestNo: refund.providerRefundId,
+        outTradeNo: attempt.outTradeNo,
+      });
+      if (result.status === 'pending') {
+        if (refund.status === 'failed') {
+          const pending = await this.model.transitionRefundStatus({
+            expectedStatus: 'failed',
+            orderId: order.id,
+            status: 'requested',
+          });
+          if (!pending.transitioned && pending.refund.status !== 'requested') {
+            throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+          }
+        }
+        return result;
+      }
+      const resolved = await this.model.transitionRefundStatus({
+        expectedStatus: refund.status,
+        orderId: order.id,
+        status: result.status,
+      });
+      refund = resolved.refund;
+      if (!resolved.transitioned && refund.status !== result.status) {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+      }
+      if (result.status === 'failed') {
+        await this.model.createDiscrepancy({
+          discrepancyKey: `refund:${refund.providerRefundId}:${result.status}`,
+          kind: 'refund_mismatch',
+          orderId: order.id,
+          outTradeNo: attempt.outTradeNo,
+          provider: attempt.provider,
+        });
+        return result;
+      }
+    }
     await this.model.updatePaymentAttempt({
       outTradeNo: attempt.outTradeNo,
       provider: attempt.provider,
@@ -490,7 +530,88 @@ export class ModuleAppPaymentService {
         refundReference: `${attempt.provider}:${refund.providerRefundId}`,
       });
     }
-    return result;
+    return { status: 'succeeded' as const };
+  };
+
+  resolvePendingRefund = async (input: {
+    actorUserId: string;
+    orderId: string;
+    resolution: 'failed' | 'succeeded';
+  }) => {
+    const [attempt, refund, order] = await Promise.all([
+      this.model.getPaymentAttemptByOrderId(input.orderId),
+      this.model.getRefundByOrderId(input.orderId),
+      this.db.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, input.orderId) }),
+    ]);
+    if (!attempt || !refund || !order) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
+    if (
+      attempt.provider !== 'zpay' ||
+      refund.provider !== 'zpay' ||
+      (attempt.method !== 'zpay_alipay' && attempt.method !== 'zpay_wechat')
+    ) {
+      throw new Error('MODULE_APP_PAYMENT_MANUAL_REFUND_RESOLUTION_UNSUPPORTED');
+    }
+
+    if (input.resolution === 'failed') {
+      if (refund.status === 'failed') {
+        return { duplicate: true, orderId: order.id, status: 'failed' as const };
+      }
+      if (refund.status !== 'requested') {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_PENDING');
+      }
+      assertRefundCooldownElapsed(
+        refund.updatedAt,
+        'MODULE_APP_PAYMENT_REFUND_RESOLUTION_TOO_EARLY',
+      );
+      const resolved = await this.model.transitionRefundStatus({
+        expectedStatus: 'requested',
+        orderId: order.id,
+        status: 'failed',
+      });
+      if (resolved.refund.status !== 'failed') {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+      }
+      return {
+        duplicate: !resolved.transitioned,
+        orderId: order.id,
+        status: 'failed' as const,
+      };
+    }
+
+    let duplicate = refund.status === 'succeeded';
+    if (refund.status === 'requested') {
+      assertRefundCooldownElapsed(
+        refund.updatedAt,
+        'MODULE_APP_PAYMENT_REFUND_RESOLUTION_TOO_EARLY',
+      );
+      const resolved = await this.model.transitionRefundStatus({
+        expectedStatus: 'requested',
+        orderId: order.id,
+        status: 'succeeded',
+      });
+      if (resolved.refund.status !== 'succeeded') {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+      }
+      duplicate = !resolved.transitioned;
+    } else if (refund.status !== 'succeeded') {
+      throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+    }
+
+    await this.model.updatePaymentAttempt({
+      outTradeNo: attempt.outTradeNo,
+      provider: attempt.provider,
+      status: 'refunded',
+    });
+    if (order.status === 'refunded') {
+      return { duplicate: true, orderId: order.id, status: 'refunded' as const };
+    }
+    const refunded = await this.orderRevenueService.refundOrder({
+      actorUserId: input.actorUserId,
+      orderId: order.id,
+      reason: refund.reason,
+      refundReference: `${attempt.provider}:${refund.providerRefundId}`,
+    });
+    return { ...refunded, duplicate };
   };
 
   refundOrder = async (input: { actorUserId?: string; orderId: string; reason: string }) => {
@@ -501,53 +622,139 @@ export class ModuleAppPaymentService {
     let refund = await this.model.getRefundByOrderId(order.id);
     const attempt = await this.model.getPaymentAttemptByOrderId(order.id);
     if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
-    const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
-    if (order.status === 'refunded') {
-      if (!refund || refund.status !== 'succeeded') {
-        throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
-      }
+    if (refund?.status === 'succeeded') {
+      await this.model.updatePaymentAttempt({
+        outTradeNo: attempt.outTradeNo,
+        provider: attempt.provider,
+        status: 'refunded',
+      });
       return this.orderRevenueService.refundOrder({
         actorUserId: input.actorUserId ?? order.purchaserUserId,
         orderId: order.id,
-        reason: input.reason,
+        reason: refund.reason,
         refundReference: `${attempt.provider}:${refund.providerRefundId}`,
       });
     }
+    if (order.status === 'refunded') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
     if (order.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
     if (refund?.status === 'requested') {
       return { orderId: order.id, status: 'requested' as const };
     }
+
+    const adapter = await this.resolveAdapter(attempt.provider, attempt.method);
     if (refund?.status === 'failed') {
-      throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
+      const claimed = await this.model.transitionRefundStatus({
+        expectedStatus: 'failed',
+        orderId: order.id,
+        status: 'requested',
+      });
+      refund = claimed.refund;
+      if (claimed.transitioned) {
+        const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
+        const result = await adapter.refund({
+          outTradeNo: attempt.outTradeNo,
+          reason: refund.reason,
+          refundAmount: formatAmount(snapshot.price),
+          refundRequestNo: refund.providerRefundId,
+          totalAmount: formatAmount(snapshot.price),
+        });
+        if (result.providerRefundId !== refund.providerRefundId) {
+          throw new Error('MODULE_APP_PAYMENT_REFUND_REFERENCE_MISMATCH');
+        }
+        const refundStatus =
+          result.status === 'succeeded'
+            ? ('succeeded' as const)
+            : result.status === 'pending'
+              ? ('requested' as const)
+              : ('failed' as const);
+        const completed = await this.model.transitionRefundStatus({
+          expectedStatus: 'requested',
+          orderId: order.id,
+          status: refundStatus,
+        });
+        refund = completed.refund;
+        if (!completed.transitioned && refund.status !== refundStatus) {
+          throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+        }
+        if (result.status === 'pending') {
+          return { orderId: order.id, status: 'requested' as const };
+        }
+        if (result.status === 'failed') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
+        await this.model.updatePaymentAttempt({
+          outTradeNo: attempt.outTradeNo,
+          provider: attempt.provider,
+          status: 'refunded',
+        });
+      } else if (refund.status !== 'succeeded') {
+        return { orderId: order.id, status: refund.status };
+      }
     }
     if (!refund) {
       const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
-      const result = await adapter.refund({
+      const refundAmount = formatAmount(snapshot.price);
+      const generatedRefundRequestNo = adapter.createRefundRequestNo({
         outTradeNo: attempt.outTradeNo,
-        reason: input.reason,
-        refundAmount: formatAmount(snapshot.price),
-        totalAmount: formatAmount(snapshot.price),
+        refundAmount,
       });
-      const refundStatus =
-        result.status === 'succeeded'
-          ? ('succeeded' as const)
-          : result.status === 'pending'
-            ? ('requested' as const)
-            : ('failed' as const);
-      const created = await this.model.createRefund({
+      if (typeof generatedRefundRequestNo !== 'string' || !generatedRefundRequestNo.trim()) {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_REFERENCE_REQUIRED');
+      }
+      const refundRequestNo = generatedRefundRequestNo.trim();
+      const claimed = await this.model.createRefund({
         currency: snapshot.currency,
         orderId: order.id,
         provider: attempt.provider,
-        providerRefundId: result.providerRefundId,
+        providerRefundId: refundRequestNo,
         reason: input.reason,
-        refundAmount: formatAmount(snapshot.price),
-        status: refundStatus,
+        refundAmount,
+        status: 'requested',
       });
-      refund = created.refund;
-      if (result.status === 'pending') {
+      refund = claimed.refund;
+      if (
+        refund.orderId !== order.id ||
+        refund.provider !== attempt.provider ||
+        refund.currency !== snapshot.currency ||
+        formatAmount(refund.refundAmount) !== refundAmount
+      ) {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_CLAIM_CONFLICT');
+      }
+      if (claimed.duplicate && refund.status === 'requested') {
         return { orderId: order.id, status: 'requested' as const };
       }
-      if (result.status === 'failed') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
+      if (claimed.duplicate && refund.status === 'failed') {
+        throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
+      }
+      if (!claimed.duplicate) {
+        const result = await adapter.refund({
+          outTradeNo: attempt.outTradeNo,
+          reason: input.reason,
+          refundAmount,
+          refundRequestNo,
+          totalAmount: refundAmount,
+        });
+        if (result.providerRefundId !== refundRequestNo) {
+          throw new Error('MODULE_APP_PAYMENT_REFUND_REFERENCE_MISMATCH');
+        }
+        const refundStatus =
+          result.status === 'succeeded'
+            ? ('succeeded' as const)
+            : result.status === 'pending'
+              ? ('requested' as const)
+              : ('failed' as const);
+        const completed = await this.model.transitionRefundStatus({
+          expectedStatus: 'requested',
+          orderId: order.id,
+          status: refundStatus,
+        });
+        refund = completed.refund;
+        if (!completed.transitioned && refund.status !== refundStatus) {
+          throw new Error('MODULE_APP_PAYMENT_REFUND_RESOLUTION_CONFLICT');
+        }
+        if (result.status === 'pending') {
+          return { orderId: order.id, status: 'requested' as const };
+        }
+        if (result.status === 'failed') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
+      }
       await this.model.updatePaymentAttempt({
         outTradeNo: attempt.outTradeNo,
         provider: attempt.provider,
@@ -557,7 +764,7 @@ export class ModuleAppPaymentService {
     return this.orderRevenueService.refundOrder({
       actorUserId: input.actorUserId ?? order.purchaserUserId,
       orderId: order.id,
-      reason: input.reason,
+      reason: refund.reason,
       refundReference: `${attempt.provider}:${refund.providerRefundId}`,
     });
   };
@@ -595,8 +802,13 @@ export class ModuleAppPaymentService {
     });
   };
 
+  private requireDefaultAdapter = () => {
+    if (!this.adapter) throw new Error('MODULE_APP_PAYMENT_ADAPTER_NOT_AVAILABLE');
+    return this.adapter;
+  };
+
   private resolveAdapter = async (provider: ModuleAppPaymentProvider, method: PaymentMethodId) => {
-    if (this.adapter.provider === provider && this.adapter.method === method) return this.adapter;
+    if (this.adapter?.provider === provider && this.adapter.method === method) return this.adapter;
     if (!this.adapterResolver) throw new Error('MODULE_APP_PAYMENT_ADAPTER_NOT_AVAILABLE');
     const adapter = await this.adapterResolver(provider, method);
     if (adapter.provider !== provider || adapter.method !== method) {

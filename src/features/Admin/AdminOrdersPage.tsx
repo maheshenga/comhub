@@ -3,6 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
 import { Alert, Descriptions, Drawer, Input, message, Space, Tag } from 'antd';
+import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
@@ -17,6 +18,7 @@ import AdminDangerousActionButton from './AdminDangerousActionButton';
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 import { ADMIN_BASE_PATH } from './adminNavigation';
 import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
+import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
 
 type OrderStatus = 'pending' | 'paid' | 'canceled' | 'expired' | 'failed' | 'refunded';
 type PendingOrderCommand =
@@ -56,6 +58,27 @@ const statusColor: Record<OrderStatus, string> = {
   pending: 'blue',
   refunded: 'purple',
 };
+
+const styles = createStaticStyles(({ css }) => ({
+  filters: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+
+    width: 100%;
+  `,
+  search: css`
+    width: min(280px, 100%);
+  `,
+  status: css`
+    width: 160px;
+
+    @media (width < 560px) {
+      width: 100%;
+    }
+  `,
+}));
 
 const buildOrderAuditUrl = (orderId: string) => {
   const searchParams = new URLSearchParams();
@@ -262,42 +285,59 @@ const AdminOrdersPage = memo(() => {
   ];
 
   return (
-    <Flexbox padding={24}>
+    <AdminPageShell
+      title={t('admin.orders.title', '订单管理')}
+      width="full"
+      description={t(
+        'admin.orders.description',
+        '查询平台订单、核对支付状态，并在审计保护下处理待支付异常。',
+      )}
+    >
       <Tabs
         items={[
           {
             children: (
-              <Flexbox gap={16}>
-                <Flexbox horizontal align="center" gap={12}>
-                  <Select
-                    allowClear
-                    placeholder={t('admin.orders.filter.status', '状态')}
-                    style={{ width: 160 }}
-                    value={status}
-                    options={(
-                      ['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded'] as const
-                    ).map((value) => ({ label: value, value }))}
-                    onChange={(value: OrderStatus) => {
-                      setStatus(value);
-                      setCursorStack([0]);
-                    }}
+              <AdminSection
+                title={t('admin.orders.listTitle', '订单记录')}
+                description={t('admin.orders.resultSummary', {
+                  count: data?.items?.length ?? 0,
+                  defaultValue: '本页显示 {{count}} 条订单',
+                })}
+              >
+                <AdminToolbar>
+                  <div className={styles.filters}>
+                    <Select
+                      allowClear
+                      className={styles.status}
+                      placeholder={t('admin.orders.filter.status', '状态')}
+                      value={status}
+                      options={(
+                        ['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded'] as const
+                      ).map((value) => ({ label: value, value }))}
+                      onChange={(value: OrderStatus) => {
+                        setStatus(value);
+                        setCursorStack([0]);
+                      }}
+                    />
+                    <Input.Search
+                      allowClear
+                      className={styles.search}
+                      placeholder={t('admin.orders.filter.userId', '用户 ID')}
+                      onSearch={(value: string) => {
+                        setUserId(value);
+                        setCursorStack([0]);
+                      }}
+                    />
+                  </div>
+                </AdminToolbar>
+                <AdminResponsiveTable label={t('admin.orders.tableLabel', '订单数据表')}>
+                  <InlineTable
+                    columns={columns}
+                    dataSource={data?.items ?? []}
+                    loading={isLoading}
+                    rowKey="id"
                   />
-                  <Input.Search
-                    allowClear
-                    placeholder={t('admin.orders.filter.userId', '用户 ID')}
-                    style={{ width: 260 }}
-                    onSearch={(value: string) => {
-                      setUserId(value);
-                      setCursorStack([0]);
-                    }}
-                  />
-                </Flexbox>
-                <InlineTable
-                  columns={columns}
-                  dataSource={data?.items ?? []}
-                  loading={isLoading}
-                  rowKey="id"
-                />
+                </AdminResponsiveTable>
                 {(cursorStack.length > 1 || data?.nextCursor != null) && (
                   <Flexbox horizontal align="center" gap={8}>
                     <Button
@@ -319,7 +359,7 @@ const AdminOrdersPage = memo(() => {
                     </Button>
                   </Flexbox>
                 )}
-              </Flexbox>
+              </AdminSection>
             ),
             key: 'orders',
             label: t('admin.orders.tabs.orders', '订单列表'),
@@ -442,7 +482,7 @@ const AdminOrdersPage = memo(() => {
           </Flexbox>
         )}
       </Drawer>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

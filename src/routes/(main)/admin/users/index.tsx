@@ -11,11 +11,20 @@ import { Avatar, Flexbox } from '@lobehub/ui';
 import { Button, Modal, Select } from '@lobehub/ui/base-ui';
 import { Empty, Input, InputNumber, message, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { createStaticStyles } from 'antd-style';
+import { Download } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
-import { AdminDangerousActionButton, AdminUserDetailDrawer } from '@/features/Admin';
+import {
+  AdminDangerousActionButton,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+  AdminUserDetailDrawer,
+} from '@/features/Admin';
 import AdminAssignPlanModal from '@/features/Admin/AdminAssignPlanModal';
 import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
@@ -48,6 +57,35 @@ type UserRow = {
 };
 
 const EMPTY_TEXT = '-';
+
+const styles = createStaticStyles(({ css }) => ({
+  filter: css`
+    width: 180px;
+
+    @media (width < 640px) {
+      width: 100%;
+    }
+  `,
+  filters: css`
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+
+    min-width: 0;
+  `,
+  search: css`
+    width: min(320px, 100%);
+  `,
+  sort: css`
+    width: 190px;
+
+    @media (width < 640px) {
+      width: 100%;
+    }
+  `,
+}));
 
 type AssignableRole = AdminRole | 'user' | '__none__';
 
@@ -483,99 +521,143 @@ const AdminUsersPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal align="center" gap={12}>
-        <Input.Search
-          allowClear
-          placeholder={t('admin.search', '搜索用户')}
-          style={{ maxWidth: 320 }}
-          onSearch={handleSearch}
-        />
-        <Select
-          allowClear
-          placeholder={t('admin.filterByPlan', '按套餐筛选')}
-          style={{ width: 180 }}
-          value={planFilter}
-          options={(plansData?.items ?? []).map((item: any) => ({
-            label: `${item.displayName || item.plan} (${item.plan})`,
-            value: item.plan,
-          }))}
-          onChange={(value: null | string | undefined) => {
-            setPlanFilter(value ?? undefined);
-            resetList();
-          }}
-        />
-        <Select
-          allowClear
-          placeholder={t('admin.subscriptionStartedOrder', '套餐开始时间排序')}
-          style={{ width: 190 }}
-          value={subscriptionStartedOrder}
-          options={[
-            { label: t('admin.subscriptionStartedOrder.asc', '开始时间正序'), value: 'asc' },
-            { label: t('admin.subscriptionStartedOrder.desc', '开始时间倒序'), value: 'desc' },
-          ]}
-          onChange={(value: 'asc' | 'desc' | null | undefined) => {
-            setSubscriptionStartedOrder(value ?? undefined);
-            resetList();
-          }}
-        />
-        <Button
-          onClick={async () => {
-            try {
-              const result = await adminCommercialService.exportUsers({
-                limit: 10_000,
-                query: undefined,
-              });
-              const header = [
-                'id',
-                'email',
-                'username',
-                'fullName',
-                'phone',
-                'role',
-                'banned',
-                'createdAt',
-                'lastActiveAt',
-              ];
-              const escape = (value: unknown) => {
-                if (value === null || value === undefined) return '';
-                const text = typeof value === 'string' ? value : JSON.stringify(value);
+    <AdminPageShell
+      title={t('admin.users.title', '用户与权限')}
+      width="full"
+      description={t(
+        'admin.users.description',
+        '查询用户、核对订阅状态，并在权限范围内执行支持、积分和角色管理。',
+      )}
+    >
+      <AdminSection
+        title={t('admin.users.listTitle', '用户列表')}
+        description={
+          t('admin.users.resultSummary', {
+            count: allItems.length,
+            defaultValue: '当前已加载 {{count}} 位用户',
+          }) + (query ? `，${t('admin.search', '搜索')}“${query}”` : '')
+        }
+      >
+        <AdminToolbar>
+          <div className={styles.filters}>
+            <Input.Search
+              allowClear
+              className={styles.search}
+              placeholder={t('admin.search', '搜索用户')}
+              onSearch={handleSearch}
+            />
+            <Select
+              allowClear
+              className={styles.filter}
+              placeholder={t('admin.filterByPlan', '按套餐筛选')}
+              value={planFilter}
+              options={(plansData?.items ?? []).map((item: any) => ({
+                label: `${item.displayName || item.plan} (${item.plan})`,
+                value: item.plan,
+              }))}
+              onChange={(value: null | string | undefined) => {
+                setPlanFilter(value ?? undefined);
+                resetList();
+              }}
+            />
+            <Select
+              allowClear
+              className={styles.sort}
+              placeholder={t('admin.subscriptionStartedOrder', '套餐开始时间排序')}
+              value={subscriptionStartedOrder}
+              options={[
+                { label: t('admin.subscriptionStartedOrder.asc', '开始时间正序'), value: 'asc' },
+                { label: t('admin.subscriptionStartedOrder.desc', '开始时间倒序'), value: 'desc' },
+              ]}
+              onChange={(value: 'asc' | 'desc' | null | undefined) => {
+                setSubscriptionStartedOrder(value ?? undefined);
+                resetList();
+              }}
+            />
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                const result = await adminCommercialService.exportUsers({
+                  limit: 10_000,
+                  query: undefined,
+                });
+                const header = [
+                  'id',
+                  'email',
+                  'username',
+                  'fullName',
+                  'phone',
+                  'role',
+                  'banned',
+                  'createdAt',
+                  'lastActiveAt',
+                ];
+                const escape = (value: unknown) => {
+                  if (value === null || value === undefined) return '';
+                  const text = typeof value === 'string' ? value : JSON.stringify(value);
 
-                return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-              };
-              const lines = [header.join(',')];
-              for (const user of result.items as any[]) {
-                lines.push(
-                  [
-                    user.id,
-                    user.email,
-                    user.username,
-                    user.fullName,
-                    user.phone,
-                    user.role,
-                    user.banned,
-                    user.createdAt ? new Date(user.createdAt).toISOString() : '',
-                    user.lastActiveAt ? new Date(user.lastActiveAt).toISOString() : '',
-                  ]
-                    .map(escape)
-                    .join(','),
-                );
+                  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+                };
+                const lines = [header.join(',')];
+                for (const user of result.items as any[]) {
+                  lines.push(
+                    [
+                      user.id,
+                      user.email,
+                      user.username,
+                      user.fullName,
+                      user.phone,
+                      user.role,
+                      user.banned,
+                      user.createdAt ? new Date(user.createdAt).toISOString() : '',
+                      user.lastActiveAt ? new Date(user.lastActiveAt).toISOString() : '',
+                    ]
+                      .map(escape)
+                      .join(','),
+                  );
+                }
+                const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+                const link = document.createElement('a');
+                link.download = `admin-users-${new Date().toISOString().slice(0, 10)}.csv`;
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+                message.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
+              } catch {
+                message.error(t('admin.exportFailed', '导出失败'));
               }
-              const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-              const link = document.createElement('a');
-              link.download = `admin-users-${new Date().toISOString().slice(0, 10)}.csv`;
-              link.href = URL.createObjectURL(blob);
-              link.click();
-              URL.revokeObjectURL(link.href);
-              message.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
-            } catch {
-              message.error(t('admin.exportFailed', '导出失败'));
-            }
-          }}
+            }}
+          >
+            <Download aria-hidden size={16} />
+            {t('admin.exportCsv', '导出 CSV')}
+          </Button>
+        </AdminToolbar>
+        <AdminResponsiveTable label={t('admin.users.tableLabel', '用户数据表')}>
+          <InlineTable
+            columns={columns as any}
+            dataSource={allItems}
+            loading={isLoading && cursor === 0}
+            locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
+            rowKey="id"
+          />
+        </AdminResponsiveTable>
+        {data?.nextCursor != null && (
+          <Flexbox align="center">
+            <Button loading={isLoading && cursor > 0} onClick={handleLoadMore}>
+              {t('admin.loadMore', '加载更多')}
+            </Button>
+          </Flexbox>
+        )}
+      </AdminSection>
+      {canSetRoles ? (
+        <AdminSection
+          title={t('admin.users.dangerTitle', '批量危险操作')}
+          description={t(
+            'admin.users.dangerDescription',
+            '批量动作会影响大量用户权益，仅在完成影响预检后执行。',
+          )}
         >
-          {t('admin.exportCsv', '导出 CSV')}
-        </Button>
-        {canSetRoles ? (
           <AdminDangerousActionButton
             danger
             actionId="user.resetAllToFreePlan"
@@ -602,22 +684,8 @@ const AdminUsersPage = memo(() => {
           >
             {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
           </AdminDangerousActionButton>
-        ) : null}
-      </Flexbox>
-      <InlineTable
-        columns={columns as any}
-        dataSource={allItems}
-        loading={isLoading && cursor === 0}
-        locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
-        rowKey="id"
-      />
-      {data?.nextCursor != null && (
-        <Flexbox align="center">
-          <Button loading={isLoading && cursor > 0} onClick={handleLoadMore}>
-            {t('admin.loadMore', '加载更多')}
-          </Button>
-        </Flexbox>
-      )}
+        </AdminSection>
+      ) : null}
       <Modal
         open={!!banTarget}
         title={t('admin.ban', '封禁用户')}
@@ -694,7 +762,7 @@ const AdminUsersPage = memo(() => {
         />
       ) : null}
       <AdminUserDetailDrawer userId={detailUserId} onClose={() => setDetailUserId(null)} />
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

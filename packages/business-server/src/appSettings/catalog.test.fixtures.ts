@@ -133,6 +133,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.paymentAlipayEnabled,
     APP_SETTING_KEYS.paymentEnabled,
     APP_SETTING_KEYS.paymentModuleAppEnabled,
+    APP_SETTING_KEYS.paymentSubscriptionEnabled,
     APP_SETTING_KEYS.paymentTopUpEnabled,
     APP_SETTING_KEYS.paymentWechatEnabled,
     APP_SETTING_KEYS.paymentZpayAlipayEnabled,
@@ -159,6 +160,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.paymentWechatAppId,
     APP_SETTING_KEYS.paymentWechatMchId,
     APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
+    APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
     APP_SETTING_KEYS.paymentZpayMerchantId,
   ]),
   ...assign('payment-url', [

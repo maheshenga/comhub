@@ -1,13 +1,81 @@
 import { z } from 'zod';
 
+import { Plans } from './subscription';
+
 export const paymentProviderSchema = z.enum(['alipay', 'wechat_pay', 'zpay']);
 export type PaymentProvider = z.infer<typeof paymentProviderSchema>;
 
 export const paymentMethodIdSchema = z.enum(['alipay', 'wechat_pay', 'zpay_alipay', 'zpay_wechat']);
 export type PaymentMethodId = z.infer<typeof paymentMethodIdSchema>;
 
-export const paymentPurposeSchema = z.enum(['module_app', 'top_up']);
+export const paymentPurposeSchema = z.enum(['module_app', 'subscription', 'top_up']);
 export type PaymentPurpose = z.infer<typeof paymentPurposeSchema>;
+
+const subscriptionSnapshotCommonShape = {
+  catalogUpdatedAt: z.string().datetime(),
+  modelRules: z.record(z.string(), z.unknown()).nullable(),
+  planMetadata: z.record(z.string(), z.unknown()).nullable(),
+};
+
+const subscriptionEntitlementSnapshotV1Schema = z
+  .object({
+    ...subscriptionSnapshotCommonShape,
+    version: z.literal(1),
+  })
+  .strict();
+
+const subscriptionEntitlementSnapshotV2Schema = z
+  .object({
+    ...subscriptionSnapshotCommonShape,
+    features: z.array(z.string().min(1).max(500)).max(1000),
+    pptCreditCost: z.number().nonnegative(),
+    pptEnabled: z.boolean(),
+    pptMonthlyQuota: z.number().int().nonnegative().nullable(),
+    storageQuotaBytes: z.number().int().nonnegative().nullable(),
+    vectorQuota: z.number().int().nonnegative().nullable(),
+    version: z.literal(2),
+  })
+  .strict();
+
+export const subscriptionEntitlementSnapshotSchema = z.discriminatedUnion('version', [
+  subscriptionEntitlementSnapshotV1Schema,
+  subscriptionEntitlementSnapshotV2Schema,
+]);
+export type SubscriptionEntitlementSnapshot = z.infer<typeof subscriptionEntitlementSnapshotSchema>;
+
+const subscriptionPaymentOrderCommonShape = {
+  amount: z.string().regex(/^\d{1,14}(?:\.\d{1,6})?$/),
+  currency: z.string().min(1).max(16),
+  cycle: z.enum(['lifetime', 'monthly', 'one_time', 'yearly']),
+  displayName: z.string().min(1).max(240),
+  monthlyCredits: z.number().nonnegative(),
+  monthlyPrice: z.number().nonnegative(),
+  plan: z.nativeEnum(Plans),
+  quotedAt: z.string().datetime(),
+};
+
+const subscriptionPaymentOrderSnapshotV1Schema = z
+  .object({
+    ...subscriptionPaymentOrderCommonShape,
+    ...subscriptionSnapshotCommonShape,
+    version: z.literal(1),
+  })
+  .strict();
+
+const subscriptionPaymentOrderSnapshotV2Schema = z
+  .object({
+    ...subscriptionPaymentOrderCommonShape,
+    ...subscriptionEntitlementSnapshotV2Schema.shape,
+  })
+  .strict();
+
+export const subscriptionPaymentOrderSnapshotSchema = z.discriminatedUnion('version', [
+  subscriptionPaymentOrderSnapshotV1Schema,
+  subscriptionPaymentOrderSnapshotV2Schema,
+]);
+export type SubscriptionPaymentOrderSnapshot = z.infer<
+  typeof subscriptionPaymentOrderSnapshotSchema
+>;
 
 const executablePaymentUrlSchema = z
   .string()

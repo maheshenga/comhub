@@ -45,7 +45,11 @@ describe('UsageRecordService', () => {
       return { orderBy: mockOrderBy };
     });
     const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
-    mockDb.select = vi.fn().mockReturnValue({ from: mockFrom });
+    const mockLedgerWhere = vi.fn().mockResolvedValue([]);
+    const mockLedgerFrom = vi.fn().mockReturnValue({ where: mockLedgerWhere });
+    mockDb.select = vi.fn().mockReturnValueOnce({ from: mockFrom }).mockReturnValue({
+      from: mockLedgerFrom,
+    });
     return { whereArgs };
   };
 
@@ -233,6 +237,45 @@ describe('UsageRecordService', () => {
       expect(result[0].spend).toBe(0.12);
     });
 
+    it('reports charged credits from the ledger independently of provider cost', async () => {
+      const mockMessages = [
+        {
+          createdAt: new Date('2024-01-15'),
+          id: 'msg-1',
+          metadata: {} as MessageMetadata,
+          model: 'gpt-4o',
+          provider: 'newapi',
+          role: 'assistant',
+          usage: { cost: 0.02, totalInputTokens: 1000, totalOutputTokens: 500 },
+          userId,
+        },
+      ];
+      const mockLedgerRows = [
+        {
+          amount: -350_000,
+          metadata: { chargedCredits: 350_000, usdCost: 0.02 },
+          referenceId: 'msg-1',
+        },
+      ];
+      const messagesOrderBy = vi.fn().mockResolvedValue(mockMessages);
+      const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
+      const messagesFrom = vi.fn().mockReturnValue({ where: messagesWhere });
+      const ledgerWhere = vi.fn().mockResolvedValue(mockLedgerRows);
+      const ledgerFrom = vi.fn().mockReturnValue({ where: ledgerWhere });
+      const generationLedgerWhere = vi.fn().mockResolvedValue([]);
+      const generationLedgerFrom = vi.fn().mockReturnValue({ where: generationLedgerWhere });
+
+      mockDb.select = vi
+        .fn()
+        .mockReturnValueOnce({ from: messagesFrom })
+        .mockReturnValueOnce({ from: ledgerFrom })
+        .mockReturnValueOnce({ from: generationLedgerFrom });
+
+      const result = await service.findByMonth('2024-01');
+
+      expect(result[0]).toMatchObject({ credits: 350_000, id: 'msg-1', spend: 0.02 });
+    });
+
     it('should include billable ledger usage records', async () => {
       const messagesOrderBy = vi.fn().mockResolvedValue([]);
       const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
@@ -350,6 +393,7 @@ describe('UsageRecordService', () => {
       expect(result).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
+            credits: 250_000,
             id: 'ledger-image',
             model: 'gpt-image-2',
             provider: 'openai',

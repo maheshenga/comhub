@@ -1,6 +1,6 @@
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
@@ -62,6 +62,50 @@ const normalizePurchaseUrl = (value: unknown) => {
   } catch {
     return null;
   }
+};
+
+const syncSnapshotResourceQuotaMetadata = (
+  storageQuotaBytes: number | null,
+  vectorQuota: number | null,
+) => {
+  const quotaMetadata = JSON.stringify({ storageQuotaBytes, vectorQuota });
+  const storageQuota = JSON.stringify(storageQuotaBytes);
+  const vectorQuotaValue = JSON.stringify(vectorQuota);
+  const entitlement = sql`${userPlanSnapshots.metadata}->'entitlementSnapshot'`;
+  const updatedPlanMetadata = sql`(
+    COALESCE(${userPlanSnapshots.metadata} #> '{entitlementSnapshot,planMetadata}', '{}'::jsonb)
+    - 'storageQuotaBytes'
+    - 'storageQuotaMb'
+    - 'vectorQuota'
+  ) || ${quotaMetadata}::jsonb`;
+
+  return sql<Record<string, unknown> | null>`CASE
+    WHEN ${entitlement}->>'version' = '2' THEN
+      jsonb_set(
+        COALESCE(${userPlanSnapshots.metadata}, '{}'::jsonb),
+        '{entitlementSnapshot}',
+        jsonb_set(
+          jsonb_set(
+            jsonb_set(${entitlement}, '{planMetadata}', ${updatedPlanMetadata}, true),
+            '{storageQuotaBytes}',
+            ${storageQuota}::jsonb,
+            true
+          ),
+          '{vectorQuota}',
+          ${vectorQuotaValue}::jsonb,
+          true
+        ),
+        true
+      )
+    WHEN ${entitlement}->>'version' = '1' THEN
+      jsonb_set(
+        COALESCE(${userPlanSnapshots.metadata}, '{}'::jsonb),
+        '{entitlementSnapshot}',
+        jsonb_set(${entitlement}, '{planMetadata}', ${updatedPlanMetadata}, true),
+        true
+      )
+    ELSE ${userPlanSnapshots.metadata}
+  END`;
 };
 
 const PlanInputSchema = z.object({
@@ -419,7 +463,23 @@ export const adminPlansRouter = router({
           vectorQuota: vectorQuota ?? null,
         };
         if (activeUserIds.length > 0) {
-          const quotaUpdate = { ...quotaAudit, updatedAt: new Date() };
+          const quotaUpdatedAt = new Date();
+          const quotaUpdate = { ...quotaAudit, updatedAt: quotaUpdatedAt };
+          await tx
+            .update(userPlanSnapshots)
+            .set({
+              metadata: syncSnapshotResourceQuotaMetadata(
+                quotaAudit.storageQuota,
+                quotaAudit.vectorQuota,
+              ),
+              updatedAt: quotaUpdatedAt,
+            })
+            .where(
+              and(
+                eq(userPlanSnapshots.plan, planInput.plan),
+                eq(userPlanSnapshots.status, 'active'),
+              ),
+            );
           await tx
             .insert(creditAccounts)
             .values(activeUserIds.map((userId) => ({ ...quotaUpdate, userId })))

@@ -544,6 +544,7 @@ describe('ModelRuntime', () => {
         createVideo: vi.fn(),
         embeddings: vi.fn(),
         generateObject: vi.fn(),
+        transcribe: vi.fn(),
       } as any;
       return { runtime: new ModelRuntime(mockRuntimeAI, hooks), mockRuntimeAI };
     };
@@ -1078,6 +1079,58 @@ describe('ModelRuntime', () => {
 
         await expect(runtime.createVideo(videoPayload)).rejects.toThrow('video denied');
         expect(mockRuntimeAI.createVideo).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('transcription hooks', () => {
+      const asrPayload = {
+        file: new Blob(['audio'], { type: 'audio/mpeg' }),
+        fileName: 'clip.mp3',
+        model: 'whisper-1',
+      };
+
+      it('forwards mutable billing metadata through the complete lifecycle', async () => {
+        const beforeTranscribe: ModelRuntimeHooks['beforeTranscribe'] = async (
+          _payload,
+          options,
+        ) => {
+          if (options) options.metadata = { reservationId: 'asr-reservation-1' };
+        };
+        const onTranscribeFinal = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({
+          beforeTranscribe,
+          onTranscribeFinal,
+        });
+        const response = { text: 'hello', usage: { durationSeconds: 2 } };
+        mockRuntimeAI.transcribe.mockResolvedValue(response);
+
+        await expect(runtime.transcribe(asrPayload)).resolves.toEqual(response);
+
+        expect(mockRuntimeAI.transcribe).toHaveBeenCalledWith(asrPayload, {
+          metadata: { reservationId: 'asr-reservation-1' },
+        });
+        expect(onTranscribeFinal).toHaveBeenCalledWith(response, {
+          options: { metadata: { reservationId: 'asr-reservation-1' } },
+          payload: asrPayload,
+        });
+      });
+
+      it('calls the error hook and does not report a successful final result', async () => {
+        const onTranscribeError = vi.fn();
+        const onTranscribeFinal = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({
+          beforeTranscribe: vi.fn(),
+          onTranscribeError,
+          onTranscribeFinal,
+        });
+        mockRuntimeAI.transcribe.mockRejectedValue(new Error('transcription failed'));
+
+        await expect(runtime.transcribe(asrPayload)).rejects.toThrow('transcription failed');
+        expect(onTranscribeError).toHaveBeenCalledWith(expect.any(Error), {
+          options: {},
+          payload: asrPayload,
+        });
+        expect(onTranscribeFinal).not.toHaveBeenCalled();
       });
     });
   });

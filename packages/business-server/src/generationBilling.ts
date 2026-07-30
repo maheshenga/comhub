@@ -1,4 +1,8 @@
-import { CREDITS_PER_DOLLAR, DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+import {
+  CREDITS_PER_DOLLAR,
+  DEFAULT_PRICING_CREDIT_MULTIPLIER,
+  USD_TO_CNY,
+} from '@lobechat/const/currency';
 import {
   computeImageCost,
   computeVideoCost,
@@ -10,7 +14,11 @@ import {
 import type { ModelUsage } from '@lobechat/types';
 import type { Pricing } from 'model-bank';
 
-import { type AiUsageRouteMetadata, resolveAiUsagePricing } from '@/database/models/commercial';
+import {
+  type AiUsageRouteMetadata,
+  parseAiUsagePricingRules,
+  resolveAiUsagePricing,
+} from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 
@@ -18,16 +26,6 @@ export interface GenerationChargeEstimate {
   estimatedCredits: number;
   totalCost: number;
 }
-
-type GenerationPricingRule = {
-  creditsPerDollar?: number;
-  group?: string;
-  instanceId?: string;
-  model?: string;
-  multiplier?: number;
-  provider?: string;
-  providerType?: string;
-};
 
 const usdToCredits = (usd: number) => {
   if (!Number.isFinite(usd) || usd <= 0) return 0;
@@ -53,7 +51,7 @@ export const resolveGenerationPricingMultiplier = async ({
   ]);
 
   const globalMultiplier = Number(globalMultiplierValue);
-  const rules = Array.isArray(modelRulesValue) ? (modelRulesValue as GenerationPricingRule[]) : [];
+  const rules = parseAiUsagePricingRules(modelRulesValue);
 
   return (
     resolveAiUsagePricing({
@@ -74,7 +72,10 @@ export const resolveGenerationPricingMultiplier = async ({
 
 const resolveSingleImagePrice = (pricing?: Pricing) => {
   const singlePrice = resolveImageSinglePrice(pricing);
-  return singlePrice.price ?? singlePrice.approximatePrice;
+  if (singlePrice.price !== undefined) {
+    return pricing?.currency === 'CNY' ? singlePrice.price / USD_TO_CNY : singlePrice.price;
+  }
+  return singlePrice.approximatePrice;
 };
 
 export const estimateImageCharge = (

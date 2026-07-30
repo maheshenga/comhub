@@ -117,5 +117,29 @@ export const createGoogleTranscription = async (
   const text = (response.text ?? '').trim();
   debug('transcription completed, text length %d', text.length);
 
-  return { text };
+  const providerUsage = response.usageMetadata as
+    | {
+        candidatesTokenCount?: number;
+        promptTokenCount?: number;
+        promptTokensDetails?: Array<{ modality?: string; tokenCount?: number }>;
+        totalTokenCount?: number;
+      }
+    | undefined;
+  const audioTokens = providerUsage?.promptTokensDetails?.find(
+    (detail) => detail.modality?.toLowerCase() === 'audio',
+  )?.tokenCount;
+  const textTokens = providerUsage?.promptTokensDetails?.find(
+    (detail) => detail.modality?.toLowerCase() === 'text',
+  )?.tokenCount;
+  const usage = providerUsage
+    ? {
+        inputAudioTokens: audioTokens,
+        inputTextTokens: textTokens,
+        totalInputTokens: providerUsage.promptTokenCount,
+        totalOutputTokens: providerUsage.candidatesTokenCount,
+        totalTokens: providerUsage.totalTokenCount,
+      }
+    : undefined;
+
+  return { text, ...(usage ? { usage } : {}) };
 };

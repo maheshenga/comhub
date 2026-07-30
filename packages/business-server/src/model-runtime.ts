@@ -5,12 +5,16 @@ import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 
 import {
   assertCommercialMinimumBudget,
+  type CommercialPricingQuote,
+  estimateCommercialAsrCredits,
   estimateCommercialChatCredits,
   estimateCommercialEmbeddingsCredits,
+  isCommercialPricingQuote,
   recordCommercialAiUsage,
   recordCommercialChatUsage,
   releaseCommercialAiUsageReservation,
   reserveCommercialAiUsage,
+  resolveCommercialAsrCredits,
   settleCommercialAiUsageReservation,
 } from './commercialBilling';
 import { assertModelPolicyAllowed } from './modelPolicy';
@@ -40,7 +44,7 @@ const shouldSkipCommercialBilling = (metadata?: Record<string, unknown>) =>
   metadata?.skipCommercialBilling === true;
 
 const createBillingOperationId = (
-  usageType: 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
+  usageType: 'asr' | 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
 ) =>
   [
     usageType,
@@ -50,10 +54,12 @@ const createBillingOperationId = (
 
 const COMMERCIAL_RESERVATION_ID_KEY = 'commercialCreditReservationId';
 const COMMERCIAL_RESERVATION_ESTIMATE_KEY = 'commercialEstimatedCredits';
+const COMMERCIAL_PRICING_QUOTE_KEY = 'commercialPricingQuote';
 
 type CommercialReservationContext = {
   estimatedCredits: number;
   operationId: string;
+  pricingQuote?: CommercialPricingQuote;
   reservationId?: string;
 };
 
@@ -75,7 +81,7 @@ export function getBusinessModelRuntimeHooks(
   const policyParams = (
     db: Awaited<ReturnType<typeof getServerDB>>,
     model: string | undefined,
-    usageType: 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
+    usageType: 'asr' | 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
   ) => ({
     db,
     model,
@@ -87,18 +93,23 @@ export function getBusinessModelRuntimeHooks(
     payload: object,
     metadata?: Record<string, unknown>,
   ): CommercialReservationContext | undefined => {
+    const storedContext = reservationByPayload.get(payload);
+    if (storedContext) return storedContext;
+
     const operationId = resolveCommercialBillingReferenceId(metadata);
     const reservationId = getStringMetadataValue(metadata, COMMERCIAL_RESERVATION_ID_KEY);
     const estimatedCredits = Number(metadata?.[COMMERCIAL_RESERVATION_ESTIMATE_KEY]);
+    const rawPricingQuote = metadata?.[COMMERCIAL_PRICING_QUOTE_KEY];
+    const pricingQuote = isCommercialPricingQuote(rawPricingQuote) ? rawPricingQuote : undefined;
     if (operationId && Number.isFinite(estimatedCredits) && estimatedCredits > 0) {
       return {
         estimatedCredits,
         operationId,
+        ...(pricingQuote ? { pricingQuote } : {}),
         ...(reservationId ? { reservationId } : {}),
       };
     }
-
-    return reservationByPayload.get(payload);
+    return undefined;
   };
   const storeReservationContext = (
     payload: object,
@@ -110,6 +121,7 @@ export function getBusinessModelRuntimeHooks(
     options.metadata = {
       ...options.metadata,
       [COMMERCIAL_RESERVATION_ESTIMATE_KEY]: context.estimatedCredits,
+      ...(context.pricingQuote ? { [COMMERCIAL_PRICING_QUOTE_KEY]: context.pricingQuote } : {}),
       ...(context.reservationId ? { [COMMERCIAL_RESERVATION_ID_KEY]: context.reservationId } : {}),
       operationId: context.operationId,
     };
@@ -127,7 +139,7 @@ export function getBusinessModelRuntimeHooks(
     model: string;
     options?: { metadata?: Record<string, unknown> };
     payload: object;
-    usageType: 'chat' | 'embeddings' | 'generate_object';
+    usageType: 'asr' | 'chat' | 'embeddings' | 'generate_object';
   }) => {
     const operationId =
       resolveCommercialBillingReferenceId(options?.metadata) ?? createBillingOperationId(usageType);
@@ -143,9 +155,14 @@ export function getBusinessModelRuntimeHooks(
       userId,
       ...(workspaceId ? { workspaceId } : {}),
     });
+    const reservationPricingQuote = (reservation?.metadata as Record<string, unknown> | undefined)
+      ?.pricingQuote;
     storeReservationContext(payload, options, {
-      estimatedCredits: normalizedEstimate,
+      estimatedCredits: reservation?.amount ?? normalizedEstimate,
       operationId,
+      ...(isCommercialPricingQuote(reservationPricingQuote)
+        ? { pricingQuote: reservationPricingQuote }
+        : {}),
       ...(reservation?.id ? { reservationId: reservation.id } : {}),
     });
   };
@@ -163,6 +180,35 @@ export function getBusinessModelRuntimeHooks(
   };
 
   return {
+    beforeTranscribe: async (payload, options) => {
+      const db = await getServerDB();
+      const groupKey = routeMetadata?.groupKey ?? undefined;
+      await assertModelPolicyAllowed(policyParams(db, payload.model, 'asr'));
+      await assertPlanModelAllowed({
+        db,
+        ...(groupKey ? { groupKey } : {}),
+        model: payload.model,
+        modelType: 'asr',
+        userId,
+      });
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
+      const estimatedCredits = await estimateCommercialAsrCredits({
+        db,
+        model: payload.model,
+        payload,
+        provider,
+        routeMetadata,
+        userId,
+      });
+      await reserveUsage({
+        db,
+        estimatedCredits,
+        model: payload.model,
+        options,
+        payload,
+        usageType: 'asr',
+      });
+    },
     beforeChat: async (payload, options) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
@@ -289,6 +335,7 @@ export function getBusinessModelRuntimeHooks(
           model: payload.model,
           operationId: reservation.operationId,
           provider,
+          pricingQuote: reservation.pricingQuote,
           reservationId: reservation.reservationId,
           routeMetadata,
           title: 'AI Chat Usage',
@@ -326,6 +373,48 @@ export function getBusinessModelRuntimeHooks(
       if (shouldSkipCommercialBilling(options?.metadata)) return;
       await releaseReservation(payload, options?.metadata);
     },
+    onTranscribeError: async (_error, { options, payload }) => {
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
+      await releaseReservation(payload, options?.metadata);
+    },
+    onTranscribeFinal: async (data, { options, payload }) => {
+      const metadata = options?.metadata;
+      if (shouldSkipCommercialBilling(metadata)) return;
+      if (!data) {
+        await releaseReservation(payload, metadata);
+        return;
+      }
+
+      const reservation = resolveReservationContext(payload, metadata);
+      reservationByPayload.delete(payload);
+      if (!reservation?.reservationId) return;
+
+      const db = await getServerDB();
+      const actualCredits = await resolveCommercialAsrCredits({
+        db,
+        model: payload.model,
+        payload,
+        provider,
+        routeMetadata,
+        usage: data.usage,
+        userId,
+      });
+      await settleCommercialAiUsageReservation({
+        actualCredits,
+        actualCreditsAreBase: true,
+        db,
+        estimatedCredits: reservation.estimatedCredits,
+        model: payload.model,
+        operationId: reservation.operationId,
+        provider,
+        pricingQuote: reservation.pricingQuote,
+        reservationId: reservation.reservationId,
+        routeMetadata,
+        title: 'AI Transcription Usage',
+        usageType: 'asr',
+        userId,
+      });
+    },
     onEmbeddingsFinal: async (data, { options, payload }) => {
       const metadata = options?.metadata;
       if (shouldSkipCommercialBilling(metadata)) return;
@@ -340,6 +429,7 @@ export function getBusinessModelRuntimeHooks(
           model: payload.model,
           operationId: reservation.operationId,
           provider,
+          pricingQuote: reservation.pricingQuote,
           reservationId: reservation.reservationId,
           routeMetadata,
           title: 'AI Embeddings Usage',
@@ -400,6 +490,7 @@ export function getBusinessModelRuntimeHooks(
         model: payload.model,
         operationId: reservation.operationId,
         provider,
+        pricingQuote: reservation.pricingQuote,
         reservationId: reservation.reservationId,
         routeMetadata,
         title: 'AI Structured Output Usage',

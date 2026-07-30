@@ -5,7 +5,13 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
-import { creditAccounts, creditLedgerEntries, userPlanSnapshots, users } from '../../schemas';
+import {
+  creditAccounts,
+  creditDebts,
+  creditLedgerEntries,
+  userPlanSnapshots,
+  users,
+} from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
 import { CommercialModel } from '../commercial';
 
@@ -29,6 +35,7 @@ const seedActiveStarterPlan = async () => {
 
 describe('CommercialModel preCharge/postCharge', () => {
   beforeEach(async () => {
+    await serverDB.delete(creditDebts);
     await serverDB.delete(creditLedgerEntries);
     await serverDB.delete(creditAccounts);
     await serverDB.delete(userPlanSnapshots).where(eq(userPlanSnapshots.userId, testUserId));
@@ -38,6 +45,7 @@ describe('CommercialModel preCharge/postCharge', () => {
   });
 
   afterEach(async () => {
+    await serverDB.delete(creditDebts);
     await serverDB.delete(creditLedgerEntries);
     await serverDB.delete(creditAccounts);
   });
@@ -122,8 +130,16 @@ describe('CommercialModel preCharge/postCharge', () => {
         userId: testUserId,
       };
 
-      await model.postCharge(chargeParams);
-      await model.postCharge(chargeParams);
+      const firstCharge = await model.postCharge(chargeParams);
+      await serverDB.insert(creditDebts).values({
+        amount: 1,
+        reason: 'test replay after refund debt',
+        referenceId: 'refunded-image-lot',
+        referenceType: 'top_up_order',
+        userId: testUserId,
+      });
+
+      await expect(model.postCharge(chargeParams)).resolves.toMatchObject({ id: firstCharge?.id });
 
       const account = await serverDB.query.creditAccounts.findFirst({
         where: (a, { eq }) => eq(a.userId, testUserId),

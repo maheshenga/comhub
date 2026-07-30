@@ -138,3 +138,33 @@ export const getAdminOpenKeys = (pathname: string): AdminNavGroupKey[] => {
 
   return group ? [group] : ['overview'];
 };
+
+export const getAdminNavigationContext = (role: string | null | undefined, pathname: string) => {
+  const groups = getAdminNavGroupsForRole(role);
+  const selectedKey = getAdminSelectedKey(pathname);
+
+  for (const group of groups) {
+    const item = group.items.find((candidate) => candidate.path === selectedKey);
+    if (item) return { group, item };
+  }
+
+  return null;
+};
+
+export const filterAdminNavGroups = (groups: AdminNavGroup[], query: string): AdminNavGroup[] => {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return groups;
+
+  return groups.flatMap((group) => {
+    const groupMatches = `${group.label} ${group.description}`
+      .toLocaleLowerCase()
+      .includes(normalizedQuery);
+    const items = groupMatches
+      ? group.items
+      : group.items.filter((item) =>
+          `${item.label} ${item.description}`.toLocaleLowerCase().includes(normalizedQuery),
+        );
+
+    return items.length > 0 ? [{ ...group, items }] : [];
+  });
+};

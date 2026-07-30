@@ -13,6 +13,8 @@ export const COMMERCIAL_ENTITLEMENT_SWR_KEYS: Key[] = [
   ['business-subscription-change-history'],
   ['business-credit-ledger'],
   ['business-topup-orders'],
+  ['commercial.listBillingOrders'],
+  ['commercial.listCreditPackages'],
 ];
 
 const warnRefreshFailure = (reason: unknown) => {

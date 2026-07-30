@@ -1,15 +1,20 @@
 import { CREDITS_PER_DOLLAR, DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import type {
   AdminDependencyImpact,
+  AiUsagePricingRule,
   AutoTopUpSetting,
+  BillingOrderHistoryItem,
   CommercialOverview,
+  CommercialResourceUsage,
   CreateSubscriptionChangeRequestParams,
   CreateTopUpOrderParams,
   CreditAccountSummary,
   CreditConsumeAllocation,
   CreditLedgerListResult,
+  CreditPackageHistoryItem,
   CreditSourceSummary,
   CreditSourceType,
+  ModuleAppNormalizedPaymentEvent,
   PaymentCheckoutAction,
   PaymentMethodId,
   PaymentProvider,
@@ -20,28 +25,43 @@ import type {
   SubscriptionChangeRequestItem,
   SubscriptionChangeRequestReasonType,
   SubscriptionCycleType,
+  SubscriptionEntitlementSnapshot,
+  SubscriptionPaymentOrderSnapshot,
   SubscriptionSummary,
   TopUpOrderHistoryItem,
   TopUpPackageItem,
 } from '@lobechat/types';
-import { Plans } from '@lobechat/types';
-import { and, asc, count, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import {
+  aiUsagePricingRulesSchema,
+  Plans,
+  subscriptionEntitlementSnapshotSchema,
+  subscriptionPaymentOrderSnapshotSchema,
+} from '@lobechat/types';
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import {
   appSettings,
   creditAccounts,
   creditLedgerEntries,
+  creditLots,
   planCatalog,
   redemptionCodes,
   referralProfiles,
   referralRelations,
   referralRewards,
   subscriptionChangeRequests,
+  subscriptionPaymentOrders,
+  topUpOrders,
   userPlanSnapshots,
   users,
 } from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
+import { addCalendarMonths, addCalendarYears } from './commercial/calendar';
+import { CreditLotModel } from './commercial/creditLot';
+import { buildCommercialResourceUsage } from './commercial/resourceUsage';
 import { CommercialTopUpModel } from './commercial/topUp';
+import { EmbeddingModel } from './embedding';
+import { FileModel } from './file';
 
 const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
   currency: 'USD',
@@ -76,15 +96,8 @@ const getPlanMetadataNumber = (metadata: unknown, key: string) => {
   return Number.isFinite(value) && value > 0 ? value : 0;
 };
 
-type AiUsagePricingRule = {
-  creditsPerDollar?: number;
-  group?: string;
-  instanceId?: string;
-  model?: string;
-  multiplier?: number;
-  provider?: string;
-  providerType?: string;
-};
+export const parseAiUsagePricingRules = (value: unknown): AiUsagePricingRule[] =>
+  aiUsagePricingRulesSchema.parse(value ?? []);
 
 export type AiUsageRouteMetadata = {
   groupKey?: string | null;
@@ -189,20 +202,6 @@ const isValidReferralCode = (value: string) => /^\d{7}$/.test(value);
 const generateReferralCodeValue = () =>
   String(Math.floor(Math.random() * 10_000_000)).padStart(REFERRAL_CODE_LENGTH, '0');
 
-const addMonths = (date: Date, months: number) => {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + months);
-
-  return next;
-};
-
-const addYears = (date: Date, years: number) => {
-  const next = new Date(date);
-  next.setFullYear(next.getFullYear() + years);
-
-  return next;
-};
-
 const extractReferralCodeValue = (value: string) => {
   const trimmed = value.trim();
 
@@ -266,6 +265,59 @@ const normalizePlanResourceQuotas = (metadata?: Record<string, unknown> | null) 
     vectorQuota: normalizeNonNegativeQuota(metadata?.vectorQuota),
   };
 };
+
+const getSnapshotMetadata = (metadata: unknown): Record<string, unknown> | null =>
+  metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? (metadata as Record<string, unknown>)
+    : null;
+
+const getEntitlementSnapshot = (metadata: unknown) => {
+  const entitlementSnapshot = getSnapshotMetadata(metadata)?.entitlementSnapshot;
+  if (entitlementSnapshot === undefined) return null;
+
+  return subscriptionEntitlementSnapshotSchema.parse(entitlementSnapshot);
+};
+
+const buildPlanEntitlementSnapshot = (
+  catalog: typeof planCatalog.$inferSelect,
+): SubscriptionEntitlementSnapshot => {
+  const planMetadata = getSnapshotMetadata(catalog.metadata);
+  const quotas = normalizePlanResourceQuotas(planMetadata);
+
+  return subscriptionEntitlementSnapshotSchema.parse({
+    catalogUpdatedAt: catalog.updatedAt.toISOString(),
+    features: catalog.features,
+    modelRules:
+      catalog.modelRules && typeof catalog.modelRules === 'object' ? catalog.modelRules : null,
+    planMetadata,
+    pptCreditCost: normalizeNonNegativeQuota(planMetadata?.pptCreditCost) ?? 0,
+    pptEnabled: planMetadata?.pptEnabled === true,
+    pptMonthlyQuota: normalizeNonNegativeQuota(planMetadata?.pptMonthlyQuota),
+    storageQuotaBytes: quotas.storageQuota,
+    vectorQuota: quotas.vectorQuota,
+    version: 2,
+  });
+};
+
+const toEntitlementSnapshot = (
+  snapshot: SubscriptionPaymentOrderSnapshot,
+): SubscriptionEntitlementSnapshot =>
+  subscriptionEntitlementSnapshotSchema.parse({
+    catalogUpdatedAt: snapshot.catalogUpdatedAt,
+    ...(snapshot.version === 2
+      ? {
+          features: snapshot.features,
+          pptCreditCost: snapshot.pptCreditCost,
+          pptEnabled: snapshot.pptEnabled,
+          pptMonthlyQuota: snapshot.pptMonthlyQuota,
+          storageQuotaBytes: snapshot.storageQuotaBytes,
+          vectorQuota: snapshot.vectorQuota,
+          version: 2 as const,
+        }
+      : { version: 1 as const }),
+    modelRules: snapshot.modelRules,
+    planMetadata: snapshot.planMetadata,
+  });
 
 export const getPlanDeleteImpact = async (
   db: LobeChatDatabase | Transaction,
@@ -370,14 +422,19 @@ export class CommercialModel {
   };
 
   syncActivePlanResourceQuotas = async (db: LobeChatDatabase | Transaction = this.db) => {
+    const now = new Date();
     const activeSnapshot = await db.query.userPlanSnapshots.findFirst({
       orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-      where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+      where: and(
+        eq(userPlanSnapshots.userId, this.userId),
+        eq(userPlanSnapshots.status, 'active'),
+        or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+      ),
     });
 
     if (!activeSnapshot) return null;
 
-    await this.syncPlanResourceQuotasForSnapshot(activeSnapshot.plan, db);
+    await this.syncPlanResourceQuotasForSnapshot(activeSnapshot, db);
 
     return activeSnapshot.plan;
   };
@@ -399,6 +456,24 @@ export class CommercialModel {
     if (!user) throw new Error('COMMERCIAL_USER_NOT_FOUND');
   };
 
+  private assertSubscriptionPaymentOrderIsLatest = async (
+    order: Pick<typeof subscriptionPaymentOrders.$inferSelect, 'activatedSnapshotId' | 'id'>,
+    db: LobeChatDatabase | Transaction,
+  ) => {
+    if (!order.activatedSnapshotId) return;
+    const snapshot = await db.query.userPlanSnapshots.findFirst({
+      columns: { metadata: true },
+      where: and(
+        eq(userPlanSnapshots.id, order.activatedSnapshotId),
+        eq(userPlanSnapshots.userId, this.userId),
+      ),
+    });
+    const latestPaymentOrderId = getSnapshotMetadata(snapshot?.metadata)?.lastPaymentOrderId;
+    if (typeof latestPaymentOrderId === 'string' && latestPaymentOrderId !== order.id) {
+      throw new Error('SUBSCRIPTION_PAYMENT_SUPERSEDED_BY_LATER_RENEWAL');
+    }
+  };
+
   private lockCreditAccountForUpdate = async (userId: string, tx: Transaction) => {
     await this.ensureCreditAccountForUser(userId, tx);
 
@@ -414,6 +489,7 @@ export class CommercialModel {
   private grantCreditsToUser = async ({
     amount,
     description,
+    expiresAt,
     metadata,
     referenceId,
     referenceType,
@@ -424,6 +500,7 @@ export class CommercialModel {
   }: {
     amount: number;
     description?: string;
+    expiresAt?: Date | null;
     metadata?: Record<string, unknown>;
     referenceId?: string;
     referenceType?: string;
@@ -470,6 +547,20 @@ export class CommercialModel {
       throw new Error('CREDIT_LEDGER_ENTRY_CREATE_FAILED');
     }
 
+    if (expiresAt && referenceId && referenceType) {
+      await new CreditLotModel(this.db, userId).createLot(
+        {
+          amount,
+          expiresAt,
+          grantLedgerEntryId: ledgerEntry.id,
+          referenceId,
+          referenceType,
+          source: this.resolveCreditSourceForGrant(type),
+        },
+        tx,
+      );
+    }
+
     return ledgerEntry.id;
   };
 
@@ -506,37 +597,27 @@ export class CommercialModel {
     provider: string;
     providerType?: string | null;
   }) => {
-    try {
-      const rows = await this.db.query.appSettings.findMany({
-        where: inArray(appSettings.key, [PRICING_CREDIT_MULTIPLIER_KEY, PRICING_MODEL_RULES_KEY]),
-      });
-      const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-      const configuredGlobalMultiplier = Number(settings[PRICING_CREDIT_MULTIPLIER_KEY]);
-      const globalMultiplier =
-        Number.isFinite(configuredGlobalMultiplier) && configuredGlobalMultiplier > 0
-          ? configuredGlobalMultiplier
-          : DEFAULT_PRICING_CREDIT_MULTIPLIER;
-      const rules = Array.isArray(settings[PRICING_MODEL_RULES_KEY])
-        ? (settings[PRICING_MODEL_RULES_KEY] as AiUsagePricingRule[])
-        : [];
+    const rows = await this.db.query.appSettings.findMany({
+      where: inArray(appSettings.key, [PRICING_CREDIT_MULTIPLIER_KEY, PRICING_MODEL_RULES_KEY]),
+    });
+    const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    const configuredGlobalMultiplier = Number(settings[PRICING_CREDIT_MULTIPLIER_KEY]);
+    const globalMultiplier =
+      Number.isFinite(configuredGlobalMultiplier) && configuredGlobalMultiplier > 0
+        ? configuredGlobalMultiplier
+        : DEFAULT_PRICING_CREDIT_MULTIPLIER;
+    const rules = parseAiUsagePricingRules(settings[PRICING_MODEL_RULES_KEY]);
 
-      return resolveAiUsagePricing({
-        globalMultiplier,
-        groupKey,
-        groupMultiplier,
-        instanceId,
-        model,
-        provider,
-        providerType,
-        rules,
-      });
-    } catch {
-      return {
-        creditsPerDollar: undefined,
-        matchedRule: undefined,
-        multiplier: DEFAULT_PRICING_CREDIT_MULTIPLIER,
-      };
-    }
+    return resolveAiUsagePricing({
+      globalMultiplier,
+      groupKey,
+      groupMultiplier,
+      instanceId,
+      model,
+      provider,
+      providerType,
+      rules,
+    });
   };
 
   private assertSupportedPlan = (plan: string): plan is Plans => {
@@ -577,7 +658,7 @@ export class CommercialModel {
         : this.getDefaultPlanDurationMonths(cycle);
     if (!months) return { endsAt: null, renewsAt: null };
 
-    const expiresAt = addMonths(baseDate, months);
+    const expiresAt = addCalendarMonths(baseDate, months);
     return { endsAt: expiresAt, renewsAt: expiresAt };
   };
 
@@ -672,6 +753,36 @@ export class CommercialModel {
     }
 
     return allocations;
+  };
+
+  private consumeTrackedCreditLots = async (
+    tx: Transaction,
+    allocations: CreditConsumeAllocation[],
+  ) => {
+    const lotModel = new CreditLotModel(this.db, this.userId);
+    const trackedAllocations: CreditConsumeAllocation[] = [];
+    for (const allocation of allocations) {
+      if (allocation.source !== 'subscription' && allocation.source !== 'topup') continue;
+      trackedAllocations.push(
+        ...(await lotModel.consumeExpiringLots(tx, allocation.amount, allocation.source)),
+      );
+    }
+    return trackedAllocations;
+  };
+
+  allocateAndTrackCreditConsumption = async (input: {
+    accountBalance: number;
+    amount: number;
+    tx: Transaction;
+  }) => {
+    const breakdown = this.buildCreditBreakdownFromLedger({
+      accountBalance: input.accountBalance,
+      ledgerEntries: await this.listCreditLedgerReplayEntries(input.tx),
+    });
+    const allocations = this.allocateConsumeCredits({ amount: input.amount, breakdown });
+    const creditLotAllocations = await this.consumeTrackedCreditLots(input.tx, allocations);
+
+    return { allocations, creditLotAllocations };
   };
 
   private reconcileCreditBreakdown = ({
@@ -785,8 +896,8 @@ export class CommercialModel {
 
     const periods: Array<{ index: number; periodStart: Date; referenceId: string }> = [];
 
-    for (let index = 0; index < 120; index += 1) {
-      const periodStart = addMonths(snapshot.startedAt, index);
+    for (let index = 0; ; index += 1) {
+      const periodStart = addCalendarMonths(snapshot.startedAt, index);
       if (periodStart > cutoff) break;
 
       periods.push({
@@ -805,16 +916,18 @@ export class CommercialModel {
   }: {
     snapshot?: Pick<
       typeof userPlanSnapshots.$inferSelect,
-      'cycle' | 'endsAt' | 'id' | 'monthlyCredits' | 'plan' | 'startedAt' | 'status'
+      'cycle' | 'endsAt' | 'id' | 'metadata' | 'monthlyCredits' | 'plan' | 'startedAt' | 'status'
     > | null;
     tx: Transaction;
   }) => {
-    if (!snapshot) return 0;
+    if (!snapshot) return { grantedCount: 0, grantedLotReferenceIds: [] as string[] };
 
-    await this.syncPlanResourceQuotasForSnapshot(snapshot.plan, tx);
+    await this.syncPlanResourceQuotasForSnapshot(snapshot, tx);
 
     const duePeriods = this.listDueSubscriptionGrantPeriods(snapshot);
-    if (duePeriods.length === 0) return 0;
+    if (duePeriods.length === 0) {
+      return { grantedCount: 0, grantedLotReferenceIds: [] as string[] };
+    }
 
     await this.lockCreditAccountForUpdate(this.userId, tx);
 
@@ -837,6 +950,7 @@ export class CommercialModel {
     const existingReferenceIds = new Set(existingEntries.map((e) => e.referenceId));
 
     let granted = 0;
+    const grantedLotReferenceIds: string[] = [];
 
     for (const period of duePeriods) {
       if (existingReferenceIds.has(period.referenceId)) continue;
@@ -844,6 +958,10 @@ export class CommercialModel {
       await this.grantCreditsToUser({
         amount: snapshot.monthlyCredits,
         description: `Granted ${snapshot.plan} subscription credits for period #${period.index + 1}`,
+        expiresAt:
+          snapshot.endsAt && snapshot.endsAt < addCalendarMonths(period.periodStart, 1)
+            ? snapshot.endsAt
+            : addCalendarMonths(period.periodStart, 1),
         metadata: {
           cycle: snapshot.cycle,
           periodIndex: period.index,
@@ -861,23 +979,33 @@ export class CommercialModel {
       });
 
       granted += 1;
+      grantedLotReferenceIds.push(period.referenceId);
     }
 
-    return granted;
+    return { grantedCount: granted, grantedLotReferenceIds };
   };
 
   private syncPlanResourceQuotasForSnapshot = async (
-    plan: Plans,
+    snapshot: Pick<typeof userPlanSnapshots.$inferSelect, 'metadata' | 'plan'>,
     db: LobeChatDatabase | Transaction = this.db,
   ) => {
     await this.ensureCreditAccount(db);
 
-    const catalog = await db.query.planCatalog.findFirst({
-      where: eq(planCatalog.plan, plan as string),
-    });
-    const quotas = normalizePlanResourceQuotas(
-      catalog?.metadata && typeof catalog.metadata === 'object' ? catalog.metadata : null,
-    );
+    const entitlementSnapshot = getEntitlementSnapshot(snapshot.metadata);
+    let quotas;
+    if (entitlementSnapshot?.version === 2) {
+      quotas = {
+        storageQuota: entitlementSnapshot.storageQuotaBytes,
+        vectorQuota: entitlementSnapshot.vectorQuota,
+      };
+    } else if (entitlementSnapshot?.version === 1) {
+      quotas = normalizePlanResourceQuotas(entitlementSnapshot.planMetadata);
+    } else {
+      const catalog = await db.query.planCatalog.findFirst({
+        where: eq(planCatalog.plan, snapshot.plan as string),
+      });
+      quotas = normalizePlanResourceQuotas(getSnapshotMetadata(catalog?.metadata));
+    }
 
     await db
       .update(creditAccounts)
@@ -905,7 +1033,7 @@ export class CommercialModel {
 
     const snapshot = await this.ensureUnlimitedFreePlanSnapshot(db, now);
     if (snapshot) {
-      await this.syncPlanResourceQuotasForSnapshot(snapshot.plan, db);
+      await this.syncPlanResourceQuotasForSnapshot(snapshot, db);
     }
 
     return snapshot;
@@ -922,12 +1050,22 @@ export class CommercialModel {
 
     if (activeSnapshot) return activeSnapshot;
 
+    const freeCatalog = await db.query.planCatalog.findFirst({
+      where: eq(planCatalog.plan, Plans.Free),
+    });
+
     const [freeSnapshot] = await db
       .insert(userPlanSnapshots)
       .values({
         cycle: 'monthly',
         externalSubscriptionId: `default-free-${this.userId}`,
-        metadata: { source: 'subscription_expiry_fallback', unlimited: true },
+        metadata: {
+          ...(freeCatalog
+            ? { entitlementSnapshot: buildPlanEntitlementSnapshot(freeCatalog) }
+            : {}),
+          source: 'subscription_expiry_fallback',
+          unlimited: true,
+        },
         monthlyCredits: 0,
         monthlyPrice: 0,
         plan: Plans.Free,
@@ -965,14 +1103,17 @@ export class CommercialModel {
 
   canStartChatUsage = async (requiredCredits: number = 1) => {
     await this.syncLatestSubscriptionCredits();
-    await this.ensureCreditAccount();
+    return this.db.transaction(async (tx) => {
+      const lotModel = new CreditLotModel(this.db, this.userId);
+      await lotModel.assertNoOpenDebt(tx);
+      await lotModel.expireDueLots(tx);
+      const account = await tx.query.creditAccounts.findFirst({
+        columns: { balance: true },
+        where: eq(creditAccounts.userId, this.userId),
+      });
 
-    const account = await this.db.query.creditAccounts.findFirst({
-      columns: { balance: true },
-      where: eq(creditAccounts.userId, this.userId),
+      return (account?.balance ?? 0) >= Math.max(1, Math.ceil(requiredCredits));
     });
-
-    return (account?.balance ?? 0) >= Math.max(1, Math.ceil(requiredCredits));
   };
 
   preCharge = async (estimatedCredits: number, db: LobeChatDatabase | Transaction = this.db) => {
@@ -1002,15 +1143,8 @@ export class CommercialModel {
     const creditsAmount = params.credits;
 
     return db.transaction(async (tx) => {
-      await this.ensureCreditAccount(tx);
-
-      const [accountBefore] = await tx
-        .select({ balance: creditAccounts.balance })
-        .from(creditAccounts)
-        .where(eq(creditAccounts.userId, params.userId))
-        .for('update');
-
-      if (!accountBefore) throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
+      await this.lockCreditAccountForUpdate(params.userId, tx);
+      const lotModel = new CreditLotModel(this.db, params.userId);
 
       if (params.referenceId) {
         const existed = await tx.query.creditLedgerEntries.findFirst({
@@ -1027,6 +1161,23 @@ export class CommercialModel {
 
         if (existed) return existed;
       }
+
+      await lotModel.assertNoOpenDebt(tx);
+      await lotModel.expireDueLots(tx);
+
+      const [accountBefore] = await tx
+        .select({ balance: creditAccounts.balance })
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, params.userId))
+        .for('update');
+
+      if (!accountBefore) throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
+
+      const { allocations, creditLotAllocations } = await this.allocateAndTrackCreditConsumption({
+        accountBalance: accountBefore.balance,
+        amount: creditsAmount,
+        tx,
+      });
 
       const [account] = await tx
         .update(creditAccounts)
@@ -1052,6 +1203,8 @@ export class CommercialModel {
           description: `${params.source} usage: ${params.model}`,
           metadata: {
             ...params.metadata,
+            allocations,
+            creditLotAllocations,
             model: params.model,
             provider: params.provider,
             source: params.source,
@@ -1127,7 +1280,7 @@ export class CommercialModel {
       totalOutputTokens?: number;
       totalTokens?: number;
     };
-    usageType: 'chat' | 'embeddings' | 'generate_object';
+    usageType: 'asr' | 'chat' | 'embeddings' | 'generate_object';
   }) => {
     const quote = await this.quoteCreditsForAiUsage({
       model,
@@ -1142,14 +1295,8 @@ export class CommercialModel {
     await this.syncLatestSubscriptionCredits();
 
     return this.db.transaction(async (tx) => {
-      await this.ensureCreditAccount(tx);
-      const accountBefore = await tx
-        .select({ balance: creditAccounts.balance })
-        .from(creditAccounts)
-        .where(eq(creditAccounts.userId, this.userId))
-        .for('update')
-        .then((rows) => rows[0]);
-
+      await this.lockCreditAccountForUpdate(this.userId, tx);
+      const lotModel = new CreditLotModel(this.db, this.userId);
       const existed = await tx.query.creditLedgerEntries.findFirst({
         where: and(
           eq(creditLedgerEntries.userId, this.userId),
@@ -1161,11 +1308,20 @@ export class CommercialModel {
 
       if (existed) return existed;
 
-      const breakdown = this.buildCreditBreakdownFromLedger({
+      await lotModel.assertNoOpenDebt(tx);
+      await lotModel.expireDueLots(tx);
+      const accountBefore = await tx
+        .select({ balance: creditAccounts.balance })
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, this.userId))
+        .for('update')
+        .then((rows) => rows[0]);
+
+      const { allocations, creditLotAllocations } = await this.allocateAndTrackCreditConsumption({
         accountBalance: accountBefore?.balance ?? 0,
-        ledgerEntries: await this.listCreditLedgerReplayEntries(tx),
+        amount,
+        tx,
       });
-      const allocations = this.allocateConsumeCredits({ amount, breakdown });
 
       const consumedAt = new Date();
       const [account] = await tx
@@ -1194,6 +1350,7 @@ export class CommercialModel {
             allocations,
             billingMode: 'official_raw_credits',
             chargedCredits: amount,
+            creditLotAllocations,
             creditsPerDollar: quote.creditsPerDollar,
             ...(usage?.costSource ? { costSource: usage.costSource } : {}),
             ...(routeMetadata?.groupKey ? { groupKey: routeMetadata.groupKey } : {}),
@@ -1315,7 +1472,9 @@ export class CommercialModel {
 
   getCreditAccountSummary = async (): Promise<CreditAccountSummary> => {
     await this.syncLatestSubscriptionCredits();
-    await this.ensureCreditAccount();
+    await this.db.transaction(async (tx) => {
+      await new CreditLotModel(this.db, this.userId).expireDueLots(tx);
+    });
 
     const account = await this.db.query.creditAccounts.findFirst({
       where: eq(creditAccounts.userId, this.userId),
@@ -1401,12 +1560,60 @@ export class CommercialModel {
     };
   };
 
+  listCreditPackages = async (
+    params: QueryCommercialListParams = {},
+  ): Promise<CreditPackageHistoryItem[]> => {
+    const { limit = 100 } = params;
+
+    await this.syncLatestSubscriptionCredits();
+    await this.db.transaction(async (tx) => {
+      await new CreditLotModel(this.db, this.userId).expireDueLots(tx);
+    });
+
+    const rows = await this.db
+      .select({
+        consumedAmount: creditLots.consumedAmount,
+        createdAt: creditLots.createdAt,
+        expiredAmount: creditLots.expiredAmount,
+        expiresAt: creditLots.expiresAt,
+        grantedAmount: creditLots.grantedAmount,
+        id: creditLots.id,
+        referenceId: creditLots.referenceId,
+        referenceType: creditLots.referenceType,
+        refundedAmount: creditLots.refundedAmount,
+        source: creditLots.source,
+        status: creditLots.status,
+        updatedAt: creditLots.updatedAt,
+      })
+      .from(creditLots)
+      .where(eq(creditLots.userId, this.userId))
+      .orderBy(desc(creditLots.createdAt), desc(creditLots.id))
+      .limit(limit);
+
+    return rows.map((row) => {
+      const remainingAmount = Math.max(
+        0,
+        row.grantedAmount - row.consumedAmount - row.expiredAmount - row.refundedAmount,
+      );
+
+      return {
+        ...row,
+        remainingAmount,
+        status: row.status === 'expired' ? 'expired' : remainingAmount <= 0 ? 'depleted' : 'active',
+      };
+    });
+  };
+
   getLatestPlanSnapshot = async (db: LobeChatDatabase | Transaction = this.db) => {
-    await this.syncExpiredPlanSnapshots(db);
+    const now = new Date();
 
     return db.query.userPlanSnapshots.findFirst({
       orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-      where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+      where: and(
+        eq(userPlanSnapshots.userId, this.userId),
+        eq(userPlanSnapshots.status, 'active'),
+        or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+      ),
     });
   };
 
@@ -1440,6 +1647,24 @@ export class CommercialModel {
     ]);
 
     return { account, subscription };
+  };
+
+  getResourceUsage = async (): Promise<CommercialResourceUsage> => {
+    // Resource quotas are copied from the active subscription snapshot. Sync
+    // them before reading the account so a direct usage-page visit cannot race
+    // the commercial overview request and render an outdated unlimited quota.
+    await this.syncLatestSubscriptionCredits();
+
+    const [account, storageUsed, vectorUsed] = await Promise.all([
+      this.db.query.creditAccounts.findFirst({
+        columns: { storageQuota: true, vectorQuota: true },
+        where: eq(creditAccounts.userId, this.userId),
+      }),
+      new FileModel(this.db, this.userId).countUsage(),
+      new EmbeddingModel(this.db, this.userId).countUsage(),
+    ]);
+
+    return buildCommercialResourceUsage(account, { storageUsed, vectorUsed });
   };
 
   getCurrentPlan = async (): Promise<Plans> => {
@@ -1506,8 +1731,10 @@ export class CommercialModel {
     db: LobeChatDatabase | Transaction = this.db,
   ) => {
     const dbRow = await this.getRequiredPlanCatalogEntry(plan, db);
+    const entitlementSnapshot = buildPlanEntitlementSnapshot(dbRow);
     const preset = {
       currency: dbRow.currency,
+      entitlementSnapshot,
       lifetimePrice: getPlanMetadataNumber(dbRow.metadata, 'lifetimePrice'),
       monthlyCredits: Number(dbRow.monthlyCredits),
       monthlyPrice: Number(dbRow.monthlyPrice),
@@ -1517,12 +1744,14 @@ export class CommercialModel {
 
     switch (cycle) {
       case 'yearly': {
+        const expiresAt = addCalendarYears(startedAt, 1);
         return {
           currency: preset.currency,
-          endsAt: null,
+          entitlementSnapshot: preset.entitlementSnapshot,
+          endsAt: expiresAt,
           monthlyCredits: preset.monthlyCredits,
           monthlyPrice: Number(preset.yearlyPrice.toFixed(2)),
-          renewsAt: addYears(startedAt, 1),
+          renewsAt: expiresAt,
         };
       }
       case 'one_time': {
@@ -1533,7 +1762,8 @@ export class CommercialModel {
 
         return {
           currency: preset.currency,
-          endsAt: addYears(startedAt, 1),
+          entitlementSnapshot: preset.entitlementSnapshot,
+          endsAt: addCalendarYears(startedAt, 1),
           monthlyCredits: preset.monthlyCredits,
           monthlyPrice: cyclePrice,
           renewsAt: null,
@@ -1547,6 +1777,7 @@ export class CommercialModel {
 
         return {
           currency: preset.currency,
+          entitlementSnapshot: preset.entitlementSnapshot,
           endsAt: null,
           monthlyCredits: preset.monthlyCredits,
           monthlyPrice: cyclePrice,
@@ -1554,12 +1785,14 @@ export class CommercialModel {
         };
       }
       default: {
+        const expiresAt = addCalendarMonths(startedAt, 1);
         return {
           currency: preset.currency,
-          endsAt: null,
+          entitlementSnapshot: preset.entitlementSnapshot,
+          endsAt: expiresAt,
           monthlyCredits: preset.monthlyCredits,
           monthlyPrice: preset.monthlyPrice,
-          renewsAt: addMonths(startedAt, 1),
+          renewsAt: expiresAt,
         };
       }
     }
@@ -1567,10 +1800,11 @@ export class CommercialModel {
 
   createSubscriptionChangeRequest = async (
     input: CreateSubscriptionChangeRequestParams,
+    options?: { tx?: Transaction },
   ): Promise<SubscriptionChangeRequestItem> => {
-    await this.getRequiredPlanCatalogEntry(input.targetPlan);
+    await this.getRequiredPlanCatalogEntry(input.targetPlan, options?.tx ?? this.db);
 
-    return this.db.transaction(async (tx) => {
+    const create = async (tx: Transaction) => {
       await this.lockCommercialUserForUpdate(tx);
       const summary = await this.getSubscriptionSummary(tx);
       const existingPending = await this.getPendingSubscriptionChangeRequest(tx);
@@ -1607,7 +1841,9 @@ export class CommercialModel {
         .returning();
 
       return request;
-    });
+    };
+
+    return options?.tx ? create(options.tx) : this.db.transaction(create);
   };
 
   cancelSubscriptionChangeRequest = async (): Promise<SubscriptionChangeRequestItem | null> => {
@@ -1632,14 +1868,14 @@ export class CommercialModel {
        * redemption codes that grant a custom-length subscription (e.g. a 3-month
        * gift code on a monthly plan).
        *
-       * - For `monthly`/`yearly` cycles the value replaces `renewsAt` so that
-       *   the next billing/expiry is the override date.
-       * - For `one_time`/`lifetime` cycles the value replaces `endsAt`.
+       * For every finite cycle the value replaces the contractual `endsAt`.
+       * Monthly/yearly activations also mirror it to `renewsAt` for display.
        */
       endsAtOverride?: Date | null;
+      tx?: Transaction;
     },
   ): Promise<SubscriptionChangeRequestItem> => {
-    return this.db.transaction(async (tx) => {
+    const activate = async (tx: Transaction) => {
       await this.lockCommercialUserForUpdate(tx);
       await this.syncExpiredPlanSnapshots(tx);
 
@@ -1689,9 +1925,9 @@ export class CommercialModel {
       // Apply optional duration override (used by redemption codes).
       const finalEndsAt =
         options?.endsAtOverride !== undefined && options.endsAtOverride !== null
-          ? request.cycle === 'one_time' || request.cycle === 'lifetime'
-            ? options.endsAtOverride
-            : previewSnapshot.endsAt
+          ? request.cycle === 'lifetime'
+            ? previewSnapshot.endsAt
+            : options.endsAtOverride
           : previewSnapshot.endsAt;
       const finalRenewsAt =
         options?.endsAtOverride !== undefined && options.endsAtOverride !== null
@@ -1709,6 +1945,7 @@ export class CommercialModel {
           externalSubscriptionId: `preview-${request.id}`,
           metadata: {
             activatedFromChangeRequestId: request.id,
+            entitlementSnapshot: previewSnapshot.entitlementSnapshot,
             ...(options?.endsAtOverride
               ? { endsAtOverride: options.endsAtOverride.toISOString() }
               : {}),
@@ -1747,7 +1984,9 @@ export class CommercialModel {
       }
 
       return updatedRequest;
-    });
+    };
+
+    return options?.tx ? activate(options.tx) : this.db.transaction(activate);
   };
 
   private grantPlanWithSnapshot = async ({
@@ -1849,7 +2088,10 @@ export class CommercialModel {
         cycle,
         endsAt,
         externalSubscriptionId,
-        metadata: metadata(request),
+        metadata: {
+          ...metadata(request),
+          entitlementSnapshot: previewSnapshot.entitlementSnapshot,
+        },
         monthlyCredits: previewSnapshot.monthlyCredits,
         monthlyPrice: previewSnapshot.monthlyPrice,
         plan: targetPlan,
@@ -1977,6 +2219,832 @@ export class CommercialModel {
       .limit(limit);
   };
 
+  createSubscriptionPaymentOrder = async (input: {
+    cycle: SubscriptionCycleType;
+    idempotencyKey: string;
+    method: PaymentMethodId;
+    plan: Plans;
+    provider: PaymentProvider;
+  }) => {
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (!idempotencyKey) throw new Error('SUBSCRIPTION_PAYMENT_IDEMPOTENCY_KEY_REQUIRED');
+
+    const assertMatchingOrder = (order: typeof subscriptionPaymentOrders.$inferSelect) => {
+      if (
+        order.plan !== input.plan ||
+        order.cycle !== input.cycle ||
+        order.provider !== input.provider ||
+        order.method !== input.method
+      ) {
+        throw new Error('SUBSCRIPTION_PAYMENT_IDEMPOTENCY_CONFLICT');
+      }
+      return order;
+    };
+    const existing = await this.db.query.subscriptionPaymentOrders.findFirst({
+      where: and(
+        eq(subscriptionPaymentOrders.userId, this.userId),
+        eq(subscriptionPaymentOrders.idempotencyKey, idempotencyKey),
+      ),
+    });
+    if (existing) return { created: false, order: assertMatchingOrder(existing) };
+
+    if (input.plan === Plans.Free) throw new Error('SUBSCRIPTION_PLAN_NOT_PURCHASABLE');
+    return this.db.transaction(async (tx) => {
+      await this.lockCommercialUserForUpdate(tx);
+
+      const concurrentExisting = await tx.query.subscriptionPaymentOrders.findFirst({
+        where: and(
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          eq(subscriptionPaymentOrders.idempotencyKey, idempotencyKey),
+        ),
+      });
+      if (concurrentExisting) {
+        return { created: false, order: assertMatchingOrder(concurrentExisting) };
+      }
+
+      const quotedAt = new Date();
+      await this.syncExpiredPlanSnapshots(tx);
+      await tx
+        .update(subscriptionPaymentOrders)
+        .set({ status: 'expired', updatedAt: quotedAt })
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.userId, this.userId),
+            eq(subscriptionPaymentOrders.status, 'pending'),
+            lt(subscriptionPaymentOrders.expiresAt, quotedAt),
+          ),
+        );
+
+      const activeSnapshot = await tx.query.userPlanSnapshots.findFirst({
+        orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+        where: and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
+      });
+      if (
+        input.cycle === 'lifetime' &&
+        activeSnapshot?.plan === input.plan &&
+        activeSnapshot.cycle === 'lifetime'
+      ) {
+        throw new Error('SUBSCRIPTION_LIFETIME_PLAN_ALREADY_ACTIVE');
+      }
+      if (activeSnapshot?.plan === input.plan && activeSnapshot.cycle === input.cycle) {
+        const latestPaymentOrderId = getSnapshotMetadata(
+          activeSnapshot.metadata,
+        )?.lastPaymentOrderId;
+        if (typeof latestPaymentOrderId === 'string') {
+          const latestPaymentOrder = await tx.query.subscriptionPaymentOrders.findFirst({
+            where: and(
+              eq(subscriptionPaymentOrders.id, latestPaymentOrderId),
+              eq(subscriptionPaymentOrders.userId, this.userId),
+            ),
+          });
+          if (
+            latestPaymentOrder?.refundStatus === 'pending' ||
+            latestPaymentOrder?.refundStatus === 'succeeded'
+          ) {
+            throw new Error('SUBSCRIPTION_RENEWAL_BLOCKED_BY_REFUND');
+          }
+        }
+      }
+      if (input.cycle === 'lifetime') {
+        const pendingLifetimeOrder = await tx.query.subscriptionPaymentOrders.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(subscriptionPaymentOrders.userId, this.userId),
+            eq(subscriptionPaymentOrders.plan, input.plan),
+            eq(subscriptionPaymentOrders.cycle, 'lifetime'),
+            eq(subscriptionPaymentOrders.status, 'pending'),
+          ),
+        });
+        if (pendingLifetimeOrder) {
+          throw new Error('SUBSCRIPTION_LIFETIME_PAYMENT_PENDING');
+        }
+      }
+
+      const catalog = await tx.query.planCatalog.findFirst({
+        where: and(eq(planCatalog.plan, input.plan), eq(planCatalog.isActive, true)),
+      });
+      if (!catalog) throw new Error('SUBSCRIPTION_PLAN_NOT_FOUND');
+      const amount =
+        input.cycle === 'monthly'
+          ? Number(catalog.monthlyPrice)
+          : input.cycle === 'yearly'
+            ? Number(catalog.yearlyPrice)
+            : getPlanMetadataNumber(
+                catalog.metadata,
+                input.cycle === 'lifetime' ? 'lifetimePrice' : 'oneTimePrice',
+              );
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('SUBSCRIPTION_CYCLE_NOT_PURCHASABLE');
+      }
+      if (catalog.currency !== 'CNY') throw new Error('SUBSCRIPTION_CURRENCY_UNSUPPORTED');
+
+      const entitlementSnapshot = buildPlanEntitlementSnapshot(catalog);
+      const snapshot: SubscriptionPaymentOrderSnapshot =
+        subscriptionPaymentOrderSnapshotSchema.parse({
+          amount: amount.toFixed(6),
+          currency: catalog.currency,
+          cycle: input.cycle,
+          displayName: catalog.displayName,
+          ...entitlementSnapshot,
+          monthlyCredits: Number(catalog.monthlyCredits),
+          monthlyPrice: Number(catalog.monthlyPrice),
+          plan: input.plan,
+          quotedAt: quotedAt.toISOString(),
+        });
+      const [order] = await tx
+        .insert(subscriptionPaymentOrders)
+        .values({
+          amount,
+          currency: catalog.currency,
+          cycle: input.cycle,
+          expiresAt: new Date(quotedAt.getTime() + 30 * 60 * 1000),
+          idempotencyKey,
+          method: input.method,
+          plan: input.plan,
+          provider: input.provider,
+          snapshot,
+          userId: this.userId,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (order) return { created: true, order: assertMatchingOrder(order) };
+
+      const concurrent = await tx.query.subscriptionPaymentOrders.findFirst({
+        where: and(
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          eq(subscriptionPaymentOrders.idempotencyKey, idempotencyKey),
+        ),
+      });
+      if (!concurrent) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_CREATE_FAILED');
+      return { created: false, order: assertMatchingOrder(concurrent) };
+    });
+  };
+
+  bindSubscriptionPayment = async (input: { externalOrderId: string; orderId: string }) => {
+    const [updated] = await this.db
+      .update(subscriptionPaymentOrders)
+      .set({ externalOrderId: input.externalOrderId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(subscriptionPaymentOrders.id, input.orderId),
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          eq(subscriptionPaymentOrders.status, 'pending'),
+          sql`${subscriptionPaymentOrders.externalOrderId} IS NULL`,
+        ),
+      )
+      .returning();
+    if (updated) return { claimed: true, order: updated };
+    const order = await this.db.query.subscriptionPaymentOrders.findFirst({
+      where: and(
+        eq(subscriptionPaymentOrders.id, input.orderId),
+        eq(subscriptionPaymentOrders.userId, this.userId),
+      ),
+    });
+    if (!order) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND');
+    if (order.externalOrderId !== input.externalOrderId) {
+      throw new Error('SUBSCRIPTION_PAYMENT_BIND_CONFLICT');
+    }
+    return { claimed: false, order };
+  };
+
+  storeSubscriptionPaymentCheckout = async (input: {
+    checkout: PaymentCheckoutAction;
+    orderId: string;
+  }) => {
+    const [updated] = await this.db
+      .update(subscriptionPaymentOrders)
+      .set({ checkout: input.checkout, updatedAt: new Date() })
+      .where(
+        and(
+          eq(subscriptionPaymentOrders.id, input.orderId),
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          sql`${subscriptionPaymentOrders.checkout} IS NULL`,
+        ),
+      )
+      .returning();
+    if (updated) return updated;
+    const order = await this.db.query.subscriptionPaymentOrders.findFirst({
+      where: and(
+        eq(subscriptionPaymentOrders.id, input.orderId),
+        eq(subscriptionPaymentOrders.userId, this.userId),
+      ),
+    });
+    if (!order?.checkout) throw new Error('SUBSCRIPTION_PAYMENT_CHECKOUT_STORE_FAILED');
+    return order;
+  };
+
+  getSubscriptionPaymentOrder = (orderId: string) =>
+    this.db.query.subscriptionPaymentOrders.findFirst({
+      where: and(
+        eq(subscriptionPaymentOrders.id, orderId),
+        eq(subscriptionPaymentOrders.userId, this.userId),
+      ),
+    });
+
+  getSubscriptionPaymentOrderByIdempotencyKey = (idempotencyKey: string) =>
+    this.db.query.subscriptionPaymentOrders.findFirst({
+      where: and(
+        eq(subscriptionPaymentOrders.userId, this.userId),
+        eq(subscriptionPaymentOrders.idempotencyKey, idempotencyKey.trim()),
+      ),
+    });
+
+  claimSubscriptionPaymentRefund = async (input: { orderId: string; refundReference: string }) => {
+    const refundReference = input.refundReference.trim();
+    if (!refundReference) throw new Error('SUBSCRIPTION_PAYMENT_REFUND_REFERENCE_REQUIRED');
+
+    return this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(subscriptionPaymentOrders)
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.id, input.orderId),
+            eq(subscriptionPaymentOrders.userId, this.userId),
+          ),
+        )
+        .for('update');
+      if (!order) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND');
+      if (order.status === 'paid') {
+        await this.lockCommercialUserForUpdate(tx);
+        await this.assertSubscriptionPaymentOrderIsLatest(order, tx);
+      }
+      if (
+        order.status !== 'paid' ||
+        !(
+          ((order.refundStatus === null || order.refundStatus === 'failed') &&
+            (order.refundReference === null || order.refundReference === refundReference)) ||
+          (order.refundStatus === 'pending' && order.refundReference === null)
+        )
+      ) {
+        return { claimed: false as const, order };
+      }
+
+      const [claimed] = await tx
+        .update(subscriptionPaymentOrders)
+        .set({ refundReference, refundStatus: 'pending', updatedAt: new Date() })
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.id, order.id),
+            eq(subscriptionPaymentOrders.userId, this.userId),
+            eq(subscriptionPaymentOrders.status, 'paid'),
+            or(
+              and(
+                or(
+                  isNull(subscriptionPaymentOrders.refundStatus),
+                  eq(subscriptionPaymentOrders.refundStatus, 'failed'),
+                ),
+                or(
+                  isNull(subscriptionPaymentOrders.refundReference),
+                  eq(subscriptionPaymentOrders.refundReference, refundReference),
+                ),
+              ),
+              and(
+                eq(subscriptionPaymentOrders.refundStatus, 'pending'),
+                isNull(subscriptionPaymentOrders.refundReference),
+              ),
+            ),
+          ),
+        )
+        .returning();
+      if (!claimed) throw new Error('SUBSCRIPTION_PAYMENT_REFUND_CLAIM_FAILED');
+      return { claimed: true as const, order: claimed };
+    });
+  };
+
+  claimUncreditedSubscriptionPaymentRefund = async (input: {
+    orderId: string;
+    refundReference: string;
+  }) => {
+    const refundReference = input.refundReference.trim();
+    if (!refundReference) throw new Error('SUBSCRIPTION_PAYMENT_REFUND_REFERENCE_REQUIRED');
+
+    const [claimed] = await this.db
+      .update(subscriptionPaymentOrders)
+      .set({ refundReference, refundStatus: 'pending', updatedAt: new Date() })
+      .where(
+        and(
+          eq(subscriptionPaymentOrders.id, input.orderId),
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          inArray(subscriptionPaymentOrders.status, ['canceled', 'expired', 'failed', 'pending']),
+          or(
+            and(
+              or(
+                isNull(subscriptionPaymentOrders.refundStatus),
+                eq(subscriptionPaymentOrders.refundStatus, 'failed'),
+              ),
+              or(
+                isNull(subscriptionPaymentOrders.refundReference),
+                eq(subscriptionPaymentOrders.refundReference, refundReference),
+              ),
+            ),
+            and(
+              eq(subscriptionPaymentOrders.refundStatus, 'pending'),
+              isNull(subscriptionPaymentOrders.refundReference),
+            ),
+          ),
+        ),
+      )
+      .returning();
+    if (claimed) return { claimed: true as const, order: claimed };
+
+    const order = await this.getSubscriptionPaymentOrder(input.orderId);
+    if (!order) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND');
+    return { claimed: false as const, order };
+  };
+
+  updateSubscriptionPaymentRefundStatus = async (input: {
+    expectedRefundReference: null | string;
+    expectedStatus: 'failed' | 'pending' | 'succeeded';
+    orderId: string;
+    refundReference: string;
+    status: 'failed' | 'pending' | 'succeeded';
+  }) => {
+    const [updated] = await this.db
+      .update(subscriptionPaymentOrders)
+      .set({
+        refundReference: input.refundReference,
+        refundStatus: input.status,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(subscriptionPaymentOrders.id, input.orderId),
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          input.expectedRefundReference === null
+            ? isNull(subscriptionPaymentOrders.refundReference)
+            : eq(subscriptionPaymentOrders.refundReference, input.expectedRefundReference),
+          eq(subscriptionPaymentOrders.refundStatus, input.expectedStatus),
+          inArray(subscriptionPaymentOrders.status, [
+            'canceled',
+            'expired',
+            'failed',
+            'paid',
+            'pending',
+          ]),
+        ),
+      )
+      .returning();
+    if (updated) return updated;
+
+    const order = await this.getSubscriptionPaymentOrder(input.orderId);
+    if (!order) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND');
+    return order;
+  };
+
+  markUncreditedSubscriptionPaymentRefunded = async (input: {
+    orderId: string;
+    refundReference: string;
+  }) => {
+    const refundedAt = new Date();
+    const [updated] = await this.db
+      .update(subscriptionPaymentOrders)
+      .set({
+        refundedAt,
+        refundReference: input.refundReference,
+        refundStatus: 'succeeded',
+        status: 'refunded',
+        updatedAt: refundedAt,
+      })
+      .where(
+        and(
+          eq(subscriptionPaymentOrders.id, input.orderId),
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          inArray(subscriptionPaymentOrders.status, ['canceled', 'expired', 'failed', 'pending']),
+        ),
+      )
+      .returning();
+    return updated ?? null;
+  };
+
+  expireSubscriptionPaymentOrder = async (orderId: string) => {
+    const now = new Date();
+    const [expired] = await this.db
+      .update(subscriptionPaymentOrders)
+      .set({ status: 'expired', updatedAt: now })
+      .where(
+        and(
+          eq(subscriptionPaymentOrders.id, orderId),
+          eq(subscriptionPaymentOrders.userId, this.userId),
+          eq(subscriptionPaymentOrders.status, 'pending'),
+          lt(subscriptionPaymentOrders.expiresAt, now),
+        ),
+      )
+      .returning();
+    return expired ?? null;
+  };
+
+  settleSubscriptionPaymentOrder = async (input: {
+    amount: string;
+    currency: string;
+    externalOrderId: string;
+    method: PaymentMethodId;
+    orderId: string;
+    paymentReference?: string;
+    provider: PaymentProvider;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(subscriptionPaymentOrders)
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.id, input.orderId),
+            eq(subscriptionPaymentOrders.userId, this.userId),
+          ),
+        )
+        .for('update');
+      if (!order) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND');
+      if (
+        order.provider !== input.provider ||
+        order.method !== input.method ||
+        order.externalOrderId !== input.externalOrderId ||
+        order.currency !== input.currency ||
+        Number(order.amount).toFixed(6) !== Number(input.amount).toFixed(6) ||
+        (order.paymentReference &&
+          input.paymentReference &&
+          order.paymentReference !== input.paymentReference)
+      ) {
+        throw new Error('SUBSCRIPTION_PAYMENT_VERIFICATION_FAILED');
+      }
+      if (order.status === 'paid') return order;
+      if (!['expired', 'failed', 'pending'].includes(order.status)) {
+        throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_SETTLEABLE');
+      }
+
+      const snapshot = subscriptionPaymentOrderSnapshotSchema.parse(order.snapshot);
+      await this.lockCommercialUserForUpdate(tx);
+      await this.syncExpiredPlanSnapshots(tx);
+      const activatedAt = new Date();
+      const currentSnapshot = await tx.query.userPlanSnapshots.findFirst({
+        orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+        where: and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
+      });
+      if (
+        snapshot.cycle === 'lifetime' &&
+        currentSnapshot?.plan === snapshot.plan &&
+        currentSnapshot.cycle === 'lifetime' &&
+        getSnapshotMetadata(currentSnapshot.metadata)?.lastPaymentOrderId !== order.id
+      ) {
+        const [canceled] = await tx
+          .update(subscriptionPaymentOrders)
+          .set({
+            paidAt: activatedAt,
+            paymentReference: input.paymentReference ?? input.externalOrderId,
+            status: 'canceled',
+            updatedAt: activatedAt,
+          })
+          .where(
+            and(
+              eq(subscriptionPaymentOrders.id, order.id),
+              inArray(subscriptionPaymentOrders.status, ['pending', 'failed', 'expired']),
+            ),
+          )
+          .returning();
+        if (!canceled) throw new Error('SUBSCRIPTION_DUPLICATE_LIFETIME_CANCEL_FAILED');
+        return canceled;
+      }
+      const isRenewal =
+        currentSnapshot?.plan === snapshot.plan && currentSnapshot.cycle === snapshot.cycle;
+      if (isRenewal && currentSnapshot) {
+        const latestPaymentOrderId = getSnapshotMetadata(
+          currentSnapshot.metadata,
+        )?.lastPaymentOrderId;
+        if (typeof latestPaymentOrderId === 'string') {
+          const latestPaymentOrder = await tx.query.subscriptionPaymentOrders.findFirst({
+            columns: { refundStatus: true },
+            where: and(
+              eq(subscriptionPaymentOrders.id, latestPaymentOrderId),
+              eq(subscriptionPaymentOrders.userId, this.userId),
+            ),
+          });
+          if (
+            latestPaymentOrder?.refundStatus === 'pending' ||
+            latestPaymentOrder?.refundStatus === 'succeeded'
+          ) {
+            throw new Error('SUBSCRIPTION_RENEWAL_BLOCKED_BY_REFUND');
+          }
+        }
+      }
+      const previousSnapshot = currentSnapshot
+        ? {
+            currency: currentSnapshot.currency,
+            endsAt: currentSnapshot.endsAt?.toISOString() ?? null,
+            id: currentSnapshot.id,
+            metadata: currentSnapshot.metadata,
+            monthlyCredits: currentSnapshot.monthlyCredits,
+            monthlyPrice: currentSnapshot.monthlyPrice,
+            provider: currentSnapshot.provider,
+            renewsAt: currentSnapshot.renewsAt?.toISOString() ?? null,
+          }
+        : null;
+      let refundableCreditPeriodStartsAt = activatedAt;
+
+      await tx
+        .update(subscriptionChangeRequests)
+        .set({ status: 'canceled', updatedAt: activatedAt })
+        .where(
+          and(
+            eq(subscriptionChangeRequests.userId, this.userId),
+            eq(subscriptionChangeRequests.status, 'pending'),
+          ),
+        );
+      await tx.insert(subscriptionChangeRequests).values({
+        cycle: snapshot.cycle,
+        fromPlan: currentSnapshot?.plan ?? Plans.Free,
+        reason: this.resolveSubscriptionChangeReason(
+          currentSnapshot?.plan ?? Plans.Free,
+          snapshot.plan,
+        ),
+        status: 'completed',
+        toPlan: snapshot.plan,
+        userId: this.userId,
+      });
+
+      let activatedSnapshot: typeof userPlanSnapshots.$inferSelect;
+      if (isRenewal && currentSnapshot) {
+        const extensionBase = new Date(
+          Math.max(
+            activatedAt.getTime(),
+            (currentSnapshot.endsAt ?? currentSnapshot.renewsAt ?? activatedAt).getTime(),
+          ),
+        );
+        refundableCreditPeriodStartsAt = extensionBase;
+        const { endsAt, renewsAt } = this.resolveRedeemedPlanExpiry({
+          baseDate: extensionBase,
+          cycle: snapshot.cycle,
+        });
+        const [renewed] = await tx
+          .update(userPlanSnapshots)
+          .set({
+            currency: snapshot.currency,
+            endsAt,
+            metadata: {
+              ...currentSnapshot.metadata,
+              entitlementSnapshot: toEntitlementSnapshot(snapshot),
+              lastPaymentOrderId: order.id,
+              pricingSnapshot: snapshot,
+            },
+            monthlyCredits: snapshot.monthlyCredits,
+            monthlyPrice: snapshot.monthlyPrice,
+            provider: input.provider,
+            renewsAt,
+            updatedAt: activatedAt,
+          })
+          .where(eq(userPlanSnapshots.id, currentSnapshot.id))
+          .returning();
+        if (!renewed) throw new Error('SUBSCRIPTION_RENEWAL_FAILED');
+        activatedSnapshot = renewed;
+      } else {
+        if (currentSnapshot) {
+          await tx
+            .update(userPlanSnapshots)
+            .set({
+              endsAt: activatedAt,
+              renewsAt: activatedAt,
+              status: 'canceled',
+              updatedAt: activatedAt,
+            })
+            .where(eq(userPlanSnapshots.id, currentSnapshot.id));
+        }
+        const { endsAt, renewsAt } = this.resolveRedeemedPlanExpiry({
+          baseDate: activatedAt,
+          cycle: snapshot.cycle,
+        });
+        const [created] = await tx
+          .insert(userPlanSnapshots)
+          .values({
+            currency: snapshot.currency,
+            cycle: snapshot.cycle,
+            endsAt,
+            externalSubscriptionId: `payment:${order.id}`,
+            metadata: {
+              entitlementSnapshot: toEntitlementSnapshot(snapshot),
+              lastPaymentOrderId: order.id,
+              paymentOrderId: order.id,
+              pricingSnapshot: snapshot,
+            },
+            monthlyCredits: snapshot.monthlyCredits,
+            monthlyPrice: snapshot.monthlyPrice,
+            plan: snapshot.plan,
+            provider: input.provider,
+            renewsAt,
+            startedAt: activatedAt,
+            status: 'active',
+            userId: this.userId,
+          })
+          .returning();
+        if (!created) throw new Error('SUBSCRIPTION_SNAPSHOT_CREATE_FAILED');
+        activatedSnapshot = created;
+      }
+
+      const { grantedLotReferenceIds } = await this.syncSubscriptionCreditsForSnapshot({
+        snapshot: activatedSnapshot,
+        tx,
+      });
+      const [settled] = await tx
+        .update(subscriptionPaymentOrders)
+        .set({
+          activatedSnapshotId: activatedSnapshot.id,
+          activation: {
+            grantedLotReferenceIds,
+            kind: isRenewal ? 'renewal' : 'activation',
+            previousSnapshot,
+            refundableCreditPeriodStartsAt: refundableCreditPeriodStartsAt.toISOString(),
+          },
+          paidAt: activatedAt,
+          paymentReference: input.paymentReference ?? input.externalOrderId,
+          status: 'paid',
+          updatedAt: activatedAt,
+        })
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.id, order.id),
+            inArray(subscriptionPaymentOrders.status, ['pending', 'failed', 'expired']),
+          ),
+        )
+        .returning();
+      if (!settled) throw new Error('SUBSCRIPTION_PAYMENT_SETTLEMENT_FAILED');
+      return settled;
+    });
+  };
+
+  refundSubscriptionPaymentOrder = async (input: {
+    amount: string;
+    method: PaymentMethodId;
+    orderId: string;
+    provider: PaymentProvider;
+    refundReference: string;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(subscriptionPaymentOrders)
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.id, input.orderId),
+            eq(subscriptionPaymentOrders.userId, this.userId),
+          ),
+        )
+        .for('update');
+      if (!order) throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND');
+      if (
+        order.provider !== input.provider ||
+        order.method !== input.method ||
+        Number(order.amount).toFixed(6) !== Number(input.amount).toFixed(6)
+      ) {
+        throw new Error('SUBSCRIPTION_PAYMENT_VERIFICATION_FAILED');
+      }
+      if (order.status === 'refunded') return { debtAmount: 0, order };
+      if (order.status !== 'paid') throw new Error('SUBSCRIPTION_PAYMENT_ORDER_NOT_REFUNDABLE');
+
+      await this.lockCommercialUserForUpdate(tx);
+      await this.assertSubscriptionPaymentOrderIsLatest(order, tx);
+      const activation =
+        order.activation && typeof order.activation === 'object' ? order.activation : {};
+      const legacyLotReferences = Array.isArray(activation.grantedLotReferenceIds)
+        ? activation.grantedLotReferenceIds.filter(
+            (value): value is string => typeof value === 'string',
+          )
+        : [];
+      const current = await tx.query.userPlanSnapshots.findFirst({
+        where: and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
+      });
+      const refundableCreditPeriodStartsAt =
+        typeof activation.refundableCreditPeriodStartsAt === 'string'
+          ? new Date(activation.refundableCreditPeriodStartsAt)
+          : null;
+      const lotModel = new CreditLotModel(this.db, this.userId);
+      const snapshotLotReferences =
+        order.activatedSnapshotId &&
+        refundableCreditPeriodStartsAt &&
+        !Number.isNaN(refundableCreditPeriodStartsAt.getTime())
+          ? await lotModel.listRefundableSubscriptionLotReferences(
+              {
+                periodStartsAt: refundableCreditPeriodStartsAt,
+                snapshotId: order.activatedSnapshotId,
+              },
+              tx,
+            )
+          : [];
+      const lotReferences = [...new Set([...snapshotLotReferences, ...legacyLotReferences])];
+      let debtAmount = 0;
+      for (const referenceId of lotReferences) {
+        const reversal = await lotModel.refundLot(
+          {
+            debtReason: 'refunded_subscription_credits_already_consumed',
+            metadata: { orderId: order.id, refundReference: input.refundReference },
+            referenceId,
+            referenceType: 'subscription_snapshot_period',
+            refundLedgerReferenceType: 'subscription_refund',
+          },
+          tx,
+        );
+        debtAmount += reversal.debtAmount;
+      }
+
+      const refundedAt = new Date();
+      if (current?.id === order.activatedSnapshotId) {
+        const previous =
+          activation.previousSnapshot && typeof activation.previousSnapshot === 'object'
+            ? (activation.previousSnapshot as Record<string, unknown>)
+            : null;
+        if (activation.kind === 'renewal' && previous?.id === current.id) {
+          await tx
+            .update(userPlanSnapshots)
+            .set({
+              currency:
+                typeof previous.currency === 'string' ? previous.currency : current.currency,
+              endsAt: typeof previous.endsAt === 'string' ? new Date(previous.endsAt) : null,
+              metadata: getSnapshotMetadata(previous.metadata) ?? current.metadata,
+              monthlyCredits:
+                typeof previous.monthlyCredits === 'number'
+                  ? previous.monthlyCredits
+                  : current.monthlyCredits,
+              monthlyPrice:
+                typeof previous.monthlyPrice === 'number'
+                  ? previous.monthlyPrice
+                  : current.monthlyPrice,
+              provider:
+                typeof previous.provider === 'string' ? previous.provider : current.provider,
+              renewsAt: typeof previous.renewsAt === 'string' ? new Date(previous.renewsAt) : null,
+              updatedAt: refundedAt,
+            })
+            .where(eq(userPlanSnapshots.id, current.id));
+        } else {
+          await tx
+            .update(userPlanSnapshots)
+            .set({
+              endsAt: refundedAt,
+              renewsAt: refundedAt,
+              status: 'canceled',
+              updatedAt: refundedAt,
+            })
+            .where(eq(userPlanSnapshots.id, current.id));
+          if (previous && typeof previous.id === 'string') {
+            const previousEndsAt =
+              typeof previous.endsAt === 'string' ? new Date(previous.endsAt) : null;
+            if (!previousEndsAt || previousEndsAt > refundedAt) {
+              await tx
+                .update(userPlanSnapshots)
+                .set({
+                  endsAt: previousEndsAt,
+                  renewsAt:
+                    typeof previous.renewsAt === 'string' ? new Date(previous.renewsAt) : null,
+                  status: 'active',
+                  updatedAt: refundedAt,
+                })
+                .where(eq(userPlanSnapshots.id, previous.id));
+            }
+          }
+        }
+      }
+
+      const effectiveSnapshot = await tx.query.userPlanSnapshots.findFirst({
+        orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+        where: and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+          or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, refundedAt)),
+        ),
+      });
+      if (effectiveSnapshot) {
+        await this.syncPlanResourceQuotasForSnapshot(effectiveSnapshot, tx);
+      } else {
+        const freeSnapshot = await this.ensureUnlimitedFreePlanSnapshot(tx, refundedAt);
+        if (freeSnapshot) await this.syncPlanResourceQuotasForSnapshot(freeSnapshot, tx);
+      }
+
+      const [refunded] = await tx
+        .update(subscriptionPaymentOrders)
+        .set({
+          refundedAt,
+          refundReference: input.refundReference,
+          refundStatus: 'succeeded',
+          status: 'refunded',
+          updatedAt: refundedAt,
+        })
+        .where(
+          and(
+            eq(subscriptionPaymentOrders.id, order.id),
+            eq(subscriptionPaymentOrders.status, 'paid'),
+          ),
+        )
+        .returning();
+      if (!refunded) throw new Error('SUBSCRIPTION_PAYMENT_REFUND_FAILED');
+      return { debtAmount, order: refunded };
+    });
+  };
+
   createTopUpOrder = (input: CreateTopUpOrderParams): Promise<TopUpOrderHistoryItem> =>
     this.topUp.createTopUpOrder(input);
 
@@ -2017,6 +3085,44 @@ export class CommercialModel {
     paymentReference?: string;
     provider: PaymentProvider;
   }) => this.topUp.settleOnlineTopUpOrder(input);
+
+  expireOnlineTopUpOrder = (orderId: string) => this.topUp.expireOnlineTopUpOrder(orderId);
+
+  recordOnlineTopUpPaymentEvent = (event: ModuleAppNormalizedPaymentEvent) =>
+    this.topUp.recordOnlineTopUpPaymentEvent(event);
+
+  updateOnlineTopUpPaymentEvent = (input: {
+    errorCode?: string | null;
+    eventId: string;
+    orderId?: string | null;
+    provider: PaymentProvider;
+    status: 'failed' | 'ignored' | 'processed' | 'received' | 'rejected';
+  }) => this.topUp.updateOnlineTopUpPaymentEvent(input);
+
+  refundOnlineTopUpOrder = (input: {
+    amount: string;
+    method: PaymentMethodId;
+    orderId: string;
+    provider: PaymentProvider;
+    refundReference: string;
+  }) => this.topUp.refundOnlineTopUpOrder(input);
+
+  claimOnlineTopUpRefund = (input: { orderId: string; refundReference: string }) =>
+    this.topUp.claimOnlineTopUpRefund(input);
+
+  claimUncreditedOnlineTopUpRefund = (input: { orderId: string; refundReference: string }) =>
+    this.topUp.claimUncreditedOnlineTopUpRefund(input);
+
+  markUncreditedOnlineTopUpRefunded = (input: { orderId: string; refundReference: string }) =>
+    this.topUp.markUncreditedOnlineTopUpRefunded(input);
+
+  updateOnlineTopUpRefundStatus = (input: {
+    expectedRefundReference: null | string;
+    expectedStatus: 'failed' | 'pending' | 'succeeded';
+    orderId: string;
+    refundReference: string;
+    status: 'failed' | 'pending' | 'succeeded';
+  }) => this.topUp.updateOnlineTopUpRefundStatus(input);
 
   getReferralStatus = async () => {
     const relation = await this.db.query.referralRelations.findFirst({
@@ -2179,6 +3285,93 @@ export class CommercialModel {
       .where(eq(referralRelations.inviterUserId, this.userId))
       .orderBy(desc(referralRelations.createdAt), desc(referralRelations.id))
       .limit(limit);
+  };
+
+  listBillingOrders = async (
+    params: QueryCommercialListParams = {},
+  ): Promise<BillingOrderHistoryItem[]> => {
+    const { limit = 20 } = params;
+    const [topUpOrderRows, subscriptionOrderRows] = await Promise.all([
+      this.db
+        .select({
+          amount: topUpOrders.amount,
+          createdAt: topUpOrders.createdAt,
+          credits: topUpOrders.credits,
+          currency: topUpOrders.currency,
+          externalOrderId: topUpOrders.externalOrderId,
+          id: topUpOrders.id,
+          paidAt: topUpOrders.paidAt,
+          provider: topUpOrders.provider,
+          status: topUpOrders.status,
+        })
+        .from(topUpOrders)
+        .where(
+          and(
+            eq(topUpOrders.userId, this.userId),
+            or(
+              inArray(topUpOrders.provider, ['alipay', 'wechat_pay', 'zpay']),
+              inArray(topUpOrders.source, ['alipay', 'wechat_pay', 'zpay']),
+            ),
+          ),
+        )
+        .orderBy(desc(topUpOrders.createdAt), desc(topUpOrders.id))
+        .limit(limit),
+      this.db
+        .select({
+          amount: subscriptionPaymentOrders.amount,
+          createdAt: subscriptionPaymentOrders.createdAt,
+          currency: subscriptionPaymentOrders.currency,
+          cycle: subscriptionPaymentOrders.cycle,
+          externalOrderId: subscriptionPaymentOrders.externalOrderId,
+          id: subscriptionPaymentOrders.id,
+          method: subscriptionPaymentOrders.method,
+          paidAt: subscriptionPaymentOrders.paidAt,
+          plan: subscriptionPaymentOrders.plan,
+          provider: subscriptionPaymentOrders.provider,
+          snapshot: subscriptionPaymentOrders.snapshot,
+          status: subscriptionPaymentOrders.status,
+        })
+        .from(subscriptionPaymentOrders)
+        .where(eq(subscriptionPaymentOrders.userId, this.userId))
+        .orderBy(desc(subscriptionPaymentOrders.createdAt), desc(subscriptionPaymentOrders.id))
+        .limit(limit),
+    ]);
+
+    const topUpItems: BillingOrderHistoryItem[] = topUpOrderRows.map((order) => ({
+      amount: order.amount,
+      createdAt: order.createdAt,
+      credits: order.credits,
+      currency: order.currency,
+      displayName: null,
+      externalOrderId: order.externalOrderId,
+      id: order.id,
+      kind: 'topup',
+      paidAt: order.paidAt,
+      provider: order.provider,
+      status: order.status,
+    }));
+    const subscriptionItems: BillingOrderHistoryItem[] = subscriptionOrderRows.map((order) => ({
+      amount: order.amount,
+      createdAt: order.createdAt,
+      currency: order.currency,
+      cycle: order.cycle,
+      displayName: order.snapshot.displayName,
+      externalOrderId: order.externalOrderId,
+      id: order.id,
+      kind: 'subscription',
+      method: order.method,
+      paidAt: order.paidAt,
+      plan: order.plan,
+      provider: order.provider,
+      status: order.status,
+    }));
+
+    return [...topUpItems, ...subscriptionItems]
+      .toSorted((left, right) => {
+        const createdAtDelta = right.createdAt.getTime() - left.createdAt.getTime();
+        return createdAtDelta || right.id.localeCompare(left.id);
+      })
+      .slice(0, limit);
   };
 
   listTopUpOrders = (params: QueryCommercialListParams = {}): Promise<TopUpOrderHistoryItem[]> =>

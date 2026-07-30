@@ -1,18 +1,21 @@
 // @vitest-environment node
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
   appSettings,
   creditAccounts,
+  creditDebts,
   creditLedgerEntries,
+  creditLots,
   planCatalog,
   referralProfiles,
   referralRelations,
   subscriptionChangeRequests,
+  subscriptionPaymentOrders,
   topUpOrders,
   topUpPackages,
   userPlanSnapshots,
@@ -20,6 +23,7 @@ import {
 } from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
 import { CommercialModel } from '../commercial';
+import { addCalendarMonths } from '../commercial/calendar';
 
 const serverDB: LobeChatDatabase = await getTestDB();
 
@@ -68,9 +72,18 @@ const DEFAULT_PLAN_CATALOG = {
   },
 } as const;
 
+type PlanCatalogSeedOverrides = {
+  currency?: string;
+  displayName?: string;
+  monthlyCredits?: number;
+  monthlyPrice?: number;
+  sortOrder?: number;
+  yearlyPrice?: number;
+};
+
 const seedPlanCatalogEntry = async (
   plan: Plans,
-  overrides: Partial<(typeof DEFAULT_PLAN_CATALOG)[Plans]> & {
+  overrides: PlanCatalogSeedOverrides & {
     features?: string[];
     isActive?: boolean;
     metadata?: Record<string, unknown>;
@@ -227,19 +240,29 @@ describe('CommercialModel', () => {
         .set({ balance: 5 * CREDITS_PER_DOLLAR, totalCredited: 5 * CREDITS_PER_DOLLAR })
         .where(eq(creditAccounts.userId, userId));
 
-      await commercialModel.consumeCreditsForChatUsage({
+      const firstCharge = await commercialModel.consumeCreditsForChatUsage({
         messageId: 'assistant-message-2',
         model: 'gpt-4.1',
         provider: 'lobehub',
         usage: { cost: 0.2, totalTokens: 100 },
       });
 
-      await commercialModel.consumeCreditsForChatUsage({
-        messageId: 'assistant-message-2',
-        model: 'gpt-4.1',
-        provider: 'lobehub',
-        usage: { cost: 0.2, totalTokens: 100 },
+      await serverDB.insert(creditDebts).values({
+        amount: 1,
+        reason: 'test replay after refund debt',
+        referenceId: 'refunded-lot-1',
+        referenceType: 'subscription_snapshot_period',
+        userId,
       });
+
+      await expect(
+        commercialModel.consumeCreditsForChatUsage({
+          messageId: 'assistant-message-2',
+          model: 'gpt-4.1',
+          provider: 'lobehub',
+          usage: { cost: 0.2, totalTokens: 100 },
+        }),
+      ).resolves.toMatchObject({ id: firstCharge?.id });
 
       const account = await serverDB.query.creditAccounts.findFirst({
         where: eq(creditAccounts.userId, userId),
@@ -590,13 +613,14 @@ describe('CommercialModel', () => {
       expect(snapshot?.metadata).toMatchObject({
         adminReason: 'manual upgrade',
         assignedByUserId: 'admin-user-id',
+        entitlementSnapshot: { version: 2 },
         manualGrantId: 'manual-grant-id',
         source: 'admin_manual',
       });
       expect(snapshot?.metadata).not.toHaveProperty('redemptionCodeId');
     });
 
-    it('should expire elapsed paid-plan snapshots and create an unlimited free snapshot', async () => {
+    it('should treat elapsed paid-plan snapshots as free without writing during reads', async () => {
       await serverDB.insert(userPlanSnapshots).values({
         cycle: 'monthly',
         currency: 'USD',
@@ -623,21 +647,36 @@ describe('CommercialModel', () => {
       expect(summary.endsAt).toBeNull();
       expect(summary.renewsAt).toBeNull();
       expect(repeatedSummary.plan).toBe(Plans.Free);
-      expect(snapshots).toHaveLength(2);
+      expect(snapshots).toHaveLength(1);
       expect(snapshots[0]).toMatchObject({
         plan: Plans.Starter,
-        status: 'expired',
-      });
-      expect(snapshots[1]).toMatchObject({
-        cycle: 'monthly',
-        monthlyCredits: 0,
-        monthlyPrice: 0,
-        plan: Plans.Free,
-        provider: 'system_default',
         status: 'active',
       });
-      expect(snapshots[1]?.endsAt).toBeNull();
-      expect(snapshots[1]?.renewsAt).toBeNull();
+    });
+
+    it('keeps purchased resource quotas frozen after catalog edits', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, {
+        metadata: { storageQuotaMb: 100, vectorQuota: 20 },
+      });
+      const request = await commercialModel.createSubscriptionChangeRequest({
+        cycle: 'monthly',
+        targetPlan: Plans.Starter,
+      });
+      await commercialModel.activateSubscriptionChangeRequest(request.id);
+
+      await serverDB
+        .update(planCatalog)
+        .set({ metadata: { storageQuotaMb: 999, vectorQuota: 999 } })
+        .where(eq(planCatalog.plan, Plans.Starter));
+      await commercialModel.syncActivePlanResourceQuotas();
+
+      const account = await serverDB.query.creditAccounts.findFirst({
+        where: eq(creditAccounts.userId, userId),
+      });
+      expect(account).toMatchObject({
+        storageQuota: 100 * 1024 * 1024,
+        vectorQuota: 20,
+      });
     });
   });
 
@@ -657,6 +696,175 @@ describe('CommercialModel', () => {
       expect(summary.breakdown.topup.available).toBe(300_000);
       expect(summary.breakdown.referral.available).toBe(0);
       expect(summary.breakdown.other.available).toBe(0);
+    });
+  });
+
+  describe('resource usage', () => {
+    it('syncs active plan quotas before reading resource usage', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, {
+        metadata: { storageQuotaMb: 256, vectorQuota: 480 },
+      });
+      await serverDB.insert(userPlanSnapshots).values({
+        cycle: 'monthly',
+        currency: 'USD',
+        monthlyCredits: 600 * CREDITS_PER_DOLLAR,
+        monthlyPrice: 19.9,
+        plan: Plans.Starter,
+        provider: 'manual_preview',
+        startedAt: new Date(),
+        status: 'active',
+        userId,
+      });
+
+      await expect(commercialModel.getResourceUsage()).resolves.toMatchObject({
+        storage: { quota: 256 * 1024 * 1024, used: 0 },
+        vector: { quota: 480, used: 0 },
+      });
+    });
+  });
+
+  describe('credit packages', () => {
+    it('lists active, depleted, and expired credit lots with their remaining balances', async () => {
+      const createdAt = new Date('2026-07-20T08:00:00.000Z');
+      const ledgerRows = await serverDB
+        .insert(creditLedgerEntries)
+        .values(
+          [
+            { amount: 10_000_000, referenceId: 'active', title: 'Active' },
+            { amount: 5_000_000, referenceId: 'depleted', title: 'Depleted' },
+            { amount: 3_000_000, referenceId: 'expired', title: 'Expired' },
+          ].map((item) => ({
+            ...item,
+            balanceAfter: item.amount,
+            createdAt,
+            referenceType: 'seed_credit_package',
+            type: 'topup' as const,
+            userId,
+          })),
+        )
+        .returning();
+
+      await serverDB.insert(creditLots).values([
+        {
+          consumedAmount: 2_000_000,
+          createdAt,
+          grantLedgerEntryId: ledgerRows[0].id,
+          grantedAmount: 10_000_000,
+          referenceId: 'active',
+          referenceType: 'seed_credit_package',
+          source: 'topup',
+          userId,
+        },
+        {
+          consumedAmount: 5_000_000,
+          createdAt,
+          grantLedgerEntryId: ledgerRows[1].id,
+          grantedAmount: 5_000_000,
+          referenceId: 'depleted',
+          referenceType: 'seed_credit_package',
+          source: 'topup',
+          userId,
+        },
+        {
+          createdAt,
+          expiredAmount: 3_000_000,
+          grantLedgerEntryId: ledgerRows[2].id,
+          grantedAmount: 3_000_000,
+          referenceId: 'expired',
+          referenceType: 'seed_credit_package',
+          source: 'topup',
+          status: 'expired',
+          userId,
+        },
+      ]);
+
+      await expect(commercialModel.listCreditPackages({ limit: 20 })).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            referenceId: 'active',
+            remainingAmount: 8_000_000,
+            status: 'active',
+          }),
+          expect.objectContaining({
+            referenceId: 'depleted',
+            remainingAmount: 0,
+            status: 'depleted',
+          }),
+          expect.objectContaining({
+            referenceId: 'expired',
+            remainingAmount: 0,
+            status: 'expired',
+          }),
+        ]),
+      );
+    });
+  });
+
+  describe('billing orders', () => {
+    it('merges online top-up and subscription payments while excluding redemption grants', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, { currency: 'CNY', monthlyPrice: 68 });
+      const { order: subscriptionOrder } = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'monthly',
+        idempotencyKey: 'billing-history-subscription',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      const topUpCreatedAt = new Date('2026-07-20T08:00:00.000Z');
+      const subscriptionPaidAt = new Date('2026-07-21T08:00:00.000Z');
+      const [topUpOrder] = await serverDB
+        .insert(topUpOrders)
+        .values({
+          amount: 19.9,
+          createdAt: topUpCreatedAt,
+          credits: 200_000_000,
+          currency: 'CNY',
+          paidAt: topUpCreatedAt,
+          provider: 'alipay',
+          source: 'alipay',
+          status: 'paid',
+          userId,
+        })
+        .returning();
+      const [redemptionOrder] = await serverDB
+        .insert(topUpOrders)
+        .values({
+          amount: 0,
+          createdAt: new Date('2026-07-22T08:00:00.000Z'),
+          credits: 50_000_000,
+          currency: 'CREDITS',
+          provider: 'redemption',
+          source: 'redemption',
+          status: 'paid',
+          userId,
+        })
+        .returning();
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({ createdAt: subscriptionPaidAt, paidAt: subscriptionPaidAt, status: 'paid' })
+        .where(eq(subscriptionPaymentOrders.id, subscriptionOrder.id));
+
+      const result = await commercialModel.listBillingOrders({ limit: 20 });
+
+      expect(result.map((item) => item.id)).toEqual([subscriptionOrder.id, topUpOrder.id]);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            amount: 68,
+            displayName: 'Starter',
+            kind: 'subscription',
+            plan: Plans.Starter,
+            status: 'paid',
+          }),
+          expect.objectContaining({
+            amount: 19.9,
+            credits: 200_000_000,
+            kind: 'topup',
+            status: 'paid',
+          }),
+        ]),
+      );
+      expect(result.some((item) => item.id === redemptionOrder.id)).toBe(false);
     });
   });
 
@@ -854,7 +1062,471 @@ describe('CommercialModel', () => {
     });
   });
 
+  describe('subscription payment order', () => {
+    it('atomically recovers one paid refund claim with its request reference', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, { currency: 'CNY', monthlyPrice: 68 });
+      const { order } = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'monthly',
+        idempotencyKey: 'subscription-refund-recovery-paid',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({ refundReference: null, refundStatus: 'pending', status: 'paid' })
+        .where(eq(subscriptionPaymentOrders.id, order.id));
+
+      const claims = await Promise.all([
+        commercialModel.claimSubscriptionPaymentRefund({
+          orderId: order.id,
+          refundReference: 'subscription-refund-recovery-a',
+        }),
+        commercialModel.claimSubscriptionPaymentRefund({
+          orderId: order.id,
+          refundReference: 'subscription-refund-recovery-b',
+        }),
+      ]);
+      const wonClaims = claims.filter((claim) => claim.claimed);
+      const persistedReference = wonClaims[0]?.order.refundReference;
+
+      expect(wonClaims).toHaveLength(1);
+      expect(persistedReference).toMatch(/^subscription-refund-recovery-[ab]$/);
+      expect(claims.every((claim) => claim.order.refundReference === persistedReference)).toBe(
+        true,
+      );
+      await expect(
+        commercialModel.claimSubscriptionPaymentRefund({
+          orderId: order.id,
+          refundReference: 'subscription-refund-conflict',
+        }),
+      ).resolves.toMatchObject({
+        claimed: false,
+        order: { refundReference: persistedReference },
+      });
+    });
+
+    it('does not advance a subscription refund with a different expected request reference', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, { currency: 'CNY', monthlyPrice: 68 });
+      const { order } = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'monthly',
+        idempotencyKey: 'subscription-refund-reference-cas',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({
+          refundReference: 'subscription-refund-canonical',
+          refundStatus: 'pending',
+          status: 'paid',
+        })
+        .where(eq(subscriptionPaymentOrders.id, order.id));
+
+      await expect(
+        commercialModel.updateSubscriptionPaymentRefundStatus({
+          expectedRefundReference: 'subscription-refund-stale',
+          expectedStatus: 'pending',
+          orderId: order.id,
+          refundReference: 'subscription-refund-replacement',
+          status: 'succeeded',
+        }),
+      ).resolves.toMatchObject({
+        refundReference: 'subscription-refund-canonical',
+        refundStatus: 'pending',
+      });
+      await expect(
+        commercialModel.updateSubscriptionPaymentRefundStatus({
+          expectedRefundReference: 'subscription-refund-canonical',
+          expectedStatus: 'pending',
+          orderId: order.id,
+          refundReference: 'subscription-refund-canonical',
+          status: 'succeeded',
+        }),
+      ).resolves.toMatchObject({
+        refundReference: 'subscription-refund-canonical',
+        refundStatus: 'succeeded',
+      });
+    });
+
+    it('atomically recovers one uncredited refund claim with its request reference', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, { currency: 'CNY', monthlyPrice: 68 });
+      const { order } = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'monthly',
+        idempotencyKey: 'subscription-refund-recovery-uncredited',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({ refundReference: null, refundStatus: 'pending' })
+        .where(eq(subscriptionPaymentOrders.id, order.id));
+
+      const claims = await Promise.all([
+        commercialModel.claimUncreditedSubscriptionPaymentRefund({
+          orderId: order.id,
+          refundReference: 'subscription-uncredited-refund-a',
+        }),
+        commercialModel.claimUncreditedSubscriptionPaymentRefund({
+          orderId: order.id,
+          refundReference: 'subscription-uncredited-refund-b',
+        }),
+      ]);
+      const wonClaims = claims.filter((claim) => claim.claimed);
+      const persistedReference = wonClaims[0]?.order.refundReference;
+
+      expect(wonClaims).toHaveLength(1);
+      expect(persistedReference).toMatch(/^subscription-uncredited-refund-[ab]$/);
+      expect(claims.every((claim) => claim.order.refundReference === persistedReference)).toBe(
+        true,
+      );
+    });
+
+    it('settles a frozen entitlement snapshot and fully reverses it on refund', async () => {
+      await seedPlanCatalogEntry(Plans.Free);
+      await serverDB.insert(planCatalog).values({
+        ...DEFAULT_PLAN_CATALOG[Plans.Starter],
+        currency: 'CNY',
+        features: ['commercial_models'],
+        isActive: true,
+        metadata: { storageQuotaMb: 128, vectorQuota: 32 },
+        monthlyCredits: 100,
+        monthlyPrice: 68,
+        plan: Plans.Starter,
+        yearlyPrice: 680,
+      });
+      const { order } = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'yearly',
+        idempotencyKey: 'subscription-payment-settle-refund',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      await commercialModel.bindSubscriptionPayment({
+        externalOrderId: 'sub_provider_order_1',
+        orderId: order.id,
+      });
+
+      const paid = await commercialModel.settleSubscriptionPaymentOrder({
+        amount: '680.000000',
+        currency: 'CNY',
+        externalOrderId: 'sub_provider_order_1',
+        method: 'alipay',
+        orderId: order.id,
+        paymentReference: 'sub_provider_transaction_1',
+        provider: 'alipay',
+      });
+
+      expect(paid).toMatchObject({
+        activation: {
+          grantedLotReferenceIds: [expect.any(String)],
+          kind: 'activation',
+          previousSnapshot: expect.objectContaining({
+            provider: 'system_default',
+          }),
+          refundableCreditPeriodStartsAt: expect.any(String),
+        },
+        status: 'paid',
+      });
+      await expect(
+        serverDB.query.creditAccounts.findFirst({ where: eq(creditAccounts.userId, userId) }),
+      ).resolves.toMatchObject({ balance: 100, totalCredited: 100 });
+      await expect(
+        serverDB.query.creditLots.findFirst({ where: eq(creditLots.userId, userId) }),
+      ).resolves.toMatchObject({
+        grantedAmount: 100,
+        referenceType: 'subscription_snapshot_period',
+        status: 'active',
+      });
+
+      const activation = paid.activation as Record<string, unknown>;
+      const refundableStartsAt = new Date(String(activation.refundableCreditPeriodStartsAt));
+      const laterPeriodStart = addCalendarMonths(refundableStartsAt, 1);
+      if (!paid.activatedSnapshotId) throw new Error('Expected an activated subscription snapshot');
+      const laterReferenceId = `${paid.activatedSnapshotId}:1`;
+      const [laterGrant] = await serverDB
+        .insert(creditLedgerEntries)
+        .values({
+          amount: 100,
+          balanceAfter: 200,
+          metadata: {
+            periodIndex: 1,
+            periodStart: laterPeriodStart.toISOString(),
+            snapshotId: paid.activatedSnapshotId,
+          },
+          referenceId: laterReferenceId,
+          referenceType: 'subscription_snapshot_period',
+          title: 'Subscription Credits',
+          type: 'subscription_grant',
+          userId,
+        })
+        .returning({ id: creditLedgerEntries.id });
+      if (!laterGrant) throw new Error('Expected a later subscription credit grant');
+      await serverDB.insert(creditLots).values({
+        expiresAt: addCalendarMonths(laterPeriodStart, 1),
+        grantLedgerEntryId: laterGrant.id,
+        grantedAmount: 100,
+        referenceId: laterReferenceId,
+        referenceType: 'subscription_snapshot_period',
+        source: 'subscription',
+        userId,
+      });
+      await serverDB
+        .update(creditAccounts)
+        .set({ balance: 200, totalCredited: 200 })
+        .where(eq(creditAccounts.userId, userId));
+
+      const refunded = await commercialModel.refundSubscriptionPaymentOrder({
+        amount: '680.000000',
+        method: 'alipay',
+        orderId: order.id,
+        provider: 'alipay',
+        refundReference: 'sub_refund_1',
+      });
+
+      expect(refunded).toMatchObject({ debtAmount: 0, order: { status: 'refunded' } });
+      const refundedLots = await serverDB.query.creditLots.findMany({
+        where: eq(creditLots.userId, userId),
+      });
+      expect(refundedLots).toHaveLength(2);
+      expect(refundedLots.every((lot) => lot.status === 'refunded')).toBe(true);
+      expect(refundedLots.map((lot) => Number(lot.refundedAmount))).toEqual([100, 100]);
+      await expect(
+        serverDB.query.creditAccounts.findFirst({ where: eq(creditAccounts.userId, userId) }),
+      ).resolves.toMatchObject({ balance: 0 });
+      await expect(
+        serverDB.query.subscriptionPaymentOrders.findFirst({
+          where: eq(subscriptionPaymentOrders.id, order.id),
+        }),
+      ).resolves.toMatchObject({ refundStatus: 'succeeded', status: 'refunded' });
+      await expect(
+        serverDB.query.userPlanSnapshots.findFirst({
+          where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
+        }),
+      ).resolves.toMatchObject({ plan: Plans.Free });
+    });
+
+    it('rejects refunding an order superseded by a later renewal on the same snapshot', async () => {
+      await serverDB.insert(planCatalog).values({
+        ...DEFAULT_PLAN_CATALOG[Plans.Starter],
+        currency: 'CNY',
+        isActive: true,
+        monthlyCredits: 100,
+        monthlyPrice: 68,
+        plan: Plans.Starter,
+      });
+      const settleOrder = async (suffix: string) => {
+        const { order } = await commercialModel.createSubscriptionPaymentOrder({
+          cycle: 'monthly',
+          idempotencyKey: `subscription-renewal-${suffix}`,
+          method: 'alipay',
+          plan: Plans.Starter,
+          provider: 'alipay',
+        });
+        await commercialModel.bindSubscriptionPayment({
+          externalOrderId: `subscription-external-${suffix}`,
+          orderId: order.id,
+        });
+        return commercialModel.settleSubscriptionPaymentOrder({
+          amount: '68.000000',
+          currency: 'CNY',
+          externalOrderId: `subscription-external-${suffix}`,
+          method: 'alipay',
+          orderId: order.id,
+          paymentReference: `subscription-payment-${suffix}`,
+          provider: 'alipay',
+        });
+      };
+
+      const first = await settleOrder('first');
+      await expect(
+        commercialModel.claimSubscriptionPaymentRefund({
+          orderId: first.id,
+          refundReference: 'first-renewal-refund',
+        }),
+      ).resolves.toMatchObject({
+        claimed: true,
+        order: { refundReference: 'first-renewal-refund', refundStatus: 'pending' },
+      });
+      await expect(settleOrder('second')).rejects.toThrow('SUBSCRIPTION_RENEWAL_BLOCKED_BY_REFUND');
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({ refundStatus: 'failed' })
+        .where(eq(subscriptionPaymentOrders.id, first.id));
+      const second = await settleOrder('second');
+
+      expect(second.activatedSnapshotId).toBe(first.activatedSnapshotId);
+      await expect(
+        commercialModel.claimSubscriptionPaymentRefund({
+          orderId: first.id,
+          refundReference: 'first-renewal-refund',
+        }),
+      ).rejects.toThrow('SUBSCRIPTION_PAYMENT_SUPERSEDED_BY_LATER_RENEWAL');
+      await expect(
+        commercialModel.refundSubscriptionPaymentOrder({
+          amount: '68.000000',
+          method: 'alipay',
+          orderId: first.id,
+          provider: 'alipay',
+          refundReference: 'superseded-refund',
+        }),
+      ).rejects.toThrow('SUBSCRIPTION_PAYMENT_SUPERSEDED_BY_LATER_RENEWAL');
+    });
+
+    it('rejects purchasing a lifetime plan that is already active', async () => {
+      await serverDB.insert(planCatalog).values({
+        ...DEFAULT_PLAN_CATALOG[Plans.Starter],
+        currency: 'CNY',
+        features: [],
+        isActive: true,
+        metadata: { lifetimePrice: 999 },
+        plan: Plans.Starter,
+      });
+      await serverDB.insert(userPlanSnapshots).values({
+        currency: 'CNY',
+        cycle: 'lifetime',
+        monthlyCredits: 100,
+        monthlyPrice: 0,
+        plan: Plans.Starter,
+        provider: 'alipay',
+        startedAt: new Date(),
+        status: 'active',
+        userId,
+      });
+
+      await expect(
+        commercialModel.createSubscriptionPaymentOrder({
+          cycle: 'lifetime',
+          idempotencyKey: 'duplicate-lifetime-plan',
+          method: 'alipay',
+          plan: Plans.Starter,
+          provider: 'alipay',
+        }),
+      ).rejects.toThrow('SUBSCRIPTION_LIFETIME_PLAN_ALREADY_ACTIVE');
+    });
+
+    it('allows only one pending lifetime checkout per plan', async () => {
+      await serverDB.insert(planCatalog).values({
+        ...DEFAULT_PLAN_CATALOG[Plans.Starter],
+        currency: 'CNY',
+        features: [],
+        isActive: true,
+        metadata: { lifetimePrice: 999 },
+        plan: Plans.Starter,
+      });
+      const first = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'lifetime',
+        idempotencyKey: 'pending-lifetime-first',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+
+      await expect(
+        commercialModel.createSubscriptionPaymentOrder({
+          cycle: 'lifetime',
+          idempotencyKey: 'pending-lifetime-second',
+          method: 'alipay',
+          plan: Plans.Starter,
+          provider: 'alipay',
+        }),
+      ).rejects.toThrow('SUBSCRIPTION_LIFETIME_PAYMENT_PENDING');
+      await expect(
+        commercialModel.createSubscriptionPaymentOrder({
+          cycle: 'lifetime',
+          idempotencyKey: 'pending-lifetime-first',
+          method: 'alipay',
+          plan: Plans.Starter,
+          provider: 'alipay',
+        }),
+      ).resolves.toMatchObject({ created: false, order: { id: first.order.id } });
+    });
+
+    it('cancels a late duplicate lifetime payment without granting benefits twice', async () => {
+      await serverDB.insert(planCatalog).values({
+        ...DEFAULT_PLAN_CATALOG[Plans.Starter],
+        currency: 'CNY',
+        features: [],
+        isActive: true,
+        metadata: { lifetimePrice: 999 },
+        monthlyCredits: 100,
+        plan: Plans.Starter,
+      });
+      const first = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'lifetime',
+        idempotencyKey: 'late-lifetime-first',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      await commercialModel.bindSubscriptionPayment({
+        externalOrderId: 'late-lifetime-provider-first',
+        orderId: first.order.id,
+      });
+      await serverDB
+        .update(subscriptionPaymentOrders)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(subscriptionPaymentOrders.id, first.order.id));
+      const second = await commercialModel.createSubscriptionPaymentOrder({
+        cycle: 'lifetime',
+        idempotencyKey: 'late-lifetime-second',
+        method: 'alipay',
+        plan: Plans.Starter,
+        provider: 'alipay',
+      });
+      await commercialModel.bindSubscriptionPayment({
+        externalOrderId: 'late-lifetime-provider-second',
+        orderId: second.order.id,
+      });
+
+      const activated = await commercialModel.settleSubscriptionPaymentOrder({
+        amount: '999.000000',
+        currency: 'CNY',
+        externalOrderId: 'late-lifetime-provider-second',
+        method: 'alipay',
+        orderId: second.order.id,
+        provider: 'alipay',
+      });
+      const duplicate = await commercialModel.settleSubscriptionPaymentOrder({
+        amount: '999.000000',
+        currency: 'CNY',
+        externalOrderId: 'late-lifetime-provider-first',
+        method: 'alipay',
+        orderId: first.order.id,
+        provider: 'alipay',
+      });
+
+      expect(activated.status).toBe('paid');
+      expect(duplicate).toMatchObject({ activatedSnapshotId: null, status: 'canceled' });
+      await expect(
+        serverDB.query.creditAccounts.findFirst({ where: eq(creditAccounts.userId, userId) }),
+      ).resolves.toMatchObject({ balance: 100, totalCredited: 100 });
+    });
+  });
+
   describe('subscription change request', () => {
+    it.each(['monthly', 'yearly'] as const)(
+      'writes a contractual endsAt for %s manual activations',
+      async (cycle) => {
+        await seedPlanCatalogEntry(Plans.Starter);
+        const request = await commercialModel.createSubscriptionChangeRequest({
+          cycle,
+          targetPlan: Plans.Starter,
+        });
+
+        await commercialModel.activateSubscriptionChangeRequest(request.id);
+
+        const snapshot = await commercialModel.getLatestPlanSnapshot();
+        expect(snapshot?.cycle).toBe(cycle);
+        expect(snapshot?.endsAt).toBeInstanceOf(Date);
+        expect(snapshot?.renewsAt).toBeInstanceOf(Date);
+        expect(snapshot?.endsAt?.getTime()).toBe(snapshot?.renewsAt?.getTime());
+        expect(snapshot!.endsAt!.getTime()).toBeGreaterThan(snapshot!.startedAt.getTime());
+      },
+    );
+
     it('creates a pending change request and prevents duplicates', async () => {
       await seedPlanCatalogEntry(Plans.Starter);
 

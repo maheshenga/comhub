@@ -2,6 +2,7 @@ import { Plans } from '@lobechat/types';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type BillingOrderHistoryItem,
   type CreditLedgerEntryItem,
   type ReferralHistoryItem,
   type SubscriptionChangeRequestItem,
@@ -11,6 +12,7 @@ import { type UsageRecordItem } from '@/types/usage/usageRecord';
 
 import {
   buildBillingChangeRecord,
+  buildBillingOrderRecord,
   buildCreditLedgerRecord,
   buildReferralHistoryRecord,
   buildTopUpOrderRecord,
@@ -100,6 +102,35 @@ describe('businessRecordBuilders', () => {
     ]);
   });
 
+  it('builds unified billing records for subscription orders', () => {
+    const item: BillingOrderHistoryItem = {
+      amount: 68,
+      createdAt,
+      currency: 'CNY',
+      cycle: 'monthly',
+      displayName: 'Starter',
+      externalOrderId: 'external-subscription-1',
+      id: 'subscription-order-1',
+      kind: 'subscription',
+      method: 'alipay',
+      paidAt: updatedAt,
+      plan: Plans.Starter,
+      provider: 'alipay',
+      status: 'paid',
+    };
+
+    const record = buildBillingOrderRecord(item, formatters);
+
+    expect(record).toMatchObject({
+      meta: 'date:2026-07-18T09:00:00.000Z',
+      status: 't:topup.status.paid',
+      title: 'Starter',
+      value: 'currency:68:CNY',
+    });
+    expect(record.fields.map((field) => field.value)).toContain('套餐订阅');
+    expect(record.fields.map((field) => field.value)).toContain('Starter');
+  });
+
   it('builds every credit ledger field with dedicated credit formatters', () => {
     const item: CreditLedgerEntryItem = {
       amount: -20_000_000,
@@ -163,6 +194,7 @@ describe('businessRecordBuilders', () => {
 
   it('builds every usage field with token, performance, spend, and date formatters', () => {
     const item: UsageRecordItem = {
+      credits: 350_000,
       createdAt,
       id: 'usage-1',
       model: 'gpt-mobile-fixture',
@@ -184,7 +216,7 @@ describe('businessRecordBuilders', () => {
       meta: 'date:2026-07-18T08:00:00.000Z',
       status: 't:usage.type.chat',
       title: 'gpt-mobile-fixture',
-      value: 'currency:0.012345:undefined',
+      value: 'credits:350000',
     });
     expect(record.fields.map((field) => field.label)).toEqual([
       't:mobile.records.field.id',
@@ -196,6 +228,7 @@ describe('businessRecordBuilders', () => {
       't:mobile.records.field.totalTokens',
       't:usage.table.tps',
       't:usage.table.ttft',
+      't:mobile.usage.records.credits',
       't:usage.table.spend',
       't:usage.table.createdAt',
     ]);
@@ -209,6 +242,7 @@ describe('businessRecordBuilders', () => {
       'number:1500:default',
       'number:22.5:2',
       'number:0.64:2',
+      'credits:350000',
       'currency:0.012345:undefined',
       'date:2026-07-18T08:00:00.000Z',
     ]);

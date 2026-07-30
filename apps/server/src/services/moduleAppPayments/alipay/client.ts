@@ -87,6 +87,12 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
   createOutTradeNo: ModuleAppPaymentAdapter['createOutTradeNo'] = ({ orderId, purpose }) =>
     paymentOrderIdToAlipayTradeNo(orderId, purpose);
 
+  createRefundRequestNo: ModuleAppPaymentAdapter['createRefundRequestNo'] = (input) =>
+    `refund_${createHash('sha256')
+      .update(`${input.outTradeNo}:${input.refundAmount}`)
+      .digest('hex')
+      .slice(0, 32)}`;
+
   create: ModuleAppPaymentAdapter['create'] = async (input) => {
     if (input.currency !== 'CNY') {
       throw new Error('MODULE_APP_ALIPAY_CURRENCY_UNSUPPORTED');
@@ -102,6 +108,7 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
         out_trade_no: outTradeNo,
         product_code: 'FAST_INSTANT_TRADE_PAY',
         subject: input.subject,
+        ...(input.expiresAt ? { time_expire: formatTimestamp(new Date(input.expiresAt)) } : {}),
         total_amount: amount.decimal,
       },
       { notify_url: input.notifyUrl, return_url: input.returnUrl },
@@ -123,7 +130,9 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     const response = await this.request('alipay.trade.query', { out_trade_no: outTradeNo });
     return mapAlipayTradeToPaymentEvent({
       eventId: `query:${outTradeNo}:${String(response.trade_status ?? 'UNKNOWN')}`,
+      gmtRefund: typeof response.gmt_refund === 'string' ? response.gmt_refund : undefined,
       outTradeNo: String(response.out_trade_no ?? outTradeNo),
+      refundAmount: typeof response.refund_amount === 'string' ? response.refund_amount : undefined,
       totalAmount: typeof response.total_amount === 'string' ? response.total_amount : undefined,
       tradeNo: typeof response.trade_no === 'string' ? response.trade_no : undefined,
       tradeStatus: typeof response.trade_status === 'string' ? response.trade_status : undefined,
@@ -132,10 +141,7 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
 
   refund: ModuleAppPaymentAdapter['refund'] = async (input) => {
     const refundAmount = parseCnyPaymentAmount(input.refundAmount);
-    const outRequestNo = `refund_${createHash('sha256')
-      .update(`${input.outTradeNo}:${input.refundAmount}`)
-      .digest('hex')
-      .slice(0, 32)}`;
+    const outRequestNo = input.refundRequestNo ?? this.createRefundRequestNo(input);
     const response = await this.request('alipay.trade.refund', {
       out_request_no: outRequestNo,
       out_trade_no: input.outTradeNo,
@@ -145,15 +151,26 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     return {
       providerRefundId:
         typeof response.out_request_no === 'string' ? response.out_request_no : outRequestNo,
-      status: 'succeeded',
+      status: response.fund_change === 'Y' ? 'succeeded' : 'pending',
     };
   };
 
   queryRefund = async (input: { outRequestNo: string; outTradeNo: string }) => {
-    const response = await this.request('alipay.trade.fastpay.refund.query', {
-      out_request_no: input.outRequestNo,
-      out_trade_no: input.outTradeNo,
-    });
+    let response: Record<string, unknown>;
+    try {
+      response = await this.request('alipay.trade.fastpay.refund.query', {
+        out_request_no: input.outRequestNo,
+        out_trade_no: input.outTradeNo,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('TRADE_NOT_EXIST') || error.message.includes('REFUND_NOT_EXIST'))
+      ) {
+        return { status: 'failed' as const };
+      }
+      throw error;
+    }
     const status =
       response.refund_status === 'REFUND_SUCCESS' || typeof response.refund_amount === 'string'
         ? 'succeeded'
@@ -174,8 +191,10 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     return mapAlipayTradeToPaymentEvent({
       eventId: parameters.notify_id,
       gmtPayment: parameters.gmt_payment,
+      gmtRefund: parameters.gmt_refund,
       notifyTime: parameters.notify_time,
       outTradeNo: parameters.out_trade_no,
+      refundAmount: parameters.refund_fee,
       totalAmount: parameters.total_amount,
       tradeNo: parameters.trade_no,
       tradeStatus: parameters.trade_status,

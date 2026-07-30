@@ -21,8 +21,14 @@ export type WechatPayClientOptions = {
   merchantPrivateKey: string;
   merchantSerialNo: string;
   platformCertificate: string;
+  platformCertificateSerialNo: string;
   timeoutMs?: number;
 };
+
+const MAX_SIGNATURE_AGE_SECONDS = 5 * 60;
+
+const normalizeCertificateSerial = (value: string) =>
+  value.replaceAll(':', '').trim().replace(/^0+/, '').toUpperCase();
 
 const normalizeHeaders = (headers: Headers) =>
   Object.fromEntries([...headers.entries()].map(([key, value]) => [key.toLowerCase(), value]));
@@ -50,12 +56,18 @@ export class WechatPayClient implements ModuleAppPaymentAdapter {
   }
 
   createOutTradeNo: ModuleAppPaymentAdapter['createOutTradeNo'] = ({ orderId, purpose }) => {
-    const purposePrefix = purpose === 'module_app' ? 'm' : 't';
+    const purposePrefix = purpose === 'module_app' ? 'm' : purpose === 'subscription' ? 's' : 't';
     return `${purposePrefix}${createHash('sha256')
       .update(`${purpose}:${orderId}`)
       .digest('hex')
       .slice(0, 31)}`;
   };
+
+  createRefundRequestNo: ModuleAppPaymentAdapter['createRefundRequestNo'] = (input) =>
+    `wr${createHash('sha256')
+      .update(`${input.outTradeNo}:${input.refundAmount}`)
+      .digest('hex')
+      .slice(0, 30)}`;
 
   create: ModuleAppPaymentAdapter['create'] = async (input) => {
     if (input.currency !== 'CNY') throw new Error('WECHAT_PAY_CURRENCY_UNSUPPORTED');
@@ -70,6 +82,7 @@ export class WechatPayClient implements ModuleAppPaymentAdapter {
       mchid: this.options.mchId,
       notify_url: input.notifyUrl,
       out_trade_no: outTradeNo,
+      ...(input.expiresAt ? { time_expire: new Date(input.expiresAt).toISOString() } : {}),
     });
     const codeUrl = typeof response.code_url === 'string' ? response.code_url : '';
     if (!codeUrl) throw new Error('WECHAT_PAY_CODE_URL_MISSING');
@@ -106,10 +119,7 @@ export class WechatPayClient implements ModuleAppPaymentAdapter {
   };
 
   refund: ModuleAppPaymentAdapter['refund'] = async (input) => {
-    const outRefundNo = `wr${createHash('sha256')
-      .update(`${input.outTradeNo}:${input.refundAmount}`)
-      .digest('hex')
-      .slice(0, 30)}`;
+    const outRefundNo = input.refundRequestNo ?? this.createRefundRequestNo(input);
     const refund = parseCnyPaymentAmount(input.refundAmount).fen;
     const total = parseCnyPaymentAmount(input.totalAmount).fen;
     if (refund > total) throw new Error('WECHAT_PAY_REFUND_AMOUNT_INVALID');
@@ -123,10 +133,18 @@ export class WechatPayClient implements ModuleAppPaymentAdapter {
   };
 
   queryRefund = async (input: { outRequestNo: string; outTradeNo: string }) => {
-    const response = await this.request(
-      'GET',
-      `/v3/refund/domestic/refunds/${encodeURIComponent(input.outRequestNo)}`,
-    );
+    let response: Record<string, unknown>;
+    try {
+      response = await this.request(
+        'GET',
+        `/v3/refund/domestic/refunds/${encodeURIComponent(input.outRequestNo)}`,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'WECHAT_PAY_HTTP_404') {
+        return { status: 'failed' as const };
+      }
+      throw error;
+    }
     return { status: normalizeRefundStatus(response.status) };
   };
 
@@ -159,15 +177,47 @@ export class WechatPayClient implements ModuleAppPaymentAdapter {
       'utf8',
     );
     const transaction = JSON.parse(plaintext) as Record<string, unknown>;
-    if (transaction.mchid !== this.options.mchId || transaction.appid !== this.options.appId) {
+    const notificationType = typeof envelope.event_type === 'string' ? envelope.event_type : '';
+    const refundNotification =
+      notificationType.startsWith('REFUND.') || typeof transaction.refund_status === 'string';
+    if (
+      transaction.mchid !== this.options.mchId ||
+      (!refundNotification && transaction.appid !== this.options.appId)
+    ) {
       throw new Error('WECHAT_PAY_NOTIFICATION_MERCHANT_MISMATCH');
     }
-    const tradeState = typeof transaction.trade_state === 'string' ? transaction.trade_state : '';
-    if (['NOTPAY', 'USERPAYING'].includes(tradeState)) return null;
     const outTradeNo = typeof transaction.out_trade_no === 'string' ? transaction.out_trade_no : '';
     const eventId = typeof envelope.id === 'string' ? envelope.id : '';
     const amount = transaction.amount as Record<string, unknown> | undefined;
     if (!outTradeNo || !eventId || !amount) throw new Error('WECHAT_PAY_NOTIFICATION_INVALID');
+
+    if (refundNotification) {
+      const refundStatus =
+        typeof transaction.refund_status === 'string' ? transaction.refund_status : '';
+      if (refundStatus !== 'SUCCESS') return null;
+      return {
+        currency: amount.currency === 'CNY' ? 'CNY' : String(amount.currency ?? 'CNY'),
+        eventId,
+        eventType: 'refund_succeeded',
+        occurredAt: transaction.success_time
+          ? new Date(String(transaction.success_time))
+          : new Date(),
+        outTradeNo,
+        paymentReference:
+          typeof transaction.refund_id === 'string'
+            ? transaction.refund_id
+            : typeof transaction.out_refund_no === 'string'
+              ? transaction.out_refund_no
+              : undefined,
+        provider: this.provider,
+        providerTransactionId:
+          typeof transaction.transaction_id === 'string' ? transaction.transaction_id : undefined,
+        totalAmount: formatCnyPaymentAmountFromFen(amount.refund),
+      };
+    }
+
+    const tradeState = typeof transaction.trade_state === 'string' ? transaction.trade_state : '';
+    if (['NOTPAY', 'USERPAYING'].includes(tradeState)) return null;
     return {
       currency: amount.currency === 'CNY' ? 'CNY' : String(amount.currency ?? 'CNY'),
       eventId,
@@ -200,9 +250,23 @@ export class WechatPayClient implements ModuleAppPaymentAdapter {
   private verifySignature = (body: string, headers: Record<string, string>) => {
     const timestamp = headers['wechatpay-timestamp'];
     const nonce = headers['wechatpay-nonce'];
+    const serial = headers['wechatpay-serial'];
     const signature = headers['wechatpay-signature'];
-    if (!timestamp || !nonce || !signature) {
+    if (!timestamp || !nonce || !serial || !signature) {
       throw new Error('WECHAT_PAY_RESPONSE_SIGNATURE_MISSING');
+    }
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isInteger(timestampSeconds) || timestampSeconds <= 0) {
+      throw new Error('WECHAT_PAY_RESPONSE_TIMESTAMP_INVALID');
+    }
+    if (Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > MAX_SIGNATURE_AGE_SECONDS) {
+      throw new Error('WECHAT_PAY_RESPONSE_TIMESTAMP_STALE');
+    }
+    if (
+      normalizeCertificateSerial(serial) !==
+      normalizeCertificateSerial(this.options.platformCertificateSerialNo)
+    ) {
+      throw new Error('WECHAT_PAY_PLATFORM_CERTIFICATE_SERIAL_MISMATCH');
     }
     const valid = rsaVerify(
       'RSA-SHA256',

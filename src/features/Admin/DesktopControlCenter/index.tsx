@@ -139,7 +139,7 @@ const DesktopControlCenter = memo(() => {
             children: (
               <BuildProfilePage
                 currentRelease={
-                  settings.data?.desktopUpdateConfig.currentVersion
+                  settings.data?.desktopUpdateConfig?.currentVersion
                     ? {
                         channel:
                           settings.data.desktopUpdateConfig.channel === 'canary'

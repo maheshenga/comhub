@@ -61,6 +61,11 @@ describe('admin list pagination', () => {
       </MemoryRouter>,
     );
 
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'admin.orders.title' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'admin.orders.tableLabel' })).toBeInTheDocument();
+
     await clickNextAndPrevious();
 
     await waitFor(() =>
@@ -78,6 +83,13 @@ describe('admin list pagination', () => {
 
   it('moves subscriptions forward and back through the returned cursor', async () => {
     render(<AdminSubscriptionsPage />);
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'admin.subscriptions.title' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'admin.subscriptions.tableLabel' }),
+    ).toBeInTheDocument();
 
     await clickNextAndPrevious();
 

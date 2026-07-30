@@ -26,8 +26,11 @@ describe('payment webhook route', () => {
   });
 
   it('returns the WeChat API v3 failure contract', async () => {
+    const onError = vi.fn();
+    const error = new Error('invalid signature');
     const handler = createPaymentWebhookHandler({
-      handle: vi.fn().mockRejectedValue(new Error('invalid signature')),
+      handle: vi.fn().mockRejectedValue(error),
+      onError,
     });
 
     const response = await handler(
@@ -40,6 +43,10 @@ describe('payment webhook route', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ code: 'FAIL', message: '处理失败' });
+    expect(onError).toHaveBeenCalledWith(error, {
+      method: 'POST',
+      provider: 'wechat_pay',
+    });
   });
 
   it('allows Z-Pay GET callbacks but rejects GET for direct providers', async () => {

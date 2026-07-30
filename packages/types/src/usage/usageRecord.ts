@@ -2,6 +2,8 @@ import type { MessageMetadata } from '../message';
 
 export interface UsageRecordItem {
   createdAt: Date;
+  /** Credits actually charged in the commercial ledger. */
+  credits?: number;
   /**
    * ID
    **/

@@ -7,6 +7,28 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, filePath), 'utf8');
 
 describe('admin commercial flow pages', () => {
+  it('uses the shared admin UX shell on high-frequency management pages', () => {
+    for (const filePath of [
+      'src/features/Admin/AdminOrdersPage.tsx',
+      'src/features/Admin/AdminSubscriptionsPage.tsx',
+      'src/routes/(main)/admin/users/index.tsx',
+    ]) {
+      const page = readRepoFile(filePath);
+
+      expect(page, filePath).toContain('AdminPageShell');
+      expect(page, filePath).toContain('AdminResponsiveTable');
+      expect(page, filePath).toContain('AdminToolbar');
+    }
+
+    const overviewPage = readRepoFile('src/features/Admin/AdminOverviewPage.tsx');
+    const adminLayout = readRepoFile('src/routes/(main)/admin/_layout/index.tsx');
+
+    expect(overviewPage).toContain('AdminMetricStrip');
+    expect(overviewPage).not.toContain('<Card');
+    expect(adminLayout).toContain('getAdminNavigationContext');
+    expect(adminLayout).toContain('<FloatingSheet');
+  });
+
   it('uses section-scoped reads on all settings-owning pages', () => {
     const sectionPages = {
       'desktop-update': 'src/features/Admin/DesktopControlCenter/index.tsx',

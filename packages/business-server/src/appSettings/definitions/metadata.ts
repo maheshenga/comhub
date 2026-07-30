@@ -68,6 +68,7 @@ const PAYMENT_ENVIRONMENT_FALLBACKS: Partial<Record<AppSettingKey, string[]>> = 
     'MODULE_APP_ALIPAY_NOTIFY_URL',
     'MODULE_APP_ALIPAY_RETURN_URL',
   ],
+  [APP_SETTING_KEYS.paymentSubscriptionEnabled]: ['PAYMENT_SUBSCRIPTION_ENABLED'],
   [APP_SETTING_KEYS.paymentTopUpEnabled]: ['PAYMENT_TOP_UP_ENABLED'],
   [APP_SETTING_KEYS.paymentWechatApiBaseUrl]: ['PAYMENT_WECHAT_API_BASE_URL'],
   [APP_SETTING_KEYS.paymentWechatApiV3Key]: ['PAYMENT_WECHAT_API_V3_KEY'],
@@ -77,6 +78,9 @@ const PAYMENT_ENVIRONMENT_FALLBACKS: Partial<Record<AppSettingKey, string[]>> = 
   [APP_SETTING_KEYS.paymentWechatMerchantPrivateKey]: ['PAYMENT_WECHAT_MERCHANT_PRIVATE_KEY'],
   [APP_SETTING_KEYS.paymentWechatMerchantSerialNo]: ['PAYMENT_WECHAT_MERCHANT_SERIAL_NO'],
   [APP_SETTING_KEYS.paymentWechatPlatformCertificate]: ['PAYMENT_WECHAT_PLATFORM_CERTIFICATE'],
+  [APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo]: [
+    'PAYMENT_WECHAT_PLATFORM_CERTIFICATE_SERIAL_NO',
+  ],
   [APP_SETTING_KEYS.paymentZpayAlipayEnabled]: ['PAYMENT_ZPAY_ALIPAY_ENABLED'],
   [APP_SETTING_KEYS.paymentZpayApiBaseUrl]: ['PAYMENT_ZPAY_API_BASE_URL'],
   [APP_SETTING_KEYS.paymentZpayEnabled]: ['PAYMENT_ZPAY_ENABLED'],

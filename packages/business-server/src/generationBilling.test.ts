@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   estimateImageCharge,
   estimateVideoCharge,
-  resolveImageChargeCredits,
   resolveGenerationPricingMultiplier,
+  resolveImageChargeCredits,
   resolveVideoChargeCredits,
 } from './generationBilling';
 
@@ -34,6 +34,25 @@ describe('generationBilling', () => {
       estimatedCredits: 80000,
       totalCost: 0.08,
     });
+  });
+
+  it('converts CNY fixed image pricing when the exact calculator is unavailable', () => {
+    const pricing: Pricing = {
+      currency: 'CNY',
+      units: [
+        {
+          name: 'imageGeneration',
+          rate: 7.12,
+          strategy: 'fixed',
+          unit: 'megapixel',
+        },
+      ],
+    };
+
+    const result = estimateImageCharge(pricing, {}, 1);
+
+    expect(result.totalCost).toBeCloseTo(1.048_576);
+    expect(result.estimatedCredits).toBe(1_048_576);
   });
 
   it('falls back to approximate video price when exact usage is unavailable', () => {

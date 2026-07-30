@@ -10,6 +10,7 @@ import type {
 export interface ModuleAppPaymentAdapter {
   create: (input: {
     currency: ModuleAppOrderSnapshot['currency'];
+    expiresAt?: string;
     notifyUrl: string;
     orderId: string;
     purpose?: PaymentPurpose;
@@ -18,6 +19,7 @@ export interface ModuleAppPaymentAdapter {
     totalAmount: string;
   }) => Promise<PaymentCreateResult>;
   createOutTradeNo: (input: { orderId: string; purpose: PaymentPurpose }) => string;
+  createRefundRequestNo: (input: { outTradeNo: string; refundAmount: string }) => string;
   readonly method: PaymentMethodId;
   readonly provider: ModuleAppPaymentProvider;
   query: (input: { outTradeNo: string }) => Promise<ModuleAppNormalizedPaymentEvent | null>;
@@ -29,6 +31,7 @@ export interface ModuleAppPaymentAdapter {
     outTradeNo: string;
     reason: string;
     refundAmount: string;
+    refundRequestNo?: string;
     totalAmount: string;
   }) => Promise<{
     providerRefundId: string;

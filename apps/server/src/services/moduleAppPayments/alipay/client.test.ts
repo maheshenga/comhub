@@ -138,6 +138,24 @@ describe('AlipayModuleAppClient', () => {
     ).resolves.toBeNull();
   });
 
+  it('maps a signed full-refund notification to a refund event', async () => {
+    await expect(
+      createClient().verifyNotification({
+        body: signedNotification({
+          gmt_refund: '2026-07-12 11:00:00',
+          refund_fee: '12.34',
+          trade_status: 'TRADE_CLOSED',
+        }),
+        headers: {},
+      }),
+    ).resolves.toMatchObject({
+      eventId: 'notify-1',
+      eventType: 'refund_succeeded',
+      orderId: '00000000-0000-4000-8000-000000000001',
+      totalAmount: '12.340000',
+    });
+  });
+
   it('queries delayed trades, refunds, and bill download URLs through bounded fixtures', async () => {
     const fetch = vi
       .fn()
@@ -160,6 +178,7 @@ describe('AlipayModuleAppClient', () => {
       .mockResolvedValueOnce(
         signedResponse('alipay_trade_refund_response', {
           code: '10000',
+          fund_change: 'Y',
           out_trade_no: 'out-1',
           trade_no: 'trade-1',
         }),
@@ -175,6 +194,12 @@ describe('AlipayModuleAppClient', () => {
           code: '10000',
           refund_amount: '12.34',
         }),
+      )
+      .mockResolvedValueOnce(
+        signedResponse('alipay_trade_fastpay_refund_query_response', {
+          code: '40004',
+          sub_code: 'ACQ.REFUND_NOT_EXIST',
+        }),
       );
     const client = createClient(fetch);
 
@@ -187,6 +212,7 @@ describe('AlipayModuleAppClient', () => {
         outTradeNo: 'out-1',
         reason: 'requested',
         refundAmount: '12.340000',
+        refundRequestNo: 'refund-request-1',
         totalAmount: '12.340000',
       }),
     ).resolves.toMatchObject({ status: 'succeeded' });
@@ -196,7 +222,36 @@ describe('AlipayModuleAppClient', () => {
     await expect(
       client.queryRefund({ outRequestNo: 'refund-1', outTradeNo: 'out-1' }),
     ).resolves.toEqual({ status: 'succeeded' });
-    expect(fetch).toHaveBeenCalledTimes(5);
+    await expect(
+      client.queryRefund({ outRequestNo: 'missing-refund', outTradeNo: 'out-1' }),
+    ).resolves.toEqual({ status: 'failed' });
+    const refundBody = fetch.mock.calls[2]?.[1]?.body as URLSearchParams;
+    expect(JSON.parse(String(refundBody.get('biz_content')))).toMatchObject({
+      out_request_no: 'refund-request-1',
+    });
+    expect(fetch).toHaveBeenCalledTimes(6);
+  });
+
+  it('keeps an accepted refund pending until Alipay confirms a fund change', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      signedResponse('alipay_trade_refund_response', {
+        code: '10000',
+        fund_change: 'N',
+        out_request_no: 'refund-request-1',
+        out_trade_no: 'out-1',
+        trade_no: 'trade-1',
+      }),
+    );
+
+    await expect(
+      createClient(fetch).refund({
+        outTradeNo: 'out-1',
+        reason: 'requested',
+        refundAmount: '12.340000',
+        refundRequestNo: 'refund-request-1',
+        totalAmount: '12.340000',
+      }),
+    ).resolves.toEqual({ providerRefundId: 'refund-request-1', status: 'pending' });
   });
 
   it('rejects unsigned API responses', async () => {

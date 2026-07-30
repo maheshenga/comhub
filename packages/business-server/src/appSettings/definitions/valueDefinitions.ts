@@ -1,3 +1,4 @@
+import { aiUsagePricingRulesSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -23,7 +24,6 @@ const numberSchema = z.number().finite();
 const stringListSchema = z.array(z.string());
 const recordSchema = z.record(z.string(), z.unknown());
 const recordListSchema = z.array(recordSchema);
-const unknownListSchema = z.array(z.unknown());
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 const jsonSchema: z.ZodType<JsonValue> = z.lazy(() =>
@@ -194,6 +194,7 @@ const PAYMENT_BOOLEAN_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.paymentAlipayEnabled,
   APP_SETTING_KEYS.paymentEnabled,
   APP_SETTING_KEYS.paymentModuleAppEnabled,
+  APP_SETTING_KEYS.paymentSubscriptionEnabled,
   APP_SETTING_KEYS.paymentTopUpEnabled,
   APP_SETTING_KEYS.paymentWechatEnabled,
   APP_SETTING_KEYS.paymentZpayAlipayEnabled,
@@ -282,8 +283,8 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     });
   }
   if (key === APP_SETTING_KEYS.pricingModelRules) {
-    return defineValue('pricing-model-rules-array', unknownListSchema, (value) =>
-      Array.isArray(value) ? value : [],
+    return defineValue('pricing-model-rules-array', aiUsagePricingRulesSchema, (value) =>
+      aiUsagePricingRulesSchema.parse(value),
     );
   }
   if (key === APP_SETTING_KEYS.ordersManagementEnabled) return booleanValue('orders-boolean');

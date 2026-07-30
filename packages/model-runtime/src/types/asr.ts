@@ -32,6 +32,7 @@ export interface ASRPayload {
 
 export interface ASROptions {
   headers?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   signal?: AbortSignal;
   /**
    * userId for the request
@@ -39,9 +40,25 @@ export interface ASROptions {
   user?: string;
 }
 
+export interface ASRUsage {
+  /** Provider-reported input audio duration, in seconds. */
+  durationSeconds?: number;
+  /** Provider-reported audio input tokens. */
+  inputAudioTokens?: number;
+  /** Provider-reported text input tokens. */
+  inputTextTokens?: number;
+  /** Provider-reported total input tokens when modality details are unavailable. */
+  totalInputTokens?: number;
+  /** Provider-reported text output tokens. */
+  totalOutputTokens?: number;
+  totalTokens?: number;
+}
+
 export interface ASRResponse {
   /**
    * The transcribed text.
    */
   text: string;
+  /** Usage is retained for server-side settlement and need not be shown by clients. */
+  usage?: ASRUsage;
 }

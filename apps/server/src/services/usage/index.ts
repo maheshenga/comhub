@@ -79,17 +79,9 @@ export class UsageRecordService {
       )
       .orderBy(desc(messages.createdAt));
 
-    const messageIdsWithoutCost = spends
-      .filter((spend) => {
-        const metadata = spend.metadata as MessageMetadata | null;
-        const usage = spend.usage ?? metadata?.usage;
-        const hasUsageCost = typeof usage?.cost === 'number' && usage.cost > 0;
-        const hasMetadataCost = typeof metadata?.cost === 'number' && metadata.cost > 0;
-
-        return !hasUsageCost && !hasMetadataCost;
-      })
-      .map((spend) => spend.id);
-    const ledgerSpendMap = await this.findAssistantMessageLedgerSpend(messageIdsWithoutCost);
+    const ledgerUsageMap = await this.findAssistantMessageLedgerUsage(
+      spends.map((spend) => spend.id),
+    );
 
     const chatSpends = spends.map((spend) => {
       const metadata = spend.metadata as MessageMetadata | null;
@@ -98,21 +90,22 @@ export class UsageRecordService {
       // deprecated flat fields for messages written before the migration.
       const usage = spend.usage ?? metadata?.usage;
       const performance = metadata?.performance;
-      const usageCost =
-        typeof usage?.cost === 'number' && usage.cost > 0 ? usage.cost : undefined;
+      const usageCost = typeof usage?.cost === 'number' && usage.cost > 0 ? usage.cost : undefined;
       const metadataCost =
         typeof metadata?.cost === 'number' && metadata.cost > 0 ? metadata.cost : undefined;
-      const ledgerCost = ledgerSpendMap.get(spend.id);
+      const ledgerUsage = ledgerUsageMap.get(spend.id);
       const totalInputTokens = usage?.totalInputTokens ?? metadata?.totalInputTokens ?? 0;
       const totalOutputTokens = usage?.totalOutputTokens ?? metadata?.totalOutputTokens ?? 0;
 
       return {
         createdAt: spend.createdAt,
+        credits: ledgerUsage?.credits ?? 0,
         id: spend.id,
         metadata: spend.metadata,
         model: spend.model,
         provider: spend.provider,
-        spend: usageCost ?? metadataCost ?? ledgerCost ?? usage?.cost ?? metadata?.cost ?? 0,
+        spend:
+          usageCost ?? metadataCost ?? ledgerUsage?.spend ?? usage?.cost ?? metadata?.cost ?? 0,
         totalInputTokens,
         totalOutputTokens,
         totalTokens: totalInputTokens + totalOutputTokens,
@@ -131,8 +124,8 @@ export class UsageRecordService {
     );
   };
 
-  private findAssistantMessageLedgerSpend = async (messageIds: string[]) => {
-    if (messageIds.length === 0) return new Map<string, number>();
+  private findAssistantMessageLedgerUsage = async (messageIds: string[]) => {
+    if (messageIds.length === 0) return new Map<string, { credits: number; spend: number }>();
 
     const ledgerRows = await this.db
       .select({
@@ -150,21 +143,26 @@ export class UsageRecordService {
         ),
       );
 
-    const ledgerSpendMap = new Map<string, number>();
+    const ledgerUsageMap = new Map<string, { credits: number; spend: number }>();
     for (const row of ledgerRows) {
       if (!row.referenceId) continue;
 
       const metadata = row.metadata ?? {};
+      const credits = Math.abs(Number(row.amount) || 0);
       const usdCost = Number(metadata.usdCost);
-      const fallbackCost = Math.abs(Number(row.amount) || 0) / CREDITS_PER_DOLLAR;
+      const fallbackCost = credits / CREDITS_PER_DOLLAR;
       const spend = Number.isFinite(usdCost) && usdCost > 0 ? usdCost : fallbackCost;
+      const current = ledgerUsageMap.get(row.referenceId) ?? { credits: 0, spend: 0 };
 
-      if (spend > 0) {
-        ledgerSpendMap.set(row.referenceId, spend);
+      if (credits > 0 || spend > 0) {
+        ledgerUsageMap.set(row.referenceId, {
+          credits: current.credits + credits,
+          spend: current.spend + spend,
+        });
       }
     }
 
-    return ledgerSpendMap;
+    return ledgerUsageMap;
   };
 
   private findBillableLedgerUsage = async (
@@ -220,6 +218,7 @@ export class UsageRecordService {
 
     return {
       createdAt: row.createdAt,
+      credits: Math.abs(Number(row.amount) || 0),
       id: row.id || row.referenceId || `${row.referenceType}-${row.createdAt.getTime()}`,
       metadata: row.metadata as MessageMetadata | null,
       model: this.resolveGenerationModel(type, metadata, row.description, row.title),

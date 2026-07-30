@@ -2,6 +2,7 @@ import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import type {
   AutoTopUpSetting,
   CreateTopUpOrderParams,
+  ModuleAppNormalizedPaymentEvent,
   PaymentCheckoutAction,
   PaymentMethodId,
   PaymentProvider,
@@ -9,8 +10,12 @@ import type {
   TopUpOrderHistoryItem,
   TopUpPackageItem,
 } from '@lobechat/types';
-import { Plans } from '@lobechat/types';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import {
+  AUTO_TOP_UP_AVAILABLE,
+  AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE_ERROR,
+  Plans,
+} from '@lobechat/types';
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import {
   autoTopUpSettings,
@@ -19,8 +24,11 @@ import {
   defaultAutoTopUpSetting,
   topUpOrders,
   topUpPackages,
+  topUpPaymentEvents,
 } from '../../schemas';
 import type { LobeChatDatabase, Transaction } from '../../type';
+import { addCalendarMonths } from './calendar';
+import { CreditLotModel } from './creditLot';
 
 const DISPLAY_CREDITS_UNIT = CREDITS_PER_DOLLAR;
 const MIN_CUSTOM_TOP_UP_DISPLAY_CREDITS = 50;
@@ -30,6 +38,12 @@ const CUSTOM_TOP_UP_UNIT_PRICE = 0.1;
 const TOP_UP_CURRENCY = 'USD';
 const TOP_UP_VALIDITY_MONTHS = 12;
 const ONLINE_PAYMENT_DISABLED_ERROR = 'ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE';
+const ONLINE_TOP_UP_ORDER_TTL_MS = 30 * 60 * 1000;
+
+const resolveValidityMonths = (metadata?: Record<string, unknown> | null) => {
+  const value = Number(metadata?.validityMonths);
+  return Number.isInteger(value) && value > 0 ? value : TOP_UP_VALIDITY_MONTHS;
+};
 
 const DEFAULT_TOP_UP_PACKAGES: TopUpPackageItem[] = [
   {
@@ -60,12 +74,18 @@ const topUpOrderHistoryColumns = {
   amount: topUpOrders.amount,
   createdAt: topUpOrders.createdAt,
   credits: topUpOrders.credits,
+  creditsExpiresAt: topUpOrders.creditsExpiresAt,
   currency: topUpOrders.currency,
   externalOrderId: topUpOrders.externalOrderId,
+  expiresAt: topUpOrders.expiresAt,
   id: topUpOrders.id,
   paidAt: topUpOrders.paidAt,
   provider: topUpOrders.provider,
   redemptionCodeId: topUpOrders.redemptionCodeId,
+  refundedAt: topUpOrders.refundedAt,
+  refundAmount: topUpOrders.refundAmount,
+  refundReference: topUpOrders.refundReference,
+  refundStatus: topUpOrders.refundStatus,
   source: topUpOrders.source,
   status: topUpOrders.status,
 };
@@ -143,7 +163,7 @@ export class CommercialTopUpModel {
     if (!setting) return defaultAutoTopUpSetting;
 
     return {
-      enabled: setting.enabled,
+      enabled: AUTO_TOP_UP_AVAILABLE && setting.enabled,
       monthlyLimit: setting.monthlyLimit,
       monthlyTopUpAmount: setting.monthlyTopUpAmount ?? 0,
       targetBalance: setting.targetBalance ?? defaultAutoTopUpSetting.targetBalance,
@@ -158,6 +178,10 @@ export class CommercialTopUpModel {
   ): Promise<AutoTopUpSetting> => {
     if (input.targetBalance <= input.threshold) {
       throw new Error('AUTO_TOP_UP_TARGET_NOT_EXCEED_THRESHOLD');
+    }
+
+    if (input.enabled && !AUTO_TOP_UP_AVAILABLE) {
+      throw new Error(AUTO_TOP_UP_RECURRING_PAYMENT_UNAVAILABLE_ERROR);
     }
 
     const currentPlan = await getCurrentPlan();
@@ -291,6 +315,7 @@ export class CommercialTopUpModel {
         amount: packageItem.amount,
         credits: packageItem.credits,
         currency: packageItem.currency,
+        expiresAt: new Date(Date.now() + ONLINE_TOP_UP_ORDER_TTL_MS),
         idempotencyKey,
         metadata: {
           method: input.method,
@@ -432,9 +457,10 @@ export class CommercialTopUpModel {
       await this.ensureCreditAccount(tx);
 
       const settledAt = new Date();
+      const creditsExpiresAt = addCalendarMonths(settledAt, resolveValidityMonths(order.metadata));
       const [updatedOrder] = await tx
         .update(topUpOrders)
-        .set({ paidAt: settledAt, status: 'paid', updatedAt: settledAt })
+        .set({ creditsExpiresAt, paidAt: settledAt, status: 'paid', updatedAt: settledAt })
         .where(
           and(
             eq(topUpOrders.id, orderId),
@@ -464,22 +490,38 @@ export class CommercialTopUpModel {
         throw new Error('TOP_UP_ACCOUNT_UPDATE_FAILED');
       }
 
-      await tx.insert(creditLedgerEntries).values({
-        amount: order.credits,
-        balanceAfter: account.balance,
-        description: `Activated ${order.credits} credits from order ${order.id.slice(0, 8).toUpperCase()}`,
-        metadata: {
-          amount: order.amount,
-          currency: order.currency,
-          orderId: order.id,
-          provider: order.provider,
+      const [ledger] = await tx
+        .insert(creditLedgerEntries)
+        .values({
+          amount: order.credits,
+          balanceAfter: account.balance,
+          description: `Activated ${order.credits} credits from order ${order.id.slice(0, 8).toUpperCase()}`,
+          metadata: {
+            amount: order.amount,
+            creditsExpiresAt: creditsExpiresAt.toISOString(),
+            currency: order.currency,
+            orderId: order.id,
+            provider: order.provider,
+          },
+          referenceId: order.id,
+          referenceType: 'top_up_order',
+          title: 'Top-up Order',
+          type: 'topup',
+          userId: this.userId,
+        })
+        .returning({ id: creditLedgerEntries.id });
+      if (!ledger) throw new Error('TOP_UP_LEDGER_CREATE_FAILED');
+      await new CreditLotModel(this.db, this.userId).createLot(
+        {
+          amount: Number(order.credits),
+          expiresAt: creditsExpiresAt,
+          grantLedgerEntryId: ledger.id,
+          referenceId: order.id,
+          referenceType: 'top_up_order',
+          source: 'topup',
         },
-        referenceId: order.id,
-        referenceType: 'top_up_order',
-        title: 'Top-up Order',
-        type: 'topup',
-        userId: this.userId,
-      });
+        tx,
+      );
 
       return updatedOrder;
     });
@@ -532,15 +574,17 @@ export class CommercialTopUpModel {
         throw new Error('TOP_UP_PAYMENT_VERIFICATION_FAILED');
       }
       if (order.status === 'paid') return order;
-      if (order.status !== 'pending' && order.status !== 'failed') {
+      if (!['expired', 'failed', 'pending'].includes(order.status)) {
         throw new Error('TOP_UP_ORDER_NOT_SETTLEABLE');
       }
 
       await this.ensureCreditAccount(tx);
       const settledAt = new Date();
+      const creditsExpiresAt = addCalendarMonths(settledAt, resolveValidityMonths(order.metadata));
       const [updatedOrder] = await tx
         .update(topUpOrders)
         .set({
+          creditsExpiresAt,
           metadata: {
             ...order.metadata,
             ...(input.paymentReference ? { paymentReference: input.paymentReference } : {}),
@@ -553,7 +597,7 @@ export class CommercialTopUpModel {
           and(
             eq(topUpOrders.id, input.orderId),
             eq(topUpOrders.userId, this.userId),
-            inArray(topUpOrders.status, ['pending', 'failed']),
+            inArray(topUpOrders.status, ['pending', 'failed', 'expired']),
           ),
         )
         .returning(topUpOrderHistoryColumns);
@@ -584,25 +628,293 @@ export class CommercialTopUpModel {
         .returning({ balance: creditAccounts.balance });
       if (!account) throw new Error('TOP_UP_ACCOUNT_UPDATE_FAILED');
 
-      await tx.insert(creditLedgerEntries).values({
-        amount: order.credits,
-        balanceAfter: account.balance,
-        description: `Purchased ${order.credits} credits from order ${order.id.slice(0, 8).toUpperCase()}`,
-        metadata: {
-          amount: order.amount,
-          currency: order.currency,
-          method: input.method,
-          orderId: order.id,
-          provider: input.provider,
+      const [ledger] = await tx
+        .insert(creditLedgerEntries)
+        .values({
+          amount: order.credits,
+          balanceAfter: account.balance,
+          description: `Purchased ${order.credits} credits from order ${order.id.slice(0, 8).toUpperCase()}`,
+          metadata: {
+            amount: order.amount,
+            creditsExpiresAt: creditsExpiresAt.toISOString(),
+            currency: order.currency,
+            method: input.method,
+            orderId: order.id,
+            provider: input.provider,
+          },
+          referenceId: order.id,
+          referenceType: 'top_up_order',
+          title: 'Top-up Order',
+          type: 'topup',
+          userId: this.userId,
+        })
+        .returning({ id: creditLedgerEntries.id });
+      if (!ledger) throw new Error('TOP_UP_LEDGER_CREATE_FAILED');
+      await new CreditLotModel(this.db, this.userId).createLot(
+        {
+          amount: Number(order.credits),
+          expiresAt: creditsExpiresAt,
+          grantLedgerEntryId: ledger.id,
+          referenceId: order.id,
+          referenceType: 'top_up_order',
+          source: 'topup',
         },
-        referenceId: order.id,
-        referenceType: 'top_up_order',
-        title: 'Top-up Order',
-        type: 'topup',
-        userId: this.userId,
-      });
+        tx,
+      );
       return updatedOrder;
     });
+  };
+
+  expireOnlineTopUpOrder = async (orderId: string) => {
+    const now = new Date();
+    const [expired] = await this.db
+      .update(topUpOrders)
+      .set({ status: 'expired', updatedAt: now })
+      .where(
+        and(
+          eq(topUpOrders.id, orderId),
+          eq(topUpOrders.userId, this.userId),
+          eq(topUpOrders.status, 'pending'),
+          lte(topUpOrders.expiresAt, now),
+        ),
+      )
+      .returning();
+    return expired ?? null;
+  };
+
+  recordOnlineTopUpPaymentEvent = async (event: ModuleAppNormalizedPaymentEvent) => {
+    const [created] = await this.db
+      .insert(topUpPaymentEvents)
+      .values({
+        eventId: event.eventId,
+        eventType: event.eventType,
+        occurredAt: event.occurredAt,
+        outTradeNo: event.outTradeNo,
+        payload: { ...event, occurredAt: event.occurredAt.toISOString() },
+        provider: event.provider,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (created) return { duplicate: false, event: created };
+
+    const existing = await this.db.query.topUpPaymentEvents.findFirst({
+      where: and(
+        eq(topUpPaymentEvents.provider, event.provider),
+        eq(topUpPaymentEvents.eventId, event.eventId),
+      ),
+    });
+    if (!existing) throw new Error('TOP_UP_PAYMENT_EVENT_RECORD_FAILED');
+    return { duplicate: true, event: existing };
+  };
+
+  updateOnlineTopUpPaymentEvent = async (input: {
+    errorCode?: string | null;
+    eventId: string;
+    orderId?: string | null;
+    provider: PaymentProvider;
+    status: 'failed' | 'ignored' | 'processed' | 'received' | 'rejected';
+  }) => {
+    const now = new Date();
+    const [updated] = await this.db
+      .update(topUpPaymentEvents)
+      .set({
+        errorCode: input.errorCode ?? null,
+        orderId: input.orderId ?? null,
+        processedAt: input.status === 'received' ? null : now,
+        status: input.status,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(topUpPaymentEvents.provider, input.provider),
+          eq(topUpPaymentEvents.eventId, input.eventId),
+        ),
+      )
+      .returning();
+    if (!updated) throw new Error('TOP_UP_PAYMENT_EVENT_UPDATE_FAILED');
+    return updated;
+  };
+
+  refundOnlineTopUpOrder = async (input: {
+    amount: string;
+    method: PaymentMethodId;
+    orderId: string;
+    provider: PaymentProvider;
+    refundReference: string;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(topUpOrders)
+        .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)))
+        .for('update');
+      if (!order) throw new Error('TOP_UP_ORDER_NOT_FOUND');
+      if (
+        order.provider !== input.provider ||
+        order.metadata?.method !== input.method ||
+        Number(order.amount).toFixed(6) !== Number(input.amount).toFixed(6)
+      ) {
+        throw new Error('TOP_UP_PAYMENT_VERIFICATION_FAILED');
+      }
+      if (order.status === 'refunded') return { debtAmount: 0, order };
+      if (order.status !== 'paid') throw new Error('TOP_UP_ORDER_NOT_REFUNDABLE');
+
+      const reversal = await new CreditLotModel(this.db, this.userId).refundLot(
+        {
+          metadata: { provider: input.provider, refundReference: input.refundReference },
+          referenceId: order.id,
+          referenceType: 'top_up_order',
+        },
+        tx,
+      );
+      const refundedAt = new Date();
+      const [refunded] = await tx
+        .update(topUpOrders)
+        .set({
+          refundAmount: order.amount,
+          refundedAt,
+          refundReference: input.refundReference,
+          refundStatus: 'succeeded',
+          status: 'refunded',
+          updatedAt: refundedAt,
+        })
+        .where(and(eq(topUpOrders.id, order.id), eq(topUpOrders.status, 'paid')))
+        .returning(topUpOrderHistoryColumns);
+      if (!refunded) throw new Error('TOP_UP_REFUND_REVERSAL_FAILED');
+      return { ...reversal, order: refunded };
+    });
+  };
+
+  claimOnlineTopUpRefund = async (input: { orderId: string; refundReference: string }) => {
+    const refundReference = input.refundReference.trim();
+    if (!refundReference) throw new Error('TOP_UP_PAYMENT_REFUND_REFERENCE_REQUIRED');
+
+    const [claimed] = await this.db
+      .update(topUpOrders)
+      .set({ refundReference, refundStatus: 'pending', updatedAt: new Date() })
+      .where(
+        and(
+          eq(topUpOrders.id, input.orderId),
+          eq(topUpOrders.userId, this.userId),
+          eq(topUpOrders.status, 'paid'),
+          or(
+            and(
+              or(isNull(topUpOrders.refundStatus), eq(topUpOrders.refundStatus, 'failed')),
+              or(
+                isNull(topUpOrders.refundReference),
+                eq(topUpOrders.refundReference, refundReference),
+              ),
+            ),
+            and(eq(topUpOrders.refundStatus, 'pending'), isNull(topUpOrders.refundReference)),
+          ),
+        ),
+      )
+      .returning();
+    if (claimed) return { claimed: true as const, order: claimed };
+
+    const order = await this.db.query.topUpOrders.findFirst({
+      where: and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)),
+    });
+    if (!order) throw new Error('TOP_UP_PAYMENT_ORDER_NOT_FOUND');
+    return { claimed: false as const, order };
+  };
+
+  claimUncreditedOnlineTopUpRefund = async (input: {
+    orderId: string;
+    refundReference: string;
+  }) => {
+    const refundReference = input.refundReference.trim();
+    if (!refundReference) throw new Error('TOP_UP_PAYMENT_REFUND_REFERENCE_REQUIRED');
+
+    const [claimed] = await this.db
+      .update(topUpOrders)
+      .set({ refundReference, refundStatus: 'pending', updatedAt: new Date() })
+      .where(
+        and(
+          eq(topUpOrders.id, input.orderId),
+          eq(topUpOrders.userId, this.userId),
+          inArray(topUpOrders.status, ['canceled', 'expired', 'failed', 'pending']),
+          or(
+            and(
+              or(isNull(topUpOrders.refundStatus), eq(topUpOrders.refundStatus, 'failed')),
+              or(
+                isNull(topUpOrders.refundReference),
+                eq(topUpOrders.refundReference, refundReference),
+              ),
+            ),
+            and(eq(topUpOrders.refundStatus, 'pending'), isNull(topUpOrders.refundReference)),
+          ),
+        ),
+      )
+      .returning();
+    if (claimed) return { claimed: true as const, order: claimed };
+
+    const order = await this.db.query.topUpOrders.findFirst({
+      where: and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)),
+    });
+    if (!order) throw new Error('TOP_UP_PAYMENT_ORDER_NOT_FOUND');
+    return { claimed: false as const, order };
+  };
+
+  markUncreditedOnlineTopUpRefunded = async (input: {
+    orderId: string;
+    refundReference: string;
+  }) => {
+    const refundedAt = new Date();
+    const [updated] = await this.db
+      .update(topUpOrders)
+      .set({
+        refundAmount: sql`${topUpOrders.amount}`,
+        refundedAt,
+        refundReference: input.refundReference,
+        refundStatus: 'succeeded',
+        status: 'refunded',
+        updatedAt: refundedAt,
+      })
+      .where(
+        and(
+          eq(topUpOrders.id, input.orderId),
+          eq(topUpOrders.userId, this.userId),
+          inArray(topUpOrders.status, ['canceled', 'expired', 'failed', 'pending']),
+        ),
+      )
+      .returning(topUpOrderHistoryColumns);
+    return updated ?? null;
+  };
+
+  updateOnlineTopUpRefundStatus = async (input: {
+    expectedRefundReference: null | string;
+    expectedStatus: 'failed' | 'pending' | 'succeeded';
+    orderId: string;
+    refundReference: string;
+    status: 'failed' | 'pending' | 'succeeded';
+  }) => {
+    const [updated] = await this.db
+      .update(topUpOrders)
+      .set({
+        refundReference: input.refundReference,
+        refundStatus: input.status,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(topUpOrders.id, input.orderId),
+          eq(topUpOrders.userId, this.userId),
+          input.expectedRefundReference === null
+            ? isNull(topUpOrders.refundReference)
+            : eq(topUpOrders.refundReference, input.expectedRefundReference),
+          eq(topUpOrders.refundStatus, input.expectedStatus),
+          inArray(topUpOrders.status, ['canceled', 'expired', 'failed', 'paid', 'pending']),
+        ),
+      )
+      .returning();
+    if (updated) return updated;
+
+    const order = await this.db.query.topUpOrders.findFirst({
+      where: and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.userId, this.userId)),
+    });
+    if (!order) throw new Error('TOP_UP_ORDER_NOT_FOUND');
+    return order;
   };
 
   listTopUpOrders = async (

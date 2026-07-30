@@ -32,6 +32,11 @@ vi.mock('react-router', async () => {
     Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
       <div data-replace={String(Boolean(replace))} data-testid="navigate" data-to={to} />
     ),
+    Link: ({ children, to, ...props }: { children: React.ReactNode; to: string }) => (
+      <a href={to} {...props}>
+        {children}
+      </a>
+    ),
     Outlet: () => <div data-testid="admin-outlet" />,
     useLocation: () => locationMock,
   };
@@ -107,6 +112,8 @@ describe('AdminLayout', () => {
 
     expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('admin-outlet')).toBeInTheDocument();
+    expect(screen.getByTestId('admin-context-bar')).toHaveTextContent('工作台');
+    expect(screen.getByRole('link', { name: '返回前台' })).toHaveAttribute('href', '/');
     expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
   });
 

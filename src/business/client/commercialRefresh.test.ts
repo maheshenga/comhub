@@ -45,6 +45,10 @@ describe('refreshCommercialEntitlementState', () => {
       expect(mutateMock).toHaveBeenCalledWith(key);
     }
 
+    expect(COMMERCIAL_ENTITLEMENT_SWR_KEYS).toEqual(
+      expect.arrayContaining([['commercial.listBillingOrders'], ['commercial.listCreditPackages']]),
+    );
+
     expect(mutateMock).toHaveBeenCalledWith(['business-referral-overview']);
     expect(refreshUserStateMock).toHaveBeenCalledTimes(1);
     expect(refreshAiProviderRuntimeStateMock).toHaveBeenCalledTimes(1);

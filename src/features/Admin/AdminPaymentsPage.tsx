@@ -18,6 +18,8 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import ModulePaymentsPage from './moduleApps/finance/payments/ModulePaymentsPage';
+import CreditSettlementFailuresPage from './payments/CreditSettlementFailuresPage';
+import SubscriptionPaymentsPage from './payments/SubscriptionPaymentsPage';
 import TopUpPaymentsPage from './payments/TopUpPaymentsPage';
 import { useUnsavedChangesGuard } from './shared/useUnsavedChangesGuard';
 
@@ -39,6 +41,7 @@ type PaymentFormValues = {
   enabled: boolean;
   moduleAppEnabled: boolean;
   publicBaseUrl: string;
+  subscriptionEnabled: boolean;
   topUpEnabled: boolean;
   wechatApiBaseUrl: string;
   wechatApiV3Key: string;
@@ -48,6 +51,7 @@ type PaymentFormValues = {
   wechatMerchantPrivateKey: string;
   wechatMerchantSerialNo: string;
   wechatPlatformCertificate: string;
+  wechatPlatformCertificateSerialNo: string;
   zpayAlipayEnabled: boolean;
   zpayApiBaseUrl: string;
   zpayEnabled: boolean;
@@ -79,6 +83,7 @@ type PaymentSettingsData = {
     enabled?: boolean;
     moduleAppEnabled?: boolean;
     publicBaseUrl?: string;
+    subscriptionEnabled?: boolean;
     topUpEnabled?: boolean;
     wechat?: {
       apiBaseUrl?: string;
@@ -93,6 +98,7 @@ type PaymentSettingsData = {
       merchantSerialNo?: string;
       platformCertificateConfigured?: boolean;
       platformCertificateMasked?: null | string;
+      platformCertificateSerialNo?: string;
     };
     zpay?: {
       alipayEnabled?: boolean;
@@ -140,6 +146,7 @@ const buildInitialValues = (data?: PaymentSettingsData): PaymentFormValues => {
     enabled: config?.enabled ?? false,
     moduleAppEnabled: config?.moduleAppEnabled ?? false,
     publicBaseUrl: config?.publicBaseUrl ?? '',
+    subscriptionEnabled: config?.subscriptionEnabled ?? false,
     topUpEnabled: config?.topUpEnabled ?? false,
     wechatApiBaseUrl: config?.wechat?.apiBaseUrl ?? 'https://api.mch.weixin.qq.com',
     wechatApiV3Key: '',
@@ -149,6 +156,7 @@ const buildInitialValues = (data?: PaymentSettingsData): PaymentFormValues => {
     wechatMerchantPrivateKey: '',
     wechatMerchantSerialNo: config?.wechat?.merchantSerialNo ?? '',
     wechatPlatformCertificate: '',
+    wechatPlatformCertificateSerialNo: config?.wechat?.platformCertificateSerialNo ?? '',
     zpayAlipayEnabled: config?.zpay?.alipayEnabled ?? true,
     zpayApiBaseUrl: config?.zpay?.apiBaseUrl ?? 'https://zpayz.cn',
     zpayEnabled: config?.zpay?.enabled ?? false,
@@ -174,6 +182,7 @@ const FIELD_KEYS: Record<keyof PaymentFormValues, string> = {
   enabled: APP_SETTING_KEYS.paymentEnabled,
   moduleAppEnabled: APP_SETTING_KEYS.paymentModuleAppEnabled,
   publicBaseUrl: APP_SETTING_KEYS.paymentPublicBaseUrl,
+  subscriptionEnabled: APP_SETTING_KEYS.paymentSubscriptionEnabled,
   topUpEnabled: APP_SETTING_KEYS.paymentTopUpEnabled,
   wechatApiBaseUrl: APP_SETTING_KEYS.paymentWechatApiBaseUrl,
   wechatApiV3Key: APP_SETTING_KEYS.paymentWechatApiV3Key,
@@ -183,6 +192,7 @@ const FIELD_KEYS: Record<keyof PaymentFormValues, string> = {
   wechatMerchantPrivateKey: APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
   wechatMerchantSerialNo: APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
   wechatPlatformCertificate: APP_SETTING_KEYS.paymentWechatPlatformCertificate,
+  wechatPlatformCertificateSerialNo: APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
   zpayAlipayEnabled: APP_SETTING_KEYS.paymentZpayAlipayEnabled,
   zpayApiBaseUrl: APP_SETTING_KEYS.paymentZpayApiBaseUrl,
   zpayEnabled: APP_SETTING_KEYS.paymentZpayEnabled,
@@ -318,6 +328,13 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
                 <Form.Item
                   label={t('admin.payments.moduleAppEnabled', 'Module purchases')}
                   name="moduleAppEnabled"
+                  valuePropName="checked"
+                >
+                  <Switch />
+                </Form.Item>
+                <Form.Item
+                  label={t('admin.payments.subscriptionEnabled', 'Plan subscriptions')}
+                  name="subscriptionEnabled"
                   valuePropName="checked"
                 >
                   <Switch />
@@ -570,6 +587,15 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
                       >
                         <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
                       </Form.Item>
+                      <Form.Item
+                        name="wechatPlatformCertificateSerialNo"
+                        label={t(
+                          'admin.payments.wechat.platformCertificateSerialNo',
+                          'WeChat Pay platform certificate serial number',
+                        )}
+                      >
+                        <Input />
+                      </Form.Item>
                     </Flexbox>
                   </Card>
                 ),
@@ -653,9 +679,15 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
   );
 };
 
-type PaymentCenterTab = 'channels' | 'moduleApps' | 'topups';
+type PaymentCenterTab = 'channels' | 'moduleApps' | 'settlements' | 'subscriptions' | 'topups';
 
-const PAYMENT_CENTER_TABS = new Set<PaymentCenterTab>(['channels', 'topups', 'moduleApps']);
+const PAYMENT_CENTER_TABS = new Set<PaymentCenterTab>([
+  'channels',
+  'subscriptions',
+  'topups',
+  'moduleApps',
+  'settlements',
+]);
 
 const AdminPaymentsPage = () => {
   const { t } = useTranslation('subscription');
@@ -669,7 +701,7 @@ const AdminPaymentsPage = () => {
   const requestedTab = searchParams.get('tab') as PaymentCenterTab | null;
   const allowedTabs = new Set<PaymentCenterTab>([
     ...(canViewChannels ? (['channels'] as const) : []),
-    ...(canViewFinance ? (['topups', 'moduleApps'] as const) : []),
+    ...(canViewFinance ? (['subscriptions', 'topups', 'moduleApps', 'settlements'] as const) : []),
   ]);
   const defaultTab = canViewChannels ? 'channels' : 'topups';
   const activeTab = requestedTab && allowedTabs.has(requestedTab) ? requestedTab : defaultTab;
@@ -708,6 +740,13 @@ const AdminPaymentsPage = () => {
       : null,
     canViewFinance
       ? {
+          children: <SubscriptionPaymentsPage />,
+          key: 'subscriptions' as const,
+          label: t('admin.payments.tabs.subscriptions', 'Plan transactions'),
+        }
+      : null,
+    canViewFinance
+      ? {
           children: <TopUpPaymentsPage />,
           key: 'topups' as const,
           label: t('admin.payments.tabs.topups', 'Top-up transactions'),
@@ -718,6 +757,13 @@ const AdminPaymentsPage = () => {
           children: <ModulePaymentsPage embedded />,
           key: 'moduleApps' as const,
           label: t('admin.payments.tabs.moduleApps', 'Module payments'),
+        }
+      : null,
+    canViewFinance
+      ? {
+          children: <CreditSettlementFailuresPage />,
+          key: 'settlements' as const,
+          label: t('admin.payments.tabs.settlements', 'Settlement failures'),
         }
       : null,
   ].filter(Boolean) as Array<{ children: ReactNode; key: PaymentCenterTab; label: string }>;
@@ -731,7 +777,7 @@ const AdminPaymentsPage = () => {
         <Text type="secondary">
           {t(
             'admin.payments.subtitle',
-            'Manage payment methods, online top-ups, and module-payment diagnostics.',
+            'Manage payment methods, plan purchases, online top-ups, and module-payment diagnostics.',
           )}
         </Text>
       </Flexbox>

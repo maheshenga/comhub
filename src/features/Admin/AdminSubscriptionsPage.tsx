@@ -3,6 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button, Modal, Select, Tabs } from '@lobehub/ui/base-ui';
 import { Empty, Input, message, Tag } from 'antd';
+import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,6 +22,7 @@ import {
   ADMIN_SUBSCRIPTION_CYCLES,
   getAdminSubscriptionCycleLabel,
 } from './adminSubscriptionCycles';
+import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
 
 type PlanFilter = 'all' | 'free' | 'hobby' | 'starter' | 'premium' | 'ultimate';
 
@@ -39,6 +41,16 @@ const STATUS_COLORS: Record<string, string> = {
   past_due: 'error',
   trialing: 'processing',
 };
+
+const styles = createStaticStyles(({ css }) => ({
+  filter: css`
+    width: 180px;
+
+    @media (width < 640px) {
+      width: 100%;
+    }
+  `,
+}));
 
 const AdminSubscriptionsPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -171,15 +183,28 @@ const AdminSubscriptionsPage = memo(() => {
   );
 
   return (
-    <Flexbox padding={24}>
+    <AdminPageShell
+      title={t('admin.subscriptions.title', '订阅管理')}
+      width="full"
+      description={t(
+        'admin.subscriptions.description',
+        '核对订阅状态、周期与权益，并集中处理人工套餐变更请求。',
+      )}
+    >
       <Tabs
         items={[
           {
             children: (
-              <Flexbox gap={16}>
-                <Flexbox horizontal gap={12}>
+              <AdminSection
+                title={t('admin.subscriptions.listTitle', '订阅记录')}
+                description={t('admin.subscriptions.resultSummary', {
+                  count: items.length,
+                  defaultValue: '本页显示 {{count}} 条订阅记录',
+                })}
+              >
+                <AdminToolbar>
                   <Select
-                    style={{ width: 160 }}
+                    className={styles.filter}
                     value={plan}
                     options={[
                       { label: t('admin.subscriptions.plan.all', '全部'), value: 'all' },
@@ -206,18 +231,20 @@ const AdminSubscriptionsPage = memo(() => {
                     ]}
                     onChange={handlePlanFilterChange}
                   />
-                </Flexbox>
+                </AdminToolbar>
 
-                {!isLoading && items.length === 0 ? (
-                  <Empty description={t('admin.subscriptions.empty', '暂无订阅数据')} />
-                ) : (
-                  <InlineTable
-                    columns={columns}
-                    dataSource={items}
-                    loading={isLoading}
-                    rowKey="userId"
-                  />
-                )}
+                <AdminResponsiveTable label={t('admin.subscriptions.tableLabel', '订阅数据表')}>
+                  {!isLoading && items.length === 0 ? (
+                    <Empty description={t('admin.subscriptions.empty', '暂无订阅数据')} />
+                  ) : (
+                    <InlineTable
+                      columns={columns}
+                      dataSource={items}
+                      loading={isLoading}
+                      rowKey="id"
+                    />
+                  )}
+                </AdminResponsiveTable>
 
                 {(cursorStack.length > 1 || nextCursor != null) && (
                   <Flexbox horizontal align="center" gap={8}>
@@ -290,7 +317,7 @@ const AdminSubscriptionsPage = memo(() => {
                     </Flexbox>
                   </Flexbox>
                 </Modal>
-              </Flexbox>
+              </AdminSection>
             ),
             key: 'subscriptions',
             label: t('admin.subscriptions.tabs.subscriptions', '订阅列表'),
@@ -302,7 +329,7 @@ const AdminSubscriptionsPage = memo(() => {
           },
         ]}
       />
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

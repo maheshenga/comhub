@@ -1,7 +1,9 @@
 import { type ReactNode } from 'react';
 
 import {
+  type BillingOrderHistoryItem,
   type CreditLedgerEntryItem,
+  type CreditPackageHistoryItem,
   type ReferralHistoryItem,
   type SubscriptionChangeRequestItem,
   type TopUpOrderHistoryItem,
@@ -117,6 +119,56 @@ export const buildTopUpOrderRecord = (
   };
 };
 
+export const buildBillingOrderRecord = (
+  item: BillingOrderHistoryItem,
+  formatters: Pick<
+    BusinessRecordFormatters,
+    'formatCredits' | 'formatCurrency' | 'formatDate' | 't'
+  >,
+): BusinessMobileRecord => {
+  const amount = formatters.formatCurrency(item.amount, item.currency);
+  const status = formatters.t('topup.status.' + item.status);
+  const isSubscription = item.kind === 'subscription';
+  const type = isSubscription ? '套餐订阅' : '积分充值';
+  const title = isSubscription
+    ? fallback(item.displayName)
+    : formatters.formatCredits(item.credits ?? 0);
+
+  return {
+    fields: [
+      { label: formatters.t('admin.orders.detail.orderId'), value: item.id },
+      { label: '类型', value: type },
+      { label: '状态', value: status },
+      { label: formatters.t('admin.orders.detail.amount'), value: amount },
+      {
+        label: formatters.t('admin.orders.detail.paidAt'),
+        value: formatters.formatDate(item.paidAt),
+      },
+      {
+        label: formatters.t('admin.orders.detail.createdAt'),
+        value: formatters.formatDate(item.createdAt),
+      },
+      { label: '商品', value: title },
+      ...(isSubscription
+        ? [
+            { label: '套餐', value: fallback(item.plan) },
+            { label: '周期', value: fallback(item.cycle) },
+          ]
+        : [{ label: '积分', value: formatters.formatCredits(item.credits ?? 0) }]),
+      { label: formatters.t('admin.orders.col.provider'), value: fallback(item.provider) },
+      {
+        label: formatters.t('admin.orders.detail.externalOrderId'),
+        value: fallback(item.externalOrderId),
+      },
+    ],
+    id: item.id,
+    meta: formatters.formatDate(item.paidAt ?? item.createdAt),
+    status,
+    title,
+    value: amount,
+  };
+};
+
 export const buildCreditLedgerRecord = (
   item: CreditLedgerEntryItem,
   formatters: Pick<
@@ -165,6 +217,35 @@ export const buildCreditLedgerRecord = (
   };
 };
 
+export const buildCreditPackageRecord = (
+  item: CreditPackageHistoryItem,
+  formatters: Pick<BusinessRecordFormatters, 'formatCredits' | 'formatDate' | 't'>,
+): BusinessMobileRecord => {
+  const status = formatters.t(`credits.packages.tabs.${item.status}`);
+  const sourceKeys = {
+    other: 'credits.account.breakdown.other',
+    referral: 'credits.account.breakdown.referral',
+    subscription: 'credits.account.breakdown.subscription',
+    topup: 'credits.account.breakdown.topUp',
+  } as const;
+
+  return {
+    fields: [
+      { label: formatters.t('mobile.records.field.id'), value: item.id },
+      { label: '来源', value: formatters.t(sourceKeys[item.source]) },
+      { label: '积分包', value: formatters.formatCredits(item.grantedAmount) },
+      { label: '剩余积分', value: formatters.formatCredits(item.remainingAmount) },
+      { label: '获得时间', value: formatters.formatDate(item.createdAt) },
+      { label: '有效期至', value: formatters.formatDate(item.expiresAt) },
+    ],
+    id: item.id,
+    meta: formatters.formatDate(item.createdAt),
+    status,
+    title: formatters.formatCredits(item.grantedAmount),
+    value: formatters.formatCredits(item.remainingAmount),
+  };
+};
+
 export const buildReferralHistoryRecord = (
   item: ReferralHistoryItem,
   formatters: Pick<BusinessRecordFormatters, 'formatCredits' | 'formatDate' | 't'>,
@@ -203,9 +284,10 @@ export const buildUsageRecord = (
   item: UsageRecordItem,
   formatters: Pick<
     BusinessRecordFormatters,
-    'formatCurrency' | 'formatDate' | 'formatNumber' | 't'
+    'formatCredits' | 'formatCurrency' | 'formatDate' | 'formatNumber' | 't'
   >,
 ): BusinessMobileRecord => {
+  const credits = formatters.formatCredits(item.credits ?? 0);
   const spend = formatters.formatCurrency(item.spend);
   const type = formatters.t(usageTypeKey(item.type));
 
@@ -235,6 +317,7 @@ export const buildUsageRecord = (
             ? '--'
             : formatters.formatNumber(item.ttft / 1000, 2),
       },
+      { label: formatters.t('mobile.usage.records.credits'), value: credits },
       { label: formatters.t('usage.table.spend'), value: spend },
       {
         label: formatters.t('usage.table.createdAt'),
@@ -245,6 +328,6 @@ export const buildUsageRecord = (
     meta: formatters.formatDate(item.createdAt),
     status: type,
     title: item.model,
-    value: spend,
+    value: credits,
   };
 };

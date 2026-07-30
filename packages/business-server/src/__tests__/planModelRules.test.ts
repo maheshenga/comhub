@@ -177,14 +177,53 @@ describe('plan model rules', () => {
       chat: { allowlist: ['free-chat'], mode: 'allowlist' },
     });
 
-    const fallbackSnapshot = await serverDB.query.userPlanSnapshots.findFirst({
+    const unchangedSnapshot = await serverDB.query.userPlanSnapshots.findFirst({
       where: eq(userPlanSnapshots.userId, expiryUserId),
       orderBy: (snapshots, { desc }) => [desc(snapshots.startedAt)],
     });
-    expect(fallbackSnapshot).toMatchObject({
-      currency: 'CNY',
-      plan: Plans.Free,
+    expect(unchangedSnapshot).toMatchObject({
+      plan: Plans.Starter,
       status: 'active',
+    });
+  });
+
+  it('uses frozen model rules after the plan catalog changes', async () => {
+    await serverDB.insert(users).values([{ id: deniedUserId }]);
+    await serverDB.insert(planCatalog).values({
+      displayName: 'Starter',
+      modelRules: { chat: { allowlist: ['new-chat'], mode: 'allowlist' } },
+      monthlyCredits: 100,
+      monthlyPrice: 68,
+      plan: Plans.Starter,
+    });
+    await serverDB.insert(userPlanSnapshots).values({
+      cycle: 'monthly',
+      endsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      metadata: {
+        entitlementSnapshot: {
+          catalogUpdatedAt: new Date().toISOString(),
+          features: [],
+          modelRules: { chat: { allowlist: ['purchased-chat'], mode: 'allowlist' } },
+          planMetadata: null,
+          pptCreditCost: 0,
+          pptEnabled: false,
+          pptMonthlyQuota: null,
+          storageQuotaBytes: null,
+          vectorQuota: null,
+          version: 2,
+        },
+      },
+      monthlyCredits: 100,
+      monthlyPrice: 68,
+      plan: Plans.Starter,
+      provider: 'alipay',
+      startedAt: new Date(),
+      status: 'active',
+      userId: deniedUserId,
+    });
+
+    await expect(resolvePlanModelRules({ db: serverDB, userId: deniedUserId })).resolves.toEqual({
+      chat: { allowlist: ['purchased-chat'], mode: 'allowlist' },
     });
   });
 });

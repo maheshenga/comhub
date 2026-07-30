@@ -1,4 +1,5 @@
 import {
+  applyCommercialPricingQuoteToCredits,
   isCommercialUsageReservationHandle,
   releaseCommercialAiUsageReservation,
   settleCommercialAiUsageReservation,
@@ -93,7 +94,9 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
   const effectiveCredits =
     chargeResult.source === 'precharge'
       ? chargeResult.credits
-      : Math.ceil(chargeResult.credits * multiplier);
+      : reservation?.pricingQuote
+        ? applyCommercialPricingQuoteToCredits(chargeResult.credits, reservation.pricingQuote)
+        : Math.ceil(chargeResult.credits * multiplier);
 
   if (reservation) {
     await settleCommercialAiUsageReservation({
@@ -103,6 +106,7 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
       model: resolvedModel,
       operationId: reservation.operationId,
       provider,
+      pricingQuote: reservation.pricingQuote,
       reservationId: reservation.reservationId,
       routeMetadata: metadata.routeMetadata,
       title: 'Video Generation',

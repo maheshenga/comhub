@@ -9,13 +9,40 @@ import {
   assertCommercialModelSellable,
   estimateCommercialChatCredits,
   estimateCommercialEmbeddingsCredits,
+  isCommercialPricingQuote,
   quoteCommercialAiUsage,
   recordCommercialAiUsage,
   recordCommercialChatUsage,
   releaseCommercialAiUsageReservation,
   reserveCommercialAiUsage,
+  resolveCommercialAsrCredits,
   settleCommercialAiUsageReservation,
 } from './commercialBilling';
+
+const validCommercialPricingQuote = {
+  baseEstimatedCredits: 25,
+  creditsPerDollar: 1_000_000,
+  matchedPricingRule: {
+    model: 'gpt-test',
+    multiplier: 1.25,
+    provider: 'openai',
+  },
+  modelPricing: {
+    currency: 'USD',
+    units: [
+      {
+        name: 'textInput',
+        rate: 0.5,
+        strategy: 'fixed',
+        unit: 'millionTokens',
+      },
+    ],
+  },
+  modelPricingSource: 'database',
+  pricingMultiplier: 1.25,
+  quotedAt: '2026-07-28T10:00:00.000Z',
+  version: 1,
+} as const;
 
 const mocks = vi.hoisted(() => ({
   canStartChatUsage: vi.fn(),
@@ -27,8 +54,10 @@ const mocks = vi.hoisted(() => ({
   getServerGlobalConfig: vi.fn(),
   getServerModelPricingSnapshot: vi.fn(),
   quoteCreditsForAiUsage: vi.fn(),
+  recordSettlementFailure: vi.fn(),
   releaseCredits: vi.fn(),
   reserveCredits: vi.fn(),
+  resolveSettlementFailure: vi.fn(),
   settleCredits: vi.fn(),
 }));
 
@@ -50,8 +79,10 @@ vi.mock('@/database/models/commercial', () => ({
 
 vi.mock('@/database/models/moduleAppCredit', () => ({
   ModuleAppCreditModel: vi.fn().mockImplementation(() => ({
+    recordSettlementFailure: mocks.recordSettlementFailure,
     release: mocks.releaseCredits,
     reserve: mocks.reserveCredits,
+    resolveSettlementFailure: mocks.resolveSettlementFailure,
     settle: mocks.settleCredits,
   })),
 }));
@@ -69,6 +100,29 @@ vi.mock('@/server/globalConfig', () => ({
 vi.mock('./serverModelPricing', () => ({
   getServerModelPricingSnapshot: mocks.getServerModelPricingSnapshot,
 }));
+
+describe('isCommercialPricingQuote', () => {
+  it('accepts a complete versioned pricing snapshot', () => {
+    expect(isCommercialPricingQuote(validCommercialPricingQuote)).toBe(true);
+  });
+
+  it.each([
+    ['unknown pricing source', { ...validCommercialPricingQuote, modelPricingSource: 'client' }],
+    ['invalid quote timestamp', { ...validCommercialPricingQuote, quotedAt: 'today' }],
+    [
+      'invalid matched rule',
+      { ...validCommercialPricingQuote, matchedPricingRule: { multiplier: -1 } },
+    ],
+    [
+      'malformed model pricing',
+      { ...validCommercialPricingQuote, modelPricing: { units: [{ strategy: 'fixed' }] } },
+    ],
+    ['excessive pricing multiplier', { ...validCommercialPricingQuote, pricingMultiplier: 1001 }],
+    ['unexpected fields', { ...validCommercialPricingQuote, trusted: true }],
+  ])('rejects %s', (_label, quote) => {
+    expect(isCommercialPricingQuote(quote)).toBe(false);
+  });
+});
 
 describe('estimateCommercialChatCredits', () => {
   beforeEach(() => {
@@ -118,6 +172,35 @@ describe('estimateCommercialChatCredits', () => {
     });
 
     expect(result).toBe(502);
+  });
+
+  it('converts CNY-denominated embedding prices to USD credits', async () => {
+    mocks.getAiProviderModelList.mockResolvedValue([
+      {
+        id: 'embedding-cny',
+        pricing: {
+          currency: 'CNY',
+          units: [
+            {
+              name: 'textInput',
+              rate: 7.12,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+          ],
+        },
+      },
+    ]);
+
+    await expect(
+      estimateCommercialEmbeddingsCredits({
+        db: {} as any,
+        input: 'abcd',
+        model: 'embedding-cny',
+        provider: 'openai',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(1);
   });
 
   it('should resolve provider model card with the request database for admin-managed models', async () => {
@@ -212,6 +295,32 @@ describe('estimateCommercialChatCredits', () => {
     });
 
     expect(mocks.canStartChatUsage).toHaveBeenCalledWith(502);
+  });
+});
+
+describe('resolveCommercialAsrCredits', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getServerModelPricingSnapshot.mockResolvedValue({
+      pricing: {
+        currency: 'USD',
+        units: [{ name: 'audioInput', rate: 0.02, strategy: 'fixed', unit: 'second' }],
+      },
+      source: 'database',
+    });
+  });
+
+  it('uses the file estimate when second-based pricing lacks provider duration', async () => {
+    const credits = await resolveCommercialAsrCredits({
+      db: {} as any,
+      model: 'whisper-test',
+      payload: { file: new Blob([new Uint8Array(10_000)]), model: 'whisper-test' },
+      provider: 'openai',
+      usage: { totalInputTokens: 100 },
+      userId: 'user-1',
+    });
+
+    expect(credits).toBe(200_000);
   });
 });
 
@@ -351,6 +460,46 @@ describe('recordCommercialChatUsage', () => {
           cost: 2.5,
           costSource: 'local-pricing',
         }),
+      }),
+    );
+  });
+
+  it('converts CNY local token pricing before recording USD cost', async () => {
+    mocks.getAiProviderModelList.mockResolvedValue([
+      {
+        id: 'gpt-cny',
+        pricing: {
+          currency: 'CNY',
+          units: [
+            {
+              name: 'textInput',
+              rate: 7.12,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+            {
+              name: 'textOutput',
+              rate: 14.24,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+          ],
+        },
+      },
+    ]);
+
+    await recordCommercialChatUsage({
+      db: {} as any,
+      messageId: 'assistant-message-cny',
+      model: 'gpt-cny',
+      provider: 'openai',
+      usage: { totalInputTokens: 1_000_000, totalOutputTokens: 1_000_000 },
+      userId: 'user-1',
+    });
+
+    expect(mocks.consumeCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: expect.objectContaining({ cost: 3, costSource: 'local-pricing' }),
       }),
     );
   });
@@ -552,6 +701,8 @@ describe('commercial AI reservations', () => {
     mocks.reserveCredits.mockResolvedValue({ id: 'reservation-1', status: 'active' });
     mocks.settleCredits.mockResolvedValue({ id: 'reservation-1', status: 'settled' });
     mocks.releaseCredits.mockResolvedValue({ id: 'reservation-1', status: 'released' });
+    mocks.recordSettlementFailure.mockResolvedValue({ id: 'failure-1', status: 'pending' });
+    mocks.resolveSettlementFailure.mockResolvedValue(undefined);
     mocks.quoteCreditsForAiUsage.mockResolvedValue({
       amount: 20,
       creditsPerDollar: 1_000_000,
@@ -594,11 +745,20 @@ describe('commercial AI reservations', () => {
     ).resolves.toMatchObject({ id: 'reservation-1' });
 
     expect(mocks.reserveCredits).toHaveBeenCalledWith({
-      amount: 25,
+      amount: 20,
       idempotencyKey: 'commercial-ai:personal:user-1:chat:operation-1',
       metadata: {
         model: 'gpt-test',
         operationId: 'operation-1',
+        pricingQuote: expect.objectContaining({
+          baseEstimatedCredits: 25,
+          creditsPerDollar: 1_000_000,
+          matchedPricingRule: null,
+          modelPricingSource: 'database',
+          pricingMultiplier: 1,
+          quotedAt: expect.any(String),
+          version: 1,
+        }),
         provider: 'openai',
         usageType: 'chat',
       },
@@ -690,11 +850,20 @@ describe('commercial AI reservations', () => {
     });
 
     expect(mocks.reserveCredits).toHaveBeenCalledWith({
-      amount: 25,
+      amount: 20,
       idempotencyKey: 'commercial-ai:workspace:workspace-1:chat:operation-1',
       metadata: {
         model: 'gpt-test',
         operationId: 'operation-1',
+        pricingQuote: expect.objectContaining({
+          baseEstimatedCredits: 25,
+          creditsPerDollar: 1_000_000,
+          matchedPricingRule: null,
+          modelPricingSource: 'database',
+          pricingMultiplier: 1,
+          quotedAt: expect.any(String),
+          version: 1,
+        }),
         provider: 'openai',
         usageType: 'chat',
         workspaceId: 'workspace-1',

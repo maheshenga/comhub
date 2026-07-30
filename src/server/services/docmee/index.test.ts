@@ -7,6 +7,25 @@ import { encryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 
 import { DocmeePptService } from './index';
 
+const { allocateAndTrackCreditConsumption, assertNoOpenDebt, expireDueLots } = vi.hoisted(() => ({
+  allocateAndTrackCreditConsumption: vi.fn(),
+  assertNoOpenDebt: vi.fn(),
+  expireDueLots: vi.fn(),
+}));
+
+vi.mock('@/database/models/commercial', () => ({
+  CommercialModel: class {
+    allocateAndTrackCreditConsumption = allocateAndTrackCreditConsumption;
+  },
+}));
+
+vi.mock('@/database/models/commercial/creditLot', () => ({
+  CreditLotModel: class {
+    assertNoOpenDebt = assertNoOpenDebt;
+    expireDueLots = expireDueLots;
+  },
+}));
+
 const createDb = (overrides: any = {}) =>
   ({
     insert: vi.fn(() => ({
@@ -53,6 +72,13 @@ describe('DocmeePptService', () => {
   beforeEach(() => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     vi.restoreAllMocks();
+    vi.clearAllMocks();
+    allocateAndTrackCreditConsumption.mockResolvedValue({
+      allocations: [{ amount: 12, source: 'subscription' }],
+      creditLotAllocations: [{ amount: 12, lotId: 'lot-1', source: 'subscription' }],
+    });
+    assertNoOpenDebt.mockResolvedValue(undefined);
+    expireDueLots.mockResolvedValue(0);
   });
 
   afterEach(() => {
@@ -172,7 +198,7 @@ describe('DocmeePptService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('syncs expired plan snapshots before checking PPT plan capability', async () => {
+  it('checks PPT plan capability without writing during reads', async () => {
     const db = createDb({
       query: {
         appSettings: {
@@ -187,7 +213,42 @@ describe('DocmeePptService', () => {
 
     await service.getRuntime();
 
-    expect(db.update).toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('uses the purchased PPT entitlement after the plan catalog changes', async () => {
+    const db = createDb({
+      query: {
+        appSettings: { findMany: vi.fn().mockResolvedValue(enabledSettings) },
+        planCatalog: { findFirst: vi.fn().mockResolvedValue({ metadata: { pptEnabled: false } }) },
+        pptUsageRecords: { findMany: vi.fn().mockResolvedValue([]) },
+        userPlanSnapshots: {
+          findFirst: vi.fn().mockResolvedValue({
+            metadata: {
+              entitlementSnapshot: {
+                catalogUpdatedAt: new Date().toISOString(),
+                features: [],
+                modelRules: null,
+                planMetadata: null,
+                pptCreditCost: 12,
+                pptEnabled: true,
+                pptMonthlyQuota: 20,
+                storageQuotaBytes: null,
+                vectorQuota: null,
+                version: 2,
+              },
+            },
+            plan: Plans.Starter,
+          }),
+        },
+      },
+    });
+
+    await expect(new DocmeePptService({ db, userId: 'u1' }).getRuntime()).resolves.toMatchObject({
+      enabled: true,
+      quota: { monthly: 20 },
+    });
+    expect(db.query.planCatalog.findFirst).not.toHaveBeenCalled();
   });
 
   it('rejects token creation before calling upstream when credits are insufficient', async () => {
@@ -219,6 +280,28 @@ describe('DocmeePptService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('rejects token creation before calling upstream when the account has refund debt', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    assertNoOpenDebt.mockRejectedValueOnce(new Error('COMMERCIAL_CREDIT_DEBT_OUTSTANDING'));
+    const db = createDb({
+      query: {
+        appSettings: { findMany: vi.fn().mockResolvedValue(enabledSettings) },
+        planCatalog: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValue({ metadata: { pptCreditCost: 12, pptEnabled: true } }),
+        },
+        pptUsageRecords: { findMany: vi.fn().mockResolvedValue([]) },
+        userPlanSnapshots: { findFirst: vi.fn().mockResolvedValue({ plan: Plans.Starter }) },
+      },
+    });
+
+    await expect(new DocmeePptService({ db, userId: 'u1' }).createToken()).rejects.toThrow(
+      'COMMERCIAL_CREDIT_DEBT_OUTSTANDING',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('keeps generated status when a generated PPT is downloaded', async () => {
     const updateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
     const tx = createDb({
@@ -244,6 +327,7 @@ describe('DocmeePptService', () => {
   it('charges a successful generation only once for the same session', async () => {
     const selectForUpdate = vi.fn().mockResolvedValue([
       {
+        balance: 100,
         chargedLedgerEntryId: null,
         creditCost: 12,
         id: 'usage-1',
@@ -292,5 +376,10 @@ describe('DocmeePptService', () => {
     expect(tx.insert).toHaveBeenCalled();
     expect(tx.query.pptUsageRecords.findFirst).not.toHaveBeenCalled();
     expect(selectForUpdate).toHaveBeenCalled();
+    expect(allocateAndTrackCreditConsumption).toHaveBeenCalledWith({
+      accountBalance: 100,
+      amount: 12,
+      tx,
+    });
   });
 });

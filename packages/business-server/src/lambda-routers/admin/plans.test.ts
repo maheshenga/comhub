@@ -67,6 +67,7 @@ const createDb = ({
       onConflictDoUpdate,
       returning,
       set,
+      update,
       values,
     },
     delete: deleteFrom,
@@ -265,6 +266,7 @@ describe('adminPlansRouter', () => {
         }),
       }),
     );
+    expect(db.__mocks.update).toHaveBeenCalledTimes(2);
     expect(db.__mocks.set).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({

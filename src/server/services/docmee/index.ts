@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { Plans } from '@lobechat/types';
-import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { Plans, subscriptionEntitlementSnapshotSchema } from '@lobechat/types';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 
+import { CommercialModel } from '@/database/models/commercial';
+import { CreditLotModel } from '@/database/models/commercial/creditLot';
 import {
   appSettings,
   creditAccounts,
@@ -125,30 +127,36 @@ export class DocmeePptService {
     return normalizeDocmeePptSettings(raw);
   };
 
-  private getCurrentPlan = async (): Promise<Plans> => {
+  private getCurrentPlanSnapshot = async () => {
     const now = new Date();
-
-    await this.db
-      .update(userPlanSnapshots)
-      .set({ status: 'expired', updatedAt: now })
-      .where(
-        and(
-          eq(userPlanSnapshots.userId, this.userId),
-          eq(userPlanSnapshots.status, 'active'),
-          lt(userPlanSnapshots.endsAt, now),
-        ),
-      );
-
-    const snapshot = await this.db.query.userPlanSnapshots.findFirst({
+    return this.db.query.userPlanSnapshots.findFirst({
       orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-      where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+      where: and(
+        eq(userPlanSnapshots.userId, this.userId),
+        eq(userPlanSnapshots.status, 'active'),
+        or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+      ),
     });
-
-    return snapshot?.plan ?? Plans.Free;
   };
 
   private getPlanCapability = async () => {
-    const plan = await this.getCurrentPlan();
+    const snapshot = await this.getCurrentPlanSnapshot();
+    const plan = snapshot?.plan ?? Plans.Free;
+    const metadata = isRecord(snapshot?.metadata) ? snapshot.metadata : null;
+    if (metadata && Object.hasOwn(metadata, 'entitlementSnapshot')) {
+      const entitlement = subscriptionEntitlementSnapshotSchema.parse(metadata.entitlementSnapshot);
+      return {
+        capability:
+          entitlement.version === 2
+            ? {
+                creditCost: entitlement.pptCreditCost,
+                enabled: entitlement.pptEnabled,
+                monthlyQuota: entitlement.pptMonthlyQuota,
+              }
+            : normalizeDocmeePlanCapability(entitlement.planMetadata),
+        plan,
+      };
+    }
     const row = await this.db.query.planCatalog.findFirst({
       where: eq(planCatalog.plan, plan),
     });
@@ -246,15 +254,20 @@ export class DocmeePptService {
   private assertCreditBalanceAvailable = async (amount: number) => {
     if (!Number.isFinite(amount) || amount <= 0) return;
 
-    await this.ensureCreditAccount(this.db);
-    const [account] = await this.db
-      .select({ balance: creditAccounts.balance })
-      .from(creditAccounts)
-      .where(eq(creditAccounts.userId, this.userId));
+    await this.db.transaction(async (tx) => {
+      await this.ensureCreditAccount(tx);
+      const lotModel = new CreditLotModel(this.db, this.userId);
+      await lotModel.expireDueLots(tx);
+      await lotModel.assertNoOpenDebt(tx);
+      const [account] = await tx
+        .select({ balance: creditAccounts.balance })
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, this.userId));
 
-    if (!account || Number(account.balance) < amount) {
-      throw new DocmeePptError('PPT_QUOTA_EXHAUSTED');
-    }
+      if (!account || Number(account.balance) < amount) {
+        throw new DocmeePptError('PPT_QUOTA_EXHAUSTED');
+      }
+    });
   };
 
   createToken = async (recordId?: string) => {
@@ -416,6 +429,9 @@ export class DocmeePptService {
       }
 
       await this.ensureCreditAccount(tx);
+      const lotModel = new CreditLotModel(this.db, this.userId);
+      await lotModel.expireDueLots(tx);
+      await lotModel.assertNoOpenDebt(tx);
       const [account] = await tx
         .select({ balance: creditAccounts.balance })
         .from(creditAccounts)
@@ -426,6 +442,15 @@ export class DocmeePptService {
         throw new DocmeePptError('PPT_QUOTA_EXHAUSTED');
       }
 
+      const { allocations, creditLotAllocations } = await new CommercialModel(
+        this.db,
+        this.userId,
+      ).allocateAndTrackCreditConsumption({
+        accountBalance: Number(account.balance),
+        amount,
+        tx,
+      });
+
       const [updatedAccount] = await tx
         .update(creditAccounts)
         .set({
@@ -433,8 +458,10 @@ export class DocmeePptService {
           totalDebited: sql`${creditAccounts.totalDebited} + ${amount}`,
           updatedAt: new Date(),
         })
-        .where(eq(creditAccounts.userId, this.userId))
+        .where(and(eq(creditAccounts.userId, this.userId), gte(creditAccounts.balance, amount)))
         .returning({ balance: creditAccounts.balance });
+
+      if (!updatedAccount) throw new DocmeePptError('PPT_QUOTA_EXHAUSTED');
 
       const [ledgerEntry] = await tx
         .insert(creditLedgerEntries)
@@ -442,7 +469,11 @@ export class DocmeePptService {
           amount: -amount,
           balanceAfter: updatedAccount?.balance ?? 0,
           description: 'Docmee PPT generation',
-          metadata: mergeMetadata(metadata, { upstreamTaskId }),
+          metadata: mergeMetadata(metadata, {
+            allocations,
+            creditLotAllocations,
+            upstreamTaskId,
+          }),
           referenceId: sessionId,
           referenceType: 'ppt_generation',
           title: 'PPT Generation',

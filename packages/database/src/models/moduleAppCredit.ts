@@ -1,17 +1,20 @@
 import type { ModuleAppBillingPayer } from '@lobechat/types';
 import { moduleAppBillingPayerSchema } from '@lobechat/types';
-import { and, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import {
   creditAccounts,
   creditLedgerEntries,
   creditReservations,
+  creditSettlementFailures,
   workspaceCreditAccounts,
   workspaceCreditLedgerEntries,
   workspaceMembers,
   workspaces,
 } from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
+import { CommercialModel } from './commercial';
+import { CreditLotModel } from './commercial/creditLot';
 
 const DEFAULT_RESERVATION_TTL_MS = 15 * 60 * 1000;
 const MAX_CREDIT_AMOUNT = 1_000_000_000_000;
@@ -96,13 +99,24 @@ export class ModuleAppCreditModel {
     excludedReservationId?: string,
   ) => {
     const [row] = await tx
-      .select({ amount: sql<number>`COALESCE(SUM(${creditReservations.amount}), 0)` })
+      .select({
+        amount: sql<number>`COALESCE(SUM(CASE
+          WHEN ${creditReservations.status} = 'settlement_failed'
+            THEN GREATEST(
+              ${creditReservations.amount},
+              COALESCE(${creditReservations.actualAmount}, ${creditReservations.amount})
+            )
+          ELSE ${creditReservations.amount}
+        END), 0)`,
+      })
       .from(creditReservations)
       .where(
         and(
           payerWhere(payer),
-          eq(creditReservations.status, 'active'),
-          gt(creditReservations.expiresAt, now),
+          or(
+            and(eq(creditReservations.status, 'active'), gt(creditReservations.expiresAt, now)),
+            eq(creditReservations.status, 'settlement_failed'),
+          ),
           excludedReservationId
             ? sql`${creditReservations.id} <> ${excludedReservationId}`
             : undefined,
@@ -114,6 +128,8 @@ export class ModuleAppCreditModel {
   private lockPayerAccount = async (tx: Transaction, payer: ModuleAppBillingPayer) => {
     if (payer.scopeType === 'personal') {
       await tx.insert(creditAccounts).values({ userId: payer.userId }).onConflictDoNothing();
+      const lotModel = new CreditLotModel(this.db, payer.userId, { now: this.now });
+      await lotModel.expireDueLots(tx);
       const [account] = await tx
         .select({ balance: creditAccounts.balance })
         .from(creditAccounts)
@@ -163,6 +179,9 @@ export class ModuleAppCreditModel {
         this.assertReservationIdentity(existing, { amount: input.amount, payer });
         if (input.requireNew) throw new Error('MODULE_APP_CREDIT_IDEMPOTENCY_REPLAY');
         return existing;
+      }
+      if (payer.scopeType === 'personal') {
+        await new CreditLotModel(this.db, payer.userId, { now: this.now }).assertNoOpenDebt(tx);
       }
 
       const now = this.now();
@@ -224,12 +243,15 @@ export class ModuleAppCreditModel {
           ledgerEntryId: reservation.settlementLedgerEntryId!,
         };
       }
-      if (reservation.status !== 'active') {
+      if (payer.scopeType === 'personal') {
+        await new CreditLotModel(this.db, payer.userId, { now: this.now }).assertNoOpenDebt(tx);
+      }
+      if (reservation.status !== 'active' && reservation.status !== 'settlement_failed') {
         throw new Error('MODULE_APP_CREDIT_RESERVATION_NOT_SETTLEABLE');
       }
 
       const now = this.now();
-      if (reservation.expiresAt <= now) {
+      if (reservation.status === 'active' && reservation.expiresAt <= now) {
         await tx
           .update(creditReservations)
           .set({ status: 'expired', updatedAt: now })
@@ -244,6 +266,14 @@ export class ModuleAppCreditModel {
       let ledgerEntryId: string;
       let balanceAfter: number;
       if (payer.scopeType === 'personal') {
+        const { allocations, creditLotAllocations } = await new CommercialModel(
+          this.db,
+          payer.userId,
+        ).allocateAndTrackCreditConsumption({
+          accountBalance: account.balance,
+          amount: input.actualAmount,
+          tx,
+        });
         const [updatedAccount] = await tx
           .update(creditAccounts)
           .set({
@@ -269,6 +299,8 @@ export class ModuleAppCreditModel {
             metadata: {
               ...reservation.metadata,
               ...input.metadata,
+              allocations,
+              creditLotAllocations,
               reservedAmount: reservation.amount,
             },
             referenceId: reservation.id,
@@ -336,6 +368,85 @@ export class ModuleAppCreditModel {
       if (!settled) throw new Error('MODULE_APP_CREDIT_RESERVATION_SETTLEMENT_FAILED');
       return { ...settled, balanceAfter, ledgerEntryId };
     });
+  };
+
+  recordSettlementFailure = async (input: {
+    actualAmount: number;
+    error: unknown;
+    payload: Record<string, unknown>;
+    reservationId: string;
+  }) => {
+    assertAmount(input.actualAmount, true);
+    const error = input.error as Error & { code?: string };
+    const now = this.now();
+
+    return this.db.transaction(async (tx) => {
+      const [reservation] = await tx
+        .select()
+        .from(creditReservations)
+        .where(eq(creditReservations.id, input.reservationId))
+        .for('update');
+      if (!reservation) throw new Error('MODULE_APP_CREDIT_RESERVATION_NOT_FOUND');
+      if (reservation.status === 'released' || reservation.status === 'settled') return null;
+
+      await tx
+        .update(creditReservations)
+        .set({
+          actualAmount: input.actualAmount,
+          metadata: {
+            ...reservation.metadata,
+            settlementFailure: {
+              errorCode: error.code ?? error.name,
+              errorMessage: error.message || String(input.error),
+              failedAt: now.toISOString(),
+            },
+          },
+          status: 'settlement_failed',
+          updatedAt: now,
+        })
+        .where(eq(creditReservations.id, reservation.id));
+
+      const [failure] = await tx
+        .insert(creditSettlementFailures)
+        .values({
+          actualAmount: input.actualAmount,
+          errorCode: error.code ?? error.name,
+          errorMessage: error.message || String(input.error),
+          lastAttemptAt: now,
+          payload: input.payload,
+          reservationId: reservation.id,
+        })
+        .onConflictDoUpdate({
+          set: {
+            actualAmount: input.actualAmount,
+            attempts: sql`${creditSettlementFailures.attempts} + 1`,
+            errorCode: error.code ?? error.name,
+            errorMessage: error.message || String(input.error),
+            lastAttemptAt: now,
+            payload: input.payload,
+            resolvedAt: null,
+            status: 'pending',
+            updatedAt: now,
+          },
+          target: creditSettlementFailures.reservationId,
+        })
+        .returning();
+
+      return failure;
+    });
+  };
+
+  resolveSettlementFailure = async (reservationId: string) => {
+    const now = this.now();
+    return this.db
+      .update(creditSettlementFailures)
+      .set({ resolvedAt: now, status: 'resolved', updatedAt: now })
+      .where(
+        and(
+          eq(creditSettlementFailures.reservationId, reservationId),
+          eq(creditSettlementFailures.status, 'pending'),
+        ),
+      );
   };
 
   release = async (input: { reason: string; reservationId: string }) => {
@@ -412,12 +523,15 @@ export class ModuleAppCreditModel {
       }
 
       await tx.insert(creditAccounts).values({ userId: input.actorUserId }).onConflictDoNothing();
+      const lotModel = new CreditLotModel(this.db, input.actorUserId, { now: this.now });
+      await lotModel.expireDueLots(tx);
       const [userAccount] = await tx
         .select({ balance: creditAccounts.balance })
         .from(creditAccounts)
         .where(eq(creditAccounts.userId, input.actorUserId))
         .for('update');
       if (!userAccount) throw new Error('MODULE_APP_CREDIT_ACCOUNT_NOT_FOUND');
+      const trackedCredits = await lotModel.getAvailableTrackedAmount(tx);
 
       const existing = await tx.query.creditLedgerEntries.findFirst({
         where: and(
@@ -442,7 +556,11 @@ export class ModuleAppCreditModel {
         return { userLedgerEntryId: existing.id, workspaceLedgerEntryId: workspaceLedger.id };
       }
 
+      await lotModel.assertNoOpenDebt(tx);
       const now = this.now();
+      if (userAccount.balance - trackedCredits < input.amount) {
+        throw new Error('MODULE_APP_WORKSPACE_TRANSFER_EXPIRING_CREDITS_UNSUPPORTED');
+      }
       const [debited] = await tx
         .update(creditAccounts)
         .set({

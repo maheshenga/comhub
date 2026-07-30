@@ -4,8 +4,10 @@ import {
   ADMIN_BASE_PATH,
   ADMIN_NAV_GROUPS,
   canAccessAdminPath,
+  filterAdminNavGroups,
   getAdminDefaultPath,
   getAdminNavGroupsForRole,
+  getAdminNavigationContext,
   getAdminOpenKeys,
   getAdminSelectedKey,
   getAdminUnauthorizedFallbackPath,
@@ -279,5 +281,29 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/file-storage')).toEqual(['client-integrations']);
     expect(getAdminOpenKeys('/settings/admin/maintenance')).toEqual(['system-security']);
     expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client-integrations']);
+  });
+
+  it('resolves the visible group and item for the current admin route', () => {
+    expect(getAdminNavigationContext('admin', `${ADMIN_BASE_PATH}/providers/edit`)).toMatchObject({
+      group: { key: 'ai-platform', label: 'AI 平台' },
+      item: { path: `${ADMIN_BASE_PATH}/providers` },
+    });
+    expect(getAdminNavigationContext('finance_admin', `${ADMIN_BASE_PATH}/settings`)).toBeNull();
+  });
+
+  it('filters admin navigation by group, item label, and description', () => {
+    const groups = getAdminNavGroupsForRole('admin');
+    const providerMatches = filterAdminNavGroups(groups, '服务商');
+
+    expect(providerMatches).toHaveLength(1);
+    expect(providerMatches[0]).toMatchObject({ key: 'ai-platform' });
+    expect(providerMatches[0].items.map((item) => item.path)).toContain(
+      `${ADMIN_BASE_PATH}/providers`,
+    );
+    expect(filterAdminNavGroups(groups, '客户端与集成')[0]).toMatchObject({
+      key: 'client-integrations',
+    });
+    expect(filterAdminNavGroups(groups, '不存在的入口')).toEqual([]);
+    expect(filterAdminNavGroups(groups, '  ')).toBe(groups);
   });
 });

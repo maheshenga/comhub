@@ -8,13 +8,16 @@ const mocks = vi.hoisted(() => ({
   assertCommercialMinimumBudget: vi.fn(),
   assertModelPolicyAllowed: vi.fn(),
   assertPlanModelAllowed: vi.fn(),
+  estimateCommercialAsrCredits: vi.fn(),
   estimateCommercialChatCredits: vi.fn(),
   estimateCommercialEmbeddingsCredits: vi.fn(),
   getServerDB: vi.fn(),
+  isCommercialPricingQuote: vi.fn(),
   recordCommercialAiUsage: vi.fn(),
   recordCommercialChatUsage: vi.fn(),
   releaseCommercialAiUsageReservation: vi.fn(),
   reserveCommercialAiUsage: vi.fn(),
+  resolveCommercialAsrCredits: vi.fn(),
   settleCommercialAiUsageReservation: vi.fn(),
 }));
 
@@ -25,12 +28,15 @@ vi.mock('@/database/core/db-adaptor', () => ({
 vi.mock('./commercialBilling', () => ({
   assertCommercialChatBudget: mocks.assertCommercialChatBudget,
   assertCommercialMinimumBudget: mocks.assertCommercialMinimumBudget,
+  estimateCommercialAsrCredits: mocks.estimateCommercialAsrCredits,
   estimateCommercialChatCredits: mocks.estimateCommercialChatCredits,
   estimateCommercialEmbeddingsCredits: mocks.estimateCommercialEmbeddingsCredits,
+  isCommercialPricingQuote: mocks.isCommercialPricingQuote,
   recordCommercialAiUsage: mocks.recordCommercialAiUsage,
   recordCommercialChatUsage: mocks.recordCommercialChatUsage,
   releaseCommercialAiUsageReservation: mocks.releaseCommercialAiUsageReservation,
   reserveCommercialAiUsage: mocks.reserveCommercialAiUsage,
+  resolveCommercialAsrCredits: mocks.resolveCommercialAsrCredits,
   settleCommercialAiUsageReservation: mocks.settleCommercialAiUsageReservation,
 }));
 
@@ -46,9 +52,53 @@ describe('getBusinessModelRuntimeHooks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getServerDB.mockResolvedValue({ id: 'db' });
+    mocks.isCommercialPricingQuote.mockImplementation((value) => Boolean(value));
+    mocks.estimateCommercialAsrCredits.mockResolvedValue(12);
     mocks.estimateCommercialChatCredits.mockResolvedValue(25);
     mocks.estimateCommercialEmbeddingsCredits.mockResolvedValue(5);
     mocks.reserveCommercialAiUsage.mockResolvedValue({ id: 'reservation-1', status: 'active' });
+    mocks.resolveCommercialAsrCredits.mockResolvedValue(8);
+  });
+
+  it('enforces ASR policy and settles provider-reported usage', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', {
+      groupKey: 'speech',
+      instanceId: 'instance-asr',
+    });
+    const payload = {
+      file: new Blob(['audio']),
+      model: 'whisper-1',
+    } as any;
+    const options = { metadata: { operationId: 'asr-operation-1' } };
+
+    await hooks?.beforeTranscribe?.(payload, options);
+    await hooks?.onTranscribeFinal?.(
+      { text: 'hello', usage: { durationSeconds: 3 } },
+      { options, payload },
+    );
+
+    expect(mocks.assertModelPolicyAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'whisper-1',
+      provider: 'newapi',
+      usageType: 'asr',
+    });
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      groupKey: 'speech',
+      model: 'whisper-1',
+      modelType: 'asr',
+      userId: 'user-1',
+    });
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ estimatedCredits: 12, usageType: 'asr' }),
+    );
+    expect(mocks.resolveCommercialAsrCredits).toHaveBeenCalledWith(
+      expect.objectContaining({ usage: { durationSeconds: 3 } }),
+    );
+    expect(mocks.settleCommercialAiUsageReservation).toHaveBeenCalledWith(
+      expect.objectContaining({ actualCredits: 8, usageType: 'asr' }),
+    );
   });
 
   it('should reserve commercial budget before chat starts', async () => {

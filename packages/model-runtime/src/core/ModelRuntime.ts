@@ -80,6 +80,7 @@ export interface ModelRuntimeHooks {
     payload: GenerateObjectPayload,
     options?: GenerateObjectOptions,
   ) => Promise<void>;
+  beforeTranscribe?: (payload: ASRPayload, options?: ASROptions) => Promise<void>;
   /**
    * Called when chat() throws. Handle side effects (sanitize, log, DB record).
    * The error is re-thrown after the hook completes — callers still handle response formatting.
@@ -135,6 +136,14 @@ export interface ModelRuntimeHooks {
   onGenerateObjectFinal?: (
     data: { speed?: ModelPerformance; usage?: ModelUsage },
     context: { options?: GenerateObjectOptions; payload: GenerateObjectPayload },
+  ) => void | Promise<void>;
+  onTranscribeError?: (
+    error: ChatCompletionErrorPayload,
+    context: { options?: ASROptions; payload: ASRPayload },
+  ) => void | Promise<void>;
+  onTranscribeFinal?: (
+    data: Awaited<ReturnType<NonNullable<LobeRuntimeAI['transcribe']>>>,
+    context: { options?: ASROptions; payload: ASRPayload },
   ) => void | Promise<void>;
 }
 
@@ -485,7 +494,31 @@ export class ModelRuntime {
   }
 
   async transcribe(payload: ASRPayload, options?: ASROptions) {
-    return this._runtime.transcribe?.(payload, options);
+    let lifecycleOptions = options;
+    try {
+      const hookOptions = this._hooks?.beforeTranscribe && !options ? {} : options;
+      await this._hooks?.beforeTranscribe?.(payload, hookOptions);
+      lifecycleOptions = hookOptions;
+      const result = await this._runtime.transcribe?.(payload, hookOptions);
+
+      if (result && this._hooks?.onTranscribeFinal) {
+        try {
+          await this._hooks.onTranscribeFinal(result, { options: hookOptions, payload });
+        } catch (error) {
+          console.error('[ModelRuntime] onTranscribeFinal hook error:', error);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      if (this._hooks?.onTranscribeError) {
+        await this._hooks.onTranscribeError(error as ChatCompletionErrorPayload, {
+          options: lifecycleOptions,
+          payload,
+        });
+      }
+      throw error;
+    }
   }
 
   async pullModel(params: PullModelParams, options?: ModelRequestOptions) {

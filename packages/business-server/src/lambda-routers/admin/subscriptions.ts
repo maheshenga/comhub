@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
@@ -10,7 +10,6 @@ import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schema
 import { type Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
-import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
 import { recordAdminAuditStrict, runRequiredAdminAuditMutation } from './audit';
 
@@ -105,7 +104,7 @@ export const adminSubscriptionsRouter = router({
       z.object({
         cycle: z.enum(SUBSCRIPTION_CYCLES),
         plan: z.string().min(1),
-        reason: z.string().max(500),
+        reason: z.string().trim().min(1).max(500),
         userId: z.string().min(1),
       }),
     )
@@ -118,12 +117,15 @@ export const adminSubscriptionsRouter = router({
           targetUserId: input.userId,
         }),
         mutation: async (tx) => {
-          const model = new CommercialModel(tx, input.userId);
-          const request = await model.createSubscriptionChangeRequest({
-            cycle: input.cycle,
-            targetPlan: input.plan as Plans,
-          });
-          await model.activateSubscriptionChangeRequest(request.id);
+          const model = new CommercialModel(ctx.serverDB, input.userId);
+          const request = await model.createSubscriptionChangeRequest(
+            {
+              cycle: input.cycle,
+              targetPlan: input.plan as Plans,
+            },
+            { tx },
+          );
+          await model.activateSubscriptionChangeRequest(request.id, { tx });
         },
       });
       return { ok: true };
@@ -132,11 +134,14 @@ export const adminSubscriptionsRouter = router({
   getUserSubscription: financeReadProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      await syncExpiredSubscriptionsToFree(ctx.serverDB);
-
+      const now = new Date();
       const snapshot = await ctx.serverDB.query.userPlanSnapshots.findFirst({
-        orderBy: desc(userPlanSnapshots.createdAt),
-        where: eq(userPlanSnapshots.userId, input.userId),
+        orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+        where: and(
+          eq(userPlanSnapshots.userId, input.userId),
+          eq(userPlanSnapshots.status, 'active'),
+          or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+        ),
       });
       return snapshot ?? null;
     }),
@@ -150,10 +155,13 @@ export const adminSubscriptionsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await syncExpiredSubscriptionsToFree(ctx.serverDB);
-
       const { cursor, limit, plan } = input;
-      const where = plan ? eq(userPlanSnapshots.plan, plan as Plans) : undefined;
+      const now = new Date();
+      const where = and(
+        eq(userPlanSnapshots.status, 'active'),
+        or(isNull(userPlanSnapshots.endsAt), gte(userPlanSnapshots.endsAt, now)),
+        plan ? eq(userPlanSnapshots.plan, plan as Plans) : undefined,
+      );
 
       const [items, [{ value: total }]] = await Promise.all([
         ctx.serverDB.query.userPlanSnapshots.findMany({
@@ -162,9 +170,7 @@ export const adminSubscriptionsRouter = router({
           orderBy: desc(userPlanSnapshots.createdAt),
           where,
         }),
-        where
-          ? ctx.serverDB.select({ value: count() }).from(userPlanSnapshots).where(where)
-          : ctx.serverDB.select({ value: count() }).from(userPlanSnapshots),
+        ctx.serverDB.select({ value: count() }).from(userPlanSnapshots).where(where),
       ]);
 
       const nextCursor = items.length === limit ? cursor + limit : null;
@@ -226,7 +232,10 @@ export const adminSubscriptionsRouter = router({
           if (request.status !== 'pending')
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
 
-          await new CommercialModel(tx, request.userId).activateSubscriptionChangeRequest(request.id);
+          await new CommercialModel(ctx.serverDB, request.userId).activateSubscriptionChangeRequest(
+            request.id,
+            { tx },
+          );
           return request;
         },
       });
@@ -289,32 +298,42 @@ export const adminSubscriptionsRouter = router({
           resourceType: 'subscription_change_request',
         }),
         mutation: async (tx) => {
-          const results: BulkChangeRequestResult[] = [];
-          for (const requestId of input.requestIds) {
-            let request: typeof subscriptionChangeRequests.$inferSelect | undefined;
-            let result: BulkChangeRequestResult;
-            try {
-              request = await tx.query.subscriptionChangeRequests.findFirst({
-                where: eq(subscriptionChangeRequests.id, requestId),
-              });
-              if (!request) throw new Error('NOT_FOUND');
-              if (request.status !== 'pending') throw new Error('NOT_PENDING');
-              const model = new CommercialModel(tx, request.userId);
-              await model.activateSubscriptionChangeRequest(request.id);
-              result = { ok: true, requestId };
-            } catch (err) {
-              result = { error: (err as Error).message, ok: false, requestId };
+          const requestIds = [...new Set(input.requestIds)];
+          if (requestIds.length !== input.requestIds.length) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'DUPLICATE_REQUEST_IDS' });
+          }
+          const requests = await tx
+            .select()
+            .from(subscriptionChangeRequests)
+            .where(inArray(subscriptionChangeRequests.id, requestIds))
+            .for('update');
+          const requestsById = new Map(requests.map((request) => [request.id, request]));
+          for (const requestId of requestIds) {
+            const request = requestsById.get(requestId);
+            if (!request) {
+              throw new TRPCError({ code: 'NOT_FOUND', message: 'CHANGE_REQUEST_NOT_FOUND' });
             }
+            if (request.status !== 'pending') {
+              throw new TRPCError({ code: 'BAD_REQUEST', message: 'CHANGE_REQUEST_NOT_PENDING' });
+            }
+          }
+
+          const results: BulkChangeRequestResult[] = [];
+          for (const requestId of requestIds) {
+            const request = requestsById.get(requestId)!;
+            await new CommercialModel(
+              ctx.serverDB,
+              request.userId,
+            ).activateSubscriptionChangeRequest(request.id, { tx });
             await recordBulkChangeRequestItemAudit({
               action: 'approve',
               batchCorrelationId,
               ctx,
-              error: result.error,
               request,
               requestId,
               tx,
             });
-            results.push(result);
+            results.push({ ok: true, requestId });
           }
           return results;
         },
@@ -346,34 +365,48 @@ export const adminSubscriptionsRouter = router({
           resourceType: 'subscription_change_request',
         }),
         mutation: async (tx) => {
-          const results: BulkChangeRequestResult[] = [];
-          for (const requestId of input.requestIds) {
-            let request: typeof subscriptionChangeRequests.$inferSelect | undefined;
-            let result: BulkChangeRequestResult;
-            try {
-              request = await tx.query.subscriptionChangeRequests.findFirst({
-                where: eq(subscriptionChangeRequests.id, requestId),
-              });
-              if (!request) throw new Error('NOT_FOUND');
-              if (request.status !== 'pending') throw new Error('NOT_PENDING');
-              await tx
-                .update(subscriptionChangeRequests)
-                .set({ status: 'rejected', updatedAt: new Date() })
-                .where(eq(subscriptionChangeRequests.id, request.id));
-              result = { ok: true, requestId };
-            } catch (err) {
-              result = { error: (err as Error).message, ok: false, requestId };
+          const requestIds = [...new Set(input.requestIds)];
+          if (requestIds.length !== input.requestIds.length) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'DUPLICATE_REQUEST_IDS' });
+          }
+          const requests = await tx
+            .select()
+            .from(subscriptionChangeRequests)
+            .where(inArray(subscriptionChangeRequests.id, requestIds))
+            .for('update');
+          const requestsById = new Map(requests.map((request) => [request.id, request]));
+          for (const requestId of requestIds) {
+            const request = requestsById.get(requestId);
+            if (!request) {
+              throw new TRPCError({ code: 'NOT_FOUND', message: 'CHANGE_REQUEST_NOT_FOUND' });
             }
+            if (request.status !== 'pending') {
+              throw new TRPCError({ code: 'BAD_REQUEST', message: 'CHANGE_REQUEST_NOT_PENDING' });
+            }
+          }
+
+          await tx
+            .update(subscriptionChangeRequests)
+            .set({ status: 'rejected', updatedAt: new Date() })
+            .where(
+              and(
+                inArray(subscriptionChangeRequests.id, requestIds),
+                eq(subscriptionChangeRequests.status, 'pending'),
+              ),
+            );
+
+          const results: BulkChangeRequestResult[] = [];
+          for (const requestId of requestIds) {
+            const request = requestsById.get(requestId)!;
             await recordBulkChangeRequestItemAudit({
               action: 'reject',
               batchCorrelationId,
               ctx,
-              error: result.error,
               request,
               requestId,
               tx,
             });
-            results.push(result);
+            results.push({ ok: true, requestId });
           }
           return results;
         },

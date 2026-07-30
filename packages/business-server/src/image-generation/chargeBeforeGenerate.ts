@@ -7,10 +7,7 @@ import {
   releaseCommercialAiUsageReservation,
   reserveCommercialAiUsage,
 } from '@/business/server/commercialBilling';
-import {
-  estimateImageCharge,
-  resolveGenerationPricingMultiplier,
-} from '@/business/server/generationBilling';
+import { estimateImageCharge } from '@/business/server/generationBilling';
 import { getServerModelPricing } from '@/business/server/serverModelPricing';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
@@ -79,14 +76,6 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
 
   const pricing = await getServerModelPricing({ db, model, provider, type: 'image', userId });
   const { estimatedCredits } = estimateImageCharge(pricing, generationParams, 1);
-  const multiplier = await resolveGenerationPricingMultiplier({
-    db,
-    model,
-    provider,
-    routeMetadata,
-  });
-  const adjustedCredits = Math.ceil(estimatedCredits * multiplier);
-
   const requestId = randomUUID();
   const prechargeItems: CommercialUsageReservationHandle[] = [];
 
@@ -95,7 +84,7 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
       const operationId = `image:${requestId}:${index}`;
       const reservation = await reserveCommercialAiUsage({
         db: db!,
-        estimatedCredits: adjustedCredits,
+        estimatedCredits,
         model,
         operationId,
         provider,
@@ -114,8 +103,11 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
       }
 
       prechargeItems.push({
-        estimatedCredits: adjustedCredits,
+        estimatedCredits: reservation.amount,
         operationId,
+        ...((reservation.metadata as Record<string, unknown> | undefined)?.pricingQuote
+          ? { pricingQuote: (reservation.metadata as any).pricingQuote }
+          : {}),
         reservationId: reservation.id,
         usageType: 'image',
       });

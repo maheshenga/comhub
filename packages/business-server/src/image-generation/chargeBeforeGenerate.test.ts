@@ -30,6 +30,7 @@ describe('image chargeBeforeGenerate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.reserveCommercialAiUsage.mockImplementation(async ({ operationId }) => ({
+      amount: 104_940,
       id: `reservation-${operationId}`,
     }));
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
@@ -62,7 +63,7 @@ describe('image chargeBeforeGenerate', () => {
     expect(mocks.reserveCommercialAiUsage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        estimatedCredits: 104_940,
+        estimatedCredits: 53_000,
         operationId: expect.stringMatching(/^image:.+:0$/),
         usageType: 'image',
       }),
@@ -73,6 +74,10 @@ describe('image chargeBeforeGenerate', () => {
   });
 
   it('checks image budget with NewAPI route metadata pricing', async () => {
+    mocks.reserveCommercialAiUsage.mockImplementation(async ({ operationId }) => ({
+      amount: 159_000,
+      id: `reservation-${operationId}`,
+    }));
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
       key === 'pricing.creditMultiplier'
         ? 1
@@ -98,7 +103,7 @@ describe('image chargeBeforeGenerate', () => {
     expect(mocks.reserveCommercialAiUsage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        estimatedCredits: 159_000,
+        estimatedCredits: 53_000,
         routeMetadata: {
           groupKey: 'pro',
           groupMultiplier: 1.5,

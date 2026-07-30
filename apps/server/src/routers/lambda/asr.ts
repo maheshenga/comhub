@@ -87,12 +87,11 @@ export const asrRouter = router({
 
       // Resolve the user's provider config (key + baseURL) from the database,
       // falling back to server env keys, exactly like chat/embeddings do.
-      const runtime = await initModelRuntimeFromDB(
-        ctx.serverDB,
-        ctx.userId,
-        input.provider,
+      const runtime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.provider, {
+        model: input.model,
+        modelType: 'asr',
         workspaceId,
-      );
+      });
 
       // `Uint8Array` is a valid BlobPart at runtime; the cast sidesteps the
       // `Uint8Array<ArrayBufferLike>` vs BlobPart generic mismatch in lib.dom.
@@ -109,7 +108,7 @@ export const asrRouter = router({
           prompt: input.prompt,
           responseFormat: input.responseFormat,
         },
-        { user: ctx.userId },
+        { metadata: { operationId: `asr:${crypto.randomUUID()}` }, user: ctx.userId },
       );
 
       if (!result) {
@@ -119,7 +118,7 @@ export const asrRouter = router({
         });
       }
 
-      return result;
+      return { text: result.text };
     }),
 });
 

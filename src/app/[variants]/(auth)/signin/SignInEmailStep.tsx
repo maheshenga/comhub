@@ -1,13 +1,13 @@
-import { Alert, Button, Flexbox, Icon, Input, Skeleton, Text } from '@lobehub/ui';
+import { Alert, Flexbox, Icon, Input, Text } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { type FormInstance, type InputRef } from 'antd';
 import { Badge, Divider, Form } from 'antd';
 import { createStaticStyles } from 'antd-style';
-import { ChevronRight, Mail } from 'lucide-react';
-import { useEffect, useRef } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { Mail } from 'lucide-react';
+import { type CSSProperties, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import AuthIcons from '@/components/AuthIcons';
-import { PRIVACY_URL, TERMS_URL } from '@/const/url';
 import { useBrand } from '@/features/Brand';
 
 import AuthCard from '../../../../features/AuthCard';
@@ -24,10 +24,17 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/;
 export const USERNAME_REGEX = /^\w+$/;
 
+const PROVIDER_ICON_STYLE: CSSProperties = {
+  insetInlineStart: 12,
+  position: 'absolute',
+  top: '50%',
+  transform: 'translateY(-50%)',
+};
+
 const getProviderName = (provider: string) =>
-  provider.toLowerCase().replaceAll(/(^|[_-])([a-z])/g, (_, __, character) =>
-    character.toUpperCase(),
-  );
+  provider
+    .toLowerCase()
+    .replaceAll(/(^|[_-])([a-z])/g, (_, __, character) => character.toUpperCase());
 
 export interface SignInEmailStepProps {
   disableEmailPassword?: boolean;
@@ -85,61 +92,21 @@ export const SignInEmailStep = ({
   };
 
   const showEmailForm = !disableEmailPassword && !isSocialOnly;
-  const footer = (
-    <Text fontSize={13} type={'secondary'}>
-      <Trans
-        i18nKey={'footer.agreement'}
-        ns={'auth'}
-        components={{
-          privacy: (
-            <a
-              href={PRIVACY_URL}
-              style={{ color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
-            >
-              {t('footer.privacy')}
-            </a>
-          ),
-          terms: (
-            <a
-              href={TERMS_URL}
-              style={{ color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
-            >
-              {t('footer.terms')}
-            </a>
-          ),
-        }}
-      />
-    </Text>
-  );
 
   return (
-    <AuthCard
-      footer={footer}
-      subtitle={t('signin.subtitle', { appName: brand.name })}
-      title={brand.authTitle}
-    >
-      {!serverConfigInit && (
-        <Flexbox gap={12}>
-          <Skeleton.Button active block size="large" />
-          <Skeleton.Button active block size="large" />
-          {divider}
-        </Flexbox>
-      )}
+    <AuthCard title={t('signin.subtitle', { appName: brand.name })}>
       {serverConfigInit && oAuthSSOProviders.length > 0 && (
         <Flexbox gap={12}>
           {oAuthSSOProviders.map((provider) => {
             const button = (
               <Button
                 block
+                icon={<Icon icon={AuthIcons(provider, 18)} />}
                 key={provider}
                 loading={socialLoading === provider}
                 size="large"
-                icon={
-                  <Icon
-                    icon={AuthIcons(provider, 18)}
-                    style={{ left: 12, position: 'absolute', top: 13 }}
-                  />
-                }
+                styles={{ icon: PROVIDER_ICON_STYLE }}
+                type="fill"
                 onClick={() =>
                   continueWithAgreement(() => {
                     onSocialSignIn(provider);
@@ -154,14 +121,14 @@ export const SignInEmailStep = ({
               (oAuthSSOProviders.length > 1 ||
                 (oAuthSSOProviders.length === 1 && !disableEmailPassword));
             return showLastUsed ? (
-              <Badge.Ribbon
-                color="var(--ant-color-info-fill-tertiary)"
+              <Badge
+                color="var(--ant-color-info)"
+                count={t('betterAuth.signin.lastUsed')}
                 key={provider}
-                styles={{ content: { color: 'var(--ant-color-info)' } }}
-                text={t('betterAuth.signin.lastUsed')}
+                styles={{ root: { display: 'block', width: '100%' } }}
               >
                 {button}
-              </Badge.Ribbon>
+              </Badge>
             ) : (
               button
             );
@@ -184,7 +151,6 @@ export const SignInEmailStep = ({
         >
           <Form.Item
             name="email"
-            style={{ marginBottom: 0 }}
             rules={[
               { message: t('betterAuth.errors.emailRequired'), required: true },
               {
@@ -203,22 +169,16 @@ export const SignInEmailStep = ({
               autoComplete="username"
               inputMode="email"
               placeholder={t('betterAuth.signin.emailPlaceholder')}
+              prefix={<Icon icon={Mail} style={{ marginInline: 6 }} />}
               ref={emailInputRef}
               size="large"
-              prefix={<Icon icon={Mail} style={{ marginInline: 6 }} />}
               style={{ padding: 6 }}
-              suffix={
-                <Button
-                  icon={ChevronRight}
-                  loading={loading}
-                  title={t('betterAuth.signin.nextStep')}
-                  variant={'filled'}
-                  onClick={() => form.submit()}
-                />
-              }
             />
           </Form.Item>
           <AuthAgreement checked={agreementChecked} onChange={setAgreementChecked} />
+          <Button block htmlType="submit" loading={loading} size="large" type="primary">
+            {t('betterAuth.signin.nextStep')}
+          </Button>
         </Form>
       )}
       {isSocialOnly && (

@@ -211,6 +211,26 @@ describe('computeImageCost', () => {
       expect(result?.breakdown?.imageCount).toBe(5);
     });
 
+    it('converts CNY-denominated image prices to USD', () => {
+      const pricing: Pricing = {
+        currency: 'CNY',
+        units: [
+          {
+            name: 'imageGeneration',
+            rate: 7.12,
+            strategy: 'fixed',
+            unit: 'image',
+          },
+        ],
+      };
+
+      expect(computeImageCost(pricing, {}, 2)).toMatchObject({
+        breakdown: { pricePerImage: 1 },
+        totalCost: 2,
+        totalCredits: 2_000_000,
+      });
+    });
+
     it('should return undefined if fixed pricing unit is not image', () => {
       const pricing: Pricing = {
         units: [
