@@ -481,6 +481,7 @@
   "moduleApps.admin.center.navigation.apps": "Apps",
   "moduleApps.admin.center.navigation.artifacts": "Artifacts",
   "moduleApps.admin.center.navigation.audit": "Audit",
+  "moduleApps.admin.center.navigation.close": "Close Module Center navigation",
   "moduleApps.admin.center.navigation.finance": "Finance",
   "moduleApps.admin.center.navigation.installs": "Installs",
   "moduleApps.admin.center.navigation.label": "Module Center sections",

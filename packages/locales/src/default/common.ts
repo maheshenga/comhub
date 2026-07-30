@@ -1248,6 +1248,7 @@ export default {
   'moduleApps.admin.center.navigation.installs': 'Installs',
   'moduleApps.admin.center.navigation.label': 'Module Center sections',
   'moduleApps.admin.center.navigation.open': 'Open Module Center navigation',
+  'moduleApps.admin.center.navigation.close': 'Close Module Center navigation',
   'moduleApps.admin.center.navigation.operations': 'Operations',
   'moduleApps.admin.center.navigation.overview': 'Overview',
   'moduleApps.admin.center.navigation.payments': 'Payments',

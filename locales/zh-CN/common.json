@@ -483,6 +483,7 @@
   "moduleApps.admin.center.navigation.apps": "应用",
   "moduleApps.admin.center.navigation.artifacts": "产物",
   "moduleApps.admin.center.navigation.audit": "审计",
+  "moduleApps.admin.center.navigation.close": "关闭模块中心导航",
   "moduleApps.admin.center.navigation.finance": "财务",
   "moduleApps.admin.center.navigation.installs": "安装",
   "moduleApps.admin.center.navigation.label": "模块中心分区",

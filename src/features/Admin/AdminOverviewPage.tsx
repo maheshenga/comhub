@@ -1,37 +1,147 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Col, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Spin, Tag } from 'antd';
+import { createStaticStyles } from 'antd-style';
 import {
-  BarChart3,
+  ArrowRight,
   ChartNoAxesColumn,
+  CircleDollarSign,
   GitPullRequest,
-  Package,
-  Plug,
   Settings,
+  UserRoundCheck,
   Users,
 } from 'lucide-react';
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import { Card } from '@/components/antd-compat/Card';
 import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
-import { ADMIN_OVERVIEW_QUICK_LINKS } from '@/features/Admin/adminOverviewLinks';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-const { Text, Title } = Typography;
+import { AdminMetricStrip, AdminPageShell, AdminSection } from './layout';
 
-const QUICK_LINK_ICONS = {
-  matrix: Settings,
-  plans: Package,
-  providers: Plug,
-  stats: BarChart3,
-};
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  group: css`
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    min-width: 0;
+    padding-block: 14px;
+    border-block-start: 1px solid ${cssVar.colorBorderSecondary};
+  `,
+  groupDescription: css`
+    margin: 0;
+    font-size: ${cssVar.fontSizeSM};
+    line-height: ${cssVar.lineHeightSM};
+    color: ${cssVar.colorTextSecondary};
+  `,
+  groupGrid: css`
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 24px;
+
+    @media (width < 960px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (width < 640px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  `,
+  groupTitle: css`
+    margin: 0;
+
+    font-size: ${cssVar.fontSize};
+    font-weight: ${cssVar.fontWeightStrong};
+    line-height: 22px;
+    color: ${cssVar.colorText};
+  `,
+  keyValue: css`
+    display: grid;
+    grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
+    gap: 12px;
+    align-items: baseline;
+
+    min-height: 32px;
+    padding-block: 5px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+
+    &:last-child {
+      border-block-end: 0;
+    }
+  `,
+  keyValueLabel: css`
+    color: ${cssVar.colorTextSecondary};
+  `,
+  keyValueValue: css`
+    font-weight: ${cssVar.fontWeightStrong};
+    color: ${cssVar.colorText};
+    text-align: end;
+    overflow-wrap: anywhere;
+  `,
+  link: css`
+    cursor: pointer;
+
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+
+    width: 100%;
+    min-height: 34px;
+    padding-block: 5px;
+    padding-inline: 8px;
+    border: 0;
+    border-radius: ${cssVar.borderRadiusSM};
+
+    font: inherit;
+    color: ${cssVar.colorText};
+    text-align: start;
+
+    background: transparent;
+
+    &:hover {
+      background: ${cssVar.colorFillTertiary};
+    }
+
+    &:focus-visible {
+      outline: 2px solid ${cssVar.colorPrimary};
+      outline-offset: 1px;
+    }
+  `,
+  linkList: css`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  `,
+  pending: css`
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+    justify-content: center;
+
+    min-height: 88px;
+  `,
+  split: css`
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+
+    @media (width < 800px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  `,
+}));
 
 const AdminOverviewPage = memo(() => {
   const navigate = useNavigate();
+  const { t } = useTranslation('subscription');
   const { data: overview } = useClientDataSWR(['admin-overview-stats'], () =>
     adminCommercialService.getStatsOverview(),
   );
@@ -49,156 +159,135 @@ const AdminOverviewPage = memo(() => {
       : '未设置';
 
   return (
-    <Space direction="vertical" size={16} style={{ padding: 24, width: '100%' }}>
-      <Space direction="vertical" size={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          后台工作台
-        </Title>
-        <Text type="secondary">
-          集中查看关键状态，并从这里进入用户与套餐、模型与计费、品牌增长和系统运维。
-        </Text>
-      </Space>
+    <AdminPageShell
+      description="集中查看关键状态，并进入用户、商业化、AI 平台、模块应用和系统运维。"
+      title="后台工作台"
+      width="full"
+    >
+      <AdminMetricStrip
+        label={t('admin.overview.metricsLabel', '关键指标')}
+        items={[
+          {
+            hint: '平台注册账户',
+            icon: <Icon icon={Users} size={18} />,
+            key: 'users',
+            label: '总用户',
+            value: overview ? overview.totalUsers : '...',
+          },
+          {
+            hint: '最近 24 小时',
+            icon: <Icon icon={UserRoundCheck} size={18} />,
+            key: 'dau',
+            label: '日活用户',
+            value: overview ? overview.dau : '...',
+          },
+          {
+            hint: '当前有效状态',
+            icon: <Icon icon={ChartNoAxesColumn} size={18} />,
+            key: 'subscriptions',
+            label: '有效订阅',
+            value: overview ? overview.activeSubscriptions : '...',
+          },
+          {
+            hint: '近 30 天实收充值',
+            icon: <Icon icon={CircleDollarSign} size={18} />,
+            key: 'revenue',
+            label: '充值收入',
+            value: overview ? `$${overview.revenueLast30dUsd}` : '...',
+          },
+        ]}
+      />
 
-      <Row gutter={[16, 16]}>
-        <Col lg={6} md={12} xs={24}>
-          <Card>
-            <Statistic
-              prefix={<Icon icon={Users} />}
-              title="总用户"
-              value={overview?.totalUsers ?? 0}
-            />
-          </Card>
-        </Col>
-        <Col lg={6} md={12} xs={24}>
-          <Card>
-            <Statistic title="日活用户" value={overview?.dau ?? 0} />
-          </Card>
-        </Col>
-        <Col lg={6} md={12} xs={24}>
-          <Card>
-            <Statistic
-              prefix={<Icon icon={ChartNoAxesColumn} />}
-              title="有效订阅"
-              value={overview?.activeSubscriptions ?? 0}
-            />
-          </Card>
-        </Col>
-        <Col lg={6} md={12} xs={24}>
-          <Card>
-            <Statistic
-              prefix="$"
-              title="近 30 天实收充值收入"
-              value={overview?.revenueLast30dUsd ?? 0}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]}>
-        <Col lg={12} xs={24}>
-          <Card
-            extra={
-              <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/subscriptions`)}>
-                处理
-              </Button>
-            }
-            title={
-              <Space>
-                <Icon icon={GitPullRequest} />
-                待处理事项
-              </Space>
-            }
-          >
-            {pendingChanges ? (
-              <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                <Space>
-                  <Tag color={pendingChangeCount > 0 ? 'processing' : 'success'}>
-                    套餐变更请求 {pendingChangeCount}
-                  </Tag>
-                  <Text type="secondary">优先处理会影响用户订阅状态的请求。</Text>
-                </Space>
-                <Button onClick={() => navigate(`${ADMIN_BASE_PATH}/orders`)}>查看订单</Button>
-              </Space>
-            ) : (
-              <Spin />
-            )}
-          </Card>
-        </Col>
-        <Col lg={12} xs={24}>
-          <Card
-            extra={
-              <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/settings`)}>
-                修改
-              </Button>
-            }
-            title={
-              <Space>
-                <Icon icon={Settings} />
-                当前默认设置
-              </Space>
-            }
-          >
-            {settings ? (
-              <Space direction="vertical" size={8}>
-                <Text>
-                  品牌名称：<strong>{settings.brandName || '未设置'}</strong>
-                </Text>
-                <Text>
-                  默认模型：<strong>{defaultModel}</strong>
-                </Text>
-                <Text>
-                  推荐奖励：<strong>{settings.referralRewardCredits ?? 0}</strong> 积分
-                </Text>
-              </Space>
-            ) : (
-              <Spin />
-            )}
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]}>
-        {ADMIN_NAV_GROUPS.filter((group) => group.key !== 'overview').map((group) => (
-          <Col key={group.key} lg={8} md={12} xs={24}>
-            <Card
-              title={group.label}
-              actions={group.items.slice(0, 3).map((item) => (
-                <Button
-                  key={item.path}
-                  size="small"
-                  type="link"
-                  onClick={() => navigate(item.path)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            >
-              <Space direction="vertical" size={8}>
-                <Text type="secondary">{group.description}</Text>
-                <Text type="secondary">
-                  {group.items.length} 个入口，覆盖{' '}
-                  {group.items.map((item) => item.label).join('、')}
-                </Text>
-              </Space>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      <Card>
-        <Space wrap>
-          {ADMIN_OVERVIEW_QUICK_LINKS.map((item) => (
-            <Button
-              icon={<Icon icon={QUICK_LINK_ICONS[item.key]} />}
-              key={item.key}
-              onClick={() => navigate(item.path)}
-            >
-              {item.label}
+      <div className={styles.split}>
+        <AdminSection
+          description="优先处理会影响用户权益和订阅状态的请求。"
+          title="待处理事项"
+          actions={
+            <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/subscriptions`)}>
+              处理请求
+              <ArrowRight aria-hidden size={14} />
             </Button>
+          }
+        >
+          <div className={styles.pending}>
+            {pendingChanges ? (
+              <>
+                <Tag
+                  color={pendingChangeCount > 0 ? 'processing' : 'success'}
+                  icon={<GitPullRequest size={13} />}
+                >
+                  套餐变更请求 {pendingChangeCount}
+                </Tag>
+                <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/orders`)}>
+                  查看相关订单
+                </Button>
+              </>
+            ) : (
+              <Spin />
+            )}
+          </div>
+        </AdminSection>
+
+        <AdminSection
+          description="快速核对影响全站体验的核心默认值。"
+          title="系统状态"
+          actions={
+            <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/settings`)}>
+              <Settings aria-hidden size={14} />
+              修改设置
+            </Button>
+          }
+        >
+          {settings ? (
+            <div>
+              <div className={styles.keyValue}>
+                <span className={styles.keyValueLabel}>品牌名称</span>
+                <strong className={styles.keyValueValue}>{settings.brandName || '未设置'}</strong>
+              </div>
+              <div className={styles.keyValue}>
+                <span className={styles.keyValueLabel}>默认模型</span>
+                <strong className={styles.keyValueValue}>{defaultModel}</strong>
+              </div>
+              <div className={styles.keyValue}>
+                <span className={styles.keyValueLabel}>推荐奖励</span>
+                <strong className={styles.keyValueValue}>
+                  {settings.referralRewardCredits ?? 0} 积分
+                </strong>
+              </div>
+            </div>
+          ) : (
+            <Spin />
+          )}
+        </AdminSection>
+      </div>
+
+      <AdminSection
+        description="入口按职责域组织；日常操作无需在长菜单中反复定位。"
+        title="管理模块"
+      >
+        <div className={styles.groupGrid}>
+          {ADMIN_NAV_GROUPS.filter((group) => group.key !== 'overview').map((group) => (
+            <article className={styles.group} key={group.key}>
+              <h3 className={styles.groupTitle}>{group.label}</h3>
+              <p className={styles.groupDescription}>{group.description}</p>
+              <div className={styles.linkList}>
+                {group.items.map((item) => (
+                  <button
+                    className={styles.link}
+                    key={item.path}
+                    type="button"
+                    onClick={() => navigate(item.path)}
+                  >
+                    <span>{item.label}</span>
+                    <ArrowRight aria-hidden size={14} />
+                  </button>
+                ))}
+              </div>
+            </article>
           ))}
-        </Space>
-      </Card>
-    </Space>
+        </div>
+      </AdminSection>
+    </AdminPageShell>
   );
 });
 

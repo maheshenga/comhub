@@ -1,9 +1,9 @@
 'use client';
 
 import { ActionIcon, Flexbox } from '@lobehub/ui';
-import { Drawer } from 'antd';
+import { FloatingSheet } from '@lobehub/ui/base-ui';
 import { createStaticStyles, useResponsive } from 'antd-style';
-import { Menu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet } from 'react-router';
@@ -14,6 +14,10 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   content: css`
     min-width: 0;
     padding: 20px;
+
+    @media (width < 760px) {
+      padding: 16px;
+    }
   `,
   layout: css`
     display: grid;
@@ -38,6 +42,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
       border-block-end: 1px solid ${cssVar.colorBorderSecondary};
       border-inline-end: 0;
     }
+  `,
+  sheetContent: css`
+    overflow-y: auto;
+    height: 100%;
+    min-height: 0;
+    padding: 8px;
   `,
 }));
 
@@ -67,15 +77,29 @@ const ModuleCenterLayout = memo(() => {
             />
             <strong>{t('moduleApps.admin.center.navigation.label')}</strong>
           </Flexbox>
-          <Drawer
+          <FloatingSheet
+            dismissible
+            maxHeight={680}
+            minHeight={320}
+            mode="overlay"
             open={navigationOpen}
-            styles={{ body: { padding: 12 } }}
+            restingHeight={600}
+            snapPoints={[480, 600]}
             title={t('moduleApps.admin.center.navigation.label')}
-            width={300}
-            onClose={() => setNavigationOpen(false)}
+            variant="elevated"
+            headerActions={
+              <ActionIcon
+                icon={X}
+                title={t('moduleApps.admin.center.navigation.close')}
+                onClick={() => setNavigationOpen(false)}
+              />
+            }
+            onOpenChange={setNavigationOpen}
           >
-            <ModuleSectionNav onNavigate={() => setNavigationOpen(false)} />
-          </Drawer>
+            <div className={styles.sheetContent}>
+              <ModuleSectionNav onNavigate={() => setNavigationOpen(false)} />
+            </div>
+          </FloatingSheet>
         </>
       ) : (
         <aside className={styles.navigation}>
