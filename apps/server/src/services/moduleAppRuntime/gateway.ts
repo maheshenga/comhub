@@ -27,6 +27,7 @@ import {
   createModuleAppNotificationRateLimitBackend,
   createModuleAppReplayGuardBackend,
 } from './distributedGuards';
+import { createModuleAppPlatformGateways } from './platformGateways';
 
 const distributedGuardMode =
   appEnv.MODULE_APP_EXECUTION_ENABLED ||
@@ -61,6 +62,13 @@ export const createModuleAppCapabilityGateway = (params: {
   db: LobeChatDatabase;
 }) => {
   const model = new ModuleAppModel(params.db);
+  const platformGateways = createModuleAppPlatformGateways({
+    db: params.db,
+    rollout: {
+      appIds: appEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST,
+      publisherIds: appEnv.MODULE_APP_PUBLISHER_ALLOWLIST,
+    },
+  });
   let gateKeeperPromise: ReturnType<typeof KeyVaultsGateKeeper.initWithEnvKey> | undefined;
 
   return new ModuleAppCapabilityGateway({
@@ -75,6 +83,7 @@ export const createModuleAppCapabilityGateway = (params: {
         });
         if (!installation) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
 
+        let workspaceRole: 'admin' | 'member' | 'owner' | undefined;
         if (installation.scopeType === 'workspace') {
           if (!installation.workspaceId) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
           const member = await new WorkspaceMemberModel(params.db, capability.userId).getMember(
@@ -82,10 +91,16 @@ export const createModuleAppCapabilityGateway = (params: {
             capability.userId,
           );
           if (!member) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
+          if (member.role === 'admin' || member.role === 'member' || member.role === 'owner') {
+            workspaceRole = member.role;
+          } else {
+            throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
+          }
         }
 
         return {
           appId: installation.appId,
+          billing: installation.billing,
           displayName: installation.displayName,
           installationId: installation.installationId,
           outboundHosts: resolveOutboundHosts(installation.runtimeManifest),
@@ -93,17 +108,20 @@ export const createModuleAppCapabilityGateway = (params: {
           scopeType: installation.scopeType,
           userId: installation.userId,
           versionId: installation.versionId,
+          workspaceRole,
           workspaceId: installation.workspaceId,
         };
       },
     },
     data: new ModuleAppDataService({ repository: new ModuleAppDataModel(params.db) }),
+    ai: platformGateways.ai,
     files: new ModuleAppFileGateway({ storage: new FileS3() }),
     http: new ModuleAppHttpGateway(),
     notifications: new ModuleAppNotificationGateway({
       create: (input) => new NotificationModel(params.db, params.capability.userId).create(input),
       rateLimiter: notificationRateLimiter,
     }),
+    payments: platformGateways.payments,
     replayGuard,
     secrets: new ModuleAppSecretsGateway({
       decrypt: async (encryptedValue) => {

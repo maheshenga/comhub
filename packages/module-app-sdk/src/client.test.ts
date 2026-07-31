@@ -106,17 +106,38 @@ describe('createModuleAppSdk', () => {
     );
 
     dispatch({
-      data: { channel: MODULE_APP_BRIDGE_CHANNEL, id: 'request-1', nonce: NONCE, ok: true, result: { userId: 'user-1' }, type: 'response' },
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: { userId: 'user-1' },
+        type: 'response',
+      },
       origin: 'https://attacker.example.com',
       source: parentWindow as never,
     });
     dispatch({
-      data: { channel: MODULE_APP_BRIDGE_CHANNEL, id: 'request-1', nonce: 'wrong-nonce-0000', ok: true, result: {}, type: 'response' },
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: 'wrong-nonce-0000',
+        ok: true,
+        result: {},
+        type: 'response',
+      },
       origin: RUNTIME_ORIGIN,
       source: parentWindow as never,
     });
     dispatch({
-      data: { channel: MODULE_APP_BRIDGE_CHANNEL, id: 'request-1', nonce: NONCE, ok: true, result: {}, type: 'response' },
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: {},
+        type: 'response',
+      },
       origin: RUNTIME_ORIGIN,
       source: {} as never,
     });
@@ -124,7 +145,14 @@ describe('createModuleAppSdk', () => {
     expect(settled).toBe(false);
 
     dispatch({
-      data: { channel: MODULE_APP_BRIDGE_CHANNEL, id: 'request-1', nonce: NONCE, ok: true, result: { userId: 'user-1' }, type: 'response' },
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: { userId: 'user-1' },
+        type: 'response',
+      },
       origin: RUNTIME_ORIGIN,
       source: parentWindow as never,
     });
@@ -137,12 +165,24 @@ describe('createModuleAppSdk', () => {
     const unsubscribe = sdk.on('progress', listener);
 
     dispatch({
-      data: { channel: MODULE_APP_BRIDGE_CHANNEL, event: 'progress', nonce: NONCE, payload: { percent: 10 }, type: 'event' },
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        event: 'progress',
+        nonce: NONCE,
+        payload: { percent: 10 },
+        type: 'event',
+      },
       origin: 'https://attacker.example.com',
       source: parentWindow as never,
     });
     dispatch({
-      data: { channel: MODULE_APP_BRIDGE_CHANNEL, event: 'progress', nonce: NONCE, payload: { percent: 20 }, type: 'event' },
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        event: 'progress',
+        nonce: NONCE,
+        payload: { percent: 20 },
+        type: 'event',
+      },
       origin: RUNTIME_ORIGIN,
       source: parentWindow as never,
     });
@@ -175,6 +215,74 @@ describe('createModuleAppSdk', () => {
       source: parentWindow as never,
     });
     await expect(request).resolves.toEqual({ items: [], nextCursor: null });
+  });
+
+  it('exposes the managed NewAPI chat contract over the bridge', async () => {
+    const { dispatch, parentWindow, sdk } = createHarness();
+    const request = sdk.ai.chat({
+      messages: [{ content: 'Summarize this text.', role: 'user' }],
+      model: 'gpt-4.1-mini',
+    });
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ model: 'gpt-4.1-mini' }),
+        method: 'ai.chat',
+        type: 'request',
+      }),
+      RUNTIME_ORIGIN,
+    );
+    dispatch({
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: {
+          actualAiCredits: 1.5,
+          model: 'gpt-4.1-mini',
+          text: 'Summary',
+          tokenUsage: { input: 12, output: 4, total: 16 },
+        },
+        type: 'response',
+      },
+      origin: RUNTIME_ORIGIN,
+      source: parentWindow as never,
+    });
+    await expect(request).resolves.toMatchObject({ text: 'Summary' });
+  });
+
+  it('exposes the platform checkout contract without provider credentials', async () => {
+    const { dispatch, parentWindow, sdk } = createHarness();
+    const request = sdk.payments.createCheckout({
+      idempotencyKey: '00000000-0000-4000-8000-000000000001',
+      method: 'zpay_wechat',
+      productId: '00000000-0000-4000-8000-000000000002',
+    });
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'payments.checkout.create', type: 'request' }),
+      RUNTIME_ORIGIN,
+    );
+    dispatch({
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: {
+          checkout: { type: 'qrcode', url: 'weixin://wxpay/bizpayurl?pr=example' },
+          method: 'zpay_wechat',
+          orderId: '00000000-0000-4000-8000-000000000003',
+          outTradeNo: 'module-app-order-1',
+          provider: 'zpay',
+        },
+        type: 'response',
+      },
+      origin: RUNTIME_ORIGIN,
+      source: parentWindow as never,
+    });
+    await expect(request).resolves.toMatchObject({ provider: 'zpay' });
   });
 
   it('exposes task status over the bridge', async () => {

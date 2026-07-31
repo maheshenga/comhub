@@ -66,7 +66,34 @@ const createGateway = (
     cancel: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     getRun: vi.fn().mockResolvedValue({ id: 'run-1', status: 'running' }),
   };
+  const ai = {
+    chat: vi.fn().mockResolvedValue({
+      actualAiCredits: 1,
+      model: 'gpt-4.1-mini',
+      text: 'Managed response',
+      tokenUsage: { input: 4, output: 2, total: 6 },
+    }),
+    listModels: vi.fn().mockResolvedValue([{ abilities: [], id: 'gpt-4.1-mini', type: 'chat' }]),
+  };
+  const payments = {
+    createCheckout: vi.fn().mockResolvedValue({
+      checkout: { type: 'redirect', url: 'https://pay.example.com/checkout' },
+      method: 'alipay',
+      orderId: '00000000-0000-4000-8000-000000000004',
+      outTradeNo: 'module-app-order-1',
+      provider: 'alipay',
+    }),
+    getOrderStatus: vi.fn().mockResolvedValue({
+      method: 'alipay',
+      paymentStatus: 'pending',
+      provider: 'alipay',
+      status: 'pending',
+    }),
+    listCatalog: vi.fn().mockResolvedValue([]),
+    listMethods: vi.fn().mockResolvedValue([{ id: 'alipay', label: 'Alipay', provider: 'alipay' }]),
+  };
   const gateway = new ModuleAppCapabilityGateway({
+    ai: ai as never,
     context: {
       resolve: vi.fn().mockResolvedValue({
         appId: APP_ID,
@@ -83,12 +110,13 @@ const createGateway = (
     files,
     http: httpOverride ?? http,
     notifications,
+    payments: payments as never,
     replayGuard: guards.replayGuard ?? new ModuleAppReplayGuard(),
     secrets,
     tasks: tasks as never,
   });
 
-  return { data, gateway, storage, tasks };
+  return { ai, data, gateway, payments, storage, tasks };
 };
 
 describe('ModuleAppCapabilityGateway', () => {
@@ -103,6 +131,55 @@ describe('ModuleAppCapabilityGateway', () => {
         requestId: 'request-1',
       }),
     ).rejects.toThrow('MODULE_APP_CAPABILITY_DENIED');
+  });
+
+  it('routes AI calls only through the permissioned managed gateway', async () => {
+    const { ai, gateway } = createGateway();
+    await expect(
+      gateway.call({
+        capability: claims([]),
+        input: { messages: [{ content: 'hello', role: 'user' }], model: 'gpt-4.1-mini' },
+        method: 'ai.chat',
+        requestId: 'ai-request-1',
+      }),
+    ).rejects.toThrow('MODULE_APP_CAPABILITY_DENIED');
+
+    await expect(
+      gateway.call({
+        capability: claims(['ai.chat']),
+        input: { messages: [{ content: 'hello', role: 'user' }], model: 'gpt-4.1-mini' },
+        method: 'ai.chat',
+        requestId: 'ai-request-2',
+      }),
+    ).resolves.toMatchObject({ text: 'Managed response' });
+    expect(ai.chat).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'ai-request-2' }));
+  });
+
+  it('requires checkout permission and makes checkout calls replay-safe', async () => {
+    const { gateway, payments } = createGateway();
+    const input = {
+      idempotencyKey: '00000000-0000-4000-8000-000000000001',
+      productId: '00000000-0000-4000-8000-000000000002',
+    };
+
+    await expect(
+      gateway.call({
+        capability: claims([]),
+        input,
+        method: 'payments.checkout.create',
+        requestId: 'checkout-request-1',
+      }),
+    ).rejects.toThrow('MODULE_APP_CAPABILITY_DENIED');
+
+    const request = {
+      capability: claims(['payments.checkout']),
+      input,
+      method: 'payments.checkout.create' as const,
+      requestId: 'checkout-request-2',
+    };
+    await expect(gateway.call(request)).resolves.toMatchObject({ provider: 'alipay' });
+    await expect(gateway.call(request)).rejects.toThrow('MODULE_APP_CAPABILITY_REPLAYED');
+    expect(payments.createCheckout).toHaveBeenCalledOnce();
   });
 
   it('never returns secret plaintext to a browser capability', async () => {

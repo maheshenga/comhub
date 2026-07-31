@@ -383,6 +383,25 @@ describe('recordCommercialChatUsage', () => {
     });
   });
 
+  it('quotes managed module usage when forceCharge overrides a user BYOK credential', async () => {
+    mocks.getAiProviderById.mockResolvedValue({ keyVaults: { apiKey: 'user-key' } });
+
+    const result = await quoteCommercialAiUsage({
+      db: {} as any,
+      forceCharge: true,
+      model: 'gpt-test',
+      provider: 'newapi',
+      usage: { cost: 0.25, totalInputTokens: 100, totalOutputTokens: 50 },
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+
+    expect(mocks.quoteCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'gpt-test', provider: 'newapi' }),
+    );
+    expect(result).toMatchObject({ credits: 338, costSource: 'gateway' });
+  });
+
   it('should trust positive gateway cost and record gateway costSource', async () => {
     await recordCommercialChatUsage({
       db: {} as any,

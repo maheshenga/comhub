@@ -1048,6 +1048,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     const [row] = await this.db
       .select({
         appId: moduleApps.id,
+        billing: moduleApps.billing,
         displayName: moduleApps.displayName,
         installationId: moduleAppInstallations.id,
         runtimeManifest: moduleAppVersions.runtimeManifest,
