@@ -36,6 +36,21 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorText};
     text-overflow: ellipsis;
   `,
+  breadcrumbLink: css`
+    color: ${cssVar.colorTextSecondary};
+    text-decoration: none;
+
+    &:hover {
+      color: ${cssVar.colorText};
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      border-radius: ${cssVar.borderRadiusXS};
+      outline: 2px solid ${cssVar.colorPrimary};
+      outline-offset: 2px;
+    }
+  `,
   content: css`
     scrollbar-gutter: stable;
 
@@ -108,7 +123,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     height: 100%;
     min-height: 0;
 
-    @media (width < 768px) {
+    @media (width < 992px) {
       grid-template-columns: minmax(0, 1fr);
     }
   `,
@@ -144,10 +159,14 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
+export const shouldUseAdminNavigationSheet = ({ lg, mobile }: { lg?: boolean; mobile?: boolean }) =>
+  mobile === true || lg === false;
+
 const AdminLayout = () => {
   const location = useLocation();
   const { t } = useTranslation('subscription');
-  const { mobile = false } = useResponsive();
+  const { lg = true, mobile = false } = useResponsive();
+  const useNavigationSheet = shouldUseAdminNavigationSheet({ lg, mobile });
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [user, isUserStateInit] = useUserStore((s) => [
     userProfileSelectors.userProfile(s),
@@ -184,7 +203,7 @@ const AdminLayout = () => {
 
   return (
     <div className={styles.layout} data-testid="admin-layout-shell">
-      {!mobile ? (
+      {!useNavigationSheet ? (
         <aside aria-label={t('admin.navigation.title', '管理后台')} className={styles.sidebar}>
           <AdminSidebar />
         </aside>
@@ -192,7 +211,7 @@ const AdminLayout = () => {
       <div className={styles.contentColumn}>
         <header className={styles.contextBar} data-testid="admin-context-bar">
           <div className={styles.contextPrimary}>
-            {mobile ? (
+            {useNavigationSheet ? (
               <ActionIcon
                 icon={Menu}
                 title={t('admin.navigation.open', '打开管理导航')}
@@ -206,7 +225,9 @@ const AdminLayout = () => {
                 aria-label={t('admin.navigation.breadcrumb', '当前位置')}
                 className={styles.breadcrumb}
               >
-                <span>{t('admin.navigation.title', '管理后台')}</span>
+                <Link className={styles.breadcrumbLink} to="/settings/admin">
+                  {t('admin.navigation.title', '管理后台')}
+                </Link>
                 <Icon aria-hidden icon={ChevronRight} size={14} />
                 <span>{currentGroupTitle}</span>
                 <Icon aria-hidden icon={ChevronRight} size={14} />
@@ -227,7 +248,7 @@ const AdminLayout = () => {
           <Outlet />
         </div>
       </div>
-      {mobile ? (
+      {useNavigationSheet ? (
         <FloatingSheet
           dismissible
           maxHeight={720}

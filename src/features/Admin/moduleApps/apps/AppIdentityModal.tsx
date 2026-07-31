@@ -1,12 +1,42 @@
 'use client';
 
 import type { ModuleAppSource, ModuleAppStatus } from '@lobechat/types';
-import { Modal } from '@lobehub/ui/base-ui';
+import { Input, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
+import { createStaticStyles } from 'antd-style';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { AdminModuleAppDetail } from '../types';
 import { createDefaultModuleAppIdentity, type ModuleAppIdentityFormValues } from './identityForm';
+
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  error: css`
+    margin: 0;
+    padding-block: 8px;
+    padding-inline: 12px;
+    border: 1px solid ${cssVar.colorErrorBorder};
+    border-radius: ${cssVar.borderRadiusSM};
+
+    line-height: 20px;
+    color: ${cssVar.colorErrorText};
+
+    background: ${cssVar.colorErrorBg};
+  `,
+  field: css`
+    display: grid;
+    gap: 6px;
+
+    min-width: 0;
+
+    font-size: 12px;
+    line-height: 20px;
+    color: ${cssVar.colorTextSecondary};
+  `,
+  form: css`
+    display: grid;
+    gap: 14px;
+  `,
+}));
 
 const isModuleAppStatus = (value: string): value is ModuleAppStatus =>
   value === 'draft' || value === 'published' || value === 'unpublished';
@@ -27,7 +57,7 @@ export type AppIdentityModalProps = {
 const AppIdentityModal = memo<AppIdentityModalProps>(
   ({ currentApp, draft, onCancel, onDraftChange, onSubmit, open, submitting }) => {
     const { t } = useTranslation('common');
-    const [identity, setIdentity] = useState<ModuleAppIdentityFormValues>(
+    const [identity, setIdentity] = useState<ModuleAppIdentityFormValues>(() =>
       createDefaultModuleAppIdentity(),
     );
     const [submitError, setSubmitError] = useState<string>();
@@ -89,71 +119,82 @@ const AppIdentityModal = memo<AppIdentityModalProps>(
         onCancel={onCancel}
         onOk={handleSubmit}
       >
-        <div style={{ display: 'grid', gap: 12 }}>
-          <label>
-            {t('moduleApps.admin.apps.identity.displayName')}
-            <input
+        <div className={styles.form} data-testid="module-app-identity-form">
+          <label className={styles.field} htmlFor="module-app-identity-display-name">
+            <span>{t('moduleApps.admin.apps.identity.displayName')}</span>
+            <Input
               autoFocus
               required
+              id="module-app-identity-display-name"
               value={identity.displayName ?? ''}
               onChange={(event) => update('displayName', event.target.value)}
             />
           </label>
-          <label>
-            {t('moduleApps.admin.apps.identity.slug')}
-            <input
+          <label className={styles.field} htmlFor="module-app-identity-slug">
+            <span>{t('moduleApps.admin.apps.identity.slug')}</span>
+            <Input
               required
+              id="module-app-identity-slug"
               value={identity.slug ?? ''}
               onChange={(event) => update('slug', event.target.value)}
             />
           </label>
-          <label>
-            {t('moduleApps.admin.apps.identity.category')}
-            <input
+          <label className={styles.field} htmlFor="module-app-identity-category">
+            <span>{t('moduleApps.admin.apps.identity.category')}</span>
+            <Input
               required
+              id="module-app-identity-category"
               value={identity.category ?? ''}
               onChange={(event) => update('category', event.target.value)}
             />
           </label>
-          <label>
-            {t('moduleApps.admin.apps.identity.status')}
-            <select
+          <label className={styles.field} htmlFor="module-app-identity-status">
+            <span>{t('moduleApps.admin.apps.identity.status')}</span>
+            <Select
+              id="module-app-identity-status"
               value={identity.status ?? 'draft'}
-              onChange={(event) => {
-                if (isModuleAppStatus(event.target.value)) update('status', event.target.value);
+              options={[
+                { label: t('moduleApps.admin.apps.status.draft'), value: 'draft' },
+                { label: t('moduleApps.admin.apps.status.published'), value: 'published' },
+                { label: t('moduleApps.admin.apps.status.unpublished'), value: 'unpublished' },
+              ]}
+              onChange={(value) => {
+                const nextStatus = String(value ?? '');
+                if (isModuleAppStatus(nextStatus)) update('status', nextStatus);
               }}
-            >
-              <option value="draft">{t('moduleApps.admin.apps.status.draft')}</option>
-              <option value="published">{t('moduleApps.admin.apps.status.published')}</option>
-              <option value="unpublished">{t('moduleApps.admin.apps.status.unpublished')}</option>
-            </select>
+            />
           </label>
-          <label>
-            {t('moduleApps.admin.apps.identity.source')}
-            <select
+          <label className={styles.field} htmlFor="module-app-identity-source">
+            <span>{t('moduleApps.admin.apps.identity.source')}</span>
+            <Select
+              id="module-app-identity-source"
               value={identity.source ?? 'admin'}
-              onChange={(event) => {
-                if (isModuleAppSource(event.target.value)) update('source', event.target.value);
+              options={[
+                { label: t('moduleApps.admin.apps.source.admin'), value: 'admin' },
+                { label: t('moduleApps.admin.apps.source.developer'), value: 'developer' },
+                { label: t('moduleApps.admin.apps.source.system'), value: 'system' },
+                { label: t('moduleApps.admin.apps.source.user'), value: 'user' },
+              ]}
+              onChange={(value) => {
+                const nextSource = String(value ?? '');
+                if (isModuleAppSource(nextSource)) update('source', nextSource);
               }}
-            >
-              <option value="admin">{t('moduleApps.admin.apps.source.admin')}</option>
-              <option value="developer">{t('moduleApps.admin.apps.source.developer')}</option>
-              <option value="system">{t('moduleApps.admin.apps.source.system')}</option>
-              <option value="user">{t('moduleApps.admin.apps.source.user')}</option>
-            </select>
+            />
           </label>
-          <label>
-            {t('moduleApps.admin.apps.identity.description')}
-            <textarea
+          <label className={styles.field} htmlFor="module-app-identity-description">
+            <span>{t('moduleApps.admin.apps.identity.description')}</span>
+            <TextArea
               required
+              id="module-app-identity-description"
               rows={3}
               value={identity.description ?? ''}
               onChange={(event) => update('description', event.target.value)}
             />
           </label>
-          <label>
-            {t('moduleApps.admin.apps.identity.tags')}
-            <input
+          <label className={styles.field} htmlFor="module-app-identity-tags">
+            <span>{t('moduleApps.admin.apps.identity.tags')}</span>
+            <Input
+              id="module-app-identity-tags"
               value={
                 Array.isArray(identity.tags) ? identity.tags.join(', ') : (identity.tags ?? '')
               }
@@ -168,7 +209,11 @@ const AppIdentityModal = memo<AppIdentityModalProps>(
               }
             />
           </label>
-          {submitError ? <div role="alert">{submitError}</div> : null}
+          {submitError ? (
+            <p className={styles.error} role="alert">
+              {submitError}
+            </p>
+          ) : null}
         </div>
       </Modal>
     );

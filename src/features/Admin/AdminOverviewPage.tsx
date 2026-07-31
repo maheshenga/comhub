@@ -22,7 +22,7 @@ import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigat
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { AdminMetricStrip, AdminPageShell, AdminSection } from './layout';
+import { AdminMetricStrip, AdminPageError, AdminPageShell, AdminSection } from './layout';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   group: css`
@@ -142,15 +142,23 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const AdminOverviewPage = memo(() => {
   const navigate = useNavigate();
   const { t } = useTranslation('subscription');
-  const { data: overview } = useClientDataSWR(['admin-overview-stats'], () =>
-    adminCommercialService.getStatsOverview(),
-  );
-  const { data: pendingChanges } = useClientDataSWR(['admin-overview-pending-changes'], () =>
+  const {
+    data: overview,
+    error: overviewError,
+    mutate: refreshOverview,
+  } = useClientDataSWR(['admin-overview-stats'], () => adminCommercialService.getStatsOverview());
+  const {
+    data: pendingChanges,
+    error: pendingChangesError,
+    mutate: refreshPendingChanges,
+  } = useClientDataSWR(['admin-overview-pending-changes'], () =>
     adminCommercialService.listChangeRequests({ limit: 1, status: 'pending' }),
   );
-  const { data: settings } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
-  );
+  const {
+    data: settings,
+    error: settingsError,
+    mutate: refreshSettings,
+  } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () => adminCommercialService.getAllSettings());
 
   const pendingChangeCount = pendingChanges?.total ?? 0;
   const defaultModel =
@@ -164,39 +172,43 @@ const AdminOverviewPage = memo(() => {
       title="后台工作台"
       width="full"
     >
-      <AdminMetricStrip
-        label={t('admin.overview.metricsLabel', '关键指标')}
-        items={[
-          {
-            hint: '平台注册账户',
-            icon: <Icon icon={Users} size={18} />,
-            key: 'users',
-            label: '总用户',
-            value: overview ? overview.totalUsers : '...',
-          },
-          {
-            hint: '最近 24 小时',
-            icon: <Icon icon={UserRoundCheck} size={18} />,
-            key: 'dau',
-            label: '日活用户',
-            value: overview ? overview.dau : '...',
-          },
-          {
-            hint: '当前有效状态',
-            icon: <Icon icon={ChartNoAxesColumn} size={18} />,
-            key: 'subscriptions',
-            label: '有效订阅',
-            value: overview ? overview.activeSubscriptions : '...',
-          },
-          {
-            hint: '近 30 天实收充值',
-            icon: <Icon icon={CircleDollarSign} size={18} />,
-            key: 'revenue',
-            label: '充值收入',
-            value: overview ? `$${overview.revenueLast30dUsd}` : '...',
-          },
-        ]}
-      />
+      {overviewError ? (
+        <AdminPageError description="核心指标加载失败，请重试。" onRetry={refreshOverview} />
+      ) : (
+        <AdminMetricStrip
+          label={t('admin.overview.metricsLabel', '关键指标')}
+          items={[
+            {
+              hint: '平台注册账户',
+              icon: <Icon icon={Users} size={18} />,
+              key: 'users',
+              label: '总用户',
+              value: overview ? overview.totalUsers : '...',
+            },
+            {
+              hint: '最近 24 小时',
+              icon: <Icon icon={UserRoundCheck} size={18} />,
+              key: 'dau',
+              label: '日活用户',
+              value: overview ? overview.dau : '...',
+            },
+            {
+              hint: '当前有效状态',
+              icon: <Icon icon={ChartNoAxesColumn} size={18} />,
+              key: 'subscriptions',
+              label: '有效订阅',
+              value: overview ? overview.activeSubscriptions : '...',
+            },
+            {
+              hint: '近 30 天实收充值',
+              icon: <Icon icon={CircleDollarSign} size={18} />,
+              key: 'revenue',
+              label: '充值收入',
+              value: overview ? `$${overview.revenueLast30dUsd}` : '...',
+            },
+          ]}
+        />
+      )}
 
       <div className={styles.split}>
         <AdminSection
@@ -210,7 +222,12 @@ const AdminOverviewPage = memo(() => {
           }
         >
           <div className={styles.pending}>
-            {pendingChanges ? (
+            {pendingChangesError ? (
+              <AdminPageError
+                description="待处理事项加载失败，请重试。"
+                onRetry={refreshPendingChanges}
+              />
+            ) : pendingChanges ? (
               <>
                 <Tag
                   color={pendingChangeCount > 0 ? 'processing' : 'success'}
@@ -238,7 +255,9 @@ const AdminOverviewPage = memo(() => {
             </Button>
           }
         >
-          {settings ? (
+          {settingsError ? (
+            <AdminPageError description="系统状态加载失败，请重试。" onRetry={refreshSettings} />
+          ) : settings ? (
             <div>
               <div className={styles.keyValue}>
                 <span className={styles.keyValueLabel}>品牌名称</span>

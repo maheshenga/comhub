@@ -1,13 +1,22 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Divider, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert, Form, Input, InputNumber, message, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import {
+  AdminFormActions,
+  AdminFormGrid,
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+} from './layout';
 
 const SETTING_KEYS = {
   initialCredits: 'onboarding.initialCredits',
@@ -35,7 +44,12 @@ const AdminGrowthPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('growth'), () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('growth'), () =>
     adminCommercialService.getSettingsSection('growth'),
   );
 
@@ -54,6 +68,8 @@ const AdminGrowthPage = memo(() => {
   }, [data, form]);
 
   const handleSave = async () => {
+    if (!data) return;
+
     setSubmitting(true);
     try {
       const values = await form.validateFields();
@@ -102,14 +118,27 @@ const AdminGrowthPage = memo(() => {
   };
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 760 }}>
+    <AdminPageShell
+      title={t('admin.growth.title', '增长与注册')}
+      width="medium"
+      description={t(
+        'admin.growth.subtitle',
+        '管理用户注册、新账号权益、邀请奖励与全站文件上传限制。',
+      )}
+    >
       <Alert
         showIcon
         message={t('admin.growth.tip', '这些配置会影响注册、新用户初始化和文件上传校验。')}
         type="info"
       />
+      {error ? (
+        <AdminPageError
+          description={t('admin.growth.loadFailed', '无法读取当前增长配置，请重试。')}
+          onRetry={refresh}
+        />
+      ) : null}
       <Form
-        disabled={isLoading}
+        disabled={isLoading || !data}
         form={form}
         layout="vertical"
         initialValues={{
@@ -123,83 +152,129 @@ const AdminGrowthPage = memo(() => {
           uploadMaxInputSizeMb: 0,
         }}
       >
-        <Divider plain>{t('admin.growth.signupSection', '注册')}</Divider>
-        <Form.Item
-          label={t('admin.growth.signupEnabled', '允许新用户注册')}
-          name="signupEnabled"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.growth.signupDisabledMessage', '注册关闭提示')}
-          name="signupDisabledMessage"
-        >
-          <Input.TextArea rows={3} />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.growth.signupPhoneEnabled', '注册时填写手机号')}
-          name="signupPhoneEnabled"
-          valuePropName="checked"
-          extra={t(
-            'admin.growth.signupPhoneEnabled.help',
-            '开启后，注册表单会显示手机号输入项，并保存到后台用户资料。',
-          )}
-        >
-          <Switch />
-        </Form.Item>
+        <Flexbox gap={24}>
+          <AdminSection
+            title={t('admin.growth.signupSection', '注册')}
+            description={t(
+              'admin.growth.signupSectionDescription',
+              '控制注册入口、关闭时的用户提示以及手机号资料采集。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                label={t('admin.growth.signupEnabled', '允许新用户注册')}
+                name="signupEnabled"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                label={t('admin.growth.signupPhoneEnabled', '注册时填写手机号')}
+                name="signupPhoneEnabled"
+                valuePropName="checked"
+                extra={t(
+                  'admin.growth.signupPhoneEnabled.help',
+                  '开启后，注册表单会显示手机号输入项，并保存到后台用户资料。',
+                )}
+              >
+                <Switch />
+              </Form.Item>
+            </AdminFormGrid>
+            <Form.Item
+              label={t('admin.growth.signupDisabledMessage', '注册关闭提示')}
+              name="signupDisabledMessage"
+            >
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          </AdminSection>
 
-        <Divider plain>{t('admin.growth.onboardingSection', '新用户初始化')}</Divider>
-        <Form.Item
-          label={t('admin.growth.initialCreditsEnabled', '赠送初始积分')}
-          name="initialCreditsEnabled"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.growth.initialCredits', '初始积分')}
-          name="initialCredits"
-          extra={t(
-            'admin.growth.initialCredits.help',
-            '新账号创建时仅赠送一次，使用系统内部积分单位。',
-          )}
-        >
-          <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-        </Form.Item>
+          <AdminSection
+            title={t('admin.growth.onboardingSection', '新用户初始化')}
+            description={t(
+              'admin.growth.onboardingSectionDescription',
+              '设置新账号创建时一次性发放的初始权益。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                label={t('admin.growth.initialCreditsEnabled', '赠送初始积分')}
+                name="initialCreditsEnabled"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                label={t('admin.growth.initialCredits', '初始积分')}
+                name="initialCredits"
+                extra={t(
+                  'admin.growth.initialCredits.help',
+                  '新账号创建时仅赠送一次，使用系统内部积分单位。',
+                )}
+              >
+                <InputNumber min={0} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </AdminFormGrid>
+          </AdminSection>
 
-        <Divider plain>{t('admin.growth.referralSection', '邀请与推荐')}</Divider>
-        <Form.Item
-          extra={t(
-            'admin.growth.referralReward.help',
-            '用户邀请新用户完成注册后发放的奖励积分，使用系统内部积分单位。',
-          )}
-          label={t('admin.growth.referralReward', '推荐奖励积分')}
-          name="referralRewardCredits"
-        >
-          <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-        </Form.Item>
+          <AdminSection
+            title={t('admin.growth.referralSection', '邀请与推荐')}
+            description={t(
+              'admin.growth.referralSectionDescription',
+              '设置邀请新用户完成注册后发放的奖励。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                label={t('admin.growth.referralReward', '推荐奖励积分')}
+                name="referralRewardCredits"
+                extra={t(
+                  'admin.growth.referralReward.help',
+                  '用户邀请新用户完成注册后发放的奖励积分，使用系统内部积分单位。',
+                )}
+              >
+                <InputNumber min={0} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </AdminFormGrid>
+          </AdminSection>
 
-        <Divider plain>{t('admin.growth.uploadSection', '上传限制')}</Divider>
-        <Form.Item
-          extra={t('admin.growth.upload.zeroUnlimited', '0 表示不限制。')}
-          label={t('admin.growth.uploadMaxInputSizeMb', '最大声明文件大小（MB）')}
-          name="uploadMaxInputSizeMb"
-        >
-          <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-        </Form.Item>
-        <Form.Item
-          extra={t('admin.growth.upload.zeroUnlimited', '0 表示不限制。')}
-          label={t('admin.growth.uploadMaxActualSizeMb', '最大实际文件大小（MB）')}
-          name="uploadMaxActualSizeMb"
-        >
-          <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-        </Form.Item>
-        <Button loading={submitting} type="primary" onClick={handleSave}>
-          {t('admin.settings.save', '保存')}
-        </Button>
+          <AdminSection
+            title={t('admin.growth.uploadSection', '上传限制')}
+            description={t(
+              'admin.growth.uploadSectionDescription',
+              '同时限制客户端声明大小和服务端实际接收大小，0 表示不限制。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                extra={t('admin.growth.upload.zeroUnlimited', '0 表示不限制。')}
+                label={t('admin.growth.uploadMaxInputSizeMb', '最大声明文件大小（MB）')}
+                name="uploadMaxInputSizeMb"
+              >
+                <InputNumber min={0} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.Item
+                extra={t('admin.growth.upload.zeroUnlimited', '0 表示不限制。')}
+                label={t('admin.growth.uploadMaxActualSizeMb', '最大实际文件大小（MB）')}
+                name="uploadMaxActualSizeMb"
+              >
+                <InputNumber min={0} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </AdminFormGrid>
+          </AdminSection>
+
+          <AdminFormActions label={t('admin.growth.actions', '增长配置操作')}>
+            <Button
+              disabled={isLoading || !data}
+              loading={submitting}
+              type="primary"
+              onClick={handleSave}
+            >
+              {t('admin.settings.save', '保存')}
+            </Button>
+          </AdminFormActions>
+        </Flexbox>
       </Form>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

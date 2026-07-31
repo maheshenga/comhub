@@ -30,6 +30,7 @@ import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
+import { AdminPageError } from '@/features/Admin/layout';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
@@ -129,6 +130,7 @@ const AdminUsersPage = memo(() => {
   const [assignReason, setAssignReason] = useState('');
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [roleDrafts, setRoleDrafts] = useState<Record<string, AssignableRole>>({});
 
   const swrKey = ['admin-users', query, planFilter ?? '', subscriptionStartedOrder ?? '', cursor];
@@ -141,7 +143,12 @@ const AdminUsersPage = memo(() => {
     () => adminCommercialService.getResetAllUsersToFreePlanPreview(),
   );
 
-  const { data, isLoading } = useClientDataSWR(
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(
     swrKey,
     () =>
       adminCommercialService.listUsers({
@@ -576,7 +583,10 @@ const AdminUsersPage = memo(() => {
             />
           </div>
           <Button
+            disabled={exporting}
+            loading={exporting}
             onClick={async () => {
+              setExporting(true);
               try {
                 const result = await adminCommercialService.exportUsers({
                   limit: 10_000,
@@ -626,6 +636,8 @@ const AdminUsersPage = memo(() => {
                 message.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
               } catch {
                 message.error(t('admin.exportFailed', '导出失败'));
+              } finally {
+                setExporting(false);
               }
             }}
           >
@@ -633,16 +645,23 @@ const AdminUsersPage = memo(() => {
             {t('admin.exportCsv', '导出 CSV')}
           </Button>
         </AdminToolbar>
-        <AdminResponsiveTable label={t('admin.users.tableLabel', '用户数据表')}>
-          <InlineTable
-            columns={columns as any}
-            dataSource={allItems}
-            loading={isLoading && cursor === 0}
-            locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
-            rowKey="id"
+        {error ? (
+          <AdminPageError
+            description={t('admin.users.loadFailed', '用户列表加载失败，请重试。')}
+            onRetry={refresh}
           />
-        </AdminResponsiveTable>
-        {data?.nextCursor != null && (
+        ) : (
+          <AdminResponsiveTable label={t('admin.users.tableLabel', '用户数据表')}>
+            <InlineTable
+              columns={columns as any}
+              dataSource={allItems}
+              loading={isLoading && cursor === 0}
+              locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
+              rowKey="id"
+            />
+          </AdminResponsiveTable>
+        )}
+        {!error && data?.nextCursor != null && (
           <Flexbox align="center">
             <Button loading={isLoading && cursor > 0} onClick={handleLoadMore}>
               {t('admin.loadMore', '加载更多')}
@@ -687,7 +706,9 @@ const AdminUsersPage = memo(() => {
         </AdminSection>
       ) : null}
       <Modal
+        confirmLoading={actionLoading === banTarget}
         open={!!banTarget}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         title={t('admin.ban', '封禁用户')}
         onOk={handleBan}
         onCancel={() => {
@@ -704,6 +725,7 @@ const AdminUsersPage = memo(() => {
       </Modal>
       <Modal
         open={!!adjustTarget}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         title={t('admin.adjustCredits', '调整积分')}
         footer={[
           <Button

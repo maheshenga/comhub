@@ -1,8 +1,11 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Empty, Input, message, Select, Space, Tag, Typography } from 'antd';
+import { Button, Select } from '@lobehub/ui/base-ui';
+import { Alert, Empty, Input, message, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { createStaticStyles } from 'antd-style';
+import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
 import InlineTable from '@/components/InlineTable';
@@ -11,8 +14,51 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from './AdminDangerousActionButton';
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
+import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
+
+const styles = createStaticStyles(({ css }) => ({
+  filters: css`
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+
+    min-width: 0;
+  `,
+  pagination: css`
+    display: flex;
+    justify-content: center;
+  `,
+  search: css`
+    flex: 1 1 280px;
+    min-width: min(240px, 100%);
+    max-width: 360px;
+
+    @media (width < 640px) {
+      max-width: none;
+    }
+  `,
+  select: css`
+    flex: 0 1 160px;
+    min-width: min(160px, 100%);
+
+    @media (width < 640px) {
+      flex: 1 1 160px;
+    }
+  `,
+  userSearch: css`
+    flex: 1 1 220px;
+    min-width: min(220px, 100%);
+    max-width: 280px;
+
+    @media (width < 640px) {
+      max-width: none;
+    }
+  `,
+}));
 
 type ContentMode = 'documents' | 'files' | 'topics';
 type TopicStatus = 'active' | 'archived' | 'completed';
@@ -71,8 +117,10 @@ const getModeCopy = (mode: ContentMode) => {
   if (mode === 'topics') {
     return {
       actionHint: '归档会保留数据但隐藏活跃状态；删除会直接移除话题记录。',
+      listTitle: '话题列表',
       searchPlaceholder: '搜索标题、描述、内容或用户',
       subtitle: '统一查看所有用户的话题，支持按状态筛选、归档和删除异常话题。',
+      tableLabel: '话题数据表',
       title: '话题管理',
     };
   }
@@ -80,16 +128,20 @@ const getModeCopy = (mode: ContentMode) => {
   if (mode === 'files') {
     return {
       actionHint: '删除会移除文件记录，请先确认该资源不再需要。',
+      listTitle: '文件列表',
       searchPlaceholder: '搜索文件名、类型、地址或用户',
       subtitle: '查看所有用户上传或生成的资源文件，定位体积、类型和归属用户。',
+      tableLabel: '文件数据表',
       title: '资源文件管理',
     };
   }
 
   return {
     actionHint: '删除会移除文稿/知识文档记录，请确认不会影响用户资料与知识库。',
+    listTitle: '文档列表',
     searchPlaceholder: '搜索标题、文件名、来源或用户',
     subtitle: '查看用户文稿、网页、文件解析文档和助理相关文档，支持按来源类型筛选。',
+    tableLabel: '文档数据表',
     title: '用户文稿管理',
   };
 };
@@ -108,7 +160,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
     [cursor, mode, query, sourceType, status, userId],
   );
 
-  const { data, isLoading } = useClientDataSWR(swrKey, () => {
+  const { data, error, isLoading } = useClientDataSWR(swrKey, () => {
     const common = {
       cursor,
       limit: PAGE_SIZE,
@@ -367,82 +419,102 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
   }, [actingId, mode, runAction]);
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox gap={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          {copy.title}
-        </Title>
-        <Text type="secondary">{copy.subtitle}</Text>
-      </Flexbox>
-
-      <Alert showIcon message={copy.actionHint} type="info" />
-
-      <Flexbox horizontal align="center" gap={12} wrap="wrap">
-        <Input.Search
-          allowClear
-          placeholder={copy.searchPlaceholder}
-          style={{ width: 320 }}
-          onSearch={(value) => {
-            setQuery(value.trim());
-            resetFilters();
-          }}
-        />
-        <Input.Search
-          allowClear
-          placeholder="按用户 ID 筛选"
-          style={{ width: 240 }}
-          onSearch={(value) => {
-            setUserId(value.trim());
-            resetFilters();
-          }}
-        />
-        {mode === 'topics' ? (
-          <Select<TopicStatus>
-            allowClear
-            placeholder="话题状态"
-            style={{ width: 160 }}
-            value={status}
-            options={[
-              { label: '活跃', value: 'active' },
-              { label: '已完成', value: 'completed' },
-              { label: '已归档', value: 'archived' },
-            ]}
-            onChange={(value) => {
-              setStatus(value);
-              resetFilters();
-            }}
-          />
-        ) : null}
-        {mode === 'documents' ? (
-          <Select<DocumentSourceType>
-            allowClear
-            options={sourceTypeOptions}
-            placeholder="来源类型"
-            style={{ width: 160 }}
-            value={sourceType}
-            onChange={(value) => {
-              setSourceType(value);
-              resetFilters();
-            }}
-          />
-        ) : null}
-      </Flexbox>
-
-      <InlineTable
-        columns={columns}
-        dataSource={data?.items ?? []}
-        loading={isLoading}
-        locale={{ emptyText: <Empty description="暂无数据" /> }}
-        rowKey={(row: any) => row.topic?.id || row.file?.id || row.document?.id}
-      />
-      {data?.nextCursor != null ? (
-        <Flexbox align="center">
-          <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            加载更多
+    <AdminPageShell description={copy.subtitle} title={copy.title} width="full">
+      <Alert showIcon title={copy.actionHint} type="info" />
+      <AdminSection
+        description={`当前加载 ${data?.items?.length ?? 0} 条记录`}
+        title={copy.listTitle}
+        actions={
+          <Button
+            icon={<RefreshCw aria-hidden size={14} />}
+            loading={isLoading}
+            onClick={() => void refresh()}
+          >
+            刷新数据
           </Button>
-        </Flexbox>
-      ) : null}
-    </Flexbox>
+        }
+      >
+        <AdminToolbar>
+          <div className={styles.filters}>
+            <Input.Search
+              allowClear
+              className={styles.search}
+              placeholder={copy.searchPlaceholder}
+              onSearch={(value) => {
+                setQuery(value.trim());
+                resetFilters();
+              }}
+            />
+            <Input.Search
+              allowClear
+              className={styles.userSearch}
+              placeholder="按用户 ID 筛选"
+              onSearch={(value) => {
+                setUserId(value.trim());
+                resetFilters();
+              }}
+            />
+            {mode === 'topics' ? (
+              <Select
+                allowClear
+                className={styles.select}
+                placeholder="话题状态"
+                value={status}
+                options={[
+                  { label: '活跃', value: 'active' },
+                  { label: '已完成', value: 'completed' },
+                  { label: '已归档', value: 'archived' },
+                ]}
+                onChange={(value) => {
+                  setStatus(value as TopicStatus | undefined);
+                  resetFilters();
+                }}
+              />
+            ) : null}
+            {mode === 'documents' ? (
+              <Select
+                allowClear
+                className={styles.select}
+                options={sourceTypeOptions}
+                placeholder="来源类型"
+                value={sourceType}
+                onChange={(value) => {
+                  setSourceType(value as DocumentSourceType | undefined);
+                  resetFilters();
+                }}
+              />
+            ) : null}
+          </div>
+        </AdminToolbar>
+
+        {error ? (
+          <Alert
+            showIcon
+            action={<Button onClick={() => void refresh()}>重试</Button>}
+            description="请检查服务状态后重试，现有筛选条件会保留。"
+            title="数据加载失败"
+            type="error"
+          />
+        ) : null}
+
+        <AdminResponsiveTable label={copy.tableLabel}>
+          <InlineTable
+            columns={columns}
+            dataSource={data?.items ?? []}
+            loading={isLoading}
+            locale={{ emptyText: <Empty description="暂无数据" /> }}
+            rowKey={(row: any) => row.topic?.id || row.file?.id || row.document?.id}
+          />
+        </AdminResponsiveTable>
+        {data?.nextCursor != null ? (
+          <div className={styles.pagination}>
+            <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
+              加载更多
+            </Button>
+          </div>
+        ) : null}
+      </AdminSection>
+    </AdminPageShell>
   );
 });
 

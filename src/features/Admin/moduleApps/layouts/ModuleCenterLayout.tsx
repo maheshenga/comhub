@@ -12,6 +12,7 @@ import ModuleSectionNav from '../navigation/ModuleSectionNav';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   content: css`
+    box-sizing: border-box;
     min-width: 0;
     padding: 20px;
 
@@ -22,10 +23,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   layout: css`
     display: grid;
     grid-template-columns: 216px minmax(0, 1fr);
+
     width: 100%;
+    min-width: 0;
     min-height: 100%;
 
-    @media (width < 760px) {
+    @media (width < 1200px) {
       grid-template-columns: minmax(0, 1fr);
     }
   `,
@@ -36,11 +39,25 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     padding: 12px;
     border-inline-end: 1px solid ${cssVar.colorBorderSecondary};
 
-    @media (width < 760px) {
+    @media (width < 1200px) {
       width: 100%;
       min-height: auto;
       border-block-end: 1px solid ${cssVar.colorBorderSecondary};
       border-inline-end: 0;
+    }
+  `,
+  navigationBar: css`
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 12px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+
+    background: ${cssVar.colorBgContainer};
+
+    strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   `,
   sheetContent: css`
@@ -51,25 +68,25 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
+export const shouldUseModuleNavigationSheet = ({
+  mobile,
+  xl,
+}: {
+  mobile?: boolean;
+  xl?: boolean;
+}) => mobile === true || xl === false;
+
 const ModuleCenterLayout = memo(() => {
   const { t } = useTranslation('common');
-  const { mobile = false } = useResponsive();
+  const { mobile = false, xl = true } = useResponsive();
+  const useNavigationSheet = shouldUseModuleNavigationSheet({ mobile, xl });
   const [navigationOpen, setNavigationOpen] = useState(false);
 
   return (
     <div className={styles.layout}>
-      {mobile ? (
+      {useNavigationSheet ? (
         <>
-          <Flexbox
-            horizontal
-            align="center"
-            gap={8}
-            style={{
-              borderBlockEnd: '1px solid var(--lobe-color-border-secondary)',
-              minHeight: 44,
-              paddingInline: 12,
-            }}
-          >
+          <Flexbox horizontal align="center" className={styles.navigationBar} gap={8}>
             <ActionIcon
               icon={Menu}
               title={t('moduleApps.admin.center.navigation.open')}

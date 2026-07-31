@@ -18,6 +18,7 @@ import {
 } from '@/const/mobileConfigPublication';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 import MobileConfigPreview from './MobileConfigPreview';
 import {
   ApplicationsSection,
@@ -46,38 +47,6 @@ import {
 import { useUnsavedChangesGuard } from './shared/useUnsavedChangesGuard';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
-  actionRow: css`
-    position: sticky;
-    z-index: 3;
-    inset-block-end: 0;
-
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    justify-content: flex-end;
-
-    margin-inline: -24px;
-    padding-block: 12px;
-    padding-inline: 24px;
-    border-block-start: 1px solid ${cssVar.colorBorderSecondary};
-
-    background: color-mix(in srgb, ${cssVar.colorBgContainer} 94%, transparent);
-    box-shadow: 0 -4px 16px rgb(0 0 0 / 6%);
-
-    @media (width <= 640px) {
-      margin-inline: -16px;
-      padding-inline: 16px;
-    }
-  `,
-  page: css`
-    width: min(100%, 1120px);
-    padding: 24px;
-
-    @media (width <= 640px) {
-      padding: 16px;
-    }
-  `,
   publicationMeta: css`
     font-size: 13px;
     color: ${cssVar.colorTextSecondary};
@@ -125,6 +94,25 @@ const AdminMobileSettingsPage = memo(() => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
+
+  const loadPublication = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      const publication = await adminCommercialService.getMobileSettingsPublication();
+      const normalized = toFormConfig(publication.draft.config);
+      if (!asyncGuard.isMounted()) return;
+      setPublicationState(publication);
+      setFormValues(normalized);
+      setBaseline(normalized);
+    } catch {
+      if (asyncGuard.isMounted()) {
+        setError(tr('admin.mobile.loadError', 'Failed to load mobile settings.'));
+      }
+    } finally {
+      if (asyncGuard.isMounted()) setLoading(false);
+    }
+  }, [asyncGuard, tr]);
 
   const refreshAssistantOptions = useCallback(async () => {
     if (!asyncGuard.isMounted()) return;
@@ -185,28 +173,9 @@ const AdminMobileSettingsPage = memo(() => {
 
   useEffect(() => {
     asyncGuard.mount();
-    const load = async () => {
-      setLoading(true);
-      setError(undefined);
-      try {
-        const publication = await adminCommercialService.getMobileSettingsPublication();
-        const normalized = toFormConfig(publication.draft.config);
-        if (!asyncGuard.isMounted()) return;
-        setPublicationState(publication);
-        setFormValues(normalized);
-        setBaseline(normalized);
-      } catch {
-        if (asyncGuard.isMounted()) {
-          setError(tr('admin.mobile.loadError', 'Failed to load mobile settings.'));
-        }
-      } finally {
-        if (asyncGuard.isMounted()) setLoading(false);
-      }
-    };
-
-    void load();
+    void loadPublication();
     return () => asyncGuard.unmount();
-  }, [asyncGuard, tr]);
+  }, [asyncGuard, loadPublication]);
 
   const normalizedPreview = useMemo(() => normalizeMobileConfig(formValues), [formValues]);
   const validation = useMemo(
@@ -299,117 +268,129 @@ const AdminMobileSettingsPage = memo(() => {
 
   if (loading) {
     return (
-      <Flexbox className={styles.page} data-testid="mobile-settings-loading" gap={16}>
-        <Skeleton.Button active block style={{ height: 32, width: 240 }} />
-        <Skeleton.Paragraph active rows={4} />
-        <Skeleton.Button active block style={{ height: 120 }} />
-      </Flexbox>
+      <AdminPageShell
+        description={tr('admin.mobile.subtitle', '配置手机端品牌、导航、内容入口和发布版本。')}
+        title={tr('admin.mobile.title', '手机端配置')}
+        width="full"
+      >
+        <Flexbox data-testid="mobile-settings-loading" gap={16}>
+          <Skeleton.Button active block style={{ height: 32, width: 240 }} />
+          <Skeleton.Paragraph active rows={4} />
+          <Skeleton.Button active block style={{ height: 120 }} />
+        </Flexbox>
+      </AdminPageShell>
     );
   }
 
   const sectionProps = { formValues, tr, updateForm };
   return (
-    <Flexbox className={styles.page} gap={24}>
-      {error ? <Alert showIcon title={error} type="error" /> : null}
-      {success ? <Alert showIcon title={success} type="success" /> : null}
-      {validation.messages.map((message) => (
-        <Alert showIcon key={message} title={message} type="warning" />
-      ))}
-
-      <BrandSection {...sectionProps} />
-      <BottomNavigationSection {...sectionProps} />
-      <DesignToolsSection {...sectionProps} />
-      <DiscoverCommunitySection {...sectionProps} />
-      <FeaturedAssistantsSection
-        {...sectionProps}
-        assistantOptions={assistantOptions}
-        assistantStatus={assistantStatus}
-        modelOptions={modelOptions}
-        modelStatus={modelStatus}
-        selectedAssistantId={selectedAssistantId}
-        selectedModelValue={selectedModelValue}
-        setSelectedAssistantId={setSelectedAssistantId}
-        setSelectedModelValue={setSelectedModelValue}
-        onLoadAssistants={() => void refreshAssistantOptions()}
-        onLoadModels={() => void refreshModelOptions()}
-        onRetryAssistants={() => void refreshAssistantOptions()}
-        onRetryModels={() => void refreshModelOptions()}
-      />
-      <ApplicationsSection
-        {...sectionProps}
-        moduleAppOptions={moduleAppOptions}
-        moduleAppStatus={moduleAppStatus}
-        selectedModuleAppId={selectedModuleAppId}
-        setSelectedModuleAppId={setSelectedModuleAppId}
-        onLoadModuleApps={() => void refreshModuleAppOptions()}
-        onRetryModuleApps={() => void refreshModuleAppOptions()}
-      />
-
-      <section
-        aria-label={tr('admin.mobile.preview', 'Preview')}
-        className={mobileSettingsStyles.section}
-      >
-        <h2 className={mobileSettingsStyles.sectionTitle}>
-          {tr('admin.mobile.preview', 'Preview')}
-        </h2>
-        <MobileConfigPreview config={normalizedPreview} />
-      </section>
-
-      <section
-        aria-label={tr('admin.mobile.history', 'Publication history')}
-        className={mobileSettingsStyles.section}
-      >
-        <h2 className={mobileSettingsStyles.sectionTitle}>
-          {tr('admin.mobile.history', 'Publication history')}
-        </h2>
-        <div className={styles.publicationMeta}>
-          {tr('admin.mobile.draftRevision', 'Draft revision {{draft}}', {
-            draft: publicationState.draft.revision,
-          })}
-          {' | '}
-          {tr('admin.mobile.publishedRevision', 'Published revision {{published}}', {
-            published: publicationState.published.revision,
-          })}
-        </div>
-        {publicationState.history.map((snapshot) => (
-          <div className={styles.revisionRow} key={snapshot.revision}>
-            <span>
-              {tr('admin.mobile.revision', 'Revision {{revision}}', {
-                revision: snapshot.revision,
-              })}{' '}
-              <time dateTime={snapshot.updatedAt}>
-                {new Date(snapshot.updatedAt).toLocaleString()}
-              </time>
-            </span>
-            {snapshot.revision !== publicationState.published.revision ? (
-              <Button
-                loading={rollingBackRevision === snapshot.revision}
-                onClick={() => void rollback(snapshot.revision)}
-              >
-                {tr('admin.mobile.rollback', 'Roll back')}
-              </Button>
-            ) : null}
-          </div>
+    <AdminPageShell
+      description={tr('admin.mobile.subtitle', '配置手机端品牌、导航、内容入口和发布版本。')}
+      title={tr('admin.mobile.title', '手机端配置')}
+      width="full"
+    >
+      <Flexbox gap={24}>
+        {error ? <AdminPageError description={error} onRetry={loadPublication} /> : null}
+        {success ? <Alert showIcon title={success} type="success" /> : null}
+        {validation.messages.map((message) => (
+          <Alert showIcon key={message} title={message} type="warning" />
         ))}
-      </section>
 
-      <div className={styles.actionRow}>
-        <Button onClick={() => void restoreDefaults()}>
-          {tr('admin.mobile.restoreDefaults', 'Restore defaults')}
-        </Button>
-        <Button disabled={!canSave} loading={saving} onClick={() => void save()}>
-          {tr('admin.mobile.saveDraft', 'Save draft')}
-        </Button>
-        <Button
-          disabled={!canPublish}
-          loading={publishing}
-          type="primary"
-          onClick={() => void publish()}
+        <BrandSection {...sectionProps} />
+        <BottomNavigationSection {...sectionProps} />
+        <DesignToolsSection {...sectionProps} />
+        <DiscoverCommunitySection {...sectionProps} />
+        <FeaturedAssistantsSection
+          {...sectionProps}
+          assistantOptions={assistantOptions}
+          assistantStatus={assistantStatus}
+          modelOptions={modelOptions}
+          modelStatus={modelStatus}
+          selectedAssistantId={selectedAssistantId}
+          selectedModelValue={selectedModelValue}
+          setSelectedAssistantId={setSelectedAssistantId}
+          setSelectedModelValue={setSelectedModelValue}
+          onLoadAssistants={() => void refreshAssistantOptions()}
+          onLoadModels={() => void refreshModelOptions()}
+          onRetryAssistants={() => void refreshAssistantOptions()}
+          onRetryModels={() => void refreshModelOptions()}
+        />
+        <ApplicationsSection
+          {...sectionProps}
+          moduleAppOptions={moduleAppOptions}
+          moduleAppStatus={moduleAppStatus}
+          selectedModuleAppId={selectedModuleAppId}
+          setSelectedModuleAppId={setSelectedModuleAppId}
+          onLoadModuleApps={() => void refreshModuleAppOptions()}
+          onRetryModuleApps={() => void refreshModuleAppOptions()}
+        />
+
+        <section
+          aria-label={tr('admin.mobile.preview', 'Preview')}
+          className={mobileSettingsStyles.section}
         >
-          {tr('admin.mobile.publish', 'Publish')}
-        </Button>
-      </div>
-    </Flexbox>
+          <h2 className={mobileSettingsStyles.sectionTitle}>
+            {tr('admin.mobile.preview', 'Preview')}
+          </h2>
+          <MobileConfigPreview config={normalizedPreview} />
+        </section>
+
+        <section
+          aria-label={tr('admin.mobile.history', 'Publication history')}
+          className={mobileSettingsStyles.section}
+        >
+          <h2 className={mobileSettingsStyles.sectionTitle}>
+            {tr('admin.mobile.history', 'Publication history')}
+          </h2>
+          <div className={styles.publicationMeta}>
+            {tr('admin.mobile.draftRevision', 'Draft revision {{draft}}', {
+              draft: publicationState.draft.revision,
+            })}
+            {' | '}
+            {tr('admin.mobile.publishedRevision', 'Published revision {{published}}', {
+              published: publicationState.published.revision,
+            })}
+          </div>
+          {publicationState.history.map((snapshot) => (
+            <div className={styles.revisionRow} key={snapshot.revision}>
+              <span>
+                {tr('admin.mobile.revision', 'Revision {{revision}}', {
+                  revision: snapshot.revision,
+                })}{' '}
+                <time dateTime={snapshot.updatedAt}>
+                  {new Date(snapshot.updatedAt).toLocaleString()}
+                </time>
+              </span>
+              {snapshot.revision !== publicationState.published.revision ? (
+                <Button
+                  loading={rollingBackRevision === snapshot.revision}
+                  onClick={() => void rollback(snapshot.revision)}
+                >
+                  {tr('admin.mobile.rollback', 'Roll back')}
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </section>
+
+        <AdminFormActions label={tr('admin.mobile.actions', '手机端配置操作')}>
+          <Button onClick={() => void restoreDefaults()}>
+            {tr('admin.mobile.restoreDefaults', 'Restore defaults')}
+          </Button>
+          <Button disabled={!canSave} loading={saving} onClick={() => void save()}>
+            {tr('admin.mobile.saveDraft', 'Save draft')}
+          </Button>
+          <Button
+            disabled={!canPublish}
+            loading={publishing}
+            type="primary"
+            onClick={() => void publish()}
+          >
+            {tr('admin.mobile.publish', 'Publish')}
+          </Button>
+        </AdminFormActions>
+      </Flexbox>
+    </AdminPageShell>
   );
 });
 

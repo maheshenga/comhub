@@ -1,17 +1,14 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
+import { Button, Modal, Select } from '@lobehub/ui/base-ui';
 import {
-  Button,
   DatePicker,
   Empty,
   Form,
   Input,
   InputNumber,
   message,
-  Modal,
-  Select,
-  Space,
   Tag,
 } from 'antd';
 import { memo, useMemo, useState } from 'react';
@@ -21,6 +18,13 @@ import InlineTable from '@/components/InlineTable';
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
 import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
+import {
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+} from '@/features/Admin/layout';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -65,7 +69,12 @@ const AdminRedemptionPage = memo(() => {
     [status, rewardType, batchId, codeQuery, cursor],
   );
 
-  const { data, isLoading, mutate } = useClientDataSWR(swrKey, () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate,
+  } = useClientDataSWR(swrKey, () =>
     adminCommercialService.listRedemptionCodes({
       batchId: batchId || undefined,
       codeQuery: codeQuery || undefined,
@@ -284,148 +293,172 @@ const AdminRedemptionPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal align="center" gap={12} wrap="wrap">
-        <Select<Status>
-          style={{ width: 140 }}
-          value={status}
-          options={[
-            { label: t('admin.redemption.status.all', '全部'), value: 'all' },
-            { label: t('admin.redemption.status.active', '可用'), value: 'active' },
-            { label: t('admin.redemption.status.redeemed', '已兑换'), value: 'redeemed' },
-            { label: t('admin.redemption.status.disabled', '已停用'), value: 'disabled' },
-            { label: t('admin.redemption.status.expired', '已过期'), value: 'expired' },
-          ]}
-          onChange={(v: 'active' | 'all' | 'disabled' | 'expired' | 'redeemed') => {
-            setStatus(v);
-            setCursor(0);
-          }}
-        />
-        <Select<RewardType | undefined>
-          allowClear
-          placeholder={t('admin.redemption.filter.type', '奖励类型')}
-          style={{ width: 180 }}
-          value={rewardType}
-          options={[
-            { label: '套餐（Plan）', value: 'plan' },
-            { label: '积分', value: 'credits' },
-            { label: '充值套餐', value: 'topup_package' },
-          ]}
-          onChange={(v: RewardType | undefined) => {
-            setRewardType(v);
-            setCursor(0);
-          }}
-        />
-        <Input
-          allowClear
-          placeholder={t('admin.redemption.filter.batch', '批次 ID')}
-          style={{ width: 200 }}
-          value={batchId}
-          onChange={(e: { target: { value: string } }) => {
-            setBatchId(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <Input
-          allowClear
-          placeholder={t('admin.redemption.filter.code', '搜索兑换码...')}
-          style={{ width: 200 }}
-          value={codeQuery}
-          onChange={(e: { target: { value: string } }) => {
-            setCodeQuery(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <Space>
-          <Button type="primary" onClick={() => setGenOpen(true)}>
-            {t('admin.redemption.generate', '生成兑换码')}
-          </Button>
-          {selectedIds.length > 0 && (
-            <>
-              <AdminBulkActionFlow
-                danger
-                actionId="redemption.bulkDisable"
-                count={selectedIds.length}
-                summary={formatBulkDisableResult}
-                confirmTitle={t(
-                  'admin.redemption.confirmBulkDisable',
-                  `确认停用 ${selectedIds.length} 个兑换码？`,
-                )}
-                progressDescription={t(
-                  'admin.redemption.bulkDisableProgress',
-                  '正在停用选中的兑换码，请勿关闭页面。',
-                )}
-                onRun={handleBulkDisable}
-                onSuccess={finishBulkAction}
-              >
-                {t('admin.redemption.bulkDisable', `停用 ${selectedIds.length} 个`)}
-              </AdminBulkActionFlow>
-              <AdminBulkActionFlow
-                danger
-                actionId="redemption.bulkDelete"
-                count={selectedIds.length}
-                summary={formatBulkDeleteResult}
-                confirmTitle={t(
-                  'admin.redemption.confirmBulkDelete',
-                  `确认删除 ${selectedIds.length} 个未兑换兑换码？`,
-                )}
-                progressDescription={t(
-                  'admin.redemption.bulkDeleteProgress',
-                  '正在删除选中的未兑换兑换码，请勿关闭页面。',
-                )}
-                onRun={handleBulkDelete}
-                onSuccess={finishBulkAction}
-              >
-                {t('admin.redemption.bulkDelete', `删除 ${selectedIds.length} 个`)}
-              </AdminBulkActionFlow>
-              <Button onClick={() => setSelectedIds([])}>
-                {t('admin.redemption.clearSel', '清空选择')}
-              </Button>
-            </>
-          )}
-          <Button
-            onClick={async () => {
-              try {
-                const r = await adminCommercialService.expireOverdueRedemptionCodes();
-                message.success(t('admin.redemption.expireDone', `已过期 ${r.expired} 个兑换码`));
-                await mutate();
-              } catch {
-                message.error(t('admin.redemption.actionFailed', '操作失败'));
-              }
-            }}
+    <AdminPageShell
+      description={t('admin.redemption.description', '生成、筛选和维护兑换码；批量操作需要经过受控确认。')}
+      title={t('admin.redemption.title', '兑换码管理')}
+      width="full"
+    >
+      <AdminSection
+        description={t('admin.redemption.resultSummary', '按状态、奖励类型、批次或兑换码筛选。')}
+        title={t('admin.redemption.listTitle', '兑换码列表')}
+      >
+        <AdminToolbar>
+          <Flexbox
+            horizontal
+            align="center"
+            gap={12}
+            style={{ flex: '1 1 520px', flexWrap: 'wrap' }}
           >
-            {t('admin.redemption.sweepExpired', '扫描过期兑换码')}
-          </Button>
-        </Space>
-      </Flexbox>
+            <Select
+              style={{ width: 'min(140px, 100%)' }}
+              value={status}
+              options={[
+                { label: t('admin.redemption.status.all', '全部'), value: 'all' },
+                { label: t('admin.redemption.status.active', '可用'), value: 'active' },
+                { label: t('admin.redemption.status.redeemed', '已兑换'), value: 'redeemed' },
+                { label: t('admin.redemption.status.disabled', '已停用'), value: 'disabled' },
+                { label: t('admin.redemption.status.expired', '已过期'), value: 'expired' },
+              ]}
+              onChange={(v: 'active' | 'all' | 'disabled' | 'expired' | 'redeemed') => {
+                setStatus(v);
+                setCursor(0);
+              }}
+            />
+            <Select
+              allowClear
+              placeholder={t('admin.redemption.filter.type', '奖励类型')}
+              style={{ width: 'min(180px, 100%)' }}
+              value={rewardType}
+              options={[
+                { label: '套餐（Plan）', value: 'plan' },
+                { label: '积分', value: 'credits' },
+                { label: '充值套餐', value: 'topup_package' },
+              ]}
+              onChange={(v: RewardType | undefined) => {
+                setRewardType(v);
+                setCursor(0);
+              }}
+            />
+            <Input
+              allowClear
+              placeholder={t('admin.redemption.filter.batch', '批次 ID')}
+              style={{ width: 'min(200px, 100%)' }}
+              value={batchId}
+              onChange={(e: { target: { value: string } }) => {
+                setBatchId(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <Input
+              allowClear
+              placeholder={t('admin.redemption.filter.code', '搜索兑换码...')}
+              style={{ width: 'min(200px, 100%)' }}
+              value={codeQuery}
+              onChange={(e: { target: { value: string } }) => {
+                setCodeQuery(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <Flexbox horizontal gap={8} wrap="wrap">
+              <Button type="primary" onClick={() => setGenOpen(true)}>
+                {t('admin.redemption.generate', '生成兑换码')}
+              </Button>
+              {selectedIds.length > 0 && (
+                <>
+                  <AdminBulkActionFlow
+                    danger
+                    actionId="redemption.bulkDisable"
+                    count={selectedIds.length}
+                    summary={formatBulkDisableResult}
+                    confirmTitle={t(
+                      'admin.redemption.confirmBulkDisable',
+                      `确认停用 ${selectedIds.length} 个兑换码？`,
+                    )}
+                    progressDescription={t(
+                      'admin.redemption.bulkDisableProgress',
+                      '正在停用选中的兑换码，请勿关闭页面。',
+                    )}
+                    onRun={handleBulkDisable}
+                    onSuccess={finishBulkAction}
+                  >
+                    {t('admin.redemption.bulkDisable', `停用 ${selectedIds.length} 个`)}
+                  </AdminBulkActionFlow>
+                  <AdminBulkActionFlow
+                    danger
+                    actionId="redemption.bulkDelete"
+                    count={selectedIds.length}
+                    summary={formatBulkDeleteResult}
+                    confirmTitle={t(
+                      'admin.redemption.confirmBulkDelete',
+                      `确认删除 ${selectedIds.length} 个未兑换兑换码？`,
+                    )}
+                    progressDescription={t(
+                      'admin.redemption.bulkDeleteProgress',
+                      '正在删除选中的未兑换兑换码，请勿关闭页面。',
+                    )}
+                    onRun={handleBulkDelete}
+                    onSuccess={finishBulkAction}
+                  >
+                    {t('admin.redemption.bulkDelete', `删除 ${selectedIds.length} 个`)}
+                  </AdminBulkActionFlow>
+                  <Button onClick={() => setSelectedIds([])}>
+                    {t('admin.redemption.clearSel', '清空选择')}
+                  </Button>
+                </>
+              )}
+              <Button
+                onClick={async () => {
+                  try {
+                    const r = await adminCommercialService.expireOverdueRedemptionCodes();
+                    message.success(t('admin.redemption.expireDone', `已过期 ${r.expired} 个兑换码`));
+                    await mutate();
+                  } catch {
+                    message.error(t('admin.redemption.actionFailed', '操作失败'));
+                  }
+                }}
+              >
+                {t('admin.redemption.sweepExpired', '扫描过期兑换码')}
+              </Button>
+            </Flexbox>
+          </Flexbox>
+        </AdminToolbar>
 
-      {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.redemption.empty', '暂无兑换码')} />
-      ) : (
-        <InlineTable
-          columns={columns as any}
-          dataSource={items}
-          loading={isLoading}
-          rowKey="id"
-          rowSelection={{
-            getCheckboxProps: (row: any) => ({ disabled: row.status === 'redeemed' }),
-            onChange: (keys) => setSelectedIds(keys as string[]),
-            selectedRowKeys: selectedIds,
-          }}
-        />
-      )}
+        {error ? (
+          <AdminPageError
+            description={t('admin.redemption.loadFailed', '兑换码加载失败，请重试。')}
+            onRetry={mutate}
+          />
+        ) : !isLoading && items.length === 0 ? (
+          <Empty description={t('admin.redemption.empty', '暂无兑换码')} />
+        ) : (
+          <AdminResponsiveTable label={t('admin.redemption.tableLabel', '兑换码表')}>
+            <InlineTable
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              rowKey="id"
+              rowSelection={{
+                getCheckboxProps: (row: any) => ({ disabled: row.status === 'redeemed' }),
+                onChange: (keys) => setSelectedIds(keys as string[]),
+                selectedRowKeys: selectedIds,
+              }}
+            />
+          </AdminResponsiveTable>
+        )}
 
-      {data?.nextCursor != null && (
-        <Flexbox align="center">
-          <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            {t('admin.redemption.loadMore', '加载更多')}
-          </Button>
-        </Flexbox>
-      )}
+        {data?.nextCursor != null && (
+          <Flexbox align="center">
+            <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
+              {t('admin.redemption.loadMore', '加载更多')}
+            </Button>
+          </Flexbox>
+        )}
+      </AdminSection>
 
       <Modal
         confirmLoading={generating}
         open={genOpen}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         title={t('admin.redemption.genTitle', '生成兑换码')}
         width={560}
         onCancel={() => setGenOpen(false)}
@@ -470,7 +503,6 @@ const AdminRedemptionPage = memo(() => {
                     >
                       <Select
                         disabled={planOptions.length === 0}
-                        notFoundContent={t('admin.redemption.field.planKey.notFound', '暂无套餐')}
                         options={planOptions}
                         placeholder={t(
                           'admin.redemption.field.planKey.placeholder',
@@ -530,10 +562,6 @@ const AdminRedemptionPage = memo(() => {
                   <Select
                     disabled={packageOptions.length === 0}
                     options={packageOptions}
-                    notFoundContent={t(
-                      'admin.redemption.field.topupPackageId.notFound',
-                      '暂无充值套餐',
-                    )}
                     placeholder={t(
                       'admin.redemption.field.topupPackageId.placeholder',
                       '请选择兑换后获得的充值套餐',
@@ -566,6 +594,7 @@ const AdminRedemptionPage = memo(() => {
 
       <Modal
         open={!!genResult}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         title={t('admin.redemption.generated', '兑换码已生成')}
         width={560}
         footer={[
@@ -591,7 +620,7 @@ const AdminRedemptionPage = memo(() => {
           </Flexbox>
         )}
       </Modal>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Empty, Form, Input, InputNumber, message, Modal, Select, Switch, Tag } from 'antd';
+import { Button, Modal, Select } from '@lobehub/ui/base-ui';
+import { Empty, Form, Input, InputNumber, message, Switch, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -10,6 +11,13 @@ import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/admin
 import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
+import {
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+} from '@/features/Admin/layout';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -31,6 +39,7 @@ const AdminCreditsPage = memo(() => {
   const [drawerUser, setDrawerUser] = useState<string | null>(null);
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [recharging, setRecharging] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [form] = Form.useForm<{ amount: number; userId: string }>();
 
   const swrKey = useMemo(
@@ -38,7 +47,12 @@ const AdminCreditsPage = memo(() => {
     [sort, order, negativeOnly, cursor],
   );
 
-  const { data, isLoading } = useClientDataSWR(swrKey, () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(swrKey, () =>
     adminCommercialService.listCreditAccounts({
       cursor,
       limit: 50,
@@ -51,6 +65,7 @@ const AdminCreditsPage = memo(() => {
   const items = data?.items ?? [];
 
   const handleExport = async () => {
+    setExporting(true);
     try {
       const res = await adminCommercialService.exportCreditAccounts({
         limit: 5000,
@@ -90,6 +105,8 @@ const AdminCreditsPage = memo(() => {
       message.success(t('admin.credits.exportSuccess', `已导出 ${res.items.length} 行`));
     } catch {
       message.error(t('admin.credits.exportFailed', '导出失败'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -168,68 +185,98 @@ const AdminCreditsPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal align="center" gap={12}>
-        <Select<SortKey>
-          style={{ width: 180 }}
-          value={sort}
-          options={[
-            { label: t('admin.credits.sort.balance', '余额'), value: 'balance' },
-            { label: t('admin.credits.sort.credited', '累计增加'), value: 'totalCredited' },
-            { label: t('admin.credits.sort.debited', '累计扣减'), value: 'totalDebited' },
-            { label: t('admin.credits.sort.updated', '更新时间'), value: 'updatedAt' },
-          ]}
-          onChange={(v: 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt') => {
-            setSort(v);
-            setCursor(0);
-          }}
-        />
-        <Select<'asc' | 'desc'>
-          style={{ width: 100 }}
-          value={order}
-          options={[
-            { label: t('admin.credits.order.desc', '降序'), value: 'desc' },
-            { label: t('admin.credits.order.asc', '升序'), value: 'asc' },
-          ]}
-          onChange={(v: 'asc' | 'desc') => {
-            setOrder(v);
-            setCursor(0);
-          }}
-        />
-        <Flexbox horizontal align="center" gap={6}>
-          <Switch
-            checked={negativeOnly}
-            onChange={(v: boolean) => {
-              setNegativeOnly(v);
-              setCursor(0);
-            }}
+    <AdminPageShell
+      description={t('admin.credits.description', '查看账户积分余额，并在必要时执行受控调整。')}
+      title={t('admin.credits.title', '积分账户')}
+      width="full"
+    >
+      <AdminSection
+        description={t('admin.credits.resultSummary', '按余额或变动情况筛选账户。')}
+        title={t('admin.credits.listTitle', '账户列表')}
+      >
+        <AdminToolbar>
+          <Flexbox
+            horizontal
+            align="center"
+            gap={12}
+            style={{ flex: '1 1 520px', flexWrap: 'wrap' }}
+          >
+            <Select
+              style={{ width: 180 }}
+              value={sort}
+              options={[
+                { label: t('admin.credits.sort.balance', '余额'), value: 'balance' },
+                { label: t('admin.credits.sort.credited', '累计增加'), value: 'totalCredited' },
+                { label: t('admin.credits.sort.debited', '累计扣减'), value: 'totalDebited' },
+                { label: t('admin.credits.sort.updated', '更新时间'), value: 'updatedAt' },
+              ]}
+              onChange={(v: 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt') => {
+                setSort(v);
+                setCursor(0);
+              }}
+            />
+            <Select
+              style={{ width: 100 }}
+              value={order}
+              options={[
+                { label: t('admin.credits.order.desc', '降序'), value: 'desc' },
+                { label: t('admin.credits.order.asc', '升序'), value: 'asc' },
+              ]}
+              onChange={(v: 'asc' | 'desc') => {
+                setOrder(v);
+                setCursor(0);
+              }}
+            />
+            <Flexbox horizontal align="center" gap={6}>
+              <Switch
+                checked={negativeOnly}
+                onChange={(v: boolean) => {
+                  setNegativeOnly(v);
+                  setCursor(0);
+                }}
+              />
+              <span>{t('admin.credits.negativeOnly', '只看负余额')}</span>
+            </Flexbox>
+            <Button
+              disabled={isLoading || Boolean(error)}
+              type="primary"
+              onClick={() => setRechargeOpen(true)}
+            >
+              {t('admin.credits.recharge', '充值积分')}
+            </Button>
+            <Button disabled={exporting} loading={exporting} onClick={handleExport}>
+              {t('admin.credits.exportCsv', '导出 CSV')}
+            </Button>
+          </Flexbox>
+        </AdminToolbar>
+
+        {error ? (
+          <AdminPageError
+            description={t('admin.credits.loadFailed', '积分账户加载失败，请重试。')}
+            onRetry={refresh}
           />
-          <span>{t('admin.credits.negativeOnly', '只看负余额')}</span>
-        </Flexbox>
-        <Button type="primary" onClick={() => setRechargeOpen(true)}>
-          {t('admin.credits.recharge', '充值积分')}
-        </Button>
-        <Button onClick={handleExport}>{t('admin.credits.exportCsv', '导出 CSV')}</Button>
-      </Flexbox>
+        ) : !isLoading && items.length === 0 ? (
+          <Empty description={t('admin.credits.empty', '暂无积分账户')} />
+        ) : (
+          <AdminResponsiveTable label={t('admin.credits.tableLabel', '积分账户表')}>
+            <InlineTable columns={columns} dataSource={items} loading={isLoading} rowKey="userId" />
+          </AdminResponsiveTable>
+        )}
 
-      {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.credits.empty', '暂无积分账户')} />
-      ) : (
-        <InlineTable columns={columns} dataSource={items} loading={isLoading} rowKey="userId" />
-      )}
-
-      {data?.nextCursor != null && (
-        <Flexbox align="center">
-          <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            {t('admin.credits.loadMore', '加载更多')}
-          </Button>
-        </Flexbox>
-      )}
+        {data?.nextCursor != null && (
+          <Flexbox align="center">
+            <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
+              {t('admin.credits.loadMore', '加载更多')}
+            </Button>
+          </Flexbox>
+        )}
+      </AdminSection>
 
       <AdminUserDetailDrawer userId={drawerUser} onClose={() => setDrawerUser(null)} />
 
       <Modal
         open={rechargeOpen}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         title={t('admin.credits.recharge', '充值积分')}
         footer={[
           <Button key="cancel" onClick={() => setRechargeOpen(false)}>
@@ -264,7 +311,7 @@ const AdminCreditsPage = memo(() => {
           </Form.Item>
         </Form>
       </Modal>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 
