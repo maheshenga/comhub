@@ -84,6 +84,10 @@ type PaymentSettingsData = {
     enabled?: boolean;
     moduleAppEnabled?: boolean;
     publicBaseUrl?: string;
+    source?: {
+      backendManaged?: boolean;
+      legacyEnvironmentKeys?: string[];
+    };
     subscriptionEnabled?: boolean;
     topUpEnabled?: boolean;
     wechat?: {
@@ -263,6 +267,7 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
 
   const config = data?.paymentConfig;
   const status = data?.paymentGatewayStatus;
+  const legacyEnvironmentKeys = config?.source?.legacyEnvironmentKeys ?? [];
   const formDisabled = settings.isLoading || Boolean(settings.error) || submitting || !data;
   const statusMessage = settings.error
     ? t('admin.payments.loadFailed', 'Unable to load payment settings')
@@ -304,6 +309,32 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
           type={status?.enabled && status?.configured ? 'success' : 'warning'}
         />
       )}
+      {legacyEnvironmentKeys.length > 0 ? (
+        <Alert
+          showIcon
+          type="warning"
+          description={
+            <Flexbox gap={8}>
+              <span>
+                {t('admin.payments.legacyEnvironment.description', {
+                  count: legacyEnvironmentKeys.length,
+                  defaultValue:
+                    '{{count}} legacy environment variables are still available as payment configuration fallbacks. Re-enter secret values on this page and save equivalent backend settings before removing them.',
+                })}
+              </span>
+              <Flexbox horizontal gap={6} wrap="wrap">
+                {legacyEnvironmentKeys.map((key) => (
+                  <Tag key={key}>{key}</Tag>
+                ))}
+              </Flexbox>
+            </Flexbox>
+          }
+          message={t(
+            'admin.payments.legacyEnvironment.title',
+            'Payment configuration migration required',
+          )}
+        />
+      ) : null}
       <Alert
         showIcon
         type="info"

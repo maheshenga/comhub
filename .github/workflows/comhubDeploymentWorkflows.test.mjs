@@ -71,13 +71,31 @@ test('Module App verification jobs install Bun through the shared setup action',
   assert.match(setupEnvironment, /oven-sh\/setup-bun@v2/u);
 
   for (const [filename, jobNames] of [
-    ['comhub-build.yml', ['verify-module-app', 'verify-module-app-full']],
-    ['comhub-deploy.yml', ['verify-module-app-full']],
+    ['comhub-build.yml', ['verify-module-app']],
     ['comhub-deploy-worker.yml', ['verify-worker']],
   ]) {
     const { workflow } = loadWorkflow(filename);
     for (const jobName of jobNames) assertJobUsesSetupEnv(workflow, jobName);
   }
+});
+
+test('Module App business provider configuration stays in the application backend', () => {
+  for (const filename of ['comhub-build.yml', 'comhub-deploy.yml']) {
+    const { source, workflow } = loadWorkflow(filename);
+
+    assert.equal(workflow.on.workflow_dispatch.inputs.verify_module_app_full, undefined);
+    assert.equal(workflow.jobs['verify-module-app-full'], undefined);
+    assert.doesNotMatch(source, /environment:\s*module-app-staging/u);
+    assert.doesNotMatch(source, /\$\{\{\s*(?:secrets|vars)\.MODULE_APP_/u);
+    assert.doesNotMatch(source, /MODULE_APP_E2E_/u);
+  }
+
+  const { source, workflow } = loadWorkflow('comhub-deploy.yml');
+  assert.equal(workflow.on.workflow_dispatch.inputs.deploy_module_runtime.default, 'false');
+  assert.match(
+    source,
+    /REQUIRE_MODULE_RUNTIME: \$\{\{ inputs\.deploy_module_runtime == 'true' \}\}/u,
+  );
 });
 
 test('Module App SDK workspace installs link source instead of unpublished build output', () => {

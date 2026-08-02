@@ -11,40 +11,13 @@ import { appSettings } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 
-export const PAYMENT_SETTING_KEYS = [
-  APP_SETTING_KEYS.paymentAlipayAppCertSn,
-  APP_SETTING_KEYS.paymentAlipayAppId,
-  APP_SETTING_KEYS.paymentAlipayCertMode,
-  APP_SETTING_KEYS.paymentAlipayCertificate,
-  APP_SETTING_KEYS.paymentAlipayEnabled,
-  APP_SETTING_KEYS.paymentAlipayGateway,
-  APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey,
-  APP_SETTING_KEYS.paymentAlipayMode,
-  APP_SETTING_KEYS.paymentAlipayPublicKey,
-  APP_SETTING_KEYS.paymentAlipayRootCertSn,
-  APP_SETTING_KEYS.paymentAlipaySellerId,
-  APP_SETTING_KEYS.paymentDefaultProvider,
-  APP_SETTING_KEYS.paymentEnabled,
-  APP_SETTING_KEYS.paymentModuleAppEnabled,
-  APP_SETTING_KEYS.paymentPublicBaseUrl,
-  APP_SETTING_KEYS.paymentSubscriptionEnabled,
-  APP_SETTING_KEYS.paymentTopUpEnabled,
-  APP_SETTING_KEYS.paymentWechatApiBaseUrl,
-  APP_SETTING_KEYS.paymentWechatApiV3Key,
-  APP_SETTING_KEYS.paymentWechatAppId,
-  APP_SETTING_KEYS.paymentWechatEnabled,
-  APP_SETTING_KEYS.paymentWechatMchId,
-  APP_SETTING_KEYS.paymentWechatMerchantPrivateKey,
-  APP_SETTING_KEYS.paymentWechatMerchantSerialNo,
-  APP_SETTING_KEYS.paymentWechatPlatformCertificate,
-  APP_SETTING_KEYS.paymentWechatPlatformCertificateSerialNo,
-  APP_SETTING_KEYS.paymentZpayAlipayEnabled,
-  APP_SETTING_KEYS.paymentZpayApiBaseUrl,
-  APP_SETTING_KEYS.paymentZpayEnabled,
-  APP_SETTING_KEYS.paymentZpayMerchantId,
-  APP_SETTING_KEYS.paymentZpayMerchantKey,
-  APP_SETTING_KEYS.paymentZpayWechatEnabled,
-] as const satisfies readonly AppSettingKey[];
+import {
+  getLegacyPaymentEnvironmentKeys,
+  hasStoredPaymentSettingValue,
+  PAYMENT_SETTING_KEYS as PAYMENT_ENVIRONMENT_SETTING_KEYS,
+} from './environmentFallbacks';
+
+export const PAYMENT_SETTING_KEYS = PAYMENT_ENVIRONMENT_SETTING_KEYS;
 
 const ALIPAY_PRODUCTION_GATEWAY = 'https://openapi.alipay.com/gateway.do';
 const ALIPAY_SANDBOX_GATEWAY = 'https://openapi-sandbox.dl.alipaydev.com/gateway.do';
@@ -94,6 +67,10 @@ export type ServerPaymentConfig = {
   enabled: boolean;
   moduleAppEnabled: boolean;
   publicBaseUrl?: string;
+  source: {
+    backendManaged: boolean;
+    legacyEnvironmentKeys: string[];
+  };
   subscriptionEnabled: boolean;
   topUpEnabled: boolean;
   wechat: ServerWechatPaymentConfig;
@@ -202,6 +179,9 @@ export const getServerPaymentConfig = async (
     where: inArray(appSettings.key, [...PAYMENT_SETTING_KEYS]),
   });
   const values = new Map(rows.map((row) => [row.key as AppSettingKey, row.value]));
+  const legacyEnvironmentKeys = getLegacyPaymentEnvironmentKeys((key) =>
+    hasStoredPaymentSettingValue(values.get(key)),
+  );
   const alipayMode =
     valueOrEnvironment(
       values,
@@ -415,6 +395,10 @@ export const getServerPaymentConfig = async (
       'MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED',
     ),
     publicBaseUrl,
+    source: {
+      backendManaged: legacyEnvironmentKeys.length === 0,
+      legacyEnvironmentKeys,
+    },
     subscriptionEnabled: booleanOrEnvironment(
       values,
       APP_SETTING_KEYS.paymentSubscriptionEnabled,

@@ -10,6 +10,7 @@ import {
   listEnabledPaymentMethods,
   type ServerPaymentConfig,
 } from './config';
+import { getLegacyPaymentEnvironmentKeys } from './environmentFallbacks';
 
 const { decryptAppSettingSecret } = vi.hoisted(() => ({
   decryptAppSettingSecret: vi.fn(),
@@ -33,6 +34,7 @@ const configuredPayment = (): ServerPaymentConfig => ({
   enabled: true,
   moduleAppEnabled: true,
   publicBaseUrl: 'https://app.example.com',
+  source: { backendManaged: true, legacyEnvironmentKeys: [] },
   subscriptionEnabled: true,
   topUpEnabled: true,
   wechat: {
@@ -65,6 +67,16 @@ describe('payment configuration', () => {
     expect(listCheckoutPaymentMethods(config, 'module_app')).toEqual([]);
   });
 
+  it('reports only active fallback names for settings not managed in the backend', () => {
+    expect(
+      getLegacyPaymentEnvironmentKeys((key) => key === APP_SETTING_KEYS.paymentEnabled, {
+        PAYMENT_ENABLED: 'true',
+        PAYMENT_WECHAT_ENABLED: 'false',
+        PAYMENT_ZPAY_MERCHANT_KEY: '   ',
+      }),
+    ).toEqual(['PAYMENT_WECHAT_ENABLED']);
+  });
+
   it('keeps legacy module Alipay enablement and callback URLs operational during migration', async () => {
     vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
     vi.stubEnv('PAYMENT_ALIPAY_ENABLED', '');
@@ -84,6 +96,11 @@ describe('payment configuration', () => {
     expect(config.enabled).toBe(true);
     expect(config.alipay.enabled).toBe(true);
     expect(config.publicBaseUrl).toBe('https://legacy.example.com');
+    expect(config.source.backendManaged).toBe(false);
+    expect(config.source.legacyEnvironmentKeys).toEqual(
+      expect.arrayContaining(['MODULE_APP_ALIPAY_ENABLED', 'MODULE_APP_ALIPAY_NOTIFY_URL']),
+    );
+    expect(JSON.stringify(config.source)).not.toContain('legacy.example.com');
   });
 
   it('does not advertise WeChat when the API v3 key is not exactly 32 bytes', async () => {

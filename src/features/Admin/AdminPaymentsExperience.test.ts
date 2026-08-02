@@ -27,5 +27,7 @@ describe('admin payment center experience', () => {
     expect(page).toContain("ADMIN_SETTINGS_SECTION_SWR_KEY('payments')");
     expect(page).toContain('useUnsavedChangesGuard');
     expect(page).toContain('PAYMENT_CENTER_TABS');
+    expect(page).toContain('legacyEnvironmentKeys');
+    expect(page).toContain('admin.payments.legacyEnvironment.title');
   });
 });

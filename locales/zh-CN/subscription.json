@@ -466,6 +466,8 @@
   "admin.payments.enabled": "启用统一支付",
   "admin.payments.environment": "环境",
   "admin.payments.general": "全局设置",
+  "admin.payments.legacyEnvironment.description": "仍有 {{count}} 个旧环境变量可作为支付配置回退。请在本页重新填写密钥并保存等效的后台设置，确认支付正常后再移除旧变量。",
+  "admin.payments.legacyEnvironment.title": "需要迁移支付配置",
   "admin.payments.loadFailed": "无法读取支付设置",
   "admin.payments.loading": "正在读取支付状态",
   "admin.payments.moduleAppEnabled": "模块购买",

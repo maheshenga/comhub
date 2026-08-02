@@ -12,6 +12,7 @@ import type {
   ModuleAppSource,
   ModuleAppStatus,
   ModuleAppType,
+  PaymentMethodId,
 } from '@lobechat/types';
 
 export type AdminModuleAppItem = {
@@ -110,6 +111,23 @@ export type ModuleAppRuntimeDiagnostics = {
     internalTokenConfigured: boolean;
     internalUrlConfigured: boolean;
     publicOriginConfigured: boolean;
+  };
+  platformGateways: {
+    ai: {
+      configured: boolean;
+      enabledChatModelCount: number;
+    };
+    payments: {
+      configured: boolean;
+      enabled: boolean;
+      methods: PaymentMethodId[];
+      moduleAppEnabled: boolean;
+      publicOriginConfigured: boolean;
+      source: {
+        backendManaged: boolean;
+        legacyEnvironmentKeyCount: number;
+      };
+    };
   };
   probe: ModuleAppRuntimeReadiness;
   switches: {

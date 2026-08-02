@@ -119,7 +119,6 @@
     "type-check": "tsgo --noEmit",
     "type-check:tsc": "tsc --noEmit",
     "verify:module-app-production": "node scripts/verifyModuleAppProduction.mjs",
-    "verify:module-app-production:full": "node scripts/verifyModuleAppProduction.mjs --full",
     "verify:module-app-worker": "node scripts/verifyModuleAppProduction.mjs --worker-only",
     "workflow:cdn": "tsx ./scripts/cdnWorkflow/index.ts",
     "workflow:changelog": "tsx ./scripts/changelogWorkflow/index.ts",

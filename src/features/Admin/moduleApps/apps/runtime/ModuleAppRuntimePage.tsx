@@ -2,11 +2,12 @@
 
 import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { RefreshCw } from 'lucide-react';
+import { ArrowRight, RefreshCw } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 
+import { ADMIN_BASE_PATH } from '@/features/Admin/adminCatalog';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -31,11 +32,46 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorTextSecondary};
     overflow-wrap: anywhere;
   `,
+  diagnosticActions: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    align-items: center;
+  `,
+  diagnosticAction: css`
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+
+    color: ${cssVar.colorLink};
+    text-decoration: none;
+
+    &:hover {
+      color: ${cssVar.colorLinkHover};
+    }
+
+    svg {
+      flex: none;
+    }
+  `,
   diagnosticGrid: css`
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0 20px;
     margin: 0;
+  `,
+  diagnosticGroup: css`
+    display: grid;
+    gap: 10px;
+
+    h3,
+    p {
+      margin: 0;
+    }
+
+    p {
+      color: ${cssVar.colorTextSecondary};
+    }
   `,
   diagnosticItem: css`
     display: grid;
@@ -56,6 +92,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   diagnosticStatus: css`
     display: inline-flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
 
@@ -239,7 +276,25 @@ const ModuleAppRuntimePage = memo(() => {
             : 'neutral') as DiagnosticTone,
       }
     : undefined;
-  const diagnosticRows = diagnostics.data
+  const enabledChatModelCount = diagnostics.data?.platformGateways.ai.enabledChatModelCount ?? 0;
+  const paymentMethods = diagnostics.data?.platformGateways.payments.methods ?? [];
+  const paymentMethodStatus = {
+    label:
+      paymentMethods.length > 0
+        ? paymentMethods.map((method) => t(`moduleApps.purchase.methods.${method}`)).join(', ')
+        : t('moduleApps.admin.runtime.diagnostics.status.missing'),
+    tone: (paymentMethods.length > 0 ? 'positive' : 'warning') as DiagnosticTone,
+  };
+  const paymentSource = diagnostics.data?.platformGateways.payments.source;
+  const paymentSourceStatus = {
+    label: paymentSource?.backendManaged
+      ? t('moduleApps.admin.runtime.diagnostics.paymentSource.backend')
+      : t('moduleApps.admin.runtime.diagnostics.paymentSource.legacyEnvironment', {
+          count: paymentSource?.legacyEnvironmentKeyCount ?? 0,
+        }),
+    tone: (paymentSource?.backendManaged ? 'positive' : 'warning') as DiagnosticTone,
+  };
+  const runtimeDiagnosticRows = diagnostics.data
     ? [
         {
           label: t('moduleApps.admin.runtime.diagnostics.probe'),
@@ -268,6 +323,45 @@ const ModuleAppRuntimePage = memo(() => {
         {
           label: t('moduleApps.admin.runtime.diagnostics.publicOrigin'),
           status: configuredStatus(diagnostics.data.configuration.publicOriginConfigured),
+        },
+      ]
+    : [];
+  const gatewayDiagnosticRows = diagnostics.data
+    ? [
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.managedAiModels'),
+          status: {
+            label: t('moduleApps.admin.runtime.diagnostics.enabledChatModels', {
+              count: enabledChatModelCount,
+            }),
+            tone: (enabledChatModelCount > 0 ? 'positive' : 'warning') as DiagnosticTone,
+          },
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentGateway'),
+          status: configuredStatus(diagnostics.data.platformGateways.payments.configured),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentConfigurationSource'),
+          status: paymentSourceStatus,
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentSystem'),
+          status: enabledStatus(diagnostics.data.platformGateways.payments.enabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.modulePayments'),
+          status: enabledStatus(diagnostics.data.platformGateways.payments.moduleAppEnabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentMethods'),
+          status: paymentMethodStatus,
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentCallbackOrigin'),
+          status: configuredStatus(
+            diagnostics.data.platformGateways.payments.publicOriginConfigured,
+          ),
         },
       ]
     : [];
@@ -301,7 +395,7 @@ const ModuleAppRuntimePage = memo(() => {
           {diagnostics.data ? (
             <>
               <dl className={styles.diagnosticGrid}>
-                {diagnosticRows.map((item) => (
+                {runtimeDiagnosticRows.map((item) => (
                   <div className={styles.diagnosticItem} key={item.label}>
                     <dt className={styles.diagnosticLabel}>{item.label}</dt>
                     <dd>
@@ -310,6 +404,35 @@ const ModuleAppRuntimePage = memo(() => {
                   </div>
                 ))}
               </dl>
+              <div className={styles.diagnosticGroup}>
+                <header>
+                  <h3>{t('moduleApps.admin.runtime.diagnostics.platformGatewaysTitle')}</h3>
+                  <p>{t('moduleApps.admin.runtime.diagnostics.platformGatewaysDescription')}</p>
+                </header>
+                <dl className={styles.diagnosticGrid}>
+                  {gatewayDiagnosticRows.map((item) => (
+                    <div className={styles.diagnosticItem} key={item.label}>
+                      <dt className={styles.diagnosticLabel}>{item.label}</dt>
+                      <dd>
+                        <DiagnosticStatus {...item.status} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <nav
+                  aria-label={t('moduleApps.admin.runtime.diagnostics.gatewayManagement')}
+                  className={styles.diagnosticActions}
+                >
+                  <Link className={styles.diagnosticAction} to={`${ADMIN_BASE_PATH}/providers`}>
+                    {t('moduleApps.admin.runtime.diagnostics.manageProviders')}
+                    <ArrowRight aria-hidden size={15} />
+                  </Link>
+                  <Link className={styles.diagnosticAction} to={`${ADMIN_BASE_PATH}/payments`}>
+                    {t('moduleApps.admin.runtime.diagnostics.managePayments')}
+                    <ArrowRight aria-hidden size={15} />
+                  </Link>
+                </nav>
+              </div>
               {diagnostics.data.probe.status === 'unavailable' ? (
                 <p className={styles.diagnosticCode} role="status">
                   {t('moduleApps.admin.runtime.diagnostics.failureCode', {

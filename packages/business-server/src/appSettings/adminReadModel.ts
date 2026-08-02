@@ -29,6 +29,10 @@ import {
   maskAppSettingSecret,
 } from '@/server/services/appSettings/secrets';
 import { normalizeDocmeePptSettings } from '@/server/services/docmee/config';
+import {
+  getLegacyPaymentEnvironmentKeys,
+  hasStoredPaymentSettingValue,
+} from '@/server/services/payments/environmentFallbacks';
 
 import { type AppSettingsSnapshot } from './loader';
 import { type AppSettingsSection } from './types';
@@ -709,6 +713,9 @@ const paymentSecret = async (
 };
 
 export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
+  const legacyEnvironmentKeys = getLegacyPaymentEnvironmentKeys((key) =>
+    hasStoredPaymentSettingValue(snapshot.get(key)),
+  );
   const [
     alipayCertificate,
     alipayMerchantPrivateKey,
@@ -922,6 +929,10 @@ export const buildPaymentSettings = async (snapshot: AppSettingsSnapshot) => {
         false,
       ),
       publicBaseUrl,
+      source: {
+        backendManaged: legacyEnvironmentKeys.length === 0,
+        legacyEnvironmentKeys,
+      },
       subscriptionEnabled: paymentBoolean(
         snapshot,
         APP_SETTING_KEYS.paymentSubscriptionEnabled,

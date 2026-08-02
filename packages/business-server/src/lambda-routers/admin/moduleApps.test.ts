@@ -106,6 +106,7 @@ const mockCreatePaymentAdapter = vi.hoisted(() =>
   vi.fn(() => ({ method: 'alipay', provider: 'alipay' })),
 );
 const mockGetServerPaymentConfig = vi.hoisted(() => vi.fn());
+const mockGetAllEnabledModels = vi.hoisted(() => vi.fn());
 const mockListEnabledPaymentMethods = vi.hoisted(() => vi.fn());
 const externalAuditMock = vi.hoisted(() => vi.fn());
 
@@ -189,6 +190,10 @@ vi.mock('@/server/services/moduleAppBuild/service', () => ({
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
   ModuleAppRuntimeClient: vi.fn(() => moduleAppRuntimeClientMocks),
+}));
+
+vi.mock('@/server/services/newapiInstance', () => ({
+  getAllEnabledModels: mockGetAllEnabledModels,
 }));
 
 vi.mock('../../module-apps/audit', () => ({
@@ -368,12 +373,30 @@ describe('admin module apps router', () => {
     mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = false;
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = undefined;
     mockGetServerPaymentConfig.mockResolvedValue({
-      alipay: { configured: true, enabled: true },
+      alipay: {
+        configured: true,
+        enabled: true,
+        merchantPrivateKey: 'payment-private-secret',
+      },
       enabled: true,
       moduleAppEnabled: true,
+      publicBaseUrl: 'https://billing.example.com',
+      source: {
+        backendManaged: false,
+        legacyEnvironmentKeys: ['PAYMENT_ENABLED'],
+      },
     });
     mockListEnabledPaymentMethods.mockReturnValue([
       { id: 'alipay', label: 'Alipay', provider: 'alipay' },
+      { id: 'zpay_wechat', label: 'Z-Pay WeChat', provider: 'zpay' },
+    ]);
+    mockGetAllEnabledModels.mockResolvedValue([
+      {
+        id: 'gpt-secret-model',
+        instanceName: 'Private NewAPI Gateway',
+        type: 'chat',
+      },
+      { id: 'image-secret-model', type: 'image' },
     ]);
     moduleAppRuntimeClientMocks.getConfigurationStatus.mockReturnValue({
       internalTokenConfigured: false,
@@ -491,6 +514,23 @@ describe('admin module apps router', () => {
         internalUrlConfigured: true,
         publicOriginConfigured: true,
       },
+      platformGateways: {
+        ai: {
+          configured: true,
+          enabledChatModelCount: 1,
+        },
+        payments: {
+          configured: true,
+          enabled: true,
+          methods: ['alipay', 'zpay_wechat'],
+          moduleAppEnabled: true,
+          publicOriginConfigured: true,
+          source: {
+            backendManaged: false,
+            legacyEnvironmentKeyCount: 1,
+          },
+        },
+      },
       probe: {
         code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
         status: 'unavailable',
@@ -501,7 +541,18 @@ describe('admin module apps router', () => {
         publicExecutionEnabled: true,
       },
     });
-    expect(JSON.stringify(result)).not.toContain('runtime.example.com');
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('runtime.example.com');
+    expect(serialized).not.toContain('billing.example.com');
+    expect(serialized).not.toContain('payment-private-secret');
+    expect(serialized).not.toContain('gpt-secret-model');
+    expect(serialized).not.toContain('Private NewAPI Gateway');
+    expect(serialized).not.toContain('PAYMENT_ENABLED');
+    expect(mockGetAllEnabledModels).toHaveBeenCalledWith(expect.anything());
+    expect(mockListEnabledPaymentMethods).toHaveBeenCalledWith(
+      expect.objectContaining({ moduleAppEnabled: true }),
+      'module_app',
+    );
     expect(moduleAppRuntimeClientMocks.healthCheck).toHaveBeenCalledOnce();
   });
 
