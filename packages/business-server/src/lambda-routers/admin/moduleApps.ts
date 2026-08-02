@@ -5,6 +5,7 @@ import {
   moduleAppCurrencySchema,
   moduleAppDecimalStringSchema,
   moduleAppLicenseScopeSchema,
+  moduleAppOutboundHostPoliciesSchema,
   moduleAppPackageReviewStatusSchema,
   moduleAppPayoutStatusSchema,
   moduleAppPlanEntitlementSchema,
@@ -106,6 +107,9 @@ const createConfiguredModulePaymentService = async (db: LobeChatDatabase) => {
 
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
 const PackageIdInputSchema = z.object({ packageId: z.string().uuid() });
+const ApprovePackageInputSchema = PackageIdInputSchema.extend({
+  outboundHostPolicies: moduleAppOutboundHostPoliciesSchema,
+});
 const AdminCursorSchema = z.union([z.number().int().min(0), z.string().min(1).max(512)]).default(0);
 const normalizeAdminSearchQuery = (value: string) => {
   const normalized = value.trim().replaceAll(/\s+/g, ' ');
@@ -414,6 +418,7 @@ const mapPackageReviewError = (error: unknown) => {
   }
   if (
     identifier === 'MODULE_APP_PACKAGE_NOT_PENDING_REVIEW' ||
+    identifier === 'MODULE_APP_OUTBOUND_HOST_CLASSIFICATION_REQUIRED' ||
     identifier.startsWith('MODULE_APP_PACKAGE_RESCAN_')
   ) {
     return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });
@@ -866,7 +871,7 @@ export const adminModuleAppsRouter = router({
   }),
 
   approvePackage: moduleAppWriteProcedure
-    .input(PackageIdInputSchema)
+    .input(ApprovePackageInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
       try {
@@ -883,6 +888,8 @@ export const adminModuleAppsRouter = router({
         metadata: {
           buildId: result.build?.id,
           buildStatus: result.build?.status,
+          outboundHostPolicies: result.outboundHostPolicies,
+          outboundHostPurposes: result.outboundHostPolicies.map(({ purpose }) => purpose),
           packageId: input.packageId,
           slug: result.slug,
           versionId: result.versionId,

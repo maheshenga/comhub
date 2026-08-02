@@ -507,8 +507,10 @@ class AdminCommercialService {
     }) => lambdaClient.admin.moduleApps.createProduct.mutate(input as any),
     get: (input: { appId: string }) => lambdaClient.admin.moduleApps.get.query(input),
     getRuntimeDiagnostics: () => lambdaClient.admin.moduleApps.getRuntimeDiagnostics.query(),
-    approvePackage: (input: { packageId: string }) =>
-      lambdaClient.admin.moduleApps.approvePackage.mutate(input),
+    approvePackage: (input: {
+      outboundHostPolicies: Array<{ host: string; purpose: 'ai' | 'general' | 'payment' }>;
+      packageId: string;
+    }) => lambdaClient.admin.moduleApps.approvePackage.mutate(input),
     getPackage: (input: { packageId: string }) =>
       lambdaClient.admin.moduleApps.getPackage.query(input),
     list: (input?: {

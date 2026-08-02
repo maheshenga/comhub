@@ -237,29 +237,18 @@ describe('runModuleAppApiAction', () => {
     ).rejects.toThrow('MODULE_APP_API_RESPONSE_TOO_LARGE');
   });
 
-  it('preserves the legacy literal-host fallback for public HTTP URLs', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      headers: { get: () => 'application/json' },
-      ok: true,
-      status: 200,
-      text: async () => '{}',
-    });
+  it('fails closed when the approved outbound host list is absent', async () => {
+    const fetchImpl = vi.fn();
 
     await expect(
       runModuleAppApiAction({
-        action: {
-          ...action,
-          runtimeConfig: { ...action.runtimeConfig, url: 'http://api.example.com/search' },
-        },
+        action,
         fetchImpl,
         input: {},
         resolveHostname: () => ['93.184.216.34'],
       }),
-    ).resolves.toMatchObject({ actualAiCredits: 0 });
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'http://api.example.com/search',
-      expect.objectContaining({ redirect: 'error' }),
-    );
+    ).rejects.toThrow('MODULE_APP_API_HOST_DENIED');
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('does not duplicate an explicitly configured content-type header', async () => {

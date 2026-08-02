@@ -1,4 +1,4 @@
-import type { ModuleAppCapabilityClaims } from '@lobechat/types';
+import { getModuleAppGeneralOutboundHosts, type ModuleAppCapabilityClaims } from '@lobechat/types';
 
 import { ModuleAppDataService } from '@/business/server/module-apps/data/service';
 import { ModuleAppFileGateway } from '@/business/server/module-apps/sdk/files';
@@ -44,18 +44,6 @@ const replayGuard = new ModuleAppReplayGuard({
 const notificationRateLimiter = new ModuleAppNotificationRateLimiter({
   backend: createModuleAppNotificationRateLimitBackend({ mode: distributedGuardMode }),
 });
-
-const resolveOutboundHosts = (runtimeManifest: unknown) => {
-  if (!runtimeManifest || typeof runtimeManifest !== 'object' || !('runtime' in runtimeManifest)) {
-    return [];
-  }
-  const runtime = runtimeManifest.runtime;
-  if (!runtime || typeof runtime !== 'object' || !('outboundHosts' in runtime)) return [];
-
-  return Array.isArray(runtime.outboundHosts)
-    ? runtime.outboundHosts.filter((host): host is string => typeof host === 'string')
-    : [];
-};
 
 export const createModuleAppCapabilityGateway = (params: {
   capability: ModuleAppCapabilityClaims;
@@ -103,7 +91,7 @@ export const createModuleAppCapabilityGateway = (params: {
           billing: installation.billing,
           displayName: installation.displayName,
           installationId: installation.installationId,
-          outboundHosts: resolveOutboundHosts(installation.runtimeManifest),
+          outboundHosts: getModuleAppGeneralOutboundHosts(installation.runtimeManifest),
           secretKeys: installation.secretKeys,
           scopeType: installation.scopeType,
           userId: installation.userId,

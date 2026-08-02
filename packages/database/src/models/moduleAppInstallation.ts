@@ -61,7 +61,9 @@ const getVersionGrantSnapshot = (version: {
 
   return normalizeGrantSnapshot({
     functionKeys: runtime?.functions.map(({ key }) => key) ?? [],
-    outboundHosts: runtime?.outboundHosts ?? [],
+    outboundHosts:
+      runtime?.outboundHosts ??
+      (packageRuntime.success ? (packageRuntime.data.outboundHosts ?? []) : []),
     permissions:
       runtime?.permissions ?? (packageRuntime.success ? packageRuntime.data.permissions : []),
     secretKeys: manifestActions.success ? getModuleAppDeclaredSecretKeys(manifestActions.data) : [],

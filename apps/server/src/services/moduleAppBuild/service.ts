@@ -1,12 +1,11 @@
+import type { ModuleAppOutboundHostPolicy } from '@lobechat/types';
+
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import { ModuleAppBuildModel } from '@/database/models/moduleAppBuild';
 import type { LobeChatDatabase } from '@/database/type';
 
 import type { ModuleAppBuildResult } from './contracts';
-import {
-  ModuleAppBuildStorageError,
-  ModuleAppBuildStorageService,
-} from './storage';
+import { ModuleAppBuildStorageError, ModuleAppBuildStorageService } from './storage';
 
 type AppModel = Pick<ModuleAppModel, 'approvePackageSubmissionForAdmin'>;
 type BuildModel = Pick<ModuleAppBuildModel, 'claimNext' | 'complete' | 'fail' | 'getById'>;
@@ -37,8 +36,11 @@ export class ModuleAppBuildService {
     this.storage = options.storage ?? new ModuleAppBuildStorageService();
   }
 
-  approvePackage = (input: { packageId: string; reviewedByUserId: string }) =>
-    this.appModel.approvePackageSubmissionForAdmin(input);
+  approvePackage = (input: {
+    outboundHostPolicies: ModuleAppOutboundHostPolicy[];
+    packageId: string;
+    reviewedByUserId: string;
+  }) => this.appModel.approvePackageSubmissionForAdmin(input);
 
   claimBuild = async (input: { leaseDurationMs: number; workerId: string }) => {
     const build = await this.buildModel.claimNext(input);
@@ -79,7 +81,11 @@ export class ModuleAppBuildService {
         build: activeBuild,
       });
 
-      return this.buildModel.complete({ ...artifact, buildId: input.buildId, claimToken: input.claimToken });
+      return this.buildModel.complete({
+        ...artifact,
+        buildId: input.buildId,
+        claimToken: input.claimToken,
+      });
     } catch (error) {
       const failureCode =
         error instanceof ModuleAppBuildStorageError

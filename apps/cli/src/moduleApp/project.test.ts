@@ -28,6 +28,9 @@ describe('Module App project tools', () => {
     await expect(readFile(path.join(directory, 'package.json'), 'utf8')).resolves.toContain(
       '"build": "tsc --noEmit && vite build"',
     );
+    await expect(readFile(path.join(directory, 'module-app.yaml'), 'utf8')).resolves.toContain(
+      'outboundHosts: []',
+    );
     await expect(
       readFile(path.join(directory, 'src', 'greeting.test.ts'), 'utf8'),
     ).resolves.toContain("describe('greeting'");

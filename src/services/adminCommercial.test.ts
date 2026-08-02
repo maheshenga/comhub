@@ -318,7 +318,10 @@ describe('adminCommercialService NewAPI helpers', () => {
       id: 'package-1',
     });
     await expect(
-      adminCommercialService.moduleApps.approvePackage({ packageId: 'package-1' }),
+      adminCommercialService.moduleApps.approvePackage({
+        outboundHostPolicies: [],
+        packageId: 'package-1',
+      }),
     ).resolves.toEqual({ appId: 'app-1', package: { id: 'package-1' } });
     await expect(
       adminCommercialService.moduleApps.rejectPackage({
@@ -337,6 +340,7 @@ describe('adminCommercialService NewAPI helpers', () => {
       packageId: 'package-1',
     });
     expect((lambdaClient.admin.moduleApps as any).approvePackage.mutate).toHaveBeenCalledWith({
+      outboundHostPolicies: [],
       packageId: 'package-1',
     });
     expect((lambdaClient.admin.moduleApps as any).rejectPackage.mutate).toHaveBeenCalledWith({

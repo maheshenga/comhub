@@ -2,6 +2,7 @@ import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
   ModuleAppMarketplaceListInput,
+  ModuleAppOutboundHostPolicy,
   ModuleAppPackageReviewStatus,
   ModuleAppPackageScanStatus,
   ModuleAppPackageSubmitInput,
@@ -11,6 +12,7 @@ import type {
   ModuleAppStatus,
 } from '@lobechat/types';
 import {
+  assertModuleAppOutboundHostPolicyCoverage,
   MODULE_APP_PACKAGE_MAX_SCAN_ISSUES,
   moduleAppPackageManifestSchema,
   moduleAppPackageSubmitSchema,
@@ -609,6 +611,7 @@ export class ModuleAppCatalogModel {
   };
 
   approvePackageSubmissionForAdmin = async (params: {
+    outboundHostPolicies: ModuleAppOutboundHostPolicy[];
     packageId: string;
     reviewedByUserId: string;
   }) => {
@@ -632,6 +635,10 @@ export class ModuleAppCatalogModel {
       }
 
       const normalized = normalizePackageManifestForApproval(submission.manifestSnapshot);
+      const outboundHostPolicies = assertModuleAppOutboundHostPolicyCoverage(
+        normalized.runtime.outboundHosts ?? [],
+        params.outboundHostPolicies,
+      );
       const appInput = {
         ...normalized.app,
         source: 'developer' as const,
@@ -667,6 +674,7 @@ export class ModuleAppCatalogModel {
       const runtimeManifest = {
         ...(normalized.build ? { build: normalized.build } : {}),
         manifestVersion: normalized.manifestVersion,
+        outboundHostPolicies,
         runtime: normalized.runtime,
       };
       await tx
@@ -712,6 +720,7 @@ export class ModuleAppCatalogModel {
       return {
         appId: app.id,
         build,
+        outboundHostPolicies,
         package: updatedPackage,
         slug: app.slug,
         versionId: version.id,

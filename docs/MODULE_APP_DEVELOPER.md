@@ -29,6 +29,12 @@ Executable packages use a root `module-app.yaml` manifest with `manifestVersion:
 
 Legacy manifest-only packages may use a root `manifest.json` with `manifestVersion: 1`. A package cannot contain both manifest formats.
 
+### Outbound host review
+
+Declare every external hostname in `runtime.outboundHosts`. During package approval, an administrator classifies each hostname as `general`, `ai`, or `payment`. Only `general` hosts are available to `http.fetch`, legacy `api_action` actions, and workflow HTTP nodes. AI and payment hosts are recorded for review but cannot be called directly; use the platform AI and payment SDK methods instead.
+
+The runtime fails closed when the approved classification is missing, malformed, or does not cover the declared host list. Packages approved before host classification was introduced must submit a new reviewed version before direct external HTTP access is restored.
+
 ## SDK
 
 Install `@lobechat/module-app-sdk` in the application frontend. Wait for the signed host launch message before creating the SDK client. Runtime access is limited to the capability and installation scope issued by the host.

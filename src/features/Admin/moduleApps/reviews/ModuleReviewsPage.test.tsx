@@ -215,6 +215,58 @@ describe('ModuleReviewsPage', () => {
     ).toBe(true);
   });
 
+  it('requires an administrator classification for every outbound host before approval', async () => {
+    state.role = 'admin';
+    state.data = {
+      items: [
+        {
+          buildStatus: 'ready',
+          id: '00000000-0000-4000-8000-000000000011',
+          manifestSnapshot: {
+            app: { displayName: 'Network package' },
+            runtime: {
+              outboundHosts: ['api.example.com', 'models.example.com'],
+            },
+          },
+          reviewStatus: 'pending_review',
+          scanStatus: 'clean',
+        },
+      ],
+      nextCursor: null,
+    };
+    moduleApps.approvePackage.mockResolvedValueOnce({
+      appId: '00000000-0000-4000-8000-000000000001',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/reviews']}>
+        <ModuleReviewsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.admin.reviews.approve' }));
+    const confirm = screen.getAllByRole('button', {
+      name: 'moduleApps.admin.reviews.approve',
+    })[1];
+    expect(confirm).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('api.example.com'), { target: { value: 'general' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('models.example.com'), { target: { value: 'ai' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(moduleApps.approvePackage).toHaveBeenCalledWith({
+        outboundHostPolicies: [
+          { host: 'api.example.com', purpose: 'general' },
+          { host: 'models.example.com', purpose: 'ai' },
+        ],
+        packageId: '00000000-0000-4000-8000-000000000011',
+      }),
+    );
+  });
+
   it('does not mount the governance modal for a read-only role', () => {
     state.role = 'module_admin';
     state.data = {
