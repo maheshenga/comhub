@@ -50,22 +50,6 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
   formSection: css`
     width: min(100%, 760px);
   `,
-  header: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-  `,
-  page: css`
-    width: 100%;
-    min-width: 0;
-    padding: 24px;
-
-    @media (width <= 767px) {
-      padding: 16px;
-    }
-  `,
   platformSummary: css`
     overflow: hidden;
 

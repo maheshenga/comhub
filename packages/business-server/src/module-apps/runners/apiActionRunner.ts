@@ -145,21 +145,8 @@ const normalizeReviewedHost = (value: string) => {
   return normalizedHostname;
 };
 
-const getLegacyConfiguredHost = (configuredUrl: string) => {
-  const authority = configuredUrl.match(/^https?:\/\/([^/?#]+)/i)?.[1];
-  if (!authority || authority.includes('{{')) return undefined;
-
-  try {
-    const parsed = new URL(configuredUrl.replaceAll(/\{\{[^{}]+\}\}/g, 'template'));
-    return normalizeReviewedHost(parsed.hostname);
-  } catch {
-    return undefined;
-  }
-};
-
-const getReviewedHosts = (configuredUrl: string, outboundHosts?: string[]) => {
-  const legacyHost = getLegacyConfiguredHost(configuredUrl);
-  const hosts = outboundHosts ?? (legacyHost ? [legacyHost] : []);
+const getReviewedHosts = (outboundHosts?: string[]) => {
+  const hosts = outboundHosts ?? [];
   if (hosts.length > 80) throw new Error('MODULE_APP_API_OUTBOUND_HOSTS_INVALID');
   return new Set(hosts.map(normalizeReviewedHost));
 };
@@ -268,7 +255,7 @@ export const runModuleAppApiAction = async ({
   if (Object.keys(resolvedSecrets).length > 0 && parsedUrl.protocol !== 'https:') {
     throw new Error('MODULE_APP_API_SECRET_REQUIRES_HTTPS');
   }
-  const reviewedHosts = getReviewedHosts(configuredUrl, outboundHosts);
+  const reviewedHosts = getReviewedHosts(outboundHosts);
   if (!reviewedHosts.has(parsedUrl.hostname.toLowerCase().replace(/\.$/, ''))) {
     throw new Error('MODULE_APP_API_HOST_DENIED');
   }

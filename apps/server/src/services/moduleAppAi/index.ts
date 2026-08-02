@@ -4,7 +4,6 @@ import {
   type CommercialUsagePayload,
   estimateCommercialChatCredits,
   quoteCommercialAiUsage,
-  shouldChargeCommercialUsage,
 } from '@/business/server/commercialBilling';
 import type { ModuleAppTextGenerator } from '@/business/server/module-apps/runners/contentGenerationRunner';
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
@@ -14,6 +13,7 @@ import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 
 const MAX_MODULE_APP_MULTIPLIER = 100;
 const CREDIT_SCALE = 1_000_000;
+const MODULE_APP_MANAGED_AI_PROVIDER = 'newapi';
 
 const roundCredits = (value: number) => Math.round(value * CREDIT_SCALE) / CREDIT_SCALE;
 
@@ -23,6 +23,12 @@ const assertGeneratorInput = (input: Parameters<ModuleAppTextGenerator>[0]) => {
   }
   if (!input.provider?.trim() || !input.model?.trim()) {
     throw new Error('MODULE_APP_AI_ROUTE_REQUIRED');
+  }
+  if (input.provider.trim().toLowerCase() !== MODULE_APP_MANAGED_AI_PROVIDER) {
+    throw new Error('MODULE_APP_AI_PROVIDER_DENIED');
+  }
+  if (!input.messages?.length && !input.prompt?.trim()) {
+    throw new Error('MODULE_APP_AI_MESSAGES_REQUIRED');
   }
   if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 200) {
     throw new Error('MODULE_APP_AI_IDEMPOTENCY_KEY_INVALID');
@@ -54,20 +60,19 @@ export const createModuleAppTextGenerator = (dependencies: {
   return async (input) => {
     assertGeneratorInput(input);
     const model = input.model!.trim();
-    const provider = input.provider!.trim();
+    const provider = MODULE_APP_MANAGED_AI_PROVIDER;
+    const inputMessages = input.messages;
+    const messages =
+      inputMessages && inputMessages.length > 0
+        ? inputMessages
+        : [{ content: input.prompt!.trim(), role: 'user' as const }];
     const combinedMultiplier = roundCredits(input.appMultiplier * input.actionMultiplier);
-    const shouldCharge =
-      input.chargeAiUsage &&
-      (await shouldChargeCommercialUsage({
-        db: dependencies.db,
-        provider,
-        userId: input.userId,
-      }));
+    const shouldCharge = input.chargeAiUsage;
     const estimatedBaseCredits = shouldCharge
       ? ((await estimateCommercialChatCredits({
           db: dependencies.db,
           payload: {
-            messages: [{ content: input.prompt, role: 'user' }],
+            messages,
             model,
           },
           provider,
@@ -108,13 +113,16 @@ export const createModuleAppTextGenerator = (dependencies: {
         onRouteResolved: (metadata) => {
           routeMetadata = metadata;
         },
+        requireAdminManagedNewapi: true,
         workspaceId: dependencies.workspaceId,
       });
       const response = await runtime.chat(
         {
-          messages: [{ content: input.prompt, role: 'user' }],
+          ...(input.maxTokens === undefined ? {} : { max_tokens: input.maxTokens }),
+          messages,
           model,
           provider,
+          ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
         },
         {
           callback: {
@@ -144,9 +152,10 @@ export const createModuleAppTextGenerator = (dependencies: {
               usage,
               usageType: 'chat',
               userId: input.userId,
+              forceCharge: true,
             })
           : null;
-      const baseCredits = quote?.credits ?? (usage ? 0 : estimatedBaseCredits);
+      const baseCredits = quote?.credits ?? estimatedBaseCredits;
       const actualAmount = roundCredits(Math.max(0, baseCredits) * combinedMultiplier);
 
       if (reservation) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button, Input, Select } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Plus, RefreshCw } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
@@ -28,32 +28,161 @@ import AppIdentityModal from './AppIdentityModal';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
-  controls: css`
+  actions: css`
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   `,
+  control: css`
+    display: grid;
+    flex: 1 1 180px;
+    gap: 6px;
+
+    min-width: min(180px, 100%);
+
+    font-size: 12px;
+    line-height: 18px;
+    color: ${cssVar.colorTextSecondary};
+  `,
+  controlWide: css`
+    flex-basis: 240px;
+  `,
+  description: css`
+    max-width: 720px;
+    margin-block: 4px 0;
+    margin-inline: 0;
+
+    line-height: 22px;
+    color: ${cssVar.colorTextSecondary};
+  `,
+  filterBar: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+
+    padding-block: 16px;
+    border-block: 1px solid ${cssVar.colorBorderSecondary};
+  `,
   header: css`
     display: flex;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 16px 24px;
     align-items: center;
     justify-content: space-between;
   `,
+  heading: css`
+    min-width: 0;
+
+    h1 {
+      margin: 0;
+
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 32px;
+      color: ${cssVar.colorText};
+      overflow-wrap: anywhere;
+    }
+  `,
   page: css`
     display: grid;
-    gap: 16px;
+    gap: 20px;
+
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     max-width: 1180px;
-    padding: 24px;
+
+    @media (width < 640px) {
+      gap: 16px;
+    }
+  `,
+  pagination: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+
+    padding-block-start: 12px;
+  `,
+  tableFrame: css`
+    overflow-x: auto;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: ${cssVar.borderRadius};
+    background: ${cssVar.colorBgContainer};
+  `,
+  tableLink: css`
+    cursor: pointer;
+
+    overflow: hidden;
+    display: inline-flex;
+
+    max-width: min(360px, 100%);
+    padding: 0;
+    border: 0;
+
+    font: inherit;
+    font-weight: 500;
+    color: ${cssVar.colorText};
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    background: transparent;
+
+    &:hover {
+      color: ${cssVar.colorPrimary};
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      outline: 2px solid ${cssVar.colorPrimary};
+      outline-offset: 2px;
+    }
+  `,
+  tableShell: css`
+    min-width: 0;
   `,
   table: css`
-    width: 100%;
     border-collapse: collapse;
+    width: 100%;
+    min-width: 640px;
 
     th,
     td {
-      padding: 10px 8px;
+      padding-block: 12px;
+      padding-inline: 16px;
       border-block-end: 1px solid ${cssVar.colorBorderSecondary};
       text-align: start;
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 20px;
+      color: ${cssVar.colorTextSecondary};
+
+      background: ${cssVar.colorFillTertiary};
+    }
+
+    td {
+      line-height: 22px;
+      color: ${cssVar.colorTextSecondary};
+    }
+
+    tbody tr:last-child td {
+      border-block-end: 0;
+    }
+
+    tbody tr:hover td {
+      background: ${cssVar.colorFillTertiary};
+    }
+
+    @media (width < 640px) {
+      th,
+      td {
+        padding-inline: 12px;
+      }
     }
   `,
 }));
@@ -151,11 +280,11 @@ const ModuleAppsPage = memo(() => {
   return (
     <section className={styles.page} data-testid="module-app-directory">
       <header className={styles.header}>
-        <div>
+        <div className={styles.heading}>
           <h1>{t('moduleApps.admin.apps.title')}</h1>
-          <p>{t('moduleApps.admin.apps.description')}</p>
+          <p className={styles.description}>{t('moduleApps.admin.apps.description')}</p>
         </div>
-        <div className={styles.controls}>
+        <div className={styles.actions}>
           <Button
             icon={RefreshCw}
             title={t('moduleApps.admin.apps.refresh')}
@@ -167,42 +296,58 @@ const ModuleAppsPage = memo(() => {
           </Button>
         </div>
       </header>
-      <div className={styles.controls}>
-        <label>
-          {t('moduleApps.admin.apps.search')}
-          <input value={queryInput} onChange={(event) => setQueryInput(event.target.value)} />
+      <div className={styles.filterBar} data-testid="module-app-filters">
+        <label className={styles.control} htmlFor="module-app-search">
+          <span>{t('moduleApps.admin.apps.search')}</span>
+          <Input
+            id="module-app-search"
+            value={queryInput}
+            onChange={(event) => setQueryInput(event.target.value)}
+          />
         </label>
-        <label>
-          {t('moduleApps.admin.apps.status.label')}
-          <select
+        <label className={styles.control} htmlFor="module-app-status">
+          <span>{t('moduleApps.admin.apps.status.label')}</span>
+          <Select
+            id="module-app-status"
             value={status ?? ''}
-            onChange={(event) => updateFilter('status', event.target.value)}
-          >
-            <option value="">{t('moduleApps.admin.apps.filters.all')}</option>
-            <option value="draft">{t('moduleApps.admin.apps.status.draft')}</option>
-            <option value="published">{t('moduleApps.admin.apps.status.published')}</option>
-            <option value="unpublished">{t('moduleApps.admin.apps.status.unpublished')}</option>
-          </select>
+            options={[
+              { label: t('moduleApps.admin.apps.filters.all'), value: '' },
+              { label: t('moduleApps.admin.apps.status.draft'), value: 'draft' },
+              { label: t('moduleApps.admin.apps.status.published'), value: 'published' },
+              { label: t('moduleApps.admin.apps.status.unpublished'), value: 'unpublished' },
+            ]}
+            onChange={(value) => updateFilter('status', String(value ?? ''))}
+          />
         </label>
-        <label>
-          {t('moduleApps.admin.apps.category')}
-          <input
+        <label className={styles.control} htmlFor="module-app-category">
+          <span>{t('moduleApps.admin.apps.category')}</span>
+          <Input
+            id="module-app-category"
             value={category ?? ''}
             onChange={(event) => updateFilter('category', event.target.value)}
           />
         </label>
-        <label>
-          {t('moduleApps.admin.apps.sort')}
-          <select value={sort ?? ''} onChange={(event) => updateFilter('sort', event.target.value)}>
-            <option value="">{t('moduleApps.admin.apps.sort.catalog')}</option>
-            <option value="name_asc">{t('moduleApps.admin.apps.sort.nameAsc')}</option>
-            <option value="updated_desc">{t('moduleApps.admin.apps.sort.updatedDesc')}</option>
-          </select>
+        <label className={styles.control} htmlFor="module-app-sort">
+          <span>{t('moduleApps.admin.apps.sort')}</span>
+          <Select
+            id="module-app-sort"
+            value={sort ?? ''}
+            options={[
+              { label: t('moduleApps.admin.apps.sort.catalog'), value: '' },
+              { label: t('moduleApps.admin.apps.sort.nameAsc'), value: 'name_asc' },
+              { label: t('moduleApps.admin.apps.sort.updatedDesc'), value: 'updated_desc' },
+            ]}
+            onChange={(value) => updateFilter('sort', String(value ?? ''))}
+          />
         </label>
         {canReadPublishers ? (
-          <label>
-            {t('moduleApps.admin.apps.publisher')}
-            <input
+          <label
+            className={`${styles.control} ${styles.controlWide}`}
+            htmlFor="module-app-publisher"
+          >
+            <span>{t('moduleApps.admin.apps.publisher')}</span>
+            <Input
+              id="module-app-publisher"
               value={publisherId ?? ''}
               onChange={(event) => updateFilter('publisherId', event.target.value)}
             />
@@ -217,31 +362,39 @@ const ModuleAppsPage = memo(() => {
         onClearFilters={clearFilters}
       >
         <div>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t('moduleApps.admin.apps.identity.displayName')}</th>
-                <th>{t('moduleApps.admin.apps.category')}</th>
-                <th>{t('moduleApps.admin.apps.identity.status')}</th>
-                <th>{t('moduleApps.admin.apps.identity.source')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.items ?? []).map((app) => (
-                <tr key={app.id}>
-                  <td>
-                    <button type="button" onClick={() => openApp(app.id)}>
-                      {app.displayName}
-                    </button>
-                  </td>
-                  <td>{app.category}</td>
-                  <td>{t(`moduleApps.admin.apps.status.${app.status}`)}</td>
-                  <td>{t(`moduleApps.admin.apps.source.${app.source ?? 'admin'}`)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className={styles.controls}>
+          <div className={styles.tableFrame} data-testid="module-app-table">
+            <div className={styles.tableShell}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{t('moduleApps.admin.apps.identity.displayName')}</th>
+                    <th>{t('moduleApps.admin.apps.category')}</th>
+                    <th>{t('moduleApps.admin.apps.identity.status')}</th>
+                    <th>{t('moduleApps.admin.apps.identity.source')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.items ?? []).map((app) => (
+                    <tr key={app.id}>
+                      <td>
+                        <button
+                          className={styles.tableLink}
+                          type="button"
+                          onClick={() => openApp(app.id)}
+                        >
+                          {app.displayName}
+                        </button>
+                      </td>
+                      <td>{app.category}</td>
+                      <td>{t(`moduleApps.admin.apps.status.${app.status}`)}</td>
+                      <td>{t(`moduleApps.admin.apps.source.${app.source ?? 'admin'}`)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className={styles.pagination}>
             <Button
               disabled={!searchParams.getAll('previousCursor').length}
               onClick={() => setSearchParams(retreatCursor(searchParams))}

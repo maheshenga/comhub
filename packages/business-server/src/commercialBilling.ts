@@ -1079,6 +1079,7 @@ export const releaseCommercialAiUsageReservation = async ({
 
 export const quoteCommercialAiUsage = async ({
   db,
+  forceCharge = false,
   model,
   provider,
   routeMetadata,
@@ -1087,6 +1088,7 @@ export const quoteCommercialAiUsage = async ({
   userId,
 }: {
   db: LobeChatDatabase;
+  forceCharge?: boolean;
   model: string;
   provider: string;
   routeMetadata?: AiUsageRouteMetadata;
@@ -1094,7 +1096,7 @@ export const quoteCommercialAiUsage = async ({
   usageType: CommercialAiUsageType;
   userId: string;
 }) => {
-  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
+  const shouldCharge = forceCharge || (await shouldChargeCommercialUsage({ db, provider, userId }));
   if (!shouldCharge || !usage) return null;
 
   const modelCard = await getProviderModelCard({ db, model, provider, userId });

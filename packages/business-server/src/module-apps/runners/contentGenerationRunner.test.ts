@@ -44,7 +44,7 @@ describe('runModuleAppContentGeneration', () => {
       model: 'gpt-test',
       idempotencyKey: 'run-1:generate',
       prompt: 'Write about apple',
-      provider: 'openai',
+      provider: 'newapi',
       userId: 'user-1',
     });
     expect(result).toMatchObject({
@@ -58,7 +58,7 @@ describe('runModuleAppContentGeneration', () => {
       ],
       output: {
         model: 'gpt-test',
-        provider: 'openai',
+        provider: 'newapi',
         text: 'Apple report',
         tokenUsage: { completion: 20, prompt: 10 },
       },

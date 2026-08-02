@@ -11,6 +11,12 @@ import { ModuleAppModel } from './moduleApp';
 
 const HASH = 'a'.repeat(64);
 
+const lockedSelect = (rows: unknown[]) => ({
+  from: vi.fn(() => ({
+    where: vi.fn(() => ({ for: vi.fn().mockResolvedValue(rows) })),
+  })),
+});
+
 const manifest: ModuleAppPackageManifest = {
   app: {
     actions: [],
@@ -44,7 +50,7 @@ const manifest: ModuleAppPackageManifest = {
   ],
   manifestVersion: 1,
   packageVersion: '1.0.0',
-  runtime: { kind: 'manifest_only', permissions: [] },
+  runtime: { kind: 'manifest_only', outboundHosts: ['api.example.com'], permissions: [] },
 };
 
 const archive: ModuleAppPackageArchiveMetadata = {
@@ -103,7 +109,9 @@ describe('ModuleAppModel package review lifecycle', () => {
   });
 
   it('creates a pending package submission', async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: 'package-1', reviewStatus: 'pending_review' }]);
+    const returning = vi
+      .fn()
+      .mockResolvedValue([{ id: 'package-1', reviewStatus: 'pending_review' }]);
     const values = vi.fn().mockReturnValue({ returning });
     const insert = vi.fn().mockReturnValue({ values });
     const db = { insert } as any;
@@ -142,6 +150,12 @@ describe('ModuleAppModel package review lifecycle', () => {
       reviewStatus: 'approved',
       versionId: version.id,
     };
+    const submission = {
+      id: 'package-1',
+      manifestSnapshot: manifest,
+      reviewStatus: 'pending_review',
+      submittedByUserId: 'developer-1',
+    };
 
     const insertValuesByTable = new Map<unknown, unknown>();
     const updateValuesByTable = new Map<unknown, unknown>();
@@ -174,13 +188,6 @@ describe('ModuleAppModel package review lifecycle', () => {
       delete: vi.fn(() => ({ where: vi.fn() })),
       insert,
       query: {
-        moduleAppPackages: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'package-1',
-            manifestSnapshot: manifest,
-            reviewStatus: 'pending_review',
-          }),
-        },
         moduleAppPackageUploads: {
           findFirst: vi.fn().mockResolvedValue({
             packageId: 'package-1',
@@ -195,12 +202,17 @@ describe('ModuleAppModel package review lifecycle', () => {
           findFirst: vi.fn().mockResolvedValue(null),
         },
       },
+      select: vi
+        .fn()
+        .mockReturnValueOnce(lockedSelect([submission]))
+        .mockReturnValueOnce(lockedSelect([{ id: 'publisher-1' }])),
       update,
     };
     const db = { transaction: vi.fn((callback) => callback(tx)) } as any;
 
     await expect(
       new ModuleAppModel(db).approvePackageSubmissionForAdmin({
+        outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
         packageId: 'package-1',
         reviewedByUserId: 'admin-1',
       }),
@@ -221,6 +233,13 @@ describe('ModuleAppModel package review lifecycle', () => {
     expect(insertValuesByTable.get(moduleAppEntitlements)).toEqual([
       expect.objectContaining({ appId: app.id, plan: 'pro', runnable: true }),
     ]);
+    expect(updateValuesByTable.get(moduleAppVersions)).toEqual(
+      expect.objectContaining({
+        runtimeManifest: expect.objectContaining({
+          outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
+        }),
+      }),
+    );
     expect(updateValuesByTable.get(moduleAppPackages)).toEqual(
       expect.objectContaining({
         appId: app.id,
@@ -232,24 +251,25 @@ describe('ModuleAppModel package review lifecycle', () => {
   });
 
   it('blocks approval before app mutation when the linked upload is not clean', async () => {
+    const submission = {
+      id: 'package-1',
+      manifestSnapshot: manifest,
+      reviewStatus: 'pending_review',
+      submittedByUserId: 'developer-1',
+    };
     const tx = {
       query: {
-        moduleAppPackages: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'package-1',
-            manifestSnapshot: manifest,
-            reviewStatus: 'pending_review',
-          }),
-        },
         moduleAppPackageUploads: {
           findFirst: vi.fn().mockResolvedValue(null),
         },
       },
+      select: vi.fn().mockReturnValueOnce(lockedSelect([submission])),
     };
     const db = { transaction: vi.fn((callback) => callback(tx)) } as any;
 
     await expect(
       new ModuleAppModel(db).approvePackageSubmissionForAdmin({
+        outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
         packageId: 'package-1',
         reviewedByUserId: 'admin-1',
       }),

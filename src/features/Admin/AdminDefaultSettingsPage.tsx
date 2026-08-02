@@ -3,7 +3,7 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox } from '@lobehub/ui';
 import { Button, confirmModal, Select } from '@lobehub/ui/base-ui';
-import { Alert, AutoComplete, Form, Input, message, Space, Switch, Typography } from 'antd';
+import { Alert, AutoComplete, Form, Input, message, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -31,7 +31,7 @@ import {
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-const { Text, Title } = Typography;
+import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 
 export type AdminDefaultSettingsScope = 'ai-runtime-defaults' | 'integrations' | 'user-defaults';
 
@@ -226,7 +226,12 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY(scope), () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY(scope), () =>
     adminCommercialService.getSettingsSection(scope),
   );
   const { data: storageSettings } = useClientDataSWR(
@@ -480,6 +485,8 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
   ];
 
   const handleSave = async (syncUserDefaults = false) => {
+    if (!data) return;
+
     setSubmitting(true);
     if (syncUserDefaults) setSyncing(true);
 
@@ -870,17 +877,19 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
   const saveLabel = scope === 'user-defaults' ? '保存用户默认值' : '保存设置';
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 960 }}>
-      <Flexbox gap={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          {t(scopeCopy[scope].titleKey, scopeCopy[scope].title)}
-        </Title>
-        <Text type="secondary">
-          {t(scopeCopy[scope].descriptionKey, scopeCopy[scope].description)}
-        </Text>
-      </Flexbox>
+    <AdminPageShell
+      description={t(scopeCopy[scope].descriptionKey, scopeCopy[scope].description)}
+      title={t(scopeCopy[scope].titleKey, scopeCopy[scope].title)}
+      width="large"
+    >
+      {error ? (
+        <AdminPageError
+          description={t('admin.defaultSettings.loadFailed', '无法读取当前默认设置，请重试。')}
+          onRetry={refresh}
+        />
+      ) : null}
       <Form
-        disabled={isLoading}
+        disabled={isLoading || !data}
         form={form}
         layout="vertical"
         initialValues={{
@@ -894,19 +903,17 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           userGlobalSettingsJson: '{}',
         }}
       >
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Flexbox gap={24}>
           {scope === 'ai-runtime-defaults'
             ? renderRuntimeFields()
             : scope === 'integrations'
               ? renderIntegrationFields()
               : renderUserDefaultsFields()}
-          <Flexbox horizontal gap={8} wrap="wrap">
-            <Button loading={submitting && !syncing} type="primary" onClick={() => handleSave()}>
-              {saveLabel}
-            </Button>
-            {scope === 'user-defaults' && (
+          <AdminFormActions label={t('admin.defaultSettings.actions', '默认设置操作')}>
+            {scope === 'user-defaults' ? (
               <Button
                 danger
+                disabled={isLoading || !data || submitting}
                 loading={syncing}
                 onClick={() => {
                   confirmModal({
@@ -920,11 +927,19 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
               >
                 {t('admin.defaultSettings.userDefaults.saveAndSync')}
               </Button>
-            )}
-          </Flexbox>
-        </Space>
+            ) : null}
+            <Button
+              disabled={isLoading || !data || syncing}
+              loading={submitting && !syncing}
+              type="primary"
+              onClick={() => handleSave()}
+            >
+              {saveLabel}
+            </Button>
+          </AdminFormActions>
+        </Flexbox>
       </Form>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

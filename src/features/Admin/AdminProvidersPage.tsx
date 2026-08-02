@@ -44,6 +44,7 @@ import {
   buildManualMediaPricingMetadata,
   buildManualTokenPricingMetadata,
 } from './adminProviderModelPricing';
+import { AdminPageError, AdminPageShell, AdminResponsiveTable, AdminSection } from './layout';
 
 type ModelType =
   'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
@@ -695,9 +696,12 @@ ModelsDrawer.displayName = 'ModelsDrawer';
 const AdminProvidersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const refreshAiProviderRuntimeState = useAiInfraStore((s) => s.refreshAiProviderRuntimeState);
-  const { data, isLoading } = useClientDataSWR(INSTANCES_KEY, () =>
-    adminCommercialService.listAiProviderInstances(),
-  );
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(INSTANCES_KEY, () => adminCommercialService.listAiProviderInstances());
 
   const [editing, setEditing] = useState<InstanceRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -775,6 +779,8 @@ const AdminProvidersPage = memo(() => {
   };
 
   const handleRefreshRuntimeCache = async () => {
+    if (!data) return;
+
     setRefreshingRuntimeCache(true);
     try {
       const result = await adminCommercialService.refreshAiProviderRuntimeCache();
@@ -935,44 +941,61 @@ const AdminProvidersPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal gap={12} justify="space-between">
-        <div style={{ fontSize: 13, opacity: 0.7 }}>
-          {t(
-            'admin.providers.intro',
-            '配置多个服务商上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
-          )}
-        </div>
-        <Flexbox horizontal gap={8}>
+    <AdminPageShell
+      title={t('admin.providers.title', '服务商管理')}
+      width="full"
+      actions={
+        <>
           <Button
+            disabled={isLoading || !data || refreshingRuntimeCache}
             icon={<Icon icon={RefreshCw} size={14} />}
             loading={refreshingRuntimeCache}
             onClick={handleRefreshRuntimeCache}
           >
             {t('admin.providers.refreshRuntimeCache.action', '更新用户缓存')}
           </Button>
-          <Button type="primary" onClick={() => setCreating(true)}>
+          <Button disabled={isLoading || !data} type="primary" onClick={() => setCreating(true)}>
             {t('admin.providers.createInstance', '新建实例')}
           </Button>
-        </Flexbox>
-      </Flexbox>
-
-      {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.providers.empty', '暂未配置服务商实例')} />
-      ) : (
-        <Table
-          columns={columns as any}
-          dataSource={items}
-          loading={isLoading}
-          pagination={false}
-          rowKey="id"
-        />
+        </>
+      }
+      description={t(
+        'admin.providers.intro',
+        '配置多个服务商上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
       )}
+    >
+      {error ? (
+        <AdminPageError
+          description={t('admin.providers.loadFailed', '无法读取服务商实例，请重试。')}
+          onRetry={refresh}
+        />
+      ) : null}
+
+      <AdminSection
+        title={t('admin.providers.instanceSection', '服务商实例')}
+        description={t('admin.providers.instanceSummary', '共 {{count}} 个服务商实例', {
+          count: items.length,
+        })}
+      >
+        {!isLoading && items.length === 0 ? (
+          <Empty description={t('admin.providers.empty', '暂未配置服务商实例')} />
+        ) : (
+          <AdminResponsiveTable label={t('admin.providers.tableLabel', '服务商实例表格')}>
+            <Table
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              pagination={false}
+              rowKey="id"
+            />
+          </AdminResponsiveTable>
+        )}
+      </AdminSection>
 
       <InstanceFormModal open={creating} onClose={() => setCreating(false)} />
       <InstanceFormModal initial={editing} open={!!editing} onClose={() => setEditing(null)} />
       <ModelsDrawer instance={modelsTarget} onClose={() => setModelsTarget(null)} />
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

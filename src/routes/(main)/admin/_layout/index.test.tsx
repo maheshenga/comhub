@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import AdminLayout from './index';
+import AdminLayout, { shouldUseAdminNavigationSheet } from './index';
 
 const userStoreMock = vi.hoisted(() => {
   const initialState = {
@@ -113,6 +113,10 @@ describe('AdminLayout', () => {
     expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('admin-outlet')).toBeInTheDocument();
     expect(screen.getByTestId('admin-context-bar')).toHaveTextContent('工作台');
+    expect(screen.getByRole('link', { name: '管理后台' })).toHaveAttribute(
+      'href',
+      '/settings/admin',
+    );
     expect(screen.getByRole('link', { name: '返回前台' })).toHaveAttribute('href', '/');
     expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
   });
@@ -131,6 +135,12 @@ describe('AdminLayout', () => {
     expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('admin-outlet')).toBeInTheDocument();
     expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
+  });
+
+  it('moves primary admin navigation into a sheet below the large breakpoint', () => {
+    expect(shouldUseAdminNavigationSheet({ lg: false, mobile: false })).toBe(true);
+    expect(shouldUseAdminNavigationSheet({ lg: true, mobile: false })).toBe(false);
+    expect(shouldUseAdminNavigationSheet({ lg: true, mobile: true })).toBe(true);
   });
 
   it('redirects scoped roles away from cross-domain admin routes', () => {

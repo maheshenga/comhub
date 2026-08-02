@@ -3,6 +3,7 @@ import type {
   ModuleAppAdminUpsertInput,
   ModuleAppBillingConfig,
   ModuleAppBuildStatus,
+  ModuleAppOutboundHostPurpose,
   ModuleAppPackageReviewStatus,
   ModuleAppPackageScanStatus,
   ModuleAppPage,
@@ -58,12 +59,15 @@ export type AdminModuleAppPackageRow = {
       source?: ModuleAppSource;
     };
     packageVersion?: string;
+    runtime?: { outboundHosts?: string[] };
   };
   rejectionReason?: null | string;
   reviewStatus: ModuleAppPackageReviewStatus;
   scanStatus: ModuleAppPackageScanStatus;
   submittedByUserId?: null | string;
 };
+
+export type AdminModuleAppOutboundHostPurpose = ModuleAppOutboundHostPurpose;
 
 export type ModuleAppRecordRow = {
   collectionKey: string;

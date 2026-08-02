@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import AppIdentityModal from './AppIdentityModal';
 
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Input: ({ ...props }: any) => <input data-component="base-input" {...props} />,
   Modal: ({ children, okButtonProps, onOk, open, title }: any) =>
     open ? (
       <div>
@@ -14,16 +15,56 @@ vi.mock('@lobehub/ui/base-ui', () => ({
         </button>
       </div>
     ) : null,
+  Select: ({ options, ...props }: any) => (
+    <select data-component="base-select" {...props}>
+      {options.map((option: { label: string; value: string }) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
+  TextArea: ({ ...props }: any) => <textarea data-component="base-textarea" {...props} />,
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 describe('AppIdentityModal', () => {
+  it('uses styled controls for identity fields', () => {
+    render(
+      <AppIdentityModal
+        open
+        draft={{
+          category: 'office',
+          description: 'A useful application.',
+          displayName: 'Draft app',
+          slug: 'draft-app',
+        }}
+        onCancel={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('module-app-identity-form')).toBeInTheDocument();
+    expect(screen.getByLabelText('moduleApps.admin.apps.identity.displayName')).toHaveAttribute(
+      'data-component',
+      'base-input',
+    );
+    expect(screen.getByLabelText('moduleApps.admin.apps.identity.status')).toHaveAttribute(
+      'data-component',
+      'base-select',
+    );
+    expect(screen.getByLabelText('moduleApps.admin.apps.identity.description')).toHaveAttribute(
+      'data-component',
+      'base-textarea',
+    );
+  });
+
   it('starts new applications from the non-sensitive identity draft', () => {
     const onDraftChange = vi.fn();
     render(
       <AppIdentityModal
-        draft={{ category: 'office', displayName: 'Draft app', slug: 'draft-app' }}
         open
+        draft={{ category: 'office', displayName: 'Draft app', slug: 'draft-app' }}
         onCancel={vi.fn()}
         onDraftChange={onDraftChange}
         onSubmit={vi.fn()}
@@ -41,8 +82,8 @@ describe('AppIdentityModal', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <AppIdentityModal
-        draft={{ displayName: 'Draft app', slug: 'draft-app' }}
         open
+        draft={{ displayName: 'Draft app', slug: 'draft-app' }}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
       />,
@@ -66,13 +107,13 @@ describe('AppIdentityModal', () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('Server rejected identity'));
     render(
       <AppIdentityModal
+        open
         draft={{
           category: 'office',
           description: 'A useful application.',
           displayName: 'Draft app',
           slug: 'draft-app',
         }}
-        open
         onCancel={vi.fn()}
         onSubmit={onSubmit}
       />,

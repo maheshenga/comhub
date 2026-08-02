@@ -60,11 +60,20 @@ describe('ModuleAppBuildService', () => {
   };
 
   it('delegates executable approval and prepares a worker request', async () => {
-    const { approval, buildModel, service, storage } = createMocks();
+    const { appModel, approval, buildModel, service, storage } = createMocks();
 
     await expect(
-      service.approvePackage({ packageId: 'package-1', reviewedByUserId: 'admin-1' }),
+      service.approvePackage({
+        outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
+        packageId: 'package-1',
+        reviewedByUserId: 'admin-1',
+      }),
     ).resolves.toEqual(approval);
+    expect(appModel.approvePackageSubmissionForAdmin).toHaveBeenCalledWith({
+      outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
+      packageId: 'package-1',
+      reviewedByUserId: 'admin-1',
+    });
     await expect(
       service.claimBuild({ leaseDurationMs: 60_000, workerId: 'worker-1' }),
     ).resolves.toMatchObject({
@@ -73,9 +82,15 @@ describe('ModuleAppBuildService', () => {
       claimToken: 'claim-token-1',
       sourceDownloadUrl: 'https://storage.example.com/source',
     });
-    expect(buildModel.claimNext).toHaveBeenCalledWith({ leaseDurationMs: 60_000, workerId: 'worker-1' });
+    expect(buildModel.claimNext).toHaveBeenCalledWith({
+      leaseDurationMs: 60_000,
+      workerId: 'worker-1',
+    });
     expect(storage.prepareWorkerRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'build-1', sourceStorageKey: 'module-app-packages/source.zip' }),
+      expect.objectContaining({
+        id: 'build-1',
+        sourceStorageKey: 'module-app-packages/source.zip',
+      }),
     );
     expect(buildModel.fail).not.toHaveBeenCalled();
   });
@@ -133,9 +148,9 @@ describe('ModuleAppBuildService', () => {
     const { buildModel, service, storage } = createMocks();
     storage.prepareWorkerRequest.mockRejectedValueOnce(new Error('storage unavailable'));
 
-    await expect(service.claimBuild({ leaseDurationMs: 60_000, workerId: 'worker-1' })).rejects.toThrow(
-      'MODULE_APP_BUILD_STORAGE_SIGNING_FAILED',
-    );
+    await expect(
+      service.claimBuild({ leaseDurationMs: 60_000, workerId: 'worker-1' }),
+    ).rejects.toThrow('MODULE_APP_BUILD_STORAGE_SIGNING_FAILED');
     expect(buildModel.fail).toHaveBeenCalledWith({
       buildId: 'build-1',
       claimToken: 'claim-token-1',

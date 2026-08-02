@@ -216,7 +216,7 @@ const scaffoldManifest = (slug: string, displayName: string) => ({
   entitlements: [],
   manifestVersion: 2,
   packageVersion: '0.1.0',
-  runtime: { functions: [], permissions: [] },
+  runtime: { functions: [], outboundHosts: [], permissions: [] },
 });
 
 const escapeHtml = (value: string) =>

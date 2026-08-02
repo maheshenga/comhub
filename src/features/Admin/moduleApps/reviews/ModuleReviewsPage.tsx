@@ -15,7 +15,7 @@ import { userProfileSelectors } from '@/store/user/selectors';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
-import type { AdminModuleAppPackageRow } from '../types';
+import type { AdminModuleAppOutboundHostPurpose, AdminModuleAppPackageRow } from '../types';
 import { getPackageColumns } from './packageColumns';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -24,18 +24,36 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     flex-wrap: wrap;
     gap: 8px;
   `,
+  hostList: css`
+    display: grid;
+    gap: 12px;
+  `,
+  hostRow: css`
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+    gap: 12px;
+    align-items: center;
+
+    @media (width <= 640px) {
+      grid-template-columns: 1fr;
+    }
+  `,
+  hostName: css`
+    overflow-wrap: anywhere;
+  `,
   page: css`
     display: grid;
     gap: 16px;
     max-width: 1180px;
   `,
   table: css`
-    width: 100%;
     border-collapse: collapse;
+    width: 100%;
 
     th,
     td {
-      padding: 10px 8px;
+      padding-block: 10px;
+      padding-inline: 8px;
       border-block-end: 1px solid ${cssVar.colorBorderSecondary};
       text-align: start;
     }
@@ -51,6 +69,13 @@ const REVIEW_ACTION_TRANSLATION_KEYS = {
   rescan: 'moduleApps.admin.reviews.rescan',
 } as const satisfies Record<ReviewAction, string>;
 
+const getOutboundHosts = (target?: AdminModuleAppPackageRow) => {
+  const hosts = target?.manifestSnapshot?.runtime?.outboundHosts;
+  if (!Array.isArray(hosts)) return [];
+
+  return [...new Set(hosts.map((host) => host.trim().toLowerCase()).filter(Boolean))];
+};
+
 const ModuleReviewsPage = memo(() => {
   const { t } = useTranslation('common');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -63,6 +88,9 @@ const ModuleReviewsPage = memo(() => {
   const [actionError, setActionError] = useState<string>();
   const [actionTarget, setActionTarget] = useState<AdminModuleAppPackageRow>();
   const [actionComplete, setActionComplete] = useState(false);
+  const [outboundHostPurposes, setOutboundHostPurposes] = useState<
+    Record<string, AdminModuleAppOutboundHostPurpose | undefined>
+  >({});
   const [rejectReason, setRejectReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const actionLabel = action ? t(REVIEW_ACTION_TRANSLATION_KEYS[action]) : '';
@@ -115,6 +143,9 @@ const ModuleReviewsPage = memo(() => {
     setActionComplete(false);
     setActionError(undefined);
     setActionTarget(target);
+    setOutboundHostPurposes(
+      Object.fromEntries(getOutboundHosts(target).map((host) => [host, undefined])),
+    );
     setRejectReason('');
   };
   const closeAction = () => {
@@ -122,13 +153,27 @@ const ModuleReviewsPage = memo(() => {
     setAction(undefined);
     setActionTarget(undefined);
   };
+  const outboundHosts = getOutboundHosts(actionTarget);
+  const outboundHostPolicies = outboundHosts.flatMap((host) => {
+    const purpose = outboundHostPurposes[host];
+    return purpose ? [{ host, purpose }] : [];
+  });
+  const approvalClassificationIncomplete =
+    action === 'approve' && outboundHostPolicies.length !== outboundHosts.length;
   const submitAction = async () => {
-    if (!action || !actionTarget || (action === 'reject' && !rejectReason.trim())) return;
+    if (
+      !action ||
+      !actionTarget ||
+      (action === 'reject' && !rejectReason.trim()) ||
+      approvalClassificationIncomplete
+    )
+      return;
     setSubmitting(true);
     setActionError(undefined);
     try {
       if (action === 'approve') {
         const result = await adminCommercialService.moduleApps.approvePackage({
+          outboundHostPolicies,
           packageId: actionTarget.id,
         });
         await mutate(listKey);
@@ -312,7 +357,10 @@ const ModuleReviewsPage = memo(() => {
           title={actionLabel}
           okButtonProps={{
             danger: action === 'reject',
-            disabled: submitting || (action === 'reject' && !rejectReason.trim()),
+            disabled:
+              submitting ||
+              (action === 'reject' && !rejectReason.trim()) ||
+              approvalClassificationIncomplete,
           }}
           okText={
             action === 'reject' ? t('moduleApps.admin.reviews.confirmRejection') : actionLabel
@@ -321,6 +369,46 @@ const ModuleReviewsPage = memo(() => {
           onOk={actionComplete ? closeAction : submitAction}
         >
           {actionComplete ? <p>{t('moduleApps.admin.reviews.actionSuccess')}</p> : null}
+          {action === 'approve' && !actionComplete && outboundHosts.length > 0 ? (
+            <div className={styles.hostList}>
+              {outboundHosts.map((host) => (
+                <label className={styles.hostRow} key={host}>
+                  <span className={styles.hostName}>{host}</span>
+                  <Select
+                    aria-label={host}
+                    value={outboundHostPurposes[host] ?? ''}
+                    options={[
+                      {
+                        label: t('moduleApps.admin.reviews.outboundPurpose.unclassified'),
+                        value: '',
+                      },
+                      {
+                        label: t('moduleApps.admin.reviews.outboundPurpose.general'),
+                        value: 'general',
+                      },
+                      {
+                        label: t('moduleApps.admin.reviews.outboundPurpose.ai'),
+                        value: 'ai',
+                      },
+                      {
+                        label: t('moduleApps.admin.reviews.outboundPurpose.payment'),
+                        value: 'payment',
+                      },
+                    ]}
+                    onChange={(value) =>
+                      setOutboundHostPurposes((current) => ({
+                        ...current,
+                        [host]:
+                          value === 'ai' || value === 'general' || value === 'payment'
+                            ? value
+                            : undefined,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          ) : null}
           {action === 'reject' && !actionComplete ? (
             <label>
               {t('moduleApps.admin.reviews.rejectReason')}

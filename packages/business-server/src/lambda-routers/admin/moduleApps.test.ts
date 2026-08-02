@@ -345,6 +345,7 @@ describe('admin module apps router', () => {
     buildServiceMocks.approvePackage.mockResolvedValue({
       appId: APP_ID,
       build: { id: 'build-1', status: 'queued' },
+      outboundHostPolicies: [],
       package: { id: PACKAGE_ID, reviewStatus: 'approved' },
       slug: 'workbench',
       versionId: 'version-1',
@@ -748,15 +749,19 @@ describe('admin module apps router', () => {
   it('approves a package submission and writes an audit log', async () => {
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).resolves.toEqual({
+    await expect(
+      caller.moduleApps.approvePackage({ outboundHostPolicies: [], packageId: PACKAGE_ID }),
+    ).resolves.toEqual({
       appId: APP_ID,
       build: { id: 'build-1', status: 'queued' },
+      outboundHostPolicies: [],
       package: { id: PACKAGE_ID, reviewStatus: 'approved' },
       slug: 'workbench',
       versionId: 'version-1',
     });
 
     expect(buildServiceMocks.approvePackage).toHaveBeenCalledWith({
+      outboundHostPolicies: [],
       packageId: PACKAGE_ID,
       reviewedByUserId: 'admin-user',
     });
@@ -764,6 +769,10 @@ describe('admin module apps router', () => {
       expect.objectContaining({
         actorUserId: 'admin-user',
         eventType: 'module_app.package_approved',
+        metadata: expect.objectContaining({
+          outboundHostPolicies: [],
+          outboundHostPurposes: [],
+        }),
         resourceId: APP_ID,
         resourceType: 'moduleApp',
       }),
@@ -776,25 +785,26 @@ describe('admin module apps router', () => {
     );
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
-      {
-        code: 'PRECONDITION_FAILED',
-        message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
-      },
-    );
+    await expect(
+      caller.moduleApps.approvePackage({ outboundHostPolicies: [], packageId: PACKAGE_ID }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
+    });
   });
 
   it.each([
     ['MODULE_APP_PACKAGE_SUBMITTER_REQUIRED', 'PRECONDITION_FAILED'],
     ['MODULE_APP_PACKAGE_PUBLISHER_NOT_VERIFIED', 'PRECONDITION_FAILED'],
     ['MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH', 'CONFLICT'],
-  ] as const)('maps package ownership error %s to %s', async (message, code) => {
+    ['MODULE_APP_OUTBOUND_HOST_CLASSIFICATION_REQUIRED', 'BAD_REQUEST'],
+  ] as const)('maps package review error %s to %s', async (message, code) => {
     buildServiceMocks.approvePackage.mockRejectedValueOnce(new Error(message));
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
-      { code, message },
-    );
+    await expect(
+      caller.moduleApps.approvePackage({ outboundHostPolicies: [], packageId: PACKAGE_ID }),
+    ).rejects.toMatchObject({ code, message });
     expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
   });
 

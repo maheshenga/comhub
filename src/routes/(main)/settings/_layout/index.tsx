@@ -2,14 +2,20 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { type FC } from 'react';
-import { Outlet } from 'react-router';
+import { Outlet, useLocation } from 'react-router';
 
 import SideBar from '@/routes/(main)/settings/_layout/SideBar';
 
 import SettingsContextProvider from './ContextProvider';
 import { styles } from './style';
 
+export const isAdminSettingsRoute = (pathname: string) =>
+  pathname === '/settings/admin' || pathname.startsWith('/settings/admin/');
+
 const Layout: FC = () => {
+  const { pathname } = useLocation();
+  const adminWorkspace = isAdminSettingsRoute(pathname);
+
   return (
     <SettingsContextProvider
       value={{
@@ -17,8 +23,13 @@ const Layout: FC = () => {
         showOpenAIProxyUrl: true,
       }}
     >
-      <SideBar />
-      <Flexbox className={styles.mainContainer} flex={1} height={'100%'}>
+      {adminWorkspace ? null : <SideBar />}
+      <Flexbox
+        className={styles.mainContainer}
+        data-testid={adminWorkspace ? 'admin-settings-workspace' : undefined}
+        flex={1}
+        height={'100%'}
+      >
         <Outlet />
       </Flexbox>
     </SettingsContextProvider>

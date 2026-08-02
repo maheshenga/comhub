@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Divider, Form, Input, message, Radio, Switch } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert, Form, Input, message, Radio, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -14,6 +15,14 @@ import {
 } from '@/features/Admin/adminModelPolicySettings';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import {
+  AdminFormActions,
+  AdminFormGrid,
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+} from './layout';
 
 const SETTING_KEYS = {
   allowlist: 'model.policy.allowlist',
@@ -56,7 +65,12 @@ const AdminModelPolicyPage = memo(() => {
   const navigate = useNavigate();
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('model-policy'), () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('model-policy'), () =>
     adminCommercialService.getSettingsSection('model-policy'),
   );
 
@@ -94,6 +108,8 @@ const AdminModelPolicyPage = memo(() => {
   };
 
   const handleSave = async () => {
+    if (!data) return;
+
     setSubmitting(true);
 
     try {
@@ -138,7 +154,14 @@ const AdminModelPolicyPage = memo(() => {
   };
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 780 }}>
+    <AdminPageShell
+      title={t('admin.modelPolicy.title', '全局模型策略')}
+      width="medium"
+      description={t(
+        'admin.modelPolicy.subtitle',
+        '集中设置全局模型访问策略、适用范围和默认兜底模型。',
+      )}
+    >
       <Alert
         showIcon
         message={t('admin.modelPolicy.tip', GLOBAL_MODEL_POLICY_HELP_TEXT)}
@@ -149,8 +172,14 @@ const AdminModelPolicyPage = memo(() => {
           </Button>
         }
       />
+      {error ? (
+        <AdminPageError
+          description={t('admin.modelPolicy.loadFailed', '无法读取当前模型策略，请重试。')}
+          onRetry={refresh}
+        />
+      ) : null}
       <Form
-        disabled={isLoading}
+        disabled={isLoading || !data}
         form={form}
         layout="vertical"
         initialValues={{
@@ -164,96 +193,137 @@ const AdminModelPolicyPage = memo(() => {
           mode: 'blocklist',
         }}
       >
-        <Form.Item
-          label={t('admin.modelPolicy.enabled', '启用全局模型策略')}
-          name="enabled"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-        <Form.Item label={t('admin.modelPolicy.mode', '策略模式')} name="mode">
-          <Radio.Group
-            options={[
-              {
-                label: t('admin.modelPolicy.mode.blocklist', '禁用列表中的模型'),
-                value: 'blocklist',
-              },
-              {
-                label: t('admin.modelPolicy.mode.allowlist', '仅允许列表中的模型'),
-                value: 'allowlist',
-              },
-            ]}
-          />
-        </Form.Item>
+        <Flexbox gap={24}>
+          <AdminSection
+            title={t('admin.modelPolicy.statusSection', '策略状态')}
+            description={t(
+              'admin.modelPolicy.statusSectionDescription',
+              '决定是否启用全局限制，以及列表采用允许还是禁用语义。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                label={t('admin.modelPolicy.enabled', '启用全局模型策略')}
+                name="enabled"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item label={t('admin.modelPolicy.mode', '策略模式')} name="mode">
+                <Radio.Group
+                  options={[
+                    {
+                      label: t('admin.modelPolicy.mode.blocklist', '禁用列表中的模型'),
+                      value: 'blocklist',
+                    },
+                    {
+                      label: t('admin.modelPolicy.mode.allowlist', '仅允许列表中的模型'),
+                      value: 'allowlist',
+                    },
+                  ]}
+                />
+              </Form.Item>
+            </AdminFormGrid>
+          </AdminSection>
 
-        <Divider plain>{t('admin.modelPolicy.listsSection', '全局模型列表')}</Divider>
-        <Form.Item
-          label={t('admin.modelPolicy.allowlist', '允许列表')}
-          name="allowlistText"
-          extra={t(
-            'admin.modelPolicy.allowlist.help',
-            '启用允许列表模式后，仅这些模型可以使用。每行一个条目。',
-          )}
-        >
-          <Input.TextArea
-            placeholder={'openai:gpt-4o-mini\ndeepseek:deepseek-chat'}
-            rows={6}
-            onBlur={handleNormalizeAllowlist}
-          />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.modelPolicy.blocklist', '禁用列表')}
-          name="blocklistText"
-          extra={t(
-            'admin.modelPolicy.blocklist.help',
-            '启用禁用列表模式后，这些模型会被拒绝。每行一个条目。',
-          )}
-        >
-          <Input.TextArea
-            placeholder={'openai:o1*\n*:old-*'}
-            rows={6}
-            onBlur={handleNormalizeBlocklist}
-          />
-        </Form.Item>
+          <AdminSection
+            title={t('admin.modelPolicy.listsSection', '全局模型列表')}
+            description={t(
+              'admin.modelPolicy.listsSectionDescription',
+              '支持每行、逗号或分号分隔，输入框失焦时会自动去重并规范化。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                label={t('admin.modelPolicy.allowlist', '允许列表')}
+                name="allowlistText"
+                extra={t(
+                  'admin.modelPolicy.allowlist.help',
+                  '启用允许列表模式后，仅这些模型可以使用。每行一个条目。',
+                )}
+              >
+                <Input.TextArea
+                  placeholder={'openai:gpt-4o-mini\ndeepseek:deepseek-chat'}
+                  rows={6}
+                  onBlur={handleNormalizeAllowlist}
+                />
+              </Form.Item>
+              <Form.Item
+                label={t('admin.modelPolicy.blocklist', '禁用列表')}
+                name="blocklistText"
+                extra={t(
+                  'admin.modelPolicy.blocklist.help',
+                  '启用禁用列表模式后，这些模型会被拒绝。每行一个条目。',
+                )}
+              >
+                <Input.TextArea
+                  placeholder={'openai:o1*\n*:old-*'}
+                  rows={6}
+                  onBlur={handleNormalizeBlocklist}
+                />
+              </Form.Item>
+            </AdminFormGrid>
+          </AdminSection>
 
-        <Divider plain>{t('admin.modelPolicy.scopeSection', '作用范围与兜底')}</Divider>
-        <Form.Item
-          label={t('admin.modelPolicy.applyToEmbeddings', '应用到向量模型')}
-          name="applyToEmbeddings"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.modelPolicy.applyToGenerateObject', '应用到结构化输出')}
-          name="applyToGenerateObject"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.modelPolicy.fallback', '默认兜底模型')}
-          name="defaultModelFallback"
-          extra={t(
-            'admin.modelPolicy.fallback.help',
-            '用于安全兜底展示和后续自动切换；当前运行时仍会直接拒绝不允许的模型。',
-          )}
-        >
-          <Input list="admin-model-policy-fallback-options" placeholder="gpt-4o-mini" />
-        </Form.Item>
-        <datalist id="admin-model-policy-fallback-options">
-          {defaultModelOptions.map((item) => (
-            <option key={item.value} value={item.value} />
-          ))}
-        </datalist>
-        <Form.Item label={t('admin.modelPolicy.deniedMessage', '拒绝提示')} name="deniedMessage">
-          <Input.TextArea rows={3} />
-        </Form.Item>
-        <Button loading={submitting} type="primary" onClick={handleSave}>
-          {t('admin.settings.save', '保存')}
-        </Button>
+          <AdminSection
+            title={t('admin.modelPolicy.scopeSection', '作用范围与兜底')}
+            description={t(
+              'admin.modelPolicy.scopeSectionDescription',
+              '设置策略覆盖的调用类型、拒绝提示和未来自动切换使用的兜底模型。',
+            )}
+          >
+            <AdminFormGrid>
+              <Form.Item
+                label={t('admin.modelPolicy.applyToEmbeddings', '应用到向量模型')}
+                name="applyToEmbeddings"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                label={t('admin.modelPolicy.applyToGenerateObject', '应用到结构化输出')}
+                name="applyToGenerateObject"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                label={t('admin.modelPolicy.fallback', '默认兜底模型')}
+                name="defaultModelFallback"
+                extra={t(
+                  'admin.modelPolicy.fallback.help',
+                  '用于安全兜底展示和后续自动切换；当前运行时仍会直接拒绝不允许的模型。',
+                )}
+              >
+                <Input list="admin-model-policy-fallback-options" placeholder="gpt-4o-mini" />
+              </Form.Item>
+            </AdminFormGrid>
+            <datalist id="admin-model-policy-fallback-options">
+              {defaultModelOptions.map((item) => (
+                <option key={item.value} value={item.value} />
+              ))}
+            </datalist>
+            <Form.Item
+              label={t('admin.modelPolicy.deniedMessage', '拒绝提示')}
+              name="deniedMessage"
+            >
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          </AdminSection>
+
+          <AdminFormActions label={t('admin.modelPolicy.actions', '模型策略操作')}>
+            <Button
+              disabled={isLoading || !data}
+              loading={submitting}
+              type="primary"
+              onClick={handleSave}
+            >
+              {t('admin.settings.save', '保存')}
+            </Button>
+          </AdminFormActions>
+        </Flexbox>
       </Form>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

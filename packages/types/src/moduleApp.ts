@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 import { moduleAppMultiplierSchema } from './moduleAppCommerce';
-import { moduleAppBuildConfigSchema, moduleAppExecutableRuntimeSchema } from './moduleAppRuntime';
+import {
+  moduleAppBuildConfigSchema,
+  moduleAppExecutableRuntimeSchema,
+  moduleAppOutboundHostsSchema,
+} from './moduleAppRuntime';
 
 const optionalTrimmedString = (max: number) =>
   z.preprocess((value) => {
@@ -308,6 +312,7 @@ export type ModuleAppPackageRuntimeKind = z.infer<typeof moduleAppPackageRuntime
 export const moduleAppPackageRuntimeSchema = z.object({
   entry: optionalTrimmedString(240),
   kind: moduleAppPackageRuntimeKindSchema.default('manifest_only'),
+  outboundHosts: moduleAppOutboundHostsSchema.optional(),
   permissions: z
     .array(z.string().regex(/^[a-z][a-z0-9_.:-]{1,79}$/))
     .max(80)

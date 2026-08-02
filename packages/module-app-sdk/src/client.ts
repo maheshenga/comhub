@@ -7,6 +7,9 @@ import {
   type ModuleAppBridgeRequest,
 } from './bridge.js';
 import type {
+  ModuleAppAiChatInput,
+  ModuleAppAiChatResult,
+  ModuleAppAiModel,
   ModuleAppDataArchiveInput,
   ModuleAppDataGetInput,
   ModuleAppDataInsertInput,
@@ -14,6 +17,11 @@ import type {
   ModuleAppDataRow,
   ModuleAppDataTransaction,
   ModuleAppDataUpdateInput,
+  ModuleAppPaymentCatalogItem,
+  ModuleAppPaymentCheckoutInput,
+  ModuleAppPaymentCheckoutResult,
+  ModuleAppPaymentMethod,
+  ModuleAppPaymentOrderStatusResult,
   ModuleAppTaskRun,
   ModuleAppTaskRunInput,
 } from './types.js';
@@ -63,6 +71,10 @@ export class ModuleAppSdkError extends Error {
 }
 
 export interface ModuleAppSdk {
+  ai: {
+    chat: (input: ModuleAppAiChatInput) => Promise<ModuleAppAiChatResult>;
+    listModels: () => Promise<ModuleAppAiModel[]>;
+  };
   context: <T extends Record<string, unknown> = Record<string, unknown>>() => Promise<T>;
   data: {
     archive: (input: ModuleAppDataArchiveInput) => Promise<ModuleAppDataRow>;
@@ -78,6 +90,14 @@ export interface ModuleAppSdk {
   dispose: () => void;
   invoke: <T = unknown>(method: string, input?: unknown) => Promise<T>;
   on: (event: ModuleAppSdkEvent, listener: ModuleAppSdkListener) => () => void;
+  payments: {
+    createCheckout: (
+      input: ModuleAppPaymentCheckoutInput,
+    ) => Promise<ModuleAppPaymentCheckoutResult>;
+    getOrderStatus: (input: { orderId: string }) => Promise<ModuleAppPaymentOrderStatusResult>;
+    listCatalog: () => Promise<ModuleAppPaymentCatalogItem[]>;
+    listMethods: () => Promise<ModuleAppPaymentMethod[]>;
+  };
   tasks: {
     cancel: (input: ModuleAppTaskRunInput) => Promise<ModuleAppTaskRun>;
     getRun: (input: ModuleAppTaskRunInput) => Promise<ModuleAppTaskRun | null>;
@@ -210,6 +230,10 @@ export const createModuleAppSdk = (options: ModuleAppSdkOptions): ModuleAppSdk =
   };
 
   return {
+    ai: {
+      chat: (input) => invoke<ModuleAppAiChatResult>('ai.chat', input),
+      listModels: () => invoke<ModuleAppAiModel[]>('ai.models.list'),
+    },
     context: <T extends Record<string, unknown> = Record<string, unknown>>() =>
       invoke<T>('context.get'),
     data: {
@@ -239,6 +263,14 @@ export const createModuleAppSdk = (options: ModuleAppSdkOptions): ModuleAppSdk =
       listeners.set(event, eventListeners);
 
       return () => eventListeners.delete(listener);
+    },
+    payments: {
+      createCheckout: (input) =>
+        invoke<ModuleAppPaymentCheckoutResult>('payments.checkout.create', input),
+      getOrderStatus: (input) =>
+        invoke<ModuleAppPaymentOrderStatusResult>('payments.status.get', input),
+      listCatalog: () => invoke<ModuleAppPaymentCatalogItem[]>('payments.catalog.list'),
+      listMethods: () => invoke<ModuleAppPaymentMethod[]>('payments.methods.list'),
     },
     tasks: {
       cancel: (input) => invoke<ModuleAppTaskRun>('tasks.cancel', input),

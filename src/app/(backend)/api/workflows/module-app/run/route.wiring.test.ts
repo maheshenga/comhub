@@ -14,4 +14,12 @@ describe('Module App workflow billing wiring', () => {
     expect(source).toContain("current.detail.billing.chargeMode === 'ai_usage'");
     expect(source).toContain("current.detail.billing.chargeMode === 'hybrid'");
   });
+
+  it('passes only administrator-reviewed general hosts to the HTTP executor', () => {
+    expect(source).toContain('getModuleAppGeneralOutboundHosts');
+    expect(source).toMatch(
+      /outboundHosts:\s*getModuleAppGeneralOutboundHosts\(\s*current\.installation\.runtimeManifest,?\s*\)/,
+    );
+    expect(source).not.toContain('outboundHosts: current.runtime.outboundHosts');
+  });
 });
