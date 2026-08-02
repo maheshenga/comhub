@@ -166,12 +166,9 @@ describe('Docker workspace manifests', () => {
     expect(buildWorkflow.match(/docker\/build-push-action@v7/g)).toHaveLength(3);
     expect(mainWorkflow).not.toContain('docker/build-push-action');
     expect(workerWorkflow).not.toContain('docker/build-push-action');
-    expect(main.jobs.deploy.needs).toEqual([
-      'resolve-source',
-      'resolve-images',
-      'verify-module-app-full',
-    ]);
+    expect(main.jobs.deploy.needs).toEqual(['resolve-source', 'resolve-images']);
     expect(main.jobs.deploy.if).toContain('always()');
+    expect(mainWorkflow).toContain("inputs.deploy_module_runtime == 'true'");
     expect(worker.jobs.deploy.needs).toEqual(['resolve-source', 'verify-worker', 'resolve-image']);
     expect(workerWorkflow).toContain('pnpm verify:module-app-worker');
   });
@@ -208,7 +205,7 @@ describe('Docker workspace manifests', () => {
     expect(gate.match(/MODULE_APP_[A-Z_]+_ENABLED/g)).toHaveLength(8);
   });
 
-  it('requires commercial and certificate-aware production verification gates', () => {
+  it('requires commercial production verification without CI-held provider credentials', () => {
     const workflow = readFileSync(
       path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
       'utf8',
@@ -218,8 +215,8 @@ describe('Docker workspace manifests', () => {
       'utf8',
     );
 
-    expect(workflow).toContain('MODULE_APP_ALIPAY_APP_CERT_SN');
-    expect(workflow).toContain('MODULE_APP_ALIPAY_ROOT_CERT_SN');
+    expect(workflow).not.toMatch(/\$\{\{\s*(?:secrets|vars)\.MODULE_APP_/);
+    expect(workflow).not.toContain('MODULE_APP_E2E_');
     expect(verification).toContain("'src/commercialBilling.test.ts'");
     expect(verification).toContain("'src/models/__tests__/commercial.test.ts'");
     expect(verification).toContain("'src/models/__tests__/moduleAppCommerce.test.ts'");

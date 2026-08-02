@@ -14,7 +14,6 @@ const fixtureScript = path.join(root, 'scripts', 'fixtures', 'moduleAppWorkerFix
 const migrationScript = path.join(root, 'scripts', 'migrateServerDB', 'index.ts');
 const tsx = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const vitest = path.join(root, 'node_modules', 'vitest', 'vitest.mjs');
-const full = process.argv.includes('--full');
 const workerOnly = process.argv.includes('--worker-only');
 const keepInfrastructure = process.argv.includes('--keep-infrastructure');
 const runIdentity = `${process.pid}-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
@@ -277,36 +276,6 @@ const migrateDatabase = () =>
     },
   });
 
-const requireFullEnvironment = () => {
-  const required = [
-    'MODULE_APP_ALIPAY_APP_ID',
-    'MODULE_APP_ALIPAY_SELLER_ID',
-    'MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY',
-    'MODULE_APP_ALIPAY_RETURN_URL',
-    'MODULE_APP_ALIPAY_NOTIFY_URL',
-    'MODULE_APP_E2E_APP_ID',
-    'MODULE_APP_E2E_BASE_URL',
-    'MODULE_APP_E2E_DENIED_WORKSPACE_ID',
-    'MODULE_APP_E2E_PAID_APP_ID',
-    'MODULE_APP_E2E_PENDING_APP_ID',
-    'MODULE_APP_E2E_REFUNDED_APP_ID',
-    'MODULE_APP_E2E_REVOKED_APP_ID',
-    'MODULE_APP_E2E_RUN_ID',
-    'MODULE_APP_E2E_TEAM_WORKSPACE_ID',
-    ...(process.env.MODULE_APP_ALIPAY_CERT_MODE === 'certificate'
-      ? [
-          'MODULE_APP_ALIPAY_CERTIFICATE',
-          'MODULE_APP_ALIPAY_APP_CERT_SN',
-          'MODULE_APP_ALIPAY_ROOT_CERT_SN',
-        ]
-      : ['MODULE_APP_ALIPAY_PUBLIC_KEY']),
-  ];
-  const missing = required.filter((key) => !process.env[key]?.trim());
-  if (missing.length > 0) {
-    throw new Error(`Full Module App production gate requires: ${missing.join(', ')}`);
-  }
-};
-
 const inspectService = (profile, service) => {
   const profileArgs = profile ? ['--profile', profile] : [];
   const id = composeCapture([...profileArgs, 'ps', '-q', service]);
@@ -470,7 +439,6 @@ const generalCommercialTests = [
 
 let primaryError;
 try {
-  if (full) requireFullEnvironment();
   runVitest(['scripts/dockerWorkspaceManifests.test.ts']);
   runVitest(['src/moduleApp/project.test.ts'], {
     cwd: path.join(root, 'apps', 'cli'),
@@ -566,29 +534,6 @@ try {
         `node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>{let body='';response.on('data',chunk=>body+=chunk);response.on('end',()=>process.exit(response.statusCode===503&&body.includes('MODULE_APP_RUNTIME_INVOCATION_DISABLED')?0:1))});request.end('{}')"`,
       ].join(' && '),
     ]);
-
-    if (full) {
-      runVitest(['apps/server/src/services/moduleAppPayments/alipay/sandbox.test.ts'], {
-        env: {
-          MODULE_APP_ALIPAY_SANDBOX_TESTS: 'true',
-          MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
-        },
-      });
-      const cucumber = path.join(
-        root,
-        'e2e',
-        'node_modules',
-        '.bin',
-        process.platform === 'win32' ? 'cucumber-js.CMD' : 'cucumber-js',
-      );
-      run(cucumber, ['--config', 'cucumber.config.js', '--tags', '@module-app-production'], {
-        cwd: path.join(root, 'e2e'),
-        env: {
-          BASE_URL: process.env.MODULE_APP_E2E_BASE_URL,
-          MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
-        },
-      });
-    }
   }
 } catch (error) {
   primaryError = error;

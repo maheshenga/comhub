@@ -12,6 +12,17 @@ const moduleApps = vi.hoisted(() => ({
       internalUrlConfigured: true,
       publicOriginConfigured: true,
     },
+    platformGateways: {
+      ai: { configured: true, enabledChatModelCount: 2 },
+      payments: {
+        configured: true,
+        enabled: true,
+        methods: ['alipay', 'zpay_wechat'],
+        moduleAppEnabled: true,
+        publicOriginConfigured: true,
+        source: { backendManaged: false, legacyEnvironmentKeyCount: 2 },
+      },
+    },
     probe: { status: 'ready' },
     switches: {
       executionEnabled: true,
@@ -44,6 +55,17 @@ vi.mock('@/libs/swr', () => ({
                 internalTokenConfigured: true,
                 internalUrlConfigured: true,
                 publicOriginConfigured: false,
+              },
+              platformGateways: {
+                ai: { configured: true, enabledChatModelCount: 2 },
+                payments: {
+                  configured: true,
+                  enabled: true,
+                  methods: ['alipay', 'zpay_wechat'],
+                  moduleAppEnabled: true,
+                  publicOriginConfigured: true,
+                  source: { backendManaged: false, legacyEnvironmentKeyCount: 2 },
+                },
               },
               probe: {
                 code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
@@ -145,6 +167,28 @@ describe('ModuleAppRuntimePage', () => {
     const diagnostics = within(screen.getByTestId('module-runtime-diagnostics'));
     expect(diagnostics.getByText('moduleApps.admin.runtime.diagnostics.probe')).toBeInTheDocument();
     expect(diagnostics.getByText(/MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE/)).toBeInTheDocument();
+    expect(
+      diagnostics.getByText('moduleApps.admin.runtime.diagnostics.managedAiModels'),
+    ).toBeInTheDocument();
+    expect(
+      diagnostics.getByRole('heading', {
+        name: 'moduleApps.admin.runtime.diagnostics.platformGatewaysTitle',
+      }),
+    ).toBeInTheDocument();
+    expect(diagnostics.getByText(/moduleApps\.purchase\.methods\.alipay/)).toBeInTheDocument();
+    expect(
+      diagnostics.getByText('moduleApps.admin.runtime.diagnostics.paymentSource.legacyEnvironment'),
+    ).toBeInTheDocument();
+    expect(
+      diagnostics.getByRole('link', {
+        name: 'moduleApps.admin.runtime.diagnostics.manageProviders',
+      }),
+    ).toHaveAttribute('href', '/settings/admin/providers');
+    expect(
+      diagnostics.getByRole('link', {
+        name: 'moduleApps.admin.runtime.diagnostics.managePayments',
+      }),
+    ).toHaveAttribute('href', '/settings/admin/payments');
     fireEvent.click(
       diagnostics.getByRole('button', {
         name: 'moduleApps.admin.runtime.diagnostics.refresh',

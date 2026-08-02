@@ -36,6 +36,7 @@ import {
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
+import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import {
   createOperationalPaymentConfig,
   getServerPaymentConfig,
@@ -550,15 +551,43 @@ export const adminModuleAppsRouter = router({
     return requireAdminApp(ctx.serverDB, input.appId);
   }),
 
-  getRuntimeDiagnostics: moduleAppReadProcedure.query(async () => {
+  getRuntimeDiagnostics: moduleAppReadProcedure.query(async ({ ctx }) => {
     const runtimeClient = new ModuleAppRuntimeClient();
+    const [probe, enabledModels, paymentConfig] = await Promise.all([
+      runtimeClient.healthCheck(),
+      getAllEnabledModels(ctx.serverDB),
+      getServerPaymentConfig(ctx.serverDB),
+    ]);
+    const enabledChatModelCount = enabledModels.filter((model) => model.type === 'chat').length;
+    const paymentMethods = listEnabledPaymentMethods(paymentConfig, 'module_app');
 
     return {
       configuration: {
         ...runtimeClient.getConfigurationStatus(),
         publicOriginConfigured: Boolean(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN),
       },
-      probe: await runtimeClient.healthCheck(),
+      platformGateways: {
+        ai: {
+          configured: enabledChatModelCount > 0,
+          enabledChatModelCount,
+        },
+        payments: {
+          configured:
+            paymentConfig.enabled &&
+            paymentConfig.moduleAppEnabled &&
+            paymentMethods.length > 0 &&
+            Boolean(paymentConfig.publicBaseUrl),
+          enabled: paymentConfig.enabled,
+          methods: paymentMethods.map((method) => method.id),
+          moduleAppEnabled: paymentConfig.moduleAppEnabled,
+          publicOriginConfigured: Boolean(paymentConfig.publicBaseUrl),
+          source: {
+            backendManaged: paymentConfig.source.backendManaged,
+            legacyEnvironmentKeyCount: paymentConfig.source.legacyEnvironmentKeys.length,
+          },
+        },
+      },
+      probe,
       switches: {
         executionEnabled: Boolean(appEnv.MODULE_APP_EXECUTION_ENABLED),
         invocationEnabled: appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED,

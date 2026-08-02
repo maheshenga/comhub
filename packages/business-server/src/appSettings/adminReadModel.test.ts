@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettingKey } from '@/const/appSettingsRegistry';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import { PAYMENT_ENVIRONMENT_VARIABLES } from '@/server/services/payments/environmentFallbacks';
 
 import {
   buildDesktopSettings,
@@ -132,12 +133,7 @@ describe('desktop admin read model', () => {
 
 describe('payment admin read model', () => {
   beforeEach(() => {
-    for (const name of [
-      'MODULE_APP_ALIPAY_NOTIFY_URL',
-      'MODULE_APP_ALIPAY_RETURN_URL',
-      'NEXT_PUBLIC_SITE_URL',
-      'PAYMENT_PUBLIC_BASE_URL',
-    ]) {
+    for (const name of PAYMENT_ENVIRONMENT_VARIABLES) {
       vi.stubEnv(name, '');
     }
   });
@@ -177,6 +173,29 @@ describe('payment admin read model', () => {
     });
     expect(JSON.stringify(result)).not.toContain('top-secret-1234');
     expect(result.paymentConfig.zpay).not.toHaveProperty('merchantKey');
+  });
+
+  it('identifies legacy environment fallbacks until equivalent backend settings are stored', async () => {
+    vi.stubEnv('PAYMENT_ENABLED', 'true');
+
+    const legacyResult = await buildPaymentSettings(
+      new AppSettingsSnapshot([APP_SETTING_KEYS.paymentEnabled], []),
+    );
+    const managedResult = await buildPaymentSettings(
+      new AppSettingsSnapshot(
+        [APP_SETTING_KEYS.paymentEnabled],
+        [{ key: APP_SETTING_KEYS.paymentEnabled, value: true }],
+      ),
+    );
+
+    expect(legacyResult.paymentConfig.source).toEqual({
+      backendManaged: false,
+      legacyEnvironmentKeys: ['PAYMENT_ENABLED'],
+    });
+    expect(managedResult.paymentConfig.source).toEqual({
+      backendManaged: true,
+      legacyEnvironmentKeys: [],
+    });
   });
 
   it('does not report checkout ready without a valid public callback origin', async () => {

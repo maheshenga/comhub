@@ -98,10 +98,10 @@ check.
 ### Environments and Secrets
 
 Preserve `production` as a manually dispatched deployment environment and
-restrict it to protected branches. Create `module-app-staging` with the same
-protected-branch policy for credentialed staging probes. Neither environment
-gets a reviewer requirement because the current sole maintainer cannot approve
-their own deployment.
+restrict it to protected branches. It has no reviewer requirement because the
+current sole maintainer cannot approve their own deployment. Business AI and
+payment provider configuration belongs in the application administration center,
+not in GitHub environments, repository variables, or Actions secrets.
 
 The implementation may list secret and variable names only to document missing
 configuration. It never reads secret values, writes blank values, copies values
@@ -161,8 +161,8 @@ LobeHub-specific contact and scope text.
   administrator has an explicit emergency bypass.
 - A PR to `main` exposes and passes the GitHub Actions `verify` check before
   merge.
-- Production and staging credentialed workflows are limited to protected
-  branches and remain manually initiated.
+- Production workflows are limited to protected branches and remain manually
+  initiated; business provider credentials are not duplicated in GitHub Actions.
 - Dependabot security updates, private vulnerability reporting, secret scanning,
   and push protection are enabled; CodeQL and dependency review workflows
   exist.

@@ -30,11 +30,14 @@ runner, YAML, pnpm, Bun, TypeScript.
 ### Task 1: Add a Required PR Validation Check
 
 **Files:**
+
 - Create: `.github/workflows/comhub-pr-check.yml`
 - Modify: `.github/workflows/comhubDeploymentWorkflows.test.mjs`
 
 **Interfaces:**
+
 - Produces the GitHub Actions Check Run `verify`.
+
 - Consumed by the `main` branch protection rule in Task 5.
 
 - [ ] **Step 1: Add the failing workflow contract test**
@@ -132,12 +135,15 @@ Expected: all workflow contract tests pass.
 ### Task 2: Add Security Feedback Workflows
 
 **Files:**
+
 - Create: `.github/workflows/codeql.yml`
 - Create: `.github/workflows/dependency-review.yml`
 
 **Interfaces:**
+
 - Produces CodeQL alerts for JavaScript/TypeScript and dependency-review PR
   annotations.
+
 - Does not become a required `main` check in this change.
 
 - [ ] **Step 1: Add CodeQL workflow**
@@ -217,14 +223,17 @@ Expected: exit code `0`.
 ### Task 3: Establish ComHub Ownership and Public Documentation
 
 **Files:**
+
 - Modify: `.github/CODEOWNERS`
 - Modify: `README.md`
 - Modify: `CONTRIBUTING.md`
 - Modify: `SECURITY.md`
 
 **Interfaces:**
+
 - Public repository pages point contributors and vulnerability reporters to
   `maheshenga/comhub`.
+
 - GitHub resolves sensitive areas to `@maheshenga`.
 
 - [ ] **Step 1: Replace CODEOWNERS with ComHub ownership**
@@ -249,13 +258,18 @@ Start`, `Contribution`, `Security`, `Upstream Sync`, and `License`. It must:
 
 - describe ComHub as an independently maintained customization based on
   LobeHub, without claiming affiliation;
+
 - list assistant workspace, mobile workspace, design, community, applications,
   and administration as maintained areas;
+
 - show `pnpm install --no-frozen-lockfile`, `bun run dev`, and `bun run dev:spa`;
+
 - state that GitHub Actions publishes immutable GHCR images and production
   deployment is manually dispatched from `main`;
+
 - link to `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, and the LobeHub upstream
   repository;
+
 - omit servers, URLs for private infrastructure, payment credentials, and
   environment variable values.
 
@@ -329,7 +343,9 @@ approved governance design are present.
 **Files:** GitHub repository settings and the branch created by this worktree.
 
 **Interfaces:**
+
 - Consumes the remotely available GitHub Actions `verify` Check Run.
+
 - Produces a protected `main`, scoped environments, Dependabot security
   updates, and a reviewable pull request.
 
@@ -369,16 +385,17 @@ gh api --method PUT repos/maheshenga/comhub/branches/main/protection --input $pa
 
 Re-read the policy afterward; do not assume the API request succeeded.
 
-- [ ] **Step 3: Scope deployment environments**
+- [ ] **Step 3: Scope the production deployment environment**
 
 ```powershell
 gh api --method PUT repos/maheshenga/comhub/environments/production `
   -F 'deployment_branch_policy[protected_branches]=true' `
   -F 'deployment_branch_policy[custom_branch_policies]=false'
-gh api --method PUT repos/maheshenga/comhub/environments/module-app-staging `
-  -F 'deployment_branch_policy[protected_branches]=true' `
-  -F 'deployment_branch_policy[custom_branch_policies]=false'
 ```
+
+Keep NewAPI and payment provider endpoints, credentials, models, switches, and
+callback origin in the application administration center. Do not mirror them into
+GitHub environments or repository-level Actions configuration.
 
 - [ ] **Step 4: Enable Dependabot security updates**
 
