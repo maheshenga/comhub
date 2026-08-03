@@ -1,11 +1,23 @@
 // @vitest-environment node
 import { moduleAppWorkflowDefinitionSchema } from '@lobechat/types';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   dispatchDueModuleAppSchedules,
   runModuleAppScheduleDispatcher,
 } from './scheduleDispatcher';
+
+const getServerModuleAppRuntimeConfig = vi.hoisted(() => vi.fn());
+const recordModuleAppScheduleDispatch = vi.hoisted(() => vi.fn());
+
+vi.mock('@lobechat/observability-otel/modules/module-app', () => ({
+  recordModuleAppScheduleDispatch,
+  recordModuleAppWorkflowBacklog: vi.fn(),
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/config', () => ({
+  getServerModuleAppRuntimeConfig,
+}));
 
 const workflow = moduleAppWorkflowDefinitionSchema.parse({
   edges: [],
@@ -29,10 +41,25 @@ const claim = {
 };
 
 describe('runModuleAppScheduleDispatcher', () => {
-  it('fails before claiming work when schedule dispatch is disabled', async () => {
-    await expect(
-      dispatchDueModuleAppSchedules({ db: {} as any, enabled: false }),
-    ).rejects.toThrow('MODULE_APP_SCHEDULE_DISPATCH_DISABLED');
+  beforeEach(() => {
+    getServerModuleAppRuntimeConfig.mockReset();
+    recordModuleAppScheduleDispatch.mockReset();
+  });
+
+  it('loads the current backend switch and fails before claiming disabled work', async () => {
+    const db = {} as any;
+    getServerModuleAppRuntimeConfig.mockResolvedValue({
+      switches: { scheduleDispatchEnabled: false },
+    });
+
+    await expect(dispatchDueModuleAppSchedules({ db })).rejects.toThrow(
+      'MODULE_APP_SCHEDULE_DISPATCH_DISABLED',
+    );
+    expect(getServerModuleAppRuntimeConfig).toHaveBeenCalledWith(db);
+    expect(recordModuleAppScheduleDispatch).toHaveBeenCalledWith({
+      durationMs: expect.any(Number),
+      outcome: 'disabled',
+    });
   });
 
   it('claims a bounded batch, starts idempotently, dispatches, and advances next run', async () => {
@@ -64,10 +91,13 @@ describe('runModuleAppScheduleDispatcher', () => {
         idempotencyKey: 'module-app-schedule:schedule-1:2026-07-12T00:00:00.000Z',
       }),
     );
-    expect(dispatch).toHaveBeenCalledWith({
-      installationId: claim.installationId,
-      runId: 'run-1',
-    }, { workflowRunId: 'run-1' });
+    expect(dispatch).toHaveBeenCalledWith(
+      {
+        installationId: claim.installationId,
+        runId: 'run-1',
+      },
+      { workflowRunId: 'run-1' },
+    );
     expect(repository.completeScheduleClaim).toHaveBeenCalledWith({
       claimToken: claim.claimToken,
       claimExpiresAt: claim.claimExpiresAt,

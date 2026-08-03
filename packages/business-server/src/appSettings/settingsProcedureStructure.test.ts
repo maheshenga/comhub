@@ -11,9 +11,7 @@ const procedureKeys = (source: string, procedureObjectName: string) => {
   const procedureObjectEnd = source.indexOf('} as const;', procedureObjectStart);
 
   return Array.from(
-    source
-      .slice(procedureObjectStart, procedureObjectEnd)
-      .matchAll(/^\s{2}([A-Z][A-Z0-9]+):/gim),
+    source.slice(procedureObjectStart, procedureObjectEnd).matchAll(/^\s{2}([A-Z][A-Z0-9]+):/gim),
     ([, key]) => key,
   );
 };
@@ -48,8 +46,8 @@ describe('admin settings procedure ownership', () => {
     const mobileWrites = readSource('writers/mobilePublicationProcedures.ts');
 
     expect(publicReads).toContain('getPublicBrand: publicDbProcedure');
-    expect(adminReads).toContain('getSection: systemReadProcedure');
-    expect(adminWrites).toContain('setAppSettingsBatch: systemWriteProcedure');
+    expect(adminReads).toContain('getSection: settingsSectionReadProcedure');
+    expect(adminWrites).toContain('setAppSettingsBatch: settingsWriteProcedure');
     expect(runtimeWrites).toContain('testS3Storage: systemWriteProcedure');
     expect(runtimeWrites).toContain('runMaintenance: systemWriteProcedure');
 

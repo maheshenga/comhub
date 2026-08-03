@@ -7,6 +7,7 @@ const APP_SETTING_SECRET_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.composioApiKey,
   APP_SETTING_KEYS.cronSecret,
   APP_SETTING_KEYS.docmeePptApiKey,
+  APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
   APP_SETTING_KEYS.paymentAlipayCertificate,
   APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey,
   APP_SETTING_KEYS.paymentAlipayPublicKey,
@@ -21,6 +22,7 @@ export type AppSettingSecretKey =
   | typeof APP_SETTING_KEYS.composioApiKey
   | typeof APP_SETTING_KEYS.cronSecret
   | typeof APP_SETTING_KEYS.docmeePptApiKey
+  | typeof APP_SETTING_KEYS.moduleAppRuntimeInternalToken
   | typeof APP_SETTING_KEYS.paymentAlipayCertificate
   | typeof APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey
   | typeof APP_SETTING_KEYS.paymentAlipayPublicKey
@@ -37,6 +39,7 @@ const APP_SETTING_SECRET_WRITE_POLICIES: Record<AppSettingSecretKey, AppSettingS
     [APP_SETTING_KEYS.composioApiKey]: 'blank-clears',
     [APP_SETTING_KEYS.cronSecret]: 'blank-noop',
     [APP_SETTING_KEYS.docmeePptApiKey]: 'explicit-clear',
+    [APP_SETTING_KEYS.moduleAppRuntimeInternalToken]: 'blank-noop',
     [APP_SETTING_KEYS.paymentAlipayCertificate]: 'blank-noop',
     [APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey]: 'blank-noop',
     [APP_SETTING_KEYS.paymentAlipayPublicKey]: 'blank-noop',

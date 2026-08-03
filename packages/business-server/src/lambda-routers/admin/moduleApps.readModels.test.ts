@@ -6,6 +6,7 @@ import { getTestDB } from '@/database/core/getTestDB';
 import {
   moduleAppAuditLogs,
   moduleAppBuilds,
+  moduleAppInstallations,
   moduleAppLicenses,
   moduleAppOrders,
   moduleAppPackages,
@@ -21,7 +22,9 @@ import {
   moduleAppRevenueEntries,
   moduleAppRuns,
   moduleApps,
+  moduleAppSchedules,
   moduleAppVersions,
+  moduleAppWorkflowRuns,
   users,
 } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
@@ -34,6 +37,9 @@ const PURCHASER_USER_ID = 'module-app-read-model-purchaser';
 
 beforeEach(async () => {
   await db.delete(moduleAppAuditLogs);
+  await db.delete(moduleAppWorkflowRuns);
+  await db.delete(moduleAppSchedules);
+  await db.delete(moduleAppInstallations);
   await db.delete(moduleAppPayoutEntries);
   await db.delete(moduleAppPayoutBatches);
   await db.delete(moduleAppPaymentDiscrepancies);
@@ -85,6 +91,127 @@ const seedApplications = async () => {
 };
 
 describe('ModuleAppAdminReadModel', () => {
+  it('reports live scheduler backlog, leases, recent runs, and bounded failures', async () => {
+    const now = new Date('2026-07-12T01:00:00.000Z');
+    const { apps } = await seedApplications();
+    const [version] = await db
+      .insert(moduleAppVersions)
+      .values({ appId: apps[0].id, version: '1.0.0' })
+      .returning();
+    const [installation] = await db
+      .insert(moduleAppInstallations)
+      .values({
+        appId: apps[0].id,
+        scopeType: 'personal',
+        userId: PURCHASER_USER_ID,
+        versionId: version.id,
+      })
+      .returning();
+
+    await db.insert(moduleAppSchedules).values([
+      {
+        installationId: installation.id,
+        nextRunAt: new Date('2026-07-12T02:00:00.000Z'),
+        schedule: '0 * * * *',
+        scheduleKey: 'future',
+        timezone: 'UTC',
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        installationId: installation.id,
+        nextRunAt: new Date('2026-07-12T00:00:00.000Z'),
+        schedule: '* * * * *',
+        scheduleKey: 'waiting',
+        timezone: 'UTC',
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        claimExpiresAt: new Date('2026-07-12T01:05:00.000Z'),
+        claimToken: 'active-claim',
+        installationId: installation.id,
+        nextRunAt: new Date('2026-07-12T00:01:00.000Z'),
+        schedule: '* * * * *',
+        scheduleKey: 'active',
+        timezone: 'UTC',
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        claimExpiresAt: new Date('2026-07-12T00:59:00.000Z'),
+        claimToken: 'stale-claim',
+        installationId: installation.id,
+        nextRunAt: new Date('2026-07-12T00:02:00.000Z'),
+        schedule: '* * * * *',
+        scheduleKey: 'stale',
+        timezone: 'UTC',
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        enabled: false,
+        installationId: installation.id,
+        nextRunAt: new Date('2026-07-11T23:00:00.000Z'),
+        schedule: '* * * * *',
+        scheduleKey: 'disabled',
+        timezone: 'UTC',
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+    ]);
+    await db.insert(moduleAppWorkflowRuns).values([
+      {
+        createdAt: new Date('2026-07-12T00:30:00.000Z'),
+        idempotencyKey: 'module-app-schedule:schedule-1:2026-07-12T00:30:00.000Z',
+        installationId: installation.id,
+        status: 'succeeded',
+        updatedAt: new Date('2026-07-12T00:31:00.000Z'),
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        createdAt: new Date('2026-07-12T00:20:00.000Z'),
+        idempotencyKey: 'module-app-schedule:schedule-1:2026-07-12T00:20:00.000Z',
+        installationId: installation.id,
+        status: 'failed',
+        updatedAt: new Date('2026-07-12T00:40:00.000Z'),
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        createdAt: new Date('2026-07-11T00:00:00.000Z'),
+        idempotencyKey: 'module-app-schedule:schedule-1:2026-07-11T00:00:00.000Z',
+        installationId: installation.id,
+        status: 'failed',
+        updatedAt: new Date('2026-07-11T00:00:00.000Z'),
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+      {
+        createdAt: new Date('2026-07-12T00:50:00.000Z'),
+        idempotencyKey: 'manual-run',
+        installationId: installation.id,
+        status: 'failed',
+        updatedAt: new Date('2026-07-12T00:51:00.000Z'),
+        workflowKey: 'review',
+        workflowVersion: 1,
+      },
+    ]);
+
+    await expect(
+      new ModuleAppAdminReadModel(db).getRuntimeScheduleDiagnostics(now),
+    ).resolves.toEqual({
+      activeClaims: 1,
+      claimableSchedules: 2,
+      enabledSchedules: 4,
+      failedScheduledRuns24h: 1,
+      lastScheduledRunAt: new Date('2026-07-12T00:30:00.000Z'),
+      oldestClaimableAt: new Date('2026-07-12T00:00:00.000Z'),
+      staleClaims: 1,
+    });
+  });
+
   it.each([
     ['%', 'Percent % literal', 'Percent X literal'],
     ['_', 'Under_score literal', 'UnderXscore literal'],

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- This standalone launcher is copied and executed as CommonJS. */
+
 const dns = require('node:dns').promises;
 const fs = require('node:fs').promises;
 const path = require('node:path');
@@ -17,8 +19,10 @@ const { checkDeprecatedAuth } = require(sharedModulePath);
 const DB_MIGRATION_SCRIPT_PATH = '/app/docker.cjs';
 const SERVER_SCRIPT_PATH = '/app/server.js';
 const PROXYCHAINS_CONF_PATH = '/etc/proxychains4.conf';
+const TASK_SCHEDULE_CRON = '* * * * *';
 
 // Function to check if a string is a valid IP address
+/* eslint-disable regexp/no-unused-capturing-group -- Preserve the established IP validation expressions. */
 const isValidIP = (ip, version = 4) => {
   const ipv4Regex = /^(25[0-5]|2[0-4]\d|[01]?\d{1,2})(\.(25[0-5]|2[0-4]\d|[01]?\d{1,2})){3}$/;
   const ipv6Regex =
@@ -36,6 +40,7 @@ const isValidIP = (ip, version = 4) => {
     }
   }
 };
+/* eslint-enable regexp/no-unused-capturing-group */
 
 // Function to parse protocol, host and port from a URL
 const parseUrl = (url) => {
@@ -163,7 +168,8 @@ const startGateway = async () => {
   console.error('❌ Gateway: Failed to start after retries.');
 };
 
-// Function to create QStash schedule for dispatching workflow tasks every 10 minutes
+// Create the central QStash tick at the same one-minute resolution supported by
+// task cron rules.
 const createQstashSchedule = async () => {
   const QSTASH_URL = process.env.QSTASH_URL || 'https://qstash-eu-central-1.upstash.io';
 
@@ -188,7 +194,7 @@ const createQstashSchedule = async () => {
         'Authorization': `Bearer ${QSTASH_TOKEN}`,
         'Content-Type': 'application/json',
         'Upstash-Method': 'POST',
-        'Upstash-Cron': '*/10 * * * *',
+        'Upstash-Cron': TASK_SCHEDULE_CRON,
         'Upstash-Schedule-Id': 'lobe-task-schedule-dispatch',
       },
       body: JSON.stringify({}),

@@ -20,8 +20,13 @@ const moduleAppPackagePathSchema = z
 export const moduleAppRuntimeLanguageSchema = z.enum(['node22', 'python312']);
 export type ModuleAppRuntimeLanguage = z.infer<typeof moduleAppRuntimeLanguageSchema>;
 
+export const MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER = 'x-comhub-module-runtime-challenge';
+export const MODULE_APP_RUNTIME_READINESS_PROOF_HEADER = 'x-comhub-module-runtime-proof';
+export const MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT = 'comhub-module-runtime-readiness:v1';
+
 export const moduleAppRuntimeReadinessCodeSchema = z.enum([
   'MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE',
+  'MODULE_APP_RUNTIME_AUTH_FAILED',
   'MODULE_APP_RUNTIME_CONFIG_MISSING',
   'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
   'MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED',

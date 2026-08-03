@@ -7,6 +7,7 @@ import { getServerDB } from '@/database/server';
 import { appEnv } from '@/envs/app';
 import { qstashClient } from '@/libs/qstash';
 import { runScheduleTick } from '@/server/services/taskRunner/scheduleTick';
+import { dispatchDueModuleAppSchedules } from '@/server/workflows/moduleApp/scheduleDispatcher';
 
 const log = debug('lobe-server:workflows:task:schedule-dispatch');
 
@@ -25,6 +26,50 @@ interface DueTask {
   userId: string;
 }
 
+type ModuleAppDispatchStatus = 'completed' | 'disabled' | 'failed' | 'skipped';
+
+interface ModuleAppDispatchSummary {
+  bookkeepingFailed: number;
+  claimed: number;
+  dispatched: number;
+  error?: string;
+  failed: number;
+  reason?: 'dry-run';
+  status: ModuleAppDispatchStatus;
+}
+
+const emptyModuleAppDispatchSummary = (
+  status: ModuleAppDispatchStatus,
+  extra: Pick<ModuleAppDispatchSummary, 'error' | 'reason'> = {},
+): ModuleAppDispatchSummary => ({
+  bookkeepingFailed: 0,
+  claimed: 0,
+  dispatched: 0,
+  failed: 0,
+  status,
+  ...extra,
+});
+
+const dispatchModuleAppSchedules = async (
+  db: Awaited<ReturnType<typeof getServerDB>>,
+  dryRun: boolean,
+): Promise<ModuleAppDispatchSummary> => {
+  if (dryRun) return emptyModuleAppDispatchSummary('skipped', { reason: 'dry-run' });
+
+  try {
+    const result = await dispatchDueModuleAppSchedules({ db });
+    return { ...result, status: 'completed' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal error';
+    if (message === 'MODULE_APP_SCHEDULE_DISPATCH_DISABLED') {
+      return emptyModuleAppDispatchSummary('disabled');
+    }
+
+    console.error('[task/schedule-dispatch] Module App dispatch failed:', error);
+    return emptyModuleAppDispatchSummary('failed', { error: message });
+  }
+};
+
 /**
  * Cron-style central dispatcher. Registered as a QStash Schedule (e.g.
  * `*\/30 * * * *`) pointing at this endpoint. On each tick:
@@ -32,6 +77,7 @@ interface DueTask {
  *   1. Loads all schedule-mode tasks in dispatchable status (`scheduled`/`backlog`).
  *   2. Filters by cron pattern + timezone + last-run dedup (`isExecutionTime`).
  *   3. Fan-outs one QStash message per due task to `/schedule-execute`.
+ *   4. Runs the independently governed Module App schedule dispatcher.
  *
  * No per-user authentication: this is a global sweep. Signature verification is
  * handled by the `qstashAuth` middleware on the route.
@@ -72,22 +118,14 @@ export async function scheduleDispatch(c: Context) {
       dryRun,
     );
 
-    if (dryRun || due.length === 0) {
-      return c.json({
-        dispatched: 0,
-        dryRun,
-        due: due.length,
-        skipped: tasks.length - due.length,
-        success: true,
-        total: tasks.length,
-      });
-    }
-
-    const dispatched = await fanout(due);
+    const dispatched = dryRun || due.length === 0 ? 0 : await fanout(due);
+    const moduleApps = await dispatchModuleAppSchedules(db, dryRun);
 
     return c.json({
       dispatched,
+      dryRun,
       due: due.length,
+      moduleApps,
       skipped: tasks.length - due.length,
       success: true,
       total: tasks.length,

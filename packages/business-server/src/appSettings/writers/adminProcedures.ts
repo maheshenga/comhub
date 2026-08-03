@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { hasAdminCapability } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -12,6 +13,7 @@ import {
 } from '@/const/appSettingsRegistry';
 import { appSettingRevisions, appSettings, users, userSettings } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
+import { ADMIN_CAPABILITIES, adminAnyCapabilityProcedure } from '@/libs/trpc/lambda';
 import { invalidateFileS3RuntimeCache } from '@/server/modules/S3';
 import { invalidateServerAppSettings } from '@/server/services/appSettings';
 import { isUnknownAppSettingKey } from '@/server/services/appSettings/governance';
@@ -26,6 +28,7 @@ import { invalidateServerBrand } from '@/server/services/brand';
 
 import { createAdminCommand } from '../../lambda-routers/admin/adminCommand';
 import { runRequiredAdminAuditMutation } from '../../lambda-routers/admin/audit';
+import { MODULE_APP_RUNTIME_SETTING_KEYS } from '../../module-apps/runtimeConfig';
 import {
   APP_SETTING_WRITE_SURFACES,
   GENERIC_WRITABLE_APP_SETTING_KEYS,
@@ -33,6 +36,7 @@ import {
   isSensitiveCatalogAppSettingKey,
   normalizeAppSettingValue,
 } from '../catalog';
+import { validateModuleAppRuntimeSettingUpdates } from '../moduleRuntimeValidation';
 import type { AppSettingDraft, DefaultModelType } from '../procedureShared';
 import {
   readSetting,
@@ -43,6 +47,11 @@ import {
 } from '../procedureShared';
 
 const setAppSettingCommand = createAdminCommand('setting.setAppSetting');
+const settingsWriteProcedure = adminAnyCapabilityProcedure([
+  ADMIN_CAPABILITIES.systemWrite,
+  ADMIN_CAPABILITIES.moduleAppWrite,
+]);
+const moduleRuntimeSettingKeys = new Set<string>(MODULE_APP_RUNTIME_SETTING_KEYS);
 const USER_SETTINGS_SYNC_BATCH_SIZE = 500;
 const USER_SETTINGS_SYNC_KEYS = [
   'defaultAgent',
@@ -67,6 +76,19 @@ type NormalizedSettingUpdate = SettingUpdateInput & {
   hasValue: boolean;
   isSensitive: boolean;
   shouldWrite: boolean;
+};
+
+const assertSettingsWriteAccess = (
+  adminRole: null | string | undefined,
+  keys: readonly string[],
+) => {
+  if (hasAdminCapability(adminRole, ADMIN_CAPABILITIES.systemWrite)) return;
+  if (keys.every((key) => moduleRuntimeSettingKeys.has(key))) return;
+
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: `${ADMIN_CAPABILITIES.systemWrite} capability required`,
+  });
 };
 type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
 type UserSettingsSyncOptions = {
@@ -558,15 +580,17 @@ export const adminSettingsWriteProcedures = {
 
       return { deleted: deleted.length > 0, key: input.key };
     }),
-  setAppSetting: systemWriteProcedure
+  setAppSetting: settingsWriteProcedure
     .input(
       appSettingUpdateInputSchema.extend({ expectedRevisions: expectedSettingRevisionsSchema }),
     )
     .mutation(async ({ ctx, input }) => {
+      assertSettingsWriteAccess(ctx.adminRole, [input.key]);
       const correlationId = randomUUID();
       const update = await normalizeAppSettingUpdate(ctx.serverDB, input);
       if (!update.shouldWrite) return { ok: true, revisions: input.expectedRevisions };
 
+      await validateModuleAppRuntimeSettingUpdates(ctx.serverDB, [update]);
       await validateDefaultModelUpdates(ctx.serverDB, [update]);
       const revisions = await runRequiredAdminAuditMutation(ctx, {
         audit: () => ({
@@ -592,7 +616,7 @@ export const adminSettingsWriteProcedures = {
 
       return { ok: true, revisions };
     }),
-  setAppSettingsBatch: systemWriteProcedure
+  setAppSettingsBatch: settingsWriteProcedure
     .input(
       z.object({
         expectedRevisions: expectedSettingRevisionsSchema,
@@ -600,6 +624,10 @@ export const adminSettingsWriteProcedures = {
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      assertSettingsWriteAccess(
+        ctx.adminRole,
+        input.updates.map((update) => update.key),
+      );
       const correlationId = randomUUID();
       const normalizedUpdates = await Promise.all(
         input.updates.map((update) => normalizeAppSettingUpdate(ctx.serverDB, update)),
@@ -613,6 +641,7 @@ export const adminSettingsWriteProcedures = {
         };
       }
 
+      await validateModuleAppRuntimeSettingUpdates(ctx.serverDB, updates);
       await validateDefaultModelUpdates(ctx.serverDB, updates);
       const revisions = await runRequiredAdminAuditMutation(ctx, {
         audit: () => ({

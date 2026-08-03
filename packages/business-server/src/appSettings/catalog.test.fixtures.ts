@@ -88,6 +88,16 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.modelPolicyAllowlist,
     APP_SETTING_KEYS.modelPolicyBlocklist,
   ]),
+  ...assign('module-app-runtime-boolean', [
+    APP_SETTING_KEYS.moduleAppExecutionEnabled,
+    APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
+    APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+    APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
+    APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+  ]),
+  ...assign('module-app-runtime-internal-url', [APP_SETTING_KEYS.moduleAppRuntimeInternalUrl]),
+  ...assign('module-app-runtime-public-origin', [APP_SETTING_KEYS.moduleAppRuntimePublicOrigin]),
+  ...assign('module-app-runtime-secret', [APP_SETTING_KEYS.moduleAppRuntimeInternalToken]),
   ...assign('notification-boolean', [
     APP_SETTING_KEYS.notificationDesktopEnabled,
     APP_SETTING_KEYS.notificationEmailEnabled,

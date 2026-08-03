@@ -169,6 +169,12 @@ describe('Docker workspace manifests', () => {
     expect(main.jobs.deploy.needs).toEqual(['resolve-source', 'resolve-images']);
     expect(main.jobs.deploy.if).toContain('always()');
     expect(mainWorkflow).toContain("inputs.deploy_module_runtime == 'true'");
+    expect(mainWorkflow).toContain(
+      '[ "$REQUIRE_MODULE_RUNTIME" != "true" ] && [ "$public_execution" = "true" ]',
+    );
+    expect(mainWorkflow).toContain(
+      'Public Module App launch must remain disabled when module-runtime deployment is skipped',
+    );
     expect(worker.jobs.deploy.needs).toEqual(['resolve-source', 'verify-worker', 'resolve-image']);
     expect(workerWorkflow).toContain('pnpm verify:module-app-worker');
   });

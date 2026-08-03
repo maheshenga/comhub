@@ -26,6 +26,8 @@ const {
   mockCreateModuleAppTextGenerator,
   mockAppEnv,
   mockModuleAppGateway,
+  mockGetServerModuleAppRuntimeConfig,
+  mockRuntimeClientHealthCheck,
   mockRuntimeClientInvoke,
   mockRunModuleAppAction,
   mockModuleAppCommerceModel,
@@ -56,6 +58,8 @@ const {
     MODULE_APP_RUNTIME_INVOCATION_ENABLED: true,
     MODULE_APP_RUNTIME_PUBLIC_ORIGIN: 'https://module-runtime.example.com',
   },
+  mockGetServerModuleAppRuntimeConfig: vi.fn(),
+  mockRuntimeClientHealthCheck: vi.fn(),
   mockRuntimeClientInvoke: vi.fn(),
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
@@ -171,7 +175,14 @@ vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
-  ModuleAppRuntimeClient: vi.fn(() => ({ invoke: mockRuntimeClientInvoke })),
+  ModuleAppRuntimeClient: vi.fn(() => ({
+    healthCheck: mockRuntimeClientHealthCheck,
+    invoke: mockRuntimeClientInvoke,
+  })),
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/config', () => ({
+  getServerModuleAppRuntimeConfig: mockGetServerModuleAppRuntimeConfig,
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
@@ -296,6 +307,26 @@ describe('moduleApp router registration', () => {
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'https://module-runtime.example.com';
     mockAppEnv.MODULE_APP_ALIPAY_ENABLED = false;
     mockAppEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED = false;
+    mockGetServerModuleAppRuntimeConfig.mockImplementation(async () => {
+      const executionEnabled = Boolean(mockAppEnv.MODULE_APP_EXECUTION_ENABLED);
+      return {
+        connections: {
+          internalToken: 'runtime-token',
+          internalUrl: 'http://module-runtime:3210',
+          publicOrigin: mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN,
+        },
+        switches: {
+          executionEnabled,
+          invocationEnabled:
+            executionEnabled && Boolean(mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED),
+          publicExecutionEnabled:
+            executionEnabled && Boolean(mockAppEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED),
+          scheduleDispatchEnabled: false,
+          workflowPrivilegedExecutorsEnabled: false,
+        },
+      };
+    });
+    mockRuntimeClientHealthCheck.mockResolvedValue({ status: 'ready' });
     mockGetServerPaymentConfig.mockResolvedValue({
       defaultProvider: 'alipay',
       enabled: false,
@@ -812,29 +843,15 @@ describe('moduleApp router registration', () => {
     });
   });
 
-  it('returns an allowlisted static launch context while general execution is disabled', async () => {
+  it('rejects public launch while general execution is disabled', async () => {
     mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
-    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
-      actions: [],
-      id: APP_ID,
-      planState: { installable: true, runnable: true, visible: true },
-    });
 
-    await expect(createCaller().getLaunchContext({ appId: APP_ID })).resolves.toMatchObject({
-      capability: 'signed-launch-capability',
-      iframeUrl: expect.stringContaining('/artifacts/'),
-      installationId: '00000000-0000-4000-8000-000000000010',
-      runtimeOrigin: 'https://module-runtime.example.com',
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_public_execution_disabled',
     });
-    expect(mockSignModuleAppCapability).toHaveBeenCalledWith(
-      expect.objectContaining({
-        appId: APP_ID,
-        permissions: [],
-        surface: 'browser',
-        userId: 'user-1',
-      }),
-      expect.objectContaining({ expiresInSeconds: 300 }),
-    );
+    expect(mockRuntimeClientHealthCheck).not.toHaveBeenCalled();
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
   });
 
   it('rejects public launch without an HTTPS runtime origin', async () => {
@@ -853,6 +870,19 @@ describe('moduleApp router registration', () => {
     await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
       code: 'PRECONDITION_FAILED',
       message: 'module_app_public_execution_disabled',
+    });
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
+  });
+
+  it('rejects public launch while the configured runtime is not ready', async () => {
+    mockRuntimeClientHealthCheck.mockResolvedValueOnce({
+      code: 'MODULE_APP_RUNTIME_UNREACHABLE',
+      status: 'unavailable',
+    });
+
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_runtime_unavailable',
     });
     expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
   });

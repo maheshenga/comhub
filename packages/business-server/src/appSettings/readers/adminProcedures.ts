@@ -1,9 +1,15 @@
+import { hasAdminCapability } from '@lobechat/types';
+import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { APP_SETTINGS_SECTIONS } from '@/const/appSettingsRegistry';
 import { appSettingRevisions } from '@/database/schemas';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminAnyCapabilityProcedure,
+  adminCapabilityProcedure,
+} from '@/libs/trpc/lambda';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { buildAppSettingsGovernance } from '@/server/services/appSettings/governance';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
@@ -13,6 +19,10 @@ import { loadAllAppSettingsSnapshot, loadAppSettingsSectionSnapshot } from '../l
 import { SETTING_KEYS, toString, validateDefaultAgentModelUsability } from '../procedureShared';
 
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
+const settingsSectionReadProcedure = adminAnyCapabilityProcedure([
+  ADMIN_CAPABILITIES.systemRead,
+  ADMIN_CAPABILITIES.moduleAppRead,
+]);
 
 const getSettingsRevisions = async (db: Parameters<typeof loadAllAppSettingsSnapshot>[0]) => {
   const rows = await db.query.appSettingRevisions.findMany();
@@ -35,9 +45,19 @@ export const adminSettingsReadProcedures = {
 
     return buildAppSettingsGovernance(rows);
   }),
-  getSection: systemReadProcedure
+  getSection: settingsSectionReadProcedure
     .input(z.object({ section: z.enum(APP_SETTINGS_SECTIONS) }))
     .query(async ({ ctx, input }) => {
+      if (
+        input.section !== 'module-runtime' &&
+        !hasAdminCapability(ctx.adminRole, ADMIN_CAPABILITIES.systemRead)
+      ) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `${ADMIN_CAPABILITIES.systemRead} capability required`,
+        });
+      }
+
       const needsEnabledModels =
         input.section === 'ai-runtime-defaults' ||
         input.section === 'model-policy' ||
