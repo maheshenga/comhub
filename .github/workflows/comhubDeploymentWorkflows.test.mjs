@@ -184,15 +184,182 @@ test('closed deployment skips the optional Module Runtime rollout', () => {
     (step) => step.name === 'Run remote blue-green deploy',
   );
   const script = remoteDeploy?.run ?? '';
-
-  assert.match(
-    script,
-    /if \[ "\$REQUIRE_MODULE_RUNTIME" = "true" \]; then\s+docker pull "\$RUNTIME_IMAGE_REF"\s+docker compose up -d --no-deps --wait module-runtime\s+verify_module_runtime\s+verify_runtime_auth_boundary\s+else\s+echo "module-runtime rollout skipped; production mutation flags remain disabled"\s+fi/u,
+  const preflightIndex = script.indexOf(
+    'verify_module_runtime "$previous_runtime_image" "preflight"',
   );
+  const rolloutGuardIndex = script.lastIndexOf(
+    'if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then',
+    preflightIndex,
+  );
+  const authProbeIndex = script.indexOf('verify_runtime_auth_boundary', preflightIndex);
+  const skipIndex = script.indexOf(
+    'echo "module-runtime rollout skipped; production mutation flags remain disabled"',
+    authProbeIndex,
+  );
+
+  assert.ok(rolloutGuardIndex >= 0, 'expected a guarded Module Runtime rollout');
+  assert.ok(preflightIndex > rolloutGuardIndex, 'Runtime preflight must stay inside the guard');
+  assert.ok(authProbeIndex > preflightIndex, 'Runtime auth probe must stay inside the guard');
+  assert.ok(skipIndex > authProbeIndex, 'closed deployment must retain an explicit skip branch');
   assert.doesNotMatch(
     script,
     /if \[ "\$module_runtime_configured" = "true" \]; then\s+docker pull/u,
   );
+});
+
+test('Module Runtime deployment preflights topology and rolls back a failed replacement', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const remoteDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Run remote blue-green deploy',
+  );
+  const script = remoteDeploy?.run ?? '';
+  const preflightIndex = script.indexOf(
+    'verify_module_runtime "$previous_runtime_image" "preflight"',
+  );
+  const pullIndex = script.indexOf('docker pull "$RUNTIME_IMAGE_REF"');
+  const trapIndex = script.indexOf('trap rollback_module_runtime ERR EXIT', pullIndex);
+  const rolloutStartIndex = script.indexOf('runtime_rollout_started=true', pullIndex);
+  const replaceIndex = script.indexOf(
+    'docker compose up -d --no-deps --wait module-runtime',
+    pullIndex,
+  );
+
+  assert.ok(preflightIndex >= 0, 'expected the existing Runtime topology to be preflighted');
+  assert.ok(pullIndex > preflightIndex, 'Runtime preflight must finish before image pull');
+  assert.ok(trapIndex > pullIndex, 'Runtime rollback trap must be installed after the pull');
+  assert.ok(
+    rolloutStartIndex > trapIndex,
+    'Runtime rollout must not be marked started before its rollback trap is installed',
+  );
+  assert.ok(
+    replaceIndex > rolloutStartIndex,
+    'Runtime replacement must happen after rollout starts',
+  );
+  assert.match(script, /previous_runtime_id="\$\(docker compose ps -q module-runtime\)"/u);
+  assert.match(
+    script,
+    /previous_runtime_image="\$\(docker inspect -f '\{\{\.Config\.Image\}\}' "\$previous_runtime_id"\)"/u,
+  );
+  assert.match(
+    script,
+    /\[\[ "\$previous_runtime_image" =~ \^\[\^\[:space:\]@\]\+@sha256:\[0-9a-f\]\{64\}\$ \]\] \|\| runtime_verify_failed "preflight" previous_image_not_immutable/u,
+  );
+  assert.match(script, /trap rollback_module_runtime ERR EXIT/u);
+  assert.match(
+    script,
+    /export COMHUB_MODULE_RUNTIME_IMAGE="\$previous_runtime_image"[\s\S]*?docker compose up -d --no-deps --wait module-runtime[\s\S]*?verify_module_runtime "\$previous_runtime_image" "rollback"/u,
+  );
+  assert.match(script, /runtime_rollout_committed=true/u);
+  assert.match(script, /MODULE_RUNTIME_VERIFY_FAILED:/u);
+  assert.match(script, /MODULE_RUNTIME_ROLLBACK_(COMPLETED|FAILED)/u);
+
+  const verifyFunction = script.slice(
+    script.indexOf('verify_module_runtime() {'),
+    script.indexOf('rollback_module_runtime() {'),
+  );
+  const explicitFailureReturns = [
+    ...verifyFunction.matchAll(/runtime_verify_failed "\$phase" ([a-z0-9_]+)\s+return 1/gu),
+  ].map((match) => match[1]);
+  assert.deepEqual(explicitFailureReturns, [
+    'expected_image_missing',
+    'container_missing',
+    'image_mismatch',
+    'user_mismatch',
+    'writable_rootfs',
+    'no_new_privileges_missing',
+    'artifact_mount_not_read_only',
+    'artifact_source_missing',
+    'artifact_root_mismatch',
+    'docker_host_invalid',
+    'rootless_socket_mount_invalid',
+    'host_docker_socket_exposed',
+    'rootless_socket_unavailable',
+    'daemon_not_rootless',
+    'readiness_failed',
+    'disabled_invocation_boundary_failed',
+  ]);
+
+  const runtimeHelpers = script.slice(
+    script.indexOf('runtime_verify_failed() {'),
+    script.indexOf('rollback_module_runtime() {'),
+  );
+  const missingExpectedImage = spawnSync('bash', [], {
+    encoding: 'utf8',
+    input: `${runtimeHelpers}\nset +e\nverify_module_runtime "" rollback`,
+  });
+  assert.equal(missingExpectedImage.status, 1);
+  assert.match(
+    missingExpectedImage.stderr,
+    /MODULE_RUNTIME_VERIFY_FAILED: phase=rollback check=expected_image_missing/u,
+  );
+  assert.doesNotMatch(missingExpectedImage.stdout, /MODULE_RUNTIME_VERIFY_PASSED/u);
+
+  const rollbackFunction = script.slice(
+    script.indexOf('rollback_module_runtime() {'),
+    script.indexOf('verify_runtime_auth_boundary() {'),
+  );
+  assert.match(
+    rollbackFunction,
+    /if \[ "\$failure_status" -eq 0 \]; then\s+failure_status=1\s+fi/u,
+  );
+  const prematureExitRollback = spawnSync('bash', [], {
+    encoding: 'utf8',
+    input: `docker() { printf 'docker:%s\\n' "$*"; }
+verify_module_runtime() { printf 'verify:%s:%s\\n' "$1" "$2"; }
+REQUIRE_MODULE_RUNTIME=true
+runtime_rollout_started=true
+runtime_rollout_committed=false
+previous_runtime_image=old-image
+${rollbackFunction}
+trap rollback_module_runtime ERR EXIT
+exit 0`,
+  });
+  assert.equal(
+    prematureExitRollback.status,
+    1,
+    `premature EXIT rollback failed:\nstdout:\n${prematureExitRollback.stdout}\nstderr:\n${prematureExitRollback.stderr}`,
+  );
+  assert.equal(prematureExitRollback.stdout.match(/MODULE_RUNTIME_ROLLBACK_STARTED/gu)?.length, 1);
+  assert.match(prematureExitRollback.stdout, /verify:old-image:rollback/u);
+  assert.match(prematureExitRollback.stdout, /MODULE_RUNTIME_ROLLBACK_COMPLETED/u);
+  assert.doesNotMatch(prematureExitRollback.stderr, /MODULE_RUNTIME_ROLLBACK_FAILED/u);
+});
+
+test('production deployment keeps public Module App execution closed unconditionally', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const remoteDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Run remote blue-green deploy',
+  );
+  const script = remoteDeploy?.run ?? '';
+
+  assert.match(
+    script,
+    /if \[ "\$public_execution" = "true" \]; then\s+echo "Public Module App launch must remain disabled until the remaining production gates pass"\s+exit 1\s+fi/u,
+  );
+  assert.doesNotMatch(script, /Public Module App launch requires an HTTPS runtime origin/u);
+  assert.doesNotMatch(script, /Public Module App launch requires a non-empty app allowlist/u);
+});
+
+test('Module Runtime auth probe reports operational failure reasons', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const remoteDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Run remote blue-green deploy',
+  );
+  const script = remoteDeploy?.run ?? '';
+  const authProbeFunction = script.slice(
+    script.indexOf('verify_runtime_auth_boundary() {'),
+    script.indexOf('echo "Disk usage before deploy:"'),
+  );
+
+  for (const check of [
+    'container_start',
+    'health_inspect',
+    'health',
+    'unauthorized_boundary',
+    'cleanup',
+  ]) {
+    assert.match(authProbeFunction, new RegExp(`check=${check}(?:[ '\\n]|$)`, 'u'));
+  }
 });
 
 test('Worker deployment is manual, targeted, and build-free', () => {
@@ -395,7 +562,7 @@ test('all workflow Bash run blocks pass syntax validation', () => {
     for (const [jobName, job] of Object.entries(workflow.jobs)) {
       for (const [stepIndex, step] of (job.steps ?? []).entries()) {
         if (typeof step.run !== 'string' || step.shell === 'pwsh') continue;
-        const result = spawnSync('bash', ['-n', '-c', step.run], { encoding: 'utf8' });
+        const result = spawnSync('bash', ['-n'], { encoding: 'utf8', input: step.run });
         assert.equal(
           result.status,
           0,
