@@ -20,6 +20,18 @@ const sandboxReplayRejectionCounter = meter.createCounter(
 const workflowBacklogHistogram = meter.createHistogram('module_app_workflow_backlog', {
   description: 'Module App workflow schedules waiting in a dispatcher pass',
 });
+const scheduleDispatchPassCounter = meter.createCounter(
+  'module_app_schedule_dispatch_passes_total',
+  { description: 'Module App schedule dispatcher passes by bounded outcome' },
+);
+const scheduleDispatchItemCounter = meter.createCounter(
+  'module_app_schedule_dispatch_items_total',
+  { description: 'Module App schedule items processed by bounded outcome' },
+);
+const scheduleDispatchDurationHistogram = meter.createHistogram(
+  'module_app_schedule_dispatch_duration_ms',
+  { description: 'Module App schedule dispatcher duration in milliseconds', unit: 'ms' },
+);
 const paymentVerificationFailureCounter = meter.createCounter(
   'module_app_payment_verification_failures_total',
   { description: 'Module App payment verification failures by bounded reason' },
@@ -124,6 +136,30 @@ export const recordModuleAppSandboxReplayRejection = () => sandboxReplayRejectio
 
 export const recordModuleAppWorkflowBacklog = (count: number) =>
   workflowBacklogHistogram.record(Math.floor(boundedNumber(count)));
+
+export const recordModuleAppScheduleDispatch = (input: {
+  bookkeepingFailed?: number;
+  claimed?: number;
+  dispatched?: number;
+  durationMs: number;
+  failed?: number;
+  outcome: 'completed' | 'disabled' | 'failed';
+}) => {
+  const attributes = { outcome: input.outcome };
+  scheduleDispatchPassCounter.add(1, attributes);
+  scheduleDispatchDurationHistogram.record(boundedNumber(input.durationMs), attributes);
+
+  const itemCounts = [
+    ['claimed', input.claimed],
+    ['dispatched', input.dispatched],
+    ['failed', input.failed],
+    ['bookkeeping_failed', input.bookkeepingFailed],
+  ] as const;
+  for (const [outcome, value] of itemCounts) {
+    const count = Math.floor(boundedNumber(value ?? 0));
+    if (count > 0) scheduleDispatchItemCounter.add(count, { outcome });
+  }
+};
 
 export const recordModuleAppPaymentVerificationFailure = (reason: string) =>
   paymentVerificationFailureCounter.add(1, {

@@ -96,6 +96,7 @@ const GET_ALL_COMPATIBILITY_FIELDS = [
   'memoryUserMemoryTriggerMode',
   'memoryUserMemoryTriggerModeEnv',
   'modelPolicyConfig',
+  'moduleAppRuntimeConfig',
   'notificationDesktopEnabled',
   'notificationEmailEnabled',
   'notificationEventDefaults',
@@ -633,12 +634,33 @@ describe('admin settings default model validation', () => {
       APP_SETTING_KEYS.storageS3SecretAccessKey,
       'admin-storage-secret',
     );
+    const encryptedRuntimeToken = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+      'admin-runtime-secret',
+    );
     const db = createDb({
       appSettingsMany: [
         { key: APP_SETTING_KEYS.brandName, value: 'ComHub Fixture' },
         { key: APP_SETTING_KEYS.cronSecret, value: encryptedCronSecret },
         { key: APP_SETTING_KEYS.composioApiKey, value: encryptedComposioSecret },
         { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: encryptedS3Secret },
+        { key: APP_SETTING_KEYS.moduleAppExecutionEnabled, value: false },
+        { key: APP_SETTING_KEYS.moduleAppPublicExecutionEnabled, value: false },
+        { key: APP_SETTING_KEYS.moduleAppRuntimeInternalToken, value: encryptedRuntimeToken },
+        {
+          key: APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+          value: 'http://module-runtime:3210',
+        },
+        { key: APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled, value: false },
+        {
+          key: APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+          value: 'https://runtime.example.com',
+        },
+        { key: APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled, value: false },
+        {
+          key: APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+          value: false,
+        },
         { key: APP_SETTING_KEYS.recommendationSectionEnabled, value: true },
         { key: APP_SETTING_KEYS.recommendationAssistantsEnabled, value: true },
         { key: APP_SETTING_KEYS.communityFeaturedAssistantsEnabled, value: true },
@@ -683,6 +705,20 @@ describe('admin settings default model validation', () => {
       expertPlazaConfig: { enabled: true },
       growthConfig: { signup: { enabled: true } },
       modelPolicyConfig: { enabled: true },
+      moduleAppRuntimeConfig: {
+        internalTokenConfigured: true,
+        internalTokenMasked: '****cret',
+        internalUrl: 'http://module-runtime:3210',
+        publicOrigin: 'https://runtime.example.com',
+        source: { backendManaged: true, legacyEnvironmentKeys: [] },
+        switches: {
+          executionEnabled: false,
+          invocationEnabled: false,
+          publicExecutionEnabled: false,
+          scheduleDispatchEnabled: false,
+          workflowPrivilegedExecutorsEnabled: false,
+        },
+      },
       notificationInboxEnabled: true,
       operationsConfig: { featuredAssistants: { enabled: true } },
       ordersManagementEnabled: false,
@@ -696,9 +732,11 @@ describe('admin settings default model validation', () => {
     expect(serialized).not.toContain('admin-cron-secret');
     expect(serialized).not.toContain('admin-composio-secret');
     expect(serialized).not.toContain('admin-storage-secret');
+    expect(serialized).not.toContain('admin-runtime-secret');
     expect(serialized).not.toContain(encryptedCronSecret);
     expect(serialized).not.toContain(encryptedComposioSecret);
     expect(serialized).not.toContain(encryptedS3Secret);
+    expect(serialized).not.toContain(encryptedRuntimeToken);
   });
 
   it('loads and returns only fields owned by the requested section', async () => {
@@ -802,6 +840,35 @@ describe('admin settings default model validation', () => {
       adminSettingsRouter
         .createCaller({ userId: 'finance-user' } as any)
         .getSection({ section: 'growth' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets module administrators read and write only the Module Runtime settings section', async () => {
+    const db = createDb({ role: 'module_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    const caller = adminSettingsRouter.createCaller({ userId: 'module-admin-user' } as any);
+
+    await expect(caller.getSection({ section: 'module-runtime' })).resolves.toMatchObject({
+      moduleAppRuntimeConfig: expect.any(Object),
+      section: 'module-runtime',
+    });
+    await expect(
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [{ key: APP_SETTING_KEYS.moduleAppExecutionEnabled, value: false }],
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    await expect(caller.getSection({ section: 'settings' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [{ key: APP_SETTING_KEYS.brandName, value: 'Denied' }],
+        }),
+      ),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 

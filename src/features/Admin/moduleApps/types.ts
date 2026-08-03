@@ -106,6 +106,44 @@ export type ModuleAppInstallRow = {
   workspaceId?: null | string;
 };
 
+export type ModuleAppRuntimeSwitches = {
+  executionEnabled: boolean;
+  invocationEnabled: boolean;
+  publicExecutionEnabled: boolean;
+  scheduleDispatchEnabled: boolean;
+  workflowPrivilegedExecutorsEnabled: boolean;
+};
+
+export type ModuleAppRuntimeSettingsData = {
+  blockers: {
+    invocation: string[];
+    publicExecution: string[];
+    scheduleDispatch: string[];
+    workflowPrivilegedExecutors: string[];
+  };
+  internalTokenConfigured: boolean;
+  internalTokenMasked?: null | string;
+  internalUrl: string;
+  publicOrigin: string;
+  requestedSwitches: ModuleAppRuntimeSwitches;
+  source: {
+    backendManaged: boolean;
+    legacyEnvironmentKeys: string[];
+    values: Record<
+      | 'executionEnabled'
+      | 'internalToken'
+      | 'internalUrl'
+      | 'invocationEnabled'
+      | 'publicExecutionEnabled'
+      | 'publicOrigin'
+      | 'scheduleDispatchEnabled'
+      | 'workflowPrivilegedExecutorsEnabled',
+      'database' | 'default' | 'environment'
+    >;
+  };
+  switches: ModuleAppRuntimeSwitches;
+};
+
 export type ModuleAppRuntimeDiagnostics = {
   configuration: {
     internalTokenConfigured: boolean;
@@ -130,11 +168,18 @@ export type ModuleAppRuntimeDiagnostics = {
     };
   };
   probe: ModuleAppRuntimeReadiness;
-  switches: {
-    executionEnabled: boolean;
-    invocationEnabled: boolean;
-    publicExecutionEnabled: boolean;
+  requestedSwitches: ModuleAppRuntimeSwitches;
+  scheduler: {
+    activeClaims: null | number;
+    claimableSchedules: null | number;
+    enabledSchedules: null | number;
+    failedScheduledRuns24h: null | number;
+    lastScheduledRunAt: Date | null | string;
+    oldestClaimableAt: Date | null | string;
+    staleClaims: null | number;
+    status: 'available' | 'unavailable';
   };
+  switches: ModuleAppRuntimeSwitches;
 };
 
 export type ModuleAppAuditRow = {

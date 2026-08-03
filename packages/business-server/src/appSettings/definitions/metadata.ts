@@ -51,6 +51,46 @@ const SOURCE_OVERRIDES: Partial<Record<AppSettingKey, SourceMetadata>> = {
       'application-default',
     ],
   },
+  [APP_SETTING_KEYS.moduleAppExecutionEnabled]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppExecutionEnabled,
+    ['MODULE_APP_EXECUTION_ENABLED'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppPublicExecutionEnabled]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
+    ['MODULE_APP_PUBLIC_EXECUTION_ENABLED'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppRuntimeInternalToken]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+    ['MODULE_APP_RUNTIME_INTERNAL_TOKEN'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppRuntimeInternalUrl]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+    ['MODULE_APP_RUNTIME_INTERNAL_URL'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+    ['MODULE_APP_RUNTIME_INVOCATION_ENABLED'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppRuntimePublicOrigin]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+    ['MODULE_APP_RUNTIME_PUBLIC_ORIGIN'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
+    ['MODULE_APP_SCHEDULE_DISPATCH_ENABLED'],
+    true,
+  ),
+  [APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled]: environmentFallback(
+    APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+    ['MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED'],
+    true,
+  ),
   [APP_SETTING_KEYS.storageS3AccessKeyId]: environmentFallback(
     APP_SETTING_KEYS.storageS3AccessKeyId,
     ['S3_ACCESS_KEY_ID'],

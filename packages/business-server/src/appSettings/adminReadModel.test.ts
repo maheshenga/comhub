@@ -8,6 +8,7 @@ import { PAYMENT_ENVIRONMENT_VARIABLES } from '@/server/services/payments/enviro
 import {
   buildDesktopSettings,
   buildMobileSettings,
+  buildModuleRuntimeSettings,
   buildPaymentSettings,
   buildSystemDefaultsSettings,
 } from './adminReadModel';
@@ -128,6 +129,44 @@ describe('desktop admin read model', () => {
     );
 
     expect(buildDesktopSettings(snapshot).desktopDownloadUrl).toBeNull();
+  });
+});
+
+describe('module runtime admin read model', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('preserves the legacy token fallback when no database token exists', async () => {
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', 'legacy-runtime-token');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_URL', 'http://legacy-runtime:3210');
+
+    const result = await buildModuleRuntimeSettings(
+      new AppSettingsSnapshot(
+        [
+          APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+          APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+        ],
+        [],
+      ),
+    );
+
+    expect(result.moduleAppRuntimeConfig).toMatchObject({
+      internalTokenConfigured: true,
+      internalTokenMasked: '****oken',
+      internalUrl: 'http://legacy-runtime:3210',
+      source: {
+        backendManaged: false,
+        legacyEnvironmentKeys: expect.arrayContaining([
+          'MODULE_APP_RUNTIME_INTERNAL_TOKEN',
+          'MODULE_APP_RUNTIME_INTERNAL_URL',
+        ]),
+        values: {
+          internalToken: 'environment',
+          internalUrl: 'environment',
+        },
+      },
+    });
   });
 });
 

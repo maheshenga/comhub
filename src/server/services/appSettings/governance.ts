@@ -54,6 +54,7 @@ const DOMAIN_LABELS: Record<AppSettingDomain, string> = {
   'content': 'Content',
   'growth': 'Growth',
   'model': 'Model',
+  'module-apps': 'Module apps',
   'notification': 'Notification',
   'operations': 'Operations',
   'payments': 'Payments',

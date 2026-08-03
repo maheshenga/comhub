@@ -11,8 +11,9 @@ const payload = {
 describe('Module App workflow route controls', () => {
   it('rejects disabled privileged executors before running a workflow job', async () => {
     const execute = vi.fn();
+    const enabled = vi.fn().mockResolvedValue(false);
     const handler = createModuleAppWorkflowRouteHandler({
-      enabled: false,
+      enabled,
       execute,
       verify: vi.fn().mockResolvedValue(true),
     });
@@ -28,6 +29,7 @@ describe('Module App workflow route controls', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'module_app_workflow_privileged_executors_disabled',
     });
+    expect(enabled).toHaveBeenCalledOnce();
     expect(execute).not.toHaveBeenCalled();
   });
 

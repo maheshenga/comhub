@@ -381,6 +381,10 @@ jobs:
           done
 
           public_execution="$(docker compose exec -T "$app_service" printenv MODULE_APP_PUBLIC_EXECUTION_ENABLED < /dev/null 2>/dev/null || true)"
+          if [ "$REQUIRE_MODULE_RUNTIME" != "true" ] && [ "$public_execution" = "true" ]; then
+            echo "Public Module App launch must remain disabled when module-runtime deployment is skipped"
+            exit 1
+          fi
           if [ "$public_execution" = "true" ]; then
             runtime_origin="$(docker compose exec -T "$app_service" printenv MODULE_APP_RUNTIME_PUBLIC_ORIGIN < /dev/null 2>/dev/null || true)"
             runtime_allowlist="$(docker compose exec -T "$app_service" printenv MODULE_APP_RUNTIME_APP_ALLOWLIST < /dev/null 2>/dev/null || true)"

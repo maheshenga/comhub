@@ -97,6 +97,38 @@ const toPaymentUrlString = (value: unknown, key: string) => {
     message: `${key} must be a valid HTTPS URL`,
   });
 };
+const toModuleAppRuntimeInternalUrl = (value: unknown, key: string) => {
+  const text = toString(value);
+  if (!text) return '';
+
+  try {
+    const url = new URL(text);
+    if (!url.username && !url.password && ['http:', 'https:'].includes(url.protocol)) {
+      return url.origin;
+    }
+  } catch {
+    // The validation error below covers malformed and credentialed URLs.
+  }
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: `${key} must be a valid HTTP(S) origin`,
+  });
+};
+const toModuleAppRuntimePublicOrigin = (value: unknown, key: string) => {
+  const text = toString(value);
+  if (!text) return '';
+
+  try {
+    const url = new URL(text);
+    if (!url.username && !url.password && url.protocol === 'https:') return url.origin;
+  } catch {
+    // The validation error below covers malformed and unsafe public origins.
+  }
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: `${key} must be a valid HTTPS origin`,
+  });
+};
 const normalizeMemoryTriggerMode = (value: unknown) =>
   value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
 const normalizeProfileInterestAreas = (value: unknown) => {
@@ -216,6 +248,13 @@ const PAYMENT_URL_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.paymentWechatApiBaseUrl,
   APP_SETTING_KEYS.paymentZpayApiBaseUrl,
 ]);
+const MODULE_APP_RUNTIME_BOOLEAN_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.moduleAppExecutionEnabled,
+  APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
+  APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+  APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
+  APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+]);
 export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValueDefinition => {
   if (key === APP_SETTING_KEYS.cronAuditRetentionDays) {
     return numberValue('cron-audit-retention-integer', (value) => {
@@ -315,6 +354,23 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     );
   }
   if (key.startsWith('payment.')) return stringValue('payment-string');
+
+  if (MODULE_APP_RUNTIME_BOOLEAN_KEYS.has(key)) {
+    return booleanValue('module-app-runtime-boolean');
+  }
+  if (key === APP_SETTING_KEYS.moduleAppRuntimeInternalToken) {
+    return defineValue('module-app-runtime-secret', stringSchema, (value) => value as string);
+  }
+  if (key === APP_SETTING_KEYS.moduleAppRuntimeInternalUrl) {
+    return defineValue('module-app-runtime-internal-url', stringSchema, (value) =>
+      toModuleAppRuntimeInternalUrl(value, key),
+    );
+  }
+  if (key === APP_SETTING_KEYS.moduleAppRuntimePublicOrigin) {
+    return defineValue('module-app-runtime-public-origin', stringSchema, (value) =>
+      toModuleAppRuntimePublicOrigin(value, key),
+    );
+  }
 
   if (OPERATION_BOOLEAN_KEYS.has(key)) return booleanValue('operations-boolean');
   if (OPERATION_PAGE_SIZE_KEYS.has(key)) {

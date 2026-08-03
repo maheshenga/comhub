@@ -1,9 +1,15 @@
+import { createHmac } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER,
+  MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT,
+  MODULE_APP_RUNTIME_READINESS_PROOF_HEADER,
+} from '@lobechat/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DockerCliModuleAppContainerEngine } from './containerEngine';
@@ -80,6 +86,46 @@ describe('createModuleAppRuntimeServer', () => {
       expect(response.status).toBe(200);
       expect(JSON.parse(response.body)).toEqual({ status: 'ok' });
       expect(response.body).not.toContain('internal-token');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('proves readiness token possession without receiving the token', async () => {
+    const server = createModuleAppRuntimeServer({
+      internalToken: 'internal-token',
+      invoker: createInvoker(),
+      readinessCheck: vi.fn().mockResolvedValue(undefined),
+      runtimeJwks: runtimePublicJwks,
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('test_server_address_missing');
+    const readyUrl = `http://127.0.0.1:${address.port}/ready`;
+
+    try {
+      const publicReadiness = await requestServer(readyUrl);
+      expect(publicReadiness.status).toBe(200);
+      expect(JSON.parse(publicReadiness.body)).toEqual({ status: 'ready' });
+      expect(publicReadiness.headers[MODULE_APP_RUNTIME_READINESS_PROOF_HEADER]).toBeUndefined();
+
+      const challenge = 'a'.repeat(32);
+      const provedReadiness = await requestServer(readyUrl, {
+        headers: { [MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER]: challenge },
+      });
+      const expectedProof = createHmac('sha256', 'internal-token')
+        .update(MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT)
+        .update('\0')
+        .update(challenge)
+        .digest('base64url');
+      expect(provedReadiness.status).toBe(200);
+      expect(JSON.parse(provedReadiness.body)).toEqual({ status: 'ready' });
+      expect(provedReadiness.headers[MODULE_APP_RUNTIME_READINESS_PROOF_HEADER]).toBe(
+        expectedProof,
+      );
+      expect(JSON.stringify(provedReadiness)).not.toContain('internal-token');
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),

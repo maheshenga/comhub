@@ -34,6 +34,10 @@ import {
   hasStoredPaymentSettingValue,
 } from '@/server/services/payments/environmentFallbacks';
 
+import {
+  readModuleAppRuntimeEnvironment,
+  resolveModuleAppRuntimeConfig,
+} from '../module-apps/runtimeConfig';
 import { type AppSettingsSnapshot } from './loader';
 import { type AppSettingsSection } from './types';
 
@@ -442,6 +446,37 @@ export const buildMaintenanceSettings = async (snapshot: AppSettingsSnapshot) =>
     memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
       snapshot.get(APP_SETTING_KEYS.memoryUserMemoryTriggerMode),
     ),
+  };
+};
+
+export const buildModuleRuntimeSettings = async (snapshot: AppSettingsSnapshot) => {
+  const values = Object.fromEntries(snapshot.entries().filter(([key]) => snapshot.has(key)));
+  if (snapshot.has(APP_SETTING_KEYS.moduleAppRuntimeInternalToken)) {
+    values[APP_SETTING_KEYS.moduleAppRuntimeInternalToken] = await decryptAppSettingSecret(
+      APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+      snapshot.get(APP_SETTING_KEYS.moduleAppRuntimeInternalToken),
+    );
+  }
+  const config = resolveModuleAppRuntimeConfig({
+    environment: readModuleAppRuntimeEnvironment(),
+    values,
+  });
+
+  return {
+    moduleAppRuntimeConfig: {
+      blockers: config.blockers,
+      internalTokenConfigured: config.configuration.internalTokenConfigured,
+      internalTokenMasked: maskAppSettingSecret(config.connections.internalToken),
+      internalUrl: config.connections.internalUrl ?? '',
+      publicOrigin: config.connections.publicOrigin ?? '',
+      requestedSwitches: config.requestedSwitches,
+      source: {
+        backendManaged: config.legacyEnvironmentKeys.length === 0,
+        legacyEnvironmentKeys: config.legacyEnvironmentKeys,
+        values: config.sources,
+      },
+      switches: config.switches,
+    },
   };
 };
 
@@ -1067,6 +1102,9 @@ export const buildAdminSettingsSectionReadModel = async (
         sharedHealth,
       };
     }
+    case 'module-runtime': {
+      return { ...(await buildModuleRuntimeSettings(snapshot)), section, sharedHealth };
+    }
     case 'notifications': {
       return { ...buildNotificationSettings(snapshot), section, sharedHealth };
     }
@@ -1112,8 +1150,9 @@ export const buildAdminSettingsReadModel = async (
   snapshot: AppSettingsSnapshot,
   context: AdminSettingsReadContext = {},
 ) => {
-  const [maintenance, paymentSettings, storage, systemDefaults] = await Promise.all([
+  const [maintenance, moduleRuntime, paymentSettings, storage, systemDefaults] = await Promise.all([
     buildMaintenanceSettings(snapshot),
+    buildModuleRuntimeSettings(snapshot),
     buildPaymentSettings(snapshot),
     buildStorageSettings(snapshot),
     buildSystemDefaultsSettings(snapshot),
@@ -1123,6 +1162,7 @@ export const buildAdminSettingsReadModel = async (
   return {
     ...buildSiteSettings(snapshot, context),
     ...maintenance,
+    ...moduleRuntime,
     ...modelBilling,
     ...buildDesktopSettings(snapshot),
     ...systemDefaults,

@@ -29,6 +29,7 @@ import {
   verifyModuleAppCapability,
 } from '@/server/services/moduleAppRuntime/capability';
 import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
+import { getServerModuleAppRuntimeConfig } from '@/server/services/moduleAppRuntime/config';
 import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRuntime/gateway';
 import { createModuleAppServerAction } from '@/server/services/moduleAppRuntime/serverAction';
 
@@ -102,7 +103,8 @@ export const moduleAppRuntimeProcedures = {
   callSdk: moduleAppProcedure
     .input(ModuleAppGatewayCallInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+      const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+      if (!runtimeConfig.switches.executionEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_unavailable',
@@ -149,13 +151,14 @@ export const moduleAppRuntimeProcedures = {
   getLaunchContext: moduleAppProcedure
     .input(ModuleAppLaunchInputSchema)
     .query(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN) {
+      const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+      if (!runtimeConfig.connections.publicOrigin) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_unavailable',
         });
       }
-      if (!appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED) {
+      if (!runtimeConfig.switches.publicExecutionEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_public_execution_disabled',
@@ -163,12 +166,25 @@ export const moduleAppRuntimeProcedures = {
       }
       let runtimeOrigin: string;
       try {
-        const publicOrigin = new URL(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN);
+        const publicOrigin = new URL(runtimeConfig.connections.publicOrigin);
         if (publicOrigin.protocol !== 'https:') throw new Error('HTTPS origin required');
         runtimeOrigin = publicOrigin.origin;
       } catch (error) {
         throw new TRPCError({
           cause: error,
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_unavailable',
+        });
+      }
+      const readiness = await new ModuleAppRuntimeClient({
+        baseUrl: runtimeConfig.connections.internalUrl,
+        enabled: runtimeConfig.switches.executionEnabled,
+        internalToken: runtimeConfig.connections.internalToken,
+        invocationEnabled: runtimeConfig.switches.invocationEnabled,
+      }).healthCheck();
+      if (readiness.status !== 'ready') {
+        throw new TRPCError({
+          cause: readiness,
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_unavailable',
         });
@@ -230,7 +246,9 @@ export const moduleAppRuntimeProcedures = {
         {
           appId: input.appId,
           installationId: installation.installationId,
-          permissions: appEnv.MODULE_APP_EXECUTION_ENABLED ? manifest.data.runtime.permissions : [],
+          permissions: runtimeConfig.switches.executionEnabled
+            ? manifest.data.runtime.permissions
+            : [],
           surface: 'browser',
           userId: ctx.userId,
           versionId: installation.versionId,
@@ -251,7 +269,8 @@ export const moduleAppRuntimeProcedures = {
     }),
 
   runAction: moduleAppProcedure.input(moduleAppRunInputSchema).mutation(async ({ ctx, input }) => {
-    if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+    const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+    if (!runtimeConfig.switches.executionEnabled) {
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
         message: 'module_app_runtime_unavailable',
@@ -312,7 +331,7 @@ export const moduleAppRuntimeProcedures = {
     let executableRunner;
     const installationId = installation.installationId;
     if (action.runtimeType === 'executable_action') {
-      if (!appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED) {
+      if (!runtimeConfig.switches.invocationEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_invocation_disabled',
@@ -360,7 +379,12 @@ export const moduleAppRuntimeProcedures = {
         },
         { expiresInSeconds: 300 },
       );
-      const runtimeClient = new ModuleAppRuntimeClient();
+      const runtimeClient = new ModuleAppRuntimeClient({
+        baseUrl: runtimeConfig.connections.internalUrl,
+        enabled: runtimeConfig.switches.executionEnabled,
+        internalToken: runtimeConfig.connections.internalToken,
+        invocationEnabled: runtimeConfig.switches.invocationEnabled,
+      });
       const invocationId = randomUUID();
       executableRunner = () =>
         runModuleAppExecutableAction({

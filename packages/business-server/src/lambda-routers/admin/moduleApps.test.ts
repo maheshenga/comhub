@@ -74,6 +74,7 @@ const moduleAppPayoutMocks = vi.hoisted(() => ({
 }));
 
 const moduleAppReadModelMocks = vi.hoisted(() => ({
+  getRuntimeScheduleDiagnostics: vi.fn(),
   listApplications: vi.fn(),
   listArtifacts: vi.fn(),
   listAuditEvents: vi.fn(),
@@ -100,6 +101,8 @@ const moduleAppRuntimeClientMocks = vi.hoisted(() => ({
   getConfigurationStatus: vi.fn(),
   healthCheck: vi.fn(),
 }));
+const getServerModuleAppRuntimeConfig = vi.hoisted(() => vi.fn());
+const dispatchDueModuleAppSchedules = vi.hoisted(() => vi.fn());
 const recordModuleAppPayoutState = vi.hoisted(() => vi.fn());
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
 const mockCreatePaymentAdapter = vi.hoisted(() =>
@@ -190,6 +193,14 @@ vi.mock('@/server/services/moduleAppBuild/service', () => ({
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
   ModuleAppRuntimeClient: vi.fn(() => moduleAppRuntimeClientMocks),
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/config', () => ({
+  getServerModuleAppRuntimeConfig,
+}));
+
+vi.mock('@/server/workflows/moduleApp/scheduleDispatcher', () => ({
+  dispatchDueModuleAppSchedules,
 }));
 
 vi.mock('@/server/services/newapiInstance', () => ({
@@ -403,6 +414,30 @@ describe('admin module apps router', () => {
       internalUrlConfigured: true,
     });
     moduleAppRuntimeClientMocks.healthCheck.mockResolvedValue({ status: 'disabled' });
+    getServerModuleAppRuntimeConfig.mockResolvedValue({
+      configuration: { publicOriginConfigured: false },
+      connections: {},
+      requestedSwitches: {
+        executionEnabled: false,
+        invocationEnabled: false,
+        publicExecutionEnabled: false,
+        scheduleDispatchEnabled: false,
+        workflowPrivilegedExecutorsEnabled: false,
+      },
+      switches: {
+        executionEnabled: false,
+        invocationEnabled: false,
+        publicExecutionEnabled: false,
+        scheduleDispatchEnabled: false,
+        workflowPrivilegedExecutorsEnabled: false,
+      },
+    });
+    dispatchDueModuleAppSchedules.mockResolvedValue({
+      bookkeepingFailed: 0,
+      claimed: 2,
+      dispatched: 1,
+      failed: 1,
+    });
     moduleAppPaymentMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     moduleAppPaymentMocks.reconcilePayment.mockResolvedValue({ status: 'paid' });
     moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValue({ count: 0, results: [] });
@@ -467,6 +502,15 @@ describe('admin module apps router', () => {
     moduleAppReadModelMocks.listRecords.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppReadModelMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppReadModelMocks.listRuns.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.getRuntimeScheduleDiagnostics.mockResolvedValue({
+      activeClaims: 1,
+      claimableSchedules: 2,
+      enabledSchedules: 4,
+      failedScheduledRuns24h: 1,
+      lastScheduledRunAt: new Date('2026-07-12T00:30:00.000Z'),
+      oldestClaimableAt: new Date('2026-07-12T00:00:00.000Z'),
+      staleClaims: 1,
+    });
     moduleAppRevenueMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.settleBatchWithAudit.mockResolvedValue({
       batchId: '00000000-0000-4000-8000-000000000031',
@@ -505,6 +549,24 @@ describe('admin module apps router', () => {
       code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
       status: 'unavailable',
     });
+    const requestedSwitches = {
+      executionEnabled: true,
+      invocationEnabled: true,
+      publicExecutionEnabled: true,
+      scheduleDispatchEnabled: true,
+      workflowPrivilegedExecutorsEnabled: true,
+    };
+    const switches = { ...requestedSwitches };
+    getServerModuleAppRuntimeConfig.mockResolvedValueOnce({
+      configuration: { publicOriginConfigured: true },
+      connections: {
+        internalToken: 'runtime-internal-token',
+        internalUrl: 'http://module-runtime:3210',
+        publicOrigin: 'https://runtime.example.com',
+      },
+      requestedSwitches,
+      switches,
+    });
 
     const result = await createCaller().moduleApps.getRuntimeDiagnostics();
 
@@ -535,14 +597,21 @@ describe('admin module apps router', () => {
         code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
         status: 'unavailable',
       },
-      switches: {
-        executionEnabled: true,
-        invocationEnabled: true,
-        publicExecutionEnabled: true,
+      requestedSwitches,
+      scheduler: {
+        activeClaims: 1,
+        claimableSchedules: 2,
+        enabledSchedules: 4,
+        failedScheduledRuns24h: 1,
+        lastScheduledRunAt: new Date('2026-07-12T00:30:00.000Z'),
+        oldestClaimableAt: new Date('2026-07-12T00:00:00.000Z'),
+        staleClaims: 1,
+        status: 'available',
       },
+      switches,
     });
     const serialized = JSON.stringify(result);
-    expect(serialized).not.toContain('runtime.example.com');
+    expect(serialized).not.toContain('runtime-internal-token');
     expect(serialized).not.toContain('billing.example.com');
     expect(serialized).not.toContain('payment-private-secret');
     expect(serialized).not.toContain('gpt-secret-model');
@@ -556,6 +625,51 @@ describe('admin module apps router', () => {
     expect(moduleAppRuntimeClientMocks.healthCheck).toHaveBeenCalledOnce();
   });
 
+  it('keeps runtime diagnostics available when scheduler telemetry cannot be read', async () => {
+    moduleAppReadModelMocks.getRuntimeScheduleDiagnostics.mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+
+    const result = await createCaller().moduleApps.getRuntimeDiagnostics();
+
+    expect(result.probe).toEqual({ status: 'disabled' });
+    expect(result.scheduler).toEqual({
+      activeClaims: null,
+      claimableSchedules: null,
+      enabledSchedules: null,
+      failedScheduledRuns24h: null,
+      lastScheduledRunAt: null,
+      oldestClaimableAt: null,
+      staleClaims: null,
+      status: 'unavailable',
+    });
+  });
+
+  it('runs a bounded, audited schedule dispatch through the governed backend switch', async () => {
+    const result = await createCaller().moduleApps.dispatchSchedulesNow();
+
+    expect(result).toEqual({ bookkeepingFailed: 0, claimed: 2, dispatched: 1, failed: 1 });
+    expect(dispatchDueModuleAppSchedules).toHaveBeenCalledWith({
+      batchSize: 25,
+      db: expect.anything(),
+    });
+    const options = externalAuditMock.mock.calls.at(-1)?.[1];
+    expect(options.audit('failed', result)).toEqual({
+      action: 'module_app.schedule_dispatch_executed',
+      payload: {
+        batchSize: 25,
+        bookkeepingFailed: 0,
+        claimed: 2,
+        dispatched: 1,
+        failed: 1,
+        terminalStatus: 'failed',
+      },
+      resourceId: 'module-app-scheduler',
+      resourceType: 'moduleAppScheduleDispatcher',
+    });
+    expect(options.terminalStatus(result)).toBe('failed');
+  });
+
   it('rejects content admins from Module App governance procedures', async () => {
     authState.role = 'content_admin';
     const caller = createCaller();
@@ -564,6 +678,9 @@ describe('admin module apps router', () => {
       code: 'FORBIDDEN',
     });
     await expect(caller.moduleApps.getRuntimeDiagnostics()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.dispatchSchedulesNow()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
     await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({

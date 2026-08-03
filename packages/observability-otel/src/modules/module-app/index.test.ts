@@ -8,6 +8,7 @@ import {
   recordModuleAppPayoutState,
   recordModuleAppSandboxInvocation,
   recordModuleAppSandboxReplayRejection,
+  recordModuleAppScheduleDispatch,
   recordModuleAppWorkerArtifactBytes,
   recordModuleAppWorkerBuildDuration,
   recordModuleAppWorkerBuildOutcome,
@@ -61,6 +62,44 @@ describe('module app observability', () => {
       runtime: 'node22',
     });
     expect(instruments.get('module_app_workflow_backlog')).toHaveBeenCalledWith(42);
+  });
+
+  it('records schedule dispatcher passes and non-zero item outcomes', () => {
+    recordModuleAppScheduleDispatch({
+      bookkeepingFailed: 1,
+      claimed: 4,
+      dispatched: 2,
+      durationMs: 321,
+      failed: 2,
+      outcome: 'completed',
+    });
+
+    expect(instruments.get('module_app_schedule_dispatch_passes_total')).toHaveBeenCalledWith(1, {
+      outcome: 'completed',
+    });
+    expect(instruments.get('module_app_schedule_dispatch_duration_ms')).toHaveBeenCalledWith(321, {
+      outcome: 'completed',
+    });
+    expect(instruments.get('module_app_schedule_dispatch_items_total')).toHaveBeenNthCalledWith(
+      1,
+      4,
+      { outcome: 'claimed' },
+    );
+    expect(instruments.get('module_app_schedule_dispatch_items_total')).toHaveBeenNthCalledWith(
+      2,
+      2,
+      { outcome: 'dispatched' },
+    );
+    expect(instruments.get('module_app_schedule_dispatch_items_total')).toHaveBeenNthCalledWith(
+      3,
+      2,
+      { outcome: 'failed' },
+    );
+    expect(instruments.get('module_app_schedule_dispatch_items_total')).toHaveBeenNthCalledWith(
+      4,
+      1,
+      { outcome: 'bookkeeping_failed' },
+    );
   });
 
   it('bounds payment reasons, ages, and payout states', () => {

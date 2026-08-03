@@ -31,19 +31,26 @@ describe('module app runtime dependency wiring', () => {
     expect(source).toContain('resolveModuleAppActionOutboundHosts({');
     expect(source).toContain('resolveModuleAppActionSecrets({');
     expect(source).toContain('getInstallationSecret({');
-    expect(source).toContain('resolveModuleAppWorkflowAction({ action, runtimeManifest: installation.runtimeManifest })');
+    expect(source).toContain(
+      'resolveModuleAppWorkflowAction({ action, runtimeManifest: installation.runtimeManifest })',
+    );
   });
 
-  it('checks the execution rollout flag before resolving any action dependencies', () => {
+  it('loads the current backend execution switch before resolving any action dependencies', () => {
     const runActionStart = source.indexOf('runAction: moduleAppProcedure');
-    const executionGuard = source.indexOf(
-      'if (!appEnv.MODULE_APP_EXECUTION_ENABLED)',
+    const runtimeConfigLoad = source.indexOf(
+      'const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB)',
       runActionStart,
+    );
+    const executionGuard = source.indexOf(
+      'if (!runtimeConfig.switches.executionEnabled)',
+      runtimeConfigLoad,
     );
     const runnableAppCheck = source.indexOf('await assertRunnableApp({', runActionStart);
 
     expect(runActionStart).toBeGreaterThanOrEqual(0);
-    expect(executionGuard).toBeGreaterThan(runActionStart);
+    expect(runtimeConfigLoad).toBeGreaterThan(runActionStart);
+    expect(executionGuard).toBeGreaterThan(runtimeConfigLoad);
     expect(runnableAppCheck).toBeGreaterThan(executionGuard);
   });
 });

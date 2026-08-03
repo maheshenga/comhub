@@ -34,4 +34,20 @@ describe('app settings section ownership', () => {
     expect(APP_SETTINGS_SECTIONS).toContain('mobile');
     expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.mobileConfig)).toBe('mobile');
   });
+
+  it('assigns every runtime control exclusively to the module runtime section', () => {
+    expect(APP_SETTINGS_SECTIONS).toContain('module-runtime');
+    for (const key of [
+      APP_SETTING_KEYS.moduleAppExecutionEnabled,
+      APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
+      APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+      APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+      APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+      APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+      APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
+      APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+    ]) {
+      expect(getAppSettingsSectionForKey(key)).toBe('module-runtime');
+    }
+  });
 });

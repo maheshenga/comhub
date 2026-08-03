@@ -149,6 +149,21 @@ describe('APP_SETTINGS_CATALOG', () => {
     expect(APP_SETTINGS_SECTION_KEYS.maintenance).toContain(
       APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
     );
+    expect(APP_SETTINGS_SECTION_KEYS['module-runtime']).toEqual(
+      expect.arrayContaining([
+        APP_SETTING_KEYS.moduleAppExecutionEnabled,
+        APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
+        APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+        APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+        APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+        APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+        APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
+        APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+      ]),
+    );
+    for (const key of APP_SETTINGS_SECTION_KEYS['module-runtime']) {
+      expect(catalogItem(key).requiredCapability).toBe('moduleAppWrite');
+    }
     expect(WRITABLE_APP_SETTING_KEYS).not.toContain(APP_SETTING_KEYS.desktopOssAccessKeySecret);
 
     expect(catalogItem(APP_SETTING_KEYS.ordersManagementEnabled)).toMatchObject({
@@ -278,6 +293,33 @@ describe('APP_SETTINGS_CATALOG', () => {
     ).toThrow(/valid HTTPS URL/);
   });
 
+  it('normalizes Runtime endpoints and rejects credentialed or non-HTTPS public origins', () => {
+    expect(
+      normalizeAppSettingValue(
+        APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+        'http://module-runtime:3210/ready',
+      ),
+    ).toBe('http://module-runtime:3210');
+    expect(
+      normalizeAppSettingValue(
+        APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+        'https://runtime.example.com/apps',
+      ),
+    ).toBe('https://runtime.example.com');
+    expect(() =>
+      normalizeAppSettingValue(
+        APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+        'https://operator:secret@runtime.example.com',
+      ),
+    ).toThrow(/valid HTTP\(S\) origin/);
+    expect(() =>
+      normalizeAppSettingValue(
+        APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+        'http://runtime.example.com',
+      ),
+    ).toThrow(/valid HTTPS origin/);
+  });
+
   it('models PPT settings as dedicated system-write contracts with exact limits', () => {
     const pptKeys = Object.values(APP_SETTING_KEYS).filter((key) => key.startsWith('docmee.ppt.'));
 
@@ -327,14 +369,18 @@ describe('APP_SETTINGS_CATALOG', () => {
   it('derives runtime consumers from source-backed contracts', () => {
     type ConsumerContract = {
       id: string;
-      keyEvidence:
-        | { kind: 'literal'; sourceSymbol?: string }
-        | { kind: 'prefix'; prefix: string; sourceSymbol?: string }
+      keyEvidence: {
+        consumerReferenceSymbol?: string;
+        sourcePath?: string;
+        sourceSymbol?: string;
+      } & (
+        | { kind: 'literal' }
+        | { kind: 'prefix'; prefix: string }
         | {
             kind: 'registry';
             namespace: 'APP_SETTING_KEYS' | 'SETTING_KEYS';
-            sourceSymbol?: string;
-          };
+          }
+      );
       keys: string[];
       sourcePath: string;
       symbol: string;
@@ -344,6 +390,15 @@ describe('APP_SETTINGS_CATALOG', () => {
       .APP_SETTING_RUNTIME_CONSUMER_CONTRACTS as ConsumerContract[];
     expect(contracts).toBeDefined();
     expect(new Set(contracts.map((contract) => contract.id)).size).toBe(contracts.length);
+    expect(contracts.find((contract) => contract.id === 'payment-runtime-config')).toMatchObject({
+      keyEvidence: {
+        consumerReferenceSymbol: 'PAYMENT_SETTING_KEYS',
+        sourcePath: 'src/server/services/payments/environmentFallbacks.ts',
+        sourceSymbol: 'PAYMENT_ENVIRONMENT_FALLBACKS',
+      },
+      sourcePath: 'src/server/services/payments/config.ts',
+      symbol: 'getServerPaymentConfig',
+    });
 
     const keyNames = new Map<string, string>(
       Object.entries(APP_SETTING_KEYS).map(([name, key]) => [key, name] as const),
@@ -357,13 +412,18 @@ describe('APP_SETTINGS_CATALOG', () => {
       expect(existsSync(sourceFile), contract.sourcePath).toBe(true);
       const source = readFileSync(sourceFile, 'utf8');
       const consumerSource = findNamedSource(source, contract.sourcePath, contract.symbol);
+      const evidenceSourcePath = contract.keyEvidence.sourcePath ?? contract.sourcePath;
+      const evidenceFile = path.resolve(repoRoot, evidenceSourcePath);
+      expect(existsSync(evidenceFile), evidenceSourcePath).toBe(true);
+      const evidenceFileSource =
+        evidenceSourcePath === contract.sourcePath ? source : readFileSync(evidenceFile, 'utf8');
       const evidenceSource = contract.keyEvidence.sourceSymbol
-        ? findNamedSource(source, contract.sourcePath, contract.keyEvidence.sourceSymbol)
+        ? findNamedSource(evidenceFileSource, evidenceSourcePath, contract.keyEvidence.sourceSymbol)
         : consumerSource;
       if (contract.keyEvidence.sourceSymbol) {
-        expect(consumerSource, `${contract.id}:${contract.keyEvidence.sourceSymbol}`).toContain(
-          contract.keyEvidence.sourceSymbol,
-        );
+        const referenceSymbol =
+          contract.keyEvidence.consumerReferenceSymbol ?? contract.keyEvidence.sourceSymbol;
+        expect(consumerSource, `${contract.id}:${referenceSymbol}`).toContain(referenceSymbol);
       }
 
       for (const key of contract.keys) {
@@ -396,13 +456,13 @@ describe('APP_SETTINGS_CATALOG', () => {
     );
     expect(cronConsumerPaths).toEqual(
       expect.arrayContaining([
-        'src/app/(backend)/api/admin/desktop-release/route.ts',
+        'src/app/(backend)/api/admin/desktop-release/auth.ts',
         'src/app/(backend)/api/admin/maintenance/route.ts',
       ]),
     );
     expect(catalogItem(APP_SETTING_KEYS.cronSecret).runtimeConsumers).toContainEqual({
       id: 'desktop-release-legacy-authentication',
-      sourcePath: 'src/app/(backend)/api/admin/desktop-release/route.ts',
+      sourcePath: 'src/app/(backend)/api/admin/desktop-release/auth.ts',
       symbol: 'resolveDesktopReleaseToken',
     });
     expect(catalogItem(APP_SETTING_KEYS.referralRewardCredits).runtimeConsumers).toContainEqual(

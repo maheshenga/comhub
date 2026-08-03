@@ -10,9 +10,9 @@ import { createModuleAppFunctionWorkflowExecutor } from '@/business/server/modul
 import { createModuleAppHttpWorkflowExecutor } from '@/business/server/module-apps/workflows/executors/http';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { getServerDB } from '@/database/server';
-import { appEnv } from '@/envs/app';
 import { verifyQStashSignature } from '@/libs/qstash';
 import { createModuleAppTextGenerator } from '@/server/services/moduleAppAi';
+import { getServerModuleAppRuntimeConfig } from '@/server/services/moduleAppRuntime/config';
 import { ModuleAppWorkflowDispatch } from '@/server/workflows/moduleApp';
 import { resolveModuleAppWorkflowEntitlement } from '@/server/workflows/moduleApp/entitlement';
 import { runModuleAppWorkflowJob } from '@/server/workflows/moduleApp/run';
@@ -104,7 +104,8 @@ const executeModuleAppWorkflow = async (payload: { installationId: string; runId
 };
 
 export const POST = createModuleAppWorkflowRouteHandler({
-  enabled: appEnv.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED,
+  enabled: async () =>
+    (await getServerModuleAppRuntimeConfig()).switches.workflowPrivilegedExecutorsEnabled,
   execute: executeModuleAppWorkflow,
   verify: verifyQStashSignature,
 });

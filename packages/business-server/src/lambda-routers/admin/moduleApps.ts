@@ -36,6 +36,7 @@ import {
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
+import { getServerModuleAppRuntimeConfig } from '@/server/services/moduleAppRuntime/config';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import {
   createOperationalPaymentConfig,
@@ -43,6 +44,7 @@ import {
   listEnabledPaymentMethods,
 } from '@/server/services/payments/config';
 import { createPaymentAdapter } from '@/server/services/payments/factory';
+import { dispatchDueModuleAppSchedules } from '@/server/workflows/moduleApp/scheduleDispatcher';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
 import { ModuleAppPaymentService } from '../../module-apps/payments/service';
@@ -66,6 +68,18 @@ const moduleAuditReadProcedure = adminAnyCapabilityProcedure([
   ADMIN_CAPABILITIES.moduleAppRead,
   ADMIN_CAPABILITIES.financeRead,
 ]);
+
+const unavailableScheduleDiagnostics = {
+  activeClaims: null,
+  claimableSchedules: null,
+  enabledSchedules: null,
+  failedScheduledRuns24h: null,
+  lastScheduledRunAt: null,
+  oldestClaimableAt: null,
+  staleClaims: null,
+  status: 'unavailable' as const,
+};
+const ADMIN_SCHEDULE_DISPATCH_BATCH_SIZE = 25;
 
 const assertPayoutRecordingEnabled = () =>
   assertModuleAppMutationEnabled(
@@ -552,11 +566,25 @@ export const adminModuleAppsRouter = router({
   }),
 
   getRuntimeDiagnostics: moduleAppReadProcedure.query(async ({ ctx }) => {
-    const runtimeClient = new ModuleAppRuntimeClient();
-    const [probe, enabledModels, paymentConfig] = await Promise.all([
+    const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+    const runtimeClient = new ModuleAppRuntimeClient({
+      baseUrl: runtimeConfig.connections.internalUrl,
+      enabled: runtimeConfig.switches.executionEnabled,
+      internalToken: runtimeConfig.connections.internalToken,
+      invocationEnabled: runtimeConfig.switches.invocationEnabled,
+    });
+    const scheduleDiagnostics = new ModuleAppAdminReadModel(ctx.serverDB)
+      .getRuntimeScheduleDiagnostics()
+      .then((result) => ({ ...result, status: 'available' as const }))
+      .catch((error) => {
+        console.error('[admin/module-apps] Failed to load schedule diagnostics:', error);
+        return unavailableScheduleDiagnostics;
+      });
+    const [probe, enabledModels, paymentConfig, scheduler] = await Promise.all([
       runtimeClient.healthCheck(),
       getAllEnabledModels(ctx.serverDB),
       getServerPaymentConfig(ctx.serverDB),
+      scheduleDiagnostics,
     ]);
     const enabledChatModelCount = enabledModels.filter((model) => model.type === 'chat').length;
     const paymentMethods = listEnabledPaymentMethods(paymentConfig, 'module_app');
@@ -564,7 +592,7 @@ export const adminModuleAppsRouter = router({
     return {
       configuration: {
         ...runtimeClient.getConfigurationStatus(),
-        publicOriginConfigured: Boolean(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN),
+        publicOriginConfigured: runtimeConfig.configuration.publicOriginConfigured,
       },
       platformGateways: {
         ai: {
@@ -588,12 +616,35 @@ export const adminModuleAppsRouter = router({
         },
       },
       probe,
-      switches: {
-        executionEnabled: Boolean(appEnv.MODULE_APP_EXECUTION_ENABLED),
-        invocationEnabled: appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED,
-        publicExecutionEnabled: appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED,
-      },
+      requestedSwitches: runtimeConfig.requestedSwitches,
+      scheduler,
+      switches: runtimeConfig.switches,
     };
+  }),
+
+  dispatchSchedulesNow: moduleAppWriteProcedure.mutation(async ({ ctx }) => {
+    return runRequiredAdminAuditExternalEffect(ctx, {
+      audit: (status, result) => ({
+        action: 'module_app.schedule_dispatch_executed',
+        payload: {
+          batchSize: ADMIN_SCHEDULE_DISPATCH_BATCH_SIZE,
+          bookkeepingFailed: result?.bookkeepingFailed ?? null,
+          claimed: result?.claimed ?? null,
+          dispatched: result?.dispatched ?? null,
+          failed: result?.failed ?? null,
+          terminalStatus: status,
+        },
+        resourceId: 'module-app-scheduler',
+        resourceType: 'moduleAppScheduleDispatcher',
+      }),
+      effect: () =>
+        dispatchDueModuleAppSchedules({
+          batchSize: ADMIN_SCHEDULE_DISPATCH_BATCH_SIZE,
+          db: ctx.serverDB,
+        }),
+      terminalStatus: (result) =>
+        result.failed > 0 || result.bookkeepingFailed > 0 ? 'failed' : 'succeeded',
+    });
   }),
 
   list: moduleAppReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {

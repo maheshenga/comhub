@@ -29,14 +29,8 @@ import {
 } from './distributedGuards';
 import { createModuleAppPlatformGateways } from './platformGateways';
 
-const distributedGuardMode =
-  appEnv.MODULE_APP_EXECUTION_ENABLED ||
-  appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED ||
-  appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED ||
-  appEnv.MODULE_APP_SCHEDULE_DISPATCH_ENABLED ||
-  appEnv.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED
-    ? ('distributed-required' as const)
-    : ('memory-allowed' as const);
+// Runtime switches can change without restarting the server, so fail closed for every gateway.
+const distributedGuardMode = 'distributed-required' as const;
 
 const replayGuard = new ModuleAppReplayGuard({
   backend: createModuleAppReplayGuardBackend({ mode: distributedGuardMode }),
