@@ -10,7 +10,10 @@ const serviceMocks = vi.hoisted(() => ({
   reportPptEvent: vi.fn(),
 }));
 const routerLocation = vi.hoisted(() => ({ search: '' }));
-const responsiveState = vi.hoisted(() => ({ isMobile: false }));
+const responsiveState = vi.hoisted(() => ({
+  constructorEvent: undefined as { type: string } | undefined,
+  isMobile: false,
+}));
 
 vi.mock('@/services/docmee', () => ({
   docmeeService: serviceMocks,
@@ -27,27 +30,33 @@ vi.mock('react-router', async (importOriginal) => ({
 }));
 
 const docmeeConstructor = vi.fn();
-const docmeeEventHandlers = new Map<string, Array<(message?: any) => void>>();
 
-vi.mock('@docmee/sdk-ui', () => ({
-  DocmeeUI: function MockDocmeeUI(options: any) {
+vi.mock('@/libs/ppt/docmeeIframe', () => ({
+  DocmeeIframeAdapter: function MockDocmeeIframeAdapter(options: any) {
     docmeeConstructor(options);
+    if (responsiveState.constructorEvent) {
+      void options.onMessage?.(responsiveState.constructorEvent);
+    }
 
     return {
       destroy: vi.fn(),
-      on: vi.fn((eventName: string, callback: (message?: any) => void) => {
-        const handlers = docmeeEventHandlers.get(eventName) ?? [];
-        handlers.push(callback);
-        docmeeEventHandlers.set(eventName, handlers);
-      }),
     };
   },
 }));
 
+const emitDocmeeEvent = async (message: Record<string, unknown>) => {
+  const options = docmeeConstructor.mock.calls.at(-1)?.[0];
+  if (!options?.onMessage) throw new Error('Docmee onMessage callback was not registered');
+
+  await act(async () => {
+    await options.onMessage(message);
+  });
+};
+
 describe('PptWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    docmeeEventHandlers.clear();
+    responsiveState.constructorEvent = undefined;
     responsiveState.isMobile = false;
     routerLocation.search = '';
     serviceMocks.createPptToken.mockResolvedValue({ sessionId: 's1', token: 'token-1' });
@@ -93,7 +102,7 @@ describe('PptWorkspace', () => {
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
     expect(docmeeConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
-        DOMAIN: 'https://docmee.cn',
+        baseUrl: 'https://docmee.cn',
         isMobile: false,
         page: 'creator-v2',
         token: 'token-1',
@@ -105,6 +114,16 @@ describe('PptWorkspace', () => {
       overflow: 'hidden',
       width: '100%',
     });
+  });
+
+  it('does not arm the mount timeout when Docmee reports mounted during construction', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    responsiveState.constructorEvent = { type: 'mounted' };
+
+    render(<PptWorkspace />);
+
+    await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+    expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 15_000);
   });
 
   it('enables Docmee mobile mode for a new presentation', async () => {
@@ -179,9 +198,7 @@ describe('PptWorkspace', () => {
 
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
 
-    act(() => {
-      docmeeEventHandlers.get('invalid-token')?.[0]?.({ type: 'invalid-token' });
-    });
+    await emitDocmeeEvent({ type: 'invalid-token' });
 
     expect(await screen.findByText('服务连接失败')).toBeInTheDocument();
   });
@@ -191,11 +208,9 @@ describe('PptWorkspace', () => {
 
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
 
-    act(() => {
-      docmeeEventHandlers.get('error')?.[0]?.({
-        data: { message: 'iframe failed' },
-        type: 'error',
-      });
+    await emitDocmeeEvent({
+      data: { message: 'iframe failed' },
+      type: 'error',
     });
 
     expect(await screen.findByText('PPT 创作加载失败')).toBeInTheDocument();

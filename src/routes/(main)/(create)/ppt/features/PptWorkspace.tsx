@@ -6,16 +6,17 @@ import useSWR from 'swr';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { DocmeeIframeAdapter, type DocmeeIframeOptions } from '@/libs/ppt/docmeeIframe';
 import { docmeeService } from '@/services/docmee';
 
 import PptErrorState from './PptErrorState';
 import { useDocmeeToken } from './useDocmeeToken';
 
-const getDownloadButton = (runtime: any) => {
+const getDownloadButton = (runtime: any): DocmeeIframeOptions['downloadButton'] => {
   const formats = [
-    runtime?.allowPptxDownload ? 'pptx' : null,
-    runtime?.allowPdfExport ? 'pdf' : null,
-  ].filter(Boolean);
+    runtime?.allowPptxDownload ? ('pptx' as const) : null,
+    runtime?.allowPdfExport ? ('pdf' as const) : null,
+  ].filter((format): format is 'pdf' | 'pptx' => format !== null);
 
   return formats.length > 0 ? formats : false;
 };
@@ -49,10 +50,7 @@ const PptWorkspace = memo(() => {
   const isMobile = useIsMobile();
   const recordId = new URLSearchParams(search).get('recordId')?.trim() || undefined;
   const containerRef = useRef<HTMLDivElement>(null);
-  const uiRef = useRef<{
-    destroy?: () => void;
-    on?: (eventName: string, callback: (message?: any) => void) => void;
-  } | null>(null);
+  const uiRef = useRef<DocmeeIframeAdapter | null>(null);
   const [errorCode, setErrorCode] = useState<string>();
   const [retryNonce, setRetryNonce] = useState(0);
   const {
@@ -64,8 +62,7 @@ const PptWorkspace = memo(() => {
   const { trigger: createToken } = useDocmeeToken(recordId);
 
   useEffect(() => {
-    if (!runtime || !('enabled' in runtime) || runtime.enabled === false || !containerRef.current)
-      return;
+    if (!runtime || runtime.enabled === false || !runtime.baseUrl || !containerRef.current) return;
 
     let disposed = false;
     let mountTimeout: number | undefined;
@@ -76,19 +73,29 @@ const PptWorkspace = memo(() => {
         const token = await createToken();
         if (disposed || !containerRef.current || !token?.token) return;
         const pptId = token.upstreamTaskId;
+        let mounted = false;
 
-        const { DocmeeUI } = await import('@docmee/sdk-ui');
-        if (disposed || !containerRef.current) return;
-
-        const ui = new DocmeeUI({
-          DOMAIN: runtime.baseUrl,
+        const ui = new DocmeeIframeAdapter({
+          baseUrl: runtime.baseUrl,
           container: containerRef.current,
           creatorVersion: runtime.creatorVersion,
-          downloadButton: getDownloadButton(runtime) as any,
+          downloadButton: getDownloadButton(runtime),
           isMobile,
           lang: runtime.lang,
           mode: 'light',
           onMessage: async (event: any) => {
+            if (['error', 'invalid-token', 'mounted'].includes(event.type)) {
+              mounted = true;
+              if (mountTimeout) window.clearTimeout(mountTimeout);
+
+              if (!disposed && event.type === 'invalid-token') {
+                setErrorCode('PPT_UPSTREAM_TOKEN_FAILED');
+              }
+              if (!disposed && event.type === 'error') {
+                setErrorCode(getDocmeeErrorCode(event));
+              }
+            }
+
             if (!token?.sessionId) return;
             if (
               ['afterGenerate', 'beforeDownload', 'charge', 'error', 'pageChange'].includes(
@@ -109,25 +116,11 @@ const PptWorkspace = memo(() => {
         });
         uiRef.current = ui;
 
-        let mounted = false;
-        mountTimeout = window.setTimeout(() => {
-          if (!disposed && !mounted) setErrorCode('PPT_UPSTREAM_TOKEN_FAILED');
-        }, 15_000);
-
-        ui.on?.('mounted', () => {
-          mounted = true;
-          window.clearTimeout(mountTimeout);
-        });
-        ui.on?.('invalid-token', () => {
-          mounted = true;
-          window.clearTimeout(mountTimeout);
-          if (!disposed) setErrorCode('PPT_UPSTREAM_TOKEN_FAILED');
-        });
-        ui.on?.('error', (message: any) => {
-          mounted = true;
-          window.clearTimeout(mountTimeout);
-          if (!disposed) setErrorCode(getDocmeeErrorCode(message));
-        });
+        if (!mounted) {
+          mountTimeout = window.setTimeout(() => {
+            if (!disposed && !mounted) setErrorCode('PPT_UPSTREAM_TOKEN_FAILED');
+          }, 15_000);
+        }
       } catch (error: any) {
         if (!disposed) setErrorCode(getDocmeeErrorCode(error));
       }
@@ -138,7 +131,7 @@ const PptWorkspace = memo(() => {
     return () => {
       disposed = true;
       if (mountTimeout) window.clearTimeout(mountTimeout);
-      uiRef.current?.destroy?.();
+      uiRef.current?.destroy();
       uiRef.current = null;
     };
   }, [createToken, isMobile, recordId, runtime, retryNonce]);
@@ -176,11 +169,7 @@ const PptWorkspace = memo(() => {
   if (errorCode) return renderError(errorCode);
 
   return (
-    <div
-      data-testid="ppt-workspace-container"
-      ref={containerRef}
-      style={workspaceContainerStyle}
-    />
+    <div data-testid="ppt-workspace-container" ref={containerRef} style={workspaceContainerStyle} />
   );
 });
 
