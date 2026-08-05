@@ -22,6 +22,7 @@ const adminSettingsRuntimeProcedures =
   'packages/business-server/src/appSettings/writers/runtimeProcedures.ts';
 const mobilePublicationProcedures =
   'packages/business-server/src/appSettings/readers/mobilePublicationProcedures.ts';
+const moduleAppRuntimeConfig = 'packages/business-server/src/module-apps/runtimeConfig.ts';
 
 export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   {
@@ -48,13 +49,25 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   {
     id: 'payment-runtime-config',
     keyEvidence: {
+      consumerReferenceSymbol: 'PAYMENT_SETTING_KEYS',
       kind: 'registry',
       namespace: 'APP_SETTING_KEYS',
-      sourceSymbol: 'PAYMENT_SETTING_KEYS',
+      sourcePath: 'src/server/services/payments/environmentFallbacks.ts',
+      sourceSymbol: 'PAYMENT_ENVIRONMENT_FALLBACKS',
     },
     keys: keysWithPrefixes('payment.'),
     sourcePath: 'src/server/services/payments/config.ts',
     symbol: 'getServerPaymentConfig',
+  },
+  {
+    id: 'module-app-runtime-config',
+    keyEvidence: {
+      kind: 'registry',
+      namespace: 'APP_SETTING_KEYS',
+    },
+    keys: keysWithPrefixes('moduleApp.runtime.'),
+    sourcePath: moduleAppRuntimeConfig,
+    symbol: 'resolveModuleAppRuntimeConfig',
   },
   {
     id: 'maintenance-endpoint',
@@ -67,7 +80,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     id: 'desktop-release-legacy-authentication',
     keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: [APP_SETTING_KEYS.cronSecret],
-    sourcePath: 'src/app/(backend)/api/admin/desktop-release/route.ts',
+    sourcePath: 'src/app/(backend)/api/admin/desktop-release/auth.ts',
     symbol: 'resolveDesktopReleaseToken',
   },
   {

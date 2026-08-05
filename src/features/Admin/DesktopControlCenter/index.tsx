@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox, Icon } from '@lobehub/ui';
+import { Icon } from '@lobehub/ui';
 import { confirmModal, Tabs } from '@lobehub/ui/base-ui';
-import { Typography } from 'antd';
 import { Laptop } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +14,7 @@ import {
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminPageShell } from '../layout';
 import BrandPage from './BrandPage';
 import BuildProfilePage from './BuildProfilePage';
 import DistributionPage from './DistributionPage';
@@ -101,12 +101,18 @@ const DesktopControlCenter = memo(() => {
   }, [dirty]);
 
   return (
-    <Flexbox className={desktopControlCenterStyles.page} gap={16}>
-      <div className={desktopControlCenterStyles.header}>
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={2}>
-          <Icon icon={Laptop} size={22} /> {t('admin.desktopControl.title')}
-        </Typography.Title>
-      </div>
+    <AdminPageShell
+      width="full"
+      description={t(
+        'admin.desktopControl.subtitle',
+        '统一管理桌面端品牌、安装包、更新策略和分发状态。',
+      )}
+      title={
+        <span>
+          <Icon icon={Laptop} size={20} /> {t('admin.desktopControl.title')}
+        </span>
+      }
+    >
       <Tabs
         activeKey={activeKey}
         className={desktopControlCenterStyles.tabs}
@@ -159,7 +165,7 @@ const DesktopControlCenter = memo(() => {
         ]}
         onChange={(tab) => void changeTab(tab)}
       />
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

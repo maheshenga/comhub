@@ -31,7 +31,18 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
+  Input: ({ ...props }: any) => <input {...props} />,
   Modal: ({ children, open }: any) => (open ? <div>{children}</div> : null),
+  Select: ({ options, ...props }: any) => (
+    <select {...props}>
+      {options.map((option: { label: string; value: string }) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
+  TextArea: ({ ...props }: any) => <textarea {...props} />,
   confirmModal: mocks.confirmModal,
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -56,6 +67,22 @@ const app = {
 const ContextRoute = () => <Outlet context={{ app, refresh: mocks.refresh }} />;
 
 describe('ModuleAppOverviewPage', () => {
+  it('exposes a structured overview header and metadata region', () => {
+    render(
+      <MemoryRouter>
+        <Routes>
+          <Route element={<ContextRoute />}>
+            <Route index element={<ModuleAppOverviewPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('module-app-overview-header')).toBeInTheDocument();
+    expect(screen.getByTestId('module-app-overview-actions')).toBeInTheDocument();
+    expect(screen.getByTestId('module-app-overview-metadata')).toBeInTheDocument();
+  });
+
   it('consumes the detail outlet context and refreshes only application caches after publish', async () => {
     render(
       <MemoryRouter>

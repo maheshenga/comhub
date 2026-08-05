@@ -1,6 +1,9 @@
 'use client';
 
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert } from 'antd';
 import { createStaticStyles } from 'antd-style';
+import { RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -23,6 +26,63 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: ${cssVar.fontSize};
     line-height: ${cssVar.lineHeight};
     color: ${cssVar.colorTextSecondary};
+  `,
+  formActions: css`
+    position: sticky;
+    z-index: 3;
+    inset-block-end: 0;
+
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+
+    margin-inline: -24px;
+    padding-block: 12px;
+    padding-inline: 24px;
+    border-block-start: 1px solid ${cssVar.colorBorderSecondary};
+
+    background: color-mix(in srgb, ${cssVar.colorBgContainer} 94%, transparent);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 -4px 16px rgb(0 0 0 / 6%);
+
+    @media (width < 640px) {
+      justify-content: stretch;
+      margin-inline: -16px;
+      padding-inline: 16px;
+
+      > * {
+        flex: 1;
+      }
+    }
+  `,
+  formGrid: css`
+    display: grid;
+    gap: 0 16px;
+    min-width: 0;
+
+    > * {
+      min-width: 0;
+    }
+  `,
+  formGridTwo: css`
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (width < 640px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  `,
+  formGridThree: css`
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    @media (width < 900px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (width < 640px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
   `,
   header: css`
     display: flex;
@@ -309,6 +369,66 @@ export const AdminToolbar = ({ children, sticky }: AdminToolbarProps) => (
   >
     {children}
   </div>
+);
+
+export interface AdminFormGridProps {
+  children: ReactNode;
+  columns?: 2 | 3;
+  label?: string;
+}
+
+export const AdminFormGrid = ({
+  children,
+  columns = 2,
+  label = '表单字段',
+}: AdminFormGridProps) => (
+  <div
+    aria-label={label}
+    role="group"
+    className={[styles.formGrid, columns === 3 ? styles.formGridThree : styles.formGridTwo].join(
+      ' ',
+    )}
+  >
+    {children}
+  </div>
+);
+
+export interface AdminFormActionsProps {
+  children: ReactNode;
+  label?: string;
+}
+
+export const AdminFormActions = ({ children, label = '表单操作' }: AdminFormActionsProps) => (
+  <div aria-label={label} className={styles.formActions} role="toolbar">
+    {children}
+  </div>
+);
+
+export interface AdminPageErrorProps {
+  description?: ReactNode;
+  onRetry: () => Promise<unknown> | unknown;
+  retryLabel?: string;
+  title?: ReactNode;
+}
+
+export const AdminPageError = ({
+  description,
+  onRetry,
+  retryLabel = '重试',
+  title = '数据加载失败',
+}: AdminPageErrorProps) => (
+  <Alert
+    showIcon
+    description={description}
+    message={title}
+    type="error"
+    action={
+      <Button size="small" onClick={() => void onRetry()}>
+        <RefreshCw aria-hidden size={14} />
+        {retryLabel}
+      </Button>
+    }
+  />
 );
 
 export type AdminMetric = {

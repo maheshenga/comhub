@@ -96,6 +96,15 @@ export const APP_SETTING_KEYS = {
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   mobileConfig: 'mobile.config',
   mobileConfigPublication: 'mobile.config.publication',
+  moduleAppExecutionEnabled: 'moduleApp.runtime.execution.enabled',
+  moduleAppPublicExecutionEnabled: 'moduleApp.runtime.publicExecution.enabled',
+  moduleAppRuntimeInternalToken: 'moduleApp.runtime.internalToken',
+  moduleAppRuntimeInternalUrl: 'moduleApp.runtime.internalUrl',
+  moduleAppRuntimeInvocationEnabled: 'moduleApp.runtime.invocation.enabled',
+  moduleAppRuntimePublicOrigin: 'moduleApp.runtime.publicOrigin',
+  moduleAppScheduleDispatchEnabled: 'moduleApp.runtime.scheduleDispatch.enabled',
+  moduleAppWorkflowPrivilegedExecutorsEnabled:
+    'moduleApp.runtime.workflowPrivilegedExecutors.enabled',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
   notificationEventDefaults: 'notification.eventDefaults',
@@ -210,6 +219,7 @@ export const APP_SETTINGS_SECTIONS = [
   'mobile',
   'model-billing-matrix',
   'model-policy',
+  'module-runtime',
   'notifications',
   'operations',
   'payments',
@@ -275,10 +285,22 @@ const MODEL_BILLING_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.defaultVideoProvider,
 ]);
 
+const MODULE_RUNTIME_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.moduleAppExecutionEnabled,
+  APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
+  APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+  APP_SETTING_KEYS.moduleAppRuntimeInternalUrl,
+  APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+  APP_SETTING_KEYS.moduleAppRuntimePublicOrigin,
+  APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
+  APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
+]);
+
 export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSection => {
   if (SETTINGS_SECTION_KEYS.has(key)) return 'settings';
   if (PLANS_SECTION_KEYS.has(key)) return 'plans';
   if (MODEL_BILLING_SECTION_KEYS.has(key)) return 'model-billing-matrix';
+  if (MODULE_RUNTIME_SECTION_KEYS.has(key)) return 'module-runtime';
   if (AI_RUNTIME_DEFAULTS_SECTION_KEYS.has(key)) return 'ai-runtime-defaults';
   if (INTEGRATIONS_SECTION_KEYS.has(key)) return 'integrations';
   if (MOBILE_SECTION_KEYS.has(key)) return 'mobile';
@@ -319,6 +341,7 @@ export type AppSettingDomain =
   | 'content'
   | 'growth'
   | 'model'
+  | 'module-apps'
   | 'notification'
   | 'operations'
   | 'payments'
@@ -353,6 +376,7 @@ const inferDomain = (key: AppSettingKey): AppSettingDomain => {
     return 'growth';
   }
   if (key.startsWith('notification.')) return 'notification';
+  if (key.startsWith('moduleApp.')) return 'module-apps';
   if (key.startsWith('payment.')) return 'payments';
   if (
     key.startsWith('model.') ||
@@ -376,6 +400,7 @@ const SENSITIVE_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.cronSecret,
   APP_SETTING_KEYS.desktopOssAccessKeySecret,
   APP_SETTING_KEYS.docmeePptApiKey,
+  APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
   APP_SETTING_KEYS.paymentAlipayCertificate,
   APP_SETTING_KEYS.paymentAlipayMerchantPrivateKey,
   APP_SETTING_KEYS.paymentAlipayPublicKey,
@@ -423,6 +448,8 @@ const getCacheScopes = (key: AppSettingKey): AppSettingRegistryItem['cacheScopes
   ) {
     scopes.push('runtime');
   }
+
+  if (key.startsWith('moduleApp.')) scopes.push('runtime');
 
   if (key.startsWith('storage.')) scopes.push('s3');
   if (key === APP_SETTING_KEYS.userGlobalSettingsDefaults) scopes.push('user-state');

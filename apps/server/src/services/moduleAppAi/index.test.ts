@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   release: vi.fn(),
   reserve: vi.fn(),
   settle: vi.fn(),
-  shouldChargeCommercialUsage: vi.fn(),
 }));
 
 vi.mock('@/server/modules/ModelRuntime', () => ({
@@ -20,7 +19,6 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
 vi.mock('@/business/server/commercialBilling', () => ({
   estimateCommercialChatCredits: mocks.estimateCommercialChatCredits,
   quoteCommercialAiUsage: mocks.quoteCommercialAiUsage,
-  shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
 }));
 
 vi.mock('@/database/models/moduleAppCredit', () => ({
@@ -37,7 +35,6 @@ describe('createModuleAppTextGenerator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.estimateCommercialChatCredits.mockResolvedValue(100);
-    mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.reserve.mockResolvedValue({ id: 'reservation-1', status: 'active' });
     mocks.quoteCommercialAiUsage.mockResolvedValue({
       credits: 80,
@@ -80,17 +77,18 @@ describe('createModuleAppTextGenerator', () => {
       idempotencyKey: 'run-1:generate',
       model: 'model-a',
       prompt: 'hello',
-      provider: 'provider-a',
+      provider: 'newapi',
       userId: 'user-1',
     });
 
     expect(mocks.initModelRuntimeFromDB).toHaveBeenCalledWith(
       db,
       'user-1',
-      'provider-a',
+      'newapi',
       expect.objectContaining({
         model: 'model-a',
         onRouteResolved: expect.any(Function),
+        requireAdminManagedNewapi: true,
         workspaceId: 'workspace-1',
       }),
     );
@@ -114,7 +112,8 @@ describe('createModuleAppTextGenerator', () => {
       expect.objectContaining({
         db,
         model: 'model-a',
-        provider: 'provider-a',
+        provider: 'newapi',
+        forceCharge: true,
         routeMetadata: expect.objectContaining({
           groupKey: 'premium',
           instanceId: 'instance-2',
@@ -134,7 +133,7 @@ describe('createModuleAppTextGenerator', () => {
         combinedMultiplier: '1.35',
         costSource: 'gateway',
         model: 'model-a',
-        provider: 'provider-a',
+        provider: 'newapi',
         routeMetadata: expect.objectContaining({
           groupKey: 'premium',
           instanceId: 'instance-2',
@@ -150,6 +149,25 @@ describe('createModuleAppTextGenerator', () => {
     });
   });
 
+  it('rejects a module request that attempts to select a non-platform AI provider', async () => {
+    const generator = createModuleAppTextGenerator({ db });
+
+    await expect(
+      generator({
+        actionMultiplier: 1,
+        appMultiplier: 1,
+        chargeAiUsage: true,
+        idempotencyKey: 'run-provider-denied:generate',
+        model: 'model-a',
+        prompt: 'hello',
+        provider: 'openai',
+        userId: 'user-1',
+      }),
+    ).rejects.toThrow('MODULE_APP_AI_PROVIDER_DENIED');
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.initModelRuntimeFromDB).not.toHaveBeenCalled();
+  });
+
   it('releases the reservation when runtime initialization fails before a provider response', async () => {
     mocks.initModelRuntimeFromDB.mockRejectedValue(new Error('provider_not_started'));
     const generator = createModuleAppTextGenerator({ db });
@@ -162,7 +180,7 @@ describe('createModuleAppTextGenerator', () => {
         idempotencyKey: 'run-2:generate',
         model: 'model-a',
         prompt: 'hello',
-        provider: 'provider-a',
+        provider: 'newapi',
         userId: 'user-1',
       }),
     ).rejects.toThrow('provider_not_started');
@@ -173,12 +191,10 @@ describe('createModuleAppTextGenerator', () => {
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
-  it('does not reserve platform credits when the user supplies provider credentials', async () => {
-    mocks.shouldChargeCommercialUsage.mockResolvedValue(false);
-    mocks.quoteCommercialAiUsage.mockResolvedValue(null);
+  it('charges managed NewAPI usage even when a user has their own provider credential', async () => {
     mocks.initModelRuntimeFromDB.mockResolvedValue({
       chat: vi.fn(async (_payload, options) => {
-        await options.callback.onText('BYOK response');
+        await options.callback.onText('Managed response');
         await options.callback.onCompletion({
           usage: { cost: 0.01, totalInputTokens: 2, totalOutputTokens: 3, totalTokens: 5 },
         });
@@ -195,15 +211,46 @@ describe('createModuleAppTextGenerator', () => {
         idempotencyKey: 'run-byok:generate',
         model: 'model-a',
         prompt: 'hello',
-        provider: 'provider-a',
+        provider: 'newapi',
         userId: 'user-1',
       }),
-    ).resolves.toMatchObject({ actualAiCredits: 0, text: 'BYOK response' });
+    ).resolves.toMatchObject({ actualAiCredits: 80, text: 'Managed response' });
 
-    expect(mocks.reserve).not.toHaveBeenCalled();
-    expect(mocks.estimateCommercialChatCredits).not.toHaveBeenCalled();
-    expect(mocks.quoteCommercialAiUsage).not.toHaveBeenCalled();
-    expect(mocks.settle).not.toHaveBeenCalled();
+    expect(mocks.reserve).toHaveBeenCalledOnce();
+    expect(mocks.estimateCommercialChatCredits).toHaveBeenCalledOnce();
+    expect(mocks.quoteCommercialAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ forceCharge: true, provider: 'newapi' }),
+    );
+    expect(mocks.settle).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to the reserved estimate when managed usage cannot be quoted', async () => {
+    mocks.quoteCommercialAiUsage.mockResolvedValue(null);
+    mocks.initModelRuntimeFromDB.mockResolvedValue({
+      chat: vi.fn(async (_payload, options) => {
+        await options.callback.onText('Managed response');
+        await options.callback.onCompletion({ usage: {} });
+        return new Response('');
+      }),
+    });
+    const generator = createModuleAppTextGenerator({ db });
+
+    await expect(
+      generator({
+        actionMultiplier: 1,
+        appMultiplier: 1,
+        chargeAiUsage: true,
+        idempotencyKey: 'run-unquoted:generate',
+        model: 'model-a',
+        prompt: 'hello',
+        provider: 'newapi',
+        userId: 'user-1',
+      }),
+    ).resolves.toMatchObject({ actualAiCredits: 100, text: 'Managed response' });
+
+    expect(mocks.settle).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: 100, reservationId: 'reservation-1' }),
+    );
   });
 
   it('rejects replay after the reservation has already been settled', async () => {
@@ -218,7 +265,7 @@ describe('createModuleAppTextGenerator', () => {
         idempotencyKey: 'run-3:generate',
         model: 'model-a',
         prompt: 'hello',
-        provider: 'provider-a',
+        provider: 'newapi',
         userId: 'user-1',
       }),
     ).rejects.toThrow('MODULE_APP_AI_IDEMPOTENCY_REPLAY');
@@ -245,12 +292,11 @@ describe('createModuleAppTextGenerator', () => {
         idempotencyKey: 'run-free:generate',
         model: 'model-a',
         prompt: 'hello',
-        provider: 'provider-a',
+        provider: 'newapi',
         userId: 'user-1',
       }),
     ).resolves.toMatchObject({ actualAiCredits: 0, text: 'Uncharged response' });
 
-    expect(mocks.shouldChargeCommercialUsage).not.toHaveBeenCalled();
     expect(mocks.estimateCommercialChatCredits).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.quoteCommercialAiUsage).not.toHaveBeenCalled();
@@ -270,7 +316,7 @@ describe('createModuleAppTextGenerator', () => {
         idempotencyKey: 'run-missing-charge-mode:generate',
         model: 'model-a',
         prompt: 'hello',
-        provider: 'provider-a',
+        provider: 'newapi',
         userId: 'user-1',
       } as never),
     ).rejects.toThrow('MODULE_APP_AI_CHARGE_MODE_REQUIRED');

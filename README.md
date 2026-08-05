@@ -32,9 +32,12 @@ bun run dev:spa
 
 GitHub Actions validates pull requests, builds commit-tagged images in GHCR,
 and keeps production deployment manual. Deployment resolves image digests so
-the selected artifact is immutable. Production and credentialed staging
-workflows are dispatched from protected branches only. Repository secrets,
-server details, and payment credentials are not stored in source control.
+the selected artifact is immutable. Production workflows are dispatched from
+protected branches only. AI and payment provider configuration is managed in
+the application administration center instead of GitHub Actions. Existing
+server environment fallbacks remain migration-only compatibility and are
+reported to administrators until equivalent backend settings are saved.
+Repository secrets, server details, and payment credentials are not stored in source control.
 
 ## Contribution
 

@@ -2,6 +2,7 @@ import type { ModuleAppCapabilityClaims } from '@lobechat/types';
 
 import type { ModuleAppDataService } from '../data/service';
 import type { ModuleAppTaskService } from '../workflows/taskService';
+import type { ModuleAppAiGateway } from './ai';
 import {
   assertModuleAppContextScope,
   type ModuleAppContextResolver,
@@ -10,9 +11,12 @@ import {
 import type { ModuleAppFileGateway } from './files';
 import type { ModuleAppHttpGateway } from './http';
 import type { ModuleAppNotificationGateway } from './notifications';
+import type { ModuleAppPaymentsGateway } from './payments';
 import type { ModuleAppSecretsGateway } from './secrets';
 
 export type ModuleAppGatewayMethod =
+  | 'ai.chat'
+  | 'ai.models.list'
   | 'context.get'
   | 'data.archive'
   | 'data.get'
@@ -24,11 +28,17 @@ export type ModuleAppGatewayMethod =
   | 'files.createUpload'
   | 'http.fetch'
   | 'notifications.create'
+  | 'payments.catalog.list'
+  | 'payments.checkout.create'
+  | 'payments.methods.list'
+  | 'payments.status.get'
   | 'secrets.get'
   | 'tasks.cancel'
   | 'tasks.getRun';
 
 const requiredPermission: Record<ModuleAppGatewayMethod, null | string> = {
+  'ai.chat': 'ai.chat',
+  'ai.models.list': 'ai.models.read',
   'context.get': null,
   'data.archive': 'data.write',
   'data.get': 'data.read',
@@ -40,12 +50,17 @@ const requiredPermission: Record<ModuleAppGatewayMethod, null | string> = {
   'files.createUpload': 'files.write',
   'http.fetch': 'http.fetch',
   'notifications.create': 'notifications.write',
+  'payments.catalog.list': 'payments.catalog.read',
+  'payments.checkout.create': 'payments.checkout',
+  'payments.methods.list': 'payments.methods.read',
+  'payments.status.get': 'payments.orders.read',
   'secrets.get': 'secrets.read',
   'tasks.cancel': 'tasks.write',
   'tasks.getRun': 'tasks.read',
 };
 
 const mutationMethods = new Set<ModuleAppGatewayMethod>([
+  'ai.chat',
   'data.archive',
   'data.insert',
   'data.transaction',
@@ -53,6 +68,7 @@ const mutationMethods = new Set<ModuleAppGatewayMethod>([
   'files.createUpload',
   'http.fetch',
   'notifications.create',
+  'payments.checkout.create',
   'tasks.cancel',
 ]);
 
@@ -91,32 +107,38 @@ export interface ModuleAppReplayGuardBackend {
 }
 
 type GatewayOptions = {
+  ai: ModuleAppAiGateway;
   context: ModuleAppContextResolver;
   data: ModuleAppDataService;
   files: ModuleAppFileGateway;
   http: ModuleAppHttpGateway;
   notifications: ModuleAppNotificationGateway;
+  payments: ModuleAppPaymentsGateway;
   replayGuard: ModuleAppReplayGuard;
   secrets: ModuleAppSecretsGateway;
   tasks: ModuleAppTaskService;
 };
 
 export class ModuleAppCapabilityGateway {
+  private readonly ai: ModuleAppAiGateway;
   private readonly context: ModuleAppContextResolver;
   private readonly data: ModuleAppDataService;
   private readonly files: ModuleAppFileGateway;
   private readonly http: ModuleAppHttpGateway;
   private readonly notifications: ModuleAppNotificationGateway;
+  private readonly payments: ModuleAppPaymentsGateway;
   private readonly replayGuard: ModuleAppReplayGuard;
   private readonly secrets: ModuleAppSecretsGateway;
   private readonly tasks: ModuleAppTaskService;
 
   constructor(options: GatewayOptions) {
+    this.ai = options.ai;
     this.context = options.context;
     this.data = options.data;
     this.files = options.files;
     this.http = options.http;
     this.notifications = options.notifications;
+    this.payments = options.payments;
     this.replayGuard = options.replayGuard;
     this.secrets = options.secrets;
     this.tasks = options.tasks;
@@ -140,6 +162,21 @@ export class ModuleAppCapabilityGateway {
     }
 
     switch (params.method) {
+      case 'ai.chat': {
+        return this.ai.chat({
+          capability: params.capability,
+          context,
+          payload: params.input,
+          requestId: params.requestId!,
+        });
+      }
+      case 'ai.models.list': {
+        return this.ai.listModels({
+          capability: params.capability,
+          context,
+          payload: params.input,
+        });
+      }
       case 'context.get': {
         return serializeModuleAppContext(context);
       }
@@ -176,6 +213,35 @@ export class ModuleAppCapabilityGateway {
           params.input,
           params.requestId!,
         );
+      }
+      case 'payments.catalog.list': {
+        return this.payments.listCatalog({
+          capability: params.capability,
+          context,
+          payload: params.input,
+        });
+      }
+      case 'payments.checkout.create': {
+        return this.payments.createCheckout({
+          capability: params.capability,
+          context,
+          payload: params.input,
+          requestId: params.requestId!,
+        });
+      }
+      case 'payments.methods.list': {
+        return this.payments.listMethods({
+          capability: params.capability,
+          context,
+          payload: params.input,
+        });
+      }
+      case 'payments.status.get': {
+        return this.payments.getOrderStatus({
+          capability: params.capability,
+          context,
+          payload: params.input,
+        });
       }
       case 'secrets.get': {
         return this.secrets.get(params.capability, params.input, context.secretKeys);

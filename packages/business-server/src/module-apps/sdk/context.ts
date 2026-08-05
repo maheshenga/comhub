@@ -1,7 +1,8 @@
-import type { ModuleAppCapabilityClaims } from '@lobechat/types';
+import type { ModuleAppBillingConfig, ModuleAppCapabilityClaims } from '@lobechat/types';
 
 export type ModuleAppGatewayContext = {
   appId: string;
+  billing?: ModuleAppBillingConfig;
   displayName: string;
   installationId: string;
   outboundHosts: string[];
@@ -9,6 +10,7 @@ export type ModuleAppGatewayContext = {
   scopeType: 'personal' | 'workspace';
   userId?: null | string;
   versionId: string;
+  workspaceRole?: 'admin' | 'member' | 'owner';
   workspaceId?: null | string;
 };
 

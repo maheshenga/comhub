@@ -74,6 +74,7 @@ const moduleAppPayoutMocks = vi.hoisted(() => ({
 }));
 
 const moduleAppReadModelMocks = vi.hoisted(() => ({
+  getRuntimeScheduleDiagnostics: vi.fn(),
   listApplications: vi.fn(),
   listArtifacts: vi.fn(),
   listAuditEvents: vi.fn(),
@@ -100,12 +101,15 @@ const moduleAppRuntimeClientMocks = vi.hoisted(() => ({
   getConfigurationStatus: vi.fn(),
   healthCheck: vi.fn(),
 }));
+const getServerModuleAppRuntimeConfig = vi.hoisted(() => vi.fn());
+const dispatchDueModuleAppSchedules = vi.hoisted(() => vi.fn());
 const recordModuleAppPayoutState = vi.hoisted(() => vi.fn());
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
 const mockCreatePaymentAdapter = vi.hoisted(() =>
   vi.fn(() => ({ method: 'alipay', provider: 'alipay' })),
 );
 const mockGetServerPaymentConfig = vi.hoisted(() => vi.fn());
+const mockGetAllEnabledModels = vi.hoisted(() => vi.fn());
 const mockListEnabledPaymentMethods = vi.hoisted(() => vi.fn());
 const externalAuditMock = vi.hoisted(() => vi.fn());
 
@@ -189,6 +193,18 @@ vi.mock('@/server/services/moduleAppBuild/service', () => ({
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
   ModuleAppRuntimeClient: vi.fn(() => moduleAppRuntimeClientMocks),
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/config', () => ({
+  getServerModuleAppRuntimeConfig,
+}));
+
+vi.mock('@/server/workflows/moduleApp/scheduleDispatcher', () => ({
+  dispatchDueModuleAppSchedules,
+}));
+
+vi.mock('@/server/services/newapiInstance', () => ({
+  getAllEnabledModels: mockGetAllEnabledModels,
 }));
 
 vi.mock('../../module-apps/audit', () => ({
@@ -345,6 +361,7 @@ describe('admin module apps router', () => {
     buildServiceMocks.approvePackage.mockResolvedValue({
       appId: APP_ID,
       build: { id: 'build-1', status: 'queued' },
+      outboundHostPolicies: [],
       package: { id: PACKAGE_ID, reviewStatus: 'approved' },
       slug: 'workbench',
       versionId: 'version-1',
@@ -367,18 +384,60 @@ describe('admin module apps router', () => {
     mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = false;
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = undefined;
     mockGetServerPaymentConfig.mockResolvedValue({
-      alipay: { configured: true, enabled: true },
+      alipay: {
+        configured: true,
+        enabled: true,
+        merchantPrivateKey: 'payment-private-secret',
+      },
       enabled: true,
       moduleAppEnabled: true,
+      publicBaseUrl: 'https://billing.example.com',
+      source: {
+        backendManaged: false,
+        legacyEnvironmentKeys: ['PAYMENT_ENABLED'],
+      },
     });
     mockListEnabledPaymentMethods.mockReturnValue([
       { id: 'alipay', label: 'Alipay', provider: 'alipay' },
+      { id: 'zpay_wechat', label: 'Z-Pay WeChat', provider: 'zpay' },
+    ]);
+    mockGetAllEnabledModels.mockResolvedValue([
+      {
+        id: 'gpt-secret-model',
+        instanceName: 'Private NewAPI Gateway',
+        type: 'chat',
+      },
+      { id: 'image-secret-model', type: 'image' },
     ]);
     moduleAppRuntimeClientMocks.getConfigurationStatus.mockReturnValue({
       internalTokenConfigured: false,
       internalUrlConfigured: true,
     });
     moduleAppRuntimeClientMocks.healthCheck.mockResolvedValue({ status: 'disabled' });
+    getServerModuleAppRuntimeConfig.mockResolvedValue({
+      configuration: { publicOriginConfigured: false },
+      connections: {},
+      requestedSwitches: {
+        executionEnabled: false,
+        invocationEnabled: false,
+        publicExecutionEnabled: false,
+        scheduleDispatchEnabled: false,
+        workflowPrivilegedExecutorsEnabled: false,
+      },
+      switches: {
+        executionEnabled: false,
+        invocationEnabled: false,
+        publicExecutionEnabled: false,
+        scheduleDispatchEnabled: false,
+        workflowPrivilegedExecutorsEnabled: false,
+      },
+    });
+    dispatchDueModuleAppSchedules.mockResolvedValue({
+      bookkeepingFailed: 0,
+      claimed: 2,
+      dispatched: 1,
+      failed: 1,
+    });
     moduleAppPaymentMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     moduleAppPaymentMocks.reconcilePayment.mockResolvedValue({ status: 'paid' });
     moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValue({ count: 0, results: [] });
@@ -443,6 +502,15 @@ describe('admin module apps router', () => {
     moduleAppReadModelMocks.listRecords.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppReadModelMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppReadModelMocks.listRuns.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.getRuntimeScheduleDiagnostics.mockResolvedValue({
+      activeClaims: 1,
+      claimableSchedules: 2,
+      enabledSchedules: 4,
+      failedScheduledRuns24h: 1,
+      lastScheduledRunAt: new Date('2026-07-12T00:30:00.000Z'),
+      oldestClaimableAt: new Date('2026-07-12T00:00:00.000Z'),
+      staleClaims: 1,
+    });
     moduleAppRevenueMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.settleBatchWithAudit.mockResolvedValue({
       batchId: '00000000-0000-4000-8000-000000000031',
@@ -481,6 +549,24 @@ describe('admin module apps router', () => {
       code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
       status: 'unavailable',
     });
+    const requestedSwitches = {
+      executionEnabled: true,
+      invocationEnabled: true,
+      publicExecutionEnabled: true,
+      scheduleDispatchEnabled: true,
+      workflowPrivilegedExecutorsEnabled: true,
+    };
+    const switches = { ...requestedSwitches };
+    getServerModuleAppRuntimeConfig.mockResolvedValueOnce({
+      configuration: { publicOriginConfigured: true },
+      connections: {
+        internalToken: 'runtime-internal-token',
+        internalUrl: 'http://module-runtime:3210',
+        publicOrigin: 'https://runtime.example.com',
+      },
+      requestedSwitches,
+      switches,
+    });
 
     const result = await createCaller().moduleApps.getRuntimeDiagnostics();
 
@@ -490,18 +576,98 @@ describe('admin module apps router', () => {
         internalUrlConfigured: true,
         publicOriginConfigured: true,
       },
+      platformGateways: {
+        ai: {
+          configured: true,
+          enabledChatModelCount: 1,
+        },
+        payments: {
+          configured: true,
+          enabled: true,
+          methods: ['alipay', 'zpay_wechat'],
+          moduleAppEnabled: true,
+          publicOriginConfigured: true,
+          source: {
+            backendManaged: false,
+            legacyEnvironmentKeyCount: 1,
+          },
+        },
+      },
       probe: {
         code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
         status: 'unavailable',
       },
-      switches: {
-        executionEnabled: true,
-        invocationEnabled: true,
-        publicExecutionEnabled: true,
+      requestedSwitches,
+      scheduler: {
+        activeClaims: 1,
+        claimableSchedules: 2,
+        enabledSchedules: 4,
+        failedScheduledRuns24h: 1,
+        lastScheduledRunAt: new Date('2026-07-12T00:30:00.000Z'),
+        oldestClaimableAt: new Date('2026-07-12T00:00:00.000Z'),
+        staleClaims: 1,
+        status: 'available',
       },
+      switches,
     });
-    expect(JSON.stringify(result)).not.toContain('runtime.example.com');
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('runtime-internal-token');
+    expect(serialized).not.toContain('billing.example.com');
+    expect(serialized).not.toContain('payment-private-secret');
+    expect(serialized).not.toContain('gpt-secret-model');
+    expect(serialized).not.toContain('Private NewAPI Gateway');
+    expect(serialized).not.toContain('PAYMENT_ENABLED');
+    expect(mockGetAllEnabledModels).toHaveBeenCalledWith(expect.anything());
+    expect(mockListEnabledPaymentMethods).toHaveBeenCalledWith(
+      expect.objectContaining({ moduleAppEnabled: true }),
+      'module_app',
+    );
     expect(moduleAppRuntimeClientMocks.healthCheck).toHaveBeenCalledOnce();
+  });
+
+  it('keeps runtime diagnostics available when scheduler telemetry cannot be read', async () => {
+    moduleAppReadModelMocks.getRuntimeScheduleDiagnostics.mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+
+    const result = await createCaller().moduleApps.getRuntimeDiagnostics();
+
+    expect(result.probe).toEqual({ status: 'disabled' });
+    expect(result.scheduler).toEqual({
+      activeClaims: null,
+      claimableSchedules: null,
+      enabledSchedules: null,
+      failedScheduledRuns24h: null,
+      lastScheduledRunAt: null,
+      oldestClaimableAt: null,
+      staleClaims: null,
+      status: 'unavailable',
+    });
+  });
+
+  it('runs a bounded, audited schedule dispatch through the governed backend switch', async () => {
+    const result = await createCaller().moduleApps.dispatchSchedulesNow();
+
+    expect(result).toEqual({ bookkeepingFailed: 0, claimed: 2, dispatched: 1, failed: 1 });
+    expect(dispatchDueModuleAppSchedules).toHaveBeenCalledWith({
+      batchSize: 25,
+      db: expect.anything(),
+    });
+    const options = externalAuditMock.mock.calls.at(-1)?.[1];
+    expect(options.audit('failed', result)).toEqual({
+      action: 'module_app.schedule_dispatch_executed',
+      payload: {
+        batchSize: 25,
+        bookkeepingFailed: 0,
+        claimed: 2,
+        dispatched: 1,
+        failed: 1,
+        terminalStatus: 'failed',
+      },
+      resourceId: 'module-app-scheduler',
+      resourceType: 'moduleAppScheduleDispatcher',
+    });
+    expect(options.terminalStatus(result)).toBe('failed');
   });
 
   it('rejects content admins from Module App governance procedures', async () => {
@@ -512,6 +678,9 @@ describe('admin module apps router', () => {
       code: 'FORBIDDEN',
     });
     await expect(caller.moduleApps.getRuntimeDiagnostics()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.dispatchSchedulesNow()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
     await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
@@ -748,15 +917,19 @@ describe('admin module apps router', () => {
   it('approves a package submission and writes an audit log', async () => {
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).resolves.toEqual({
+    await expect(
+      caller.moduleApps.approvePackage({ outboundHostPolicies: [], packageId: PACKAGE_ID }),
+    ).resolves.toEqual({
       appId: APP_ID,
       build: { id: 'build-1', status: 'queued' },
+      outboundHostPolicies: [],
       package: { id: PACKAGE_ID, reviewStatus: 'approved' },
       slug: 'workbench',
       versionId: 'version-1',
     });
 
     expect(buildServiceMocks.approvePackage).toHaveBeenCalledWith({
+      outboundHostPolicies: [],
       packageId: PACKAGE_ID,
       reviewedByUserId: 'admin-user',
     });
@@ -764,6 +937,10 @@ describe('admin module apps router', () => {
       expect.objectContaining({
         actorUserId: 'admin-user',
         eventType: 'module_app.package_approved',
+        metadata: expect.objectContaining({
+          outboundHostPolicies: [],
+          outboundHostPurposes: [],
+        }),
         resourceId: APP_ID,
         resourceType: 'moduleApp',
       }),
@@ -776,25 +953,26 @@ describe('admin module apps router', () => {
     );
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
-      {
-        code: 'PRECONDITION_FAILED',
-        message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
-      },
-    );
+    await expect(
+      caller.moduleApps.approvePackage({ outboundHostPolicies: [], packageId: PACKAGE_ID }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
+    });
   });
 
   it.each([
     ['MODULE_APP_PACKAGE_SUBMITTER_REQUIRED', 'PRECONDITION_FAILED'],
     ['MODULE_APP_PACKAGE_PUBLISHER_NOT_VERIFIED', 'PRECONDITION_FAILED'],
     ['MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH', 'CONFLICT'],
-  ] as const)('maps package ownership error %s to %s', async (message, code) => {
+    ['MODULE_APP_OUTBOUND_HOST_CLASSIFICATION_REQUIRED', 'BAD_REQUEST'],
+  ] as const)('maps package review error %s to %s', async (message, code) => {
     buildServiceMocks.approvePackage.mockRejectedValueOnce(new Error(message));
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
-      { code, message },
-    );
+    await expect(
+      caller.moduleApps.approvePackage({ outboundHostPolicies: [], packageId: PACKAGE_ID }),
+    ).rejects.toMatchObject({ code, message });
     expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
   });
 

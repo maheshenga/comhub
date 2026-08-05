@@ -1,4 +1,4 @@
-import type { ModuleAppCapabilityClaims } from '@lobechat/types';
+import { getModuleAppGeneralOutboundHosts, type ModuleAppCapabilityClaims } from '@lobechat/types';
 
 import { ModuleAppDataService } from '@/business/server/module-apps/data/service';
 import { ModuleAppFileGateway } from '@/business/server/module-apps/sdk/files';
@@ -27,15 +27,10 @@ import {
   createModuleAppNotificationRateLimitBackend,
   createModuleAppReplayGuardBackend,
 } from './distributedGuards';
+import { createModuleAppPlatformGateways } from './platformGateways';
 
-const distributedGuardMode =
-  appEnv.MODULE_APP_EXECUTION_ENABLED ||
-  appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED ||
-  appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED ||
-  appEnv.MODULE_APP_SCHEDULE_DISPATCH_ENABLED ||
-  appEnv.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED
-    ? ('distributed-required' as const)
-    : ('memory-allowed' as const);
+// Runtime switches can change without restarting the server, so fail closed for every gateway.
+const distributedGuardMode = 'distributed-required' as const;
 
 const replayGuard = new ModuleAppReplayGuard({
   backend: createModuleAppReplayGuardBackend({ mode: distributedGuardMode }),
@@ -44,23 +39,18 @@ const notificationRateLimiter = new ModuleAppNotificationRateLimiter({
   backend: createModuleAppNotificationRateLimitBackend({ mode: distributedGuardMode }),
 });
 
-const resolveOutboundHosts = (runtimeManifest: unknown) => {
-  if (!runtimeManifest || typeof runtimeManifest !== 'object' || !('runtime' in runtimeManifest)) {
-    return [];
-  }
-  const runtime = runtimeManifest.runtime;
-  if (!runtime || typeof runtime !== 'object' || !('outboundHosts' in runtime)) return [];
-
-  return Array.isArray(runtime.outboundHosts)
-    ? runtime.outboundHosts.filter((host): host is string => typeof host === 'string')
-    : [];
-};
-
 export const createModuleAppCapabilityGateway = (params: {
   capability: ModuleAppCapabilityClaims;
   db: LobeChatDatabase;
 }) => {
   const model = new ModuleAppModel(params.db);
+  const platformGateways = createModuleAppPlatformGateways({
+    db: params.db,
+    rollout: {
+      appIds: appEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST,
+      publisherIds: appEnv.MODULE_APP_PUBLISHER_ALLOWLIST,
+    },
+  });
   let gateKeeperPromise: ReturnType<typeof KeyVaultsGateKeeper.initWithEnvKey> | undefined;
 
   return new ModuleAppCapabilityGateway({
@@ -75,6 +65,7 @@ export const createModuleAppCapabilityGateway = (params: {
         });
         if (!installation) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
 
+        let workspaceRole: 'admin' | 'member' | 'owner' | undefined;
         if (installation.scopeType === 'workspace') {
           if (!installation.workspaceId) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
           const member = await new WorkspaceMemberModel(params.db, capability.userId).getMember(
@@ -82,28 +73,37 @@ export const createModuleAppCapabilityGateway = (params: {
             capability.userId,
           );
           if (!member) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
+          if (member.role === 'admin' || member.role === 'member' || member.role === 'owner') {
+            workspaceRole = member.role;
+          } else {
+            throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
+          }
         }
 
         return {
           appId: installation.appId,
+          billing: installation.billing,
           displayName: installation.displayName,
           installationId: installation.installationId,
-          outboundHosts: resolveOutboundHosts(installation.runtimeManifest),
+          outboundHosts: getModuleAppGeneralOutboundHosts(installation.runtimeManifest),
           secretKeys: installation.secretKeys,
           scopeType: installation.scopeType,
           userId: installation.userId,
           versionId: installation.versionId,
+          workspaceRole,
           workspaceId: installation.workspaceId,
         };
       },
     },
     data: new ModuleAppDataService({ repository: new ModuleAppDataModel(params.db) }),
+    ai: platformGateways.ai,
     files: new ModuleAppFileGateway({ storage: new FileS3() }),
     http: new ModuleAppHttpGateway(),
     notifications: new ModuleAppNotificationGateway({
       create: (input) => new NotificationModel(params.db, params.capability.userId).create(input),
       rateLimiter: notificationRateLimiter,
     }),
+    payments: platformGateways.payments,
     replayGuard,
     secrets: new ModuleAppSecretsGateway({
       decrypt: async (encryptedValue) => {

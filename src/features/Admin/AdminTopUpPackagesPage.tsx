@@ -16,6 +16,15 @@ import {
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import {
+  AdminFormGrid,
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+} from './layout';
+
 type PackageRow = {
   amount: number;
   credits: number;
@@ -37,9 +46,12 @@ type AdminTopUpPackagesPageProps = {
 
 const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = false }) => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
-    adminCommercialService.listPackages(),
-  );
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(SWR_KEY, () => adminCommercialService.listPackages());
   const [editing, setEditing] = useState<Partial<PackageRow> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
@@ -191,17 +203,40 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
     },
   ];
 
-  return (
-    <Flexbox gap={16} padding={embedded ? 0 : 24}>
-      <Flexbox horizontal>
-        <Button type="primary" onClick={() => openEdit()}>
+  const content = (
+    <Flexbox gap={24}>
+      <AdminToolbar>
+        <Button disabled={isLoading || Boolean(error)} type="primary" onClick={() => openEdit()}>
           {t('admin.topup.create', '新增充值套餐')}
         </Button>
-      </Flexbox>
-      {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.topup.empty', '暂无充值套餐')} />
+      </AdminToolbar>
+
+      {error ? (
+        <AdminPageError
+          description={t('admin.topup.loadFailed', '充值套餐加载失败，请重试。')}
+          onRetry={refresh}
+        />
       ) : (
-        <InlineTable columns={columns as any} dataSource={items} loading={isLoading} rowKey="id" />
+        <AdminSection
+          title={t('admin.topup.listTitle', '充值套餐列表')}
+          description={t('admin.topup.resultSummary', {
+            count: items.length,
+            defaultValue: '当前显示 {{count}} 个充值套餐',
+          })}
+        >
+          <AdminResponsiveTable label={t('admin.topup.tableLabel', '充值套餐表格')}>
+            {!isLoading && items.length === 0 ? (
+              <Empty description={t('admin.topup.empty', '暂无充值套餐')} />
+            ) : (
+              <InlineTable
+                columns={columns as any}
+                dataSource={items}
+                loading={isLoading}
+                rowKey="id"
+              />
+            )}
+          </AdminResponsiveTable>
+        </AdminSection>
       )}
 
       <Modal
@@ -231,46 +266,29 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
           >
             <Input />
           </Form.Item>
-          <Flexbox horizontal gap={12}>
-            <Form.Item
-              label={t('admin.topup.field.credits', '积分')}
-              name="credits"
-              style={{ flex: 1 }}
-            >
+          <AdminFormGrid columns={3} label={t('admin.topup.amountFields', '积分与金额字段')}>
+            <Form.Item label={t('admin.topup.field.credits', '积分')} name="credits">
               <InputNumber addonAfter={'M'} min={0} precision={6} style={{ width: '100%' }} />
             </Form.Item>
-            <Form.Item
-              label={t('admin.topup.field.amount', '金额')}
-              name="amount"
-              style={{ flex: 1 }}
-            >
+            <Form.Item label={t('admin.topup.field.amount', '金额')} name="amount">
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
-            <Form.Item
-              label={t('admin.topup.field.currency', '币种')}
-              name="currency"
-              style={{ width: 100 }}
-            >
+            <Form.Item label={t('admin.topup.field.currency', '币种')} name="currency">
               <Input />
             </Form.Item>
-          </Flexbox>
-          <Flexbox horizontal gap={12}>
+          </AdminFormGrid>
+          <AdminFormGrid label={t('admin.topup.orderFields', '有效期与排序字段')}>
             <Form.Item
               label={t('admin.topup.field.validity', '有效期（月）')}
               name="validityMonths"
-              style={{ flex: 1 }}
             >
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
-            <Form.Item
-              label={t('admin.topup.field.sortOrder', '排序值')}
-              name="sortOrder"
-              style={{ flex: 1 }}
-            >
+            <Form.Item label={t('admin.topup.field.sortOrder', '排序值')} name="sortOrder">
               <InputNumber style={{ width: '100%' }} />
             </Form.Item>
-          </Flexbox>
-          <Flexbox horizontal gap={24}>
+          </AdminFormGrid>
+          <AdminFormGrid label={t('admin.topup.stateFields', '推荐与启用状态')}>
             <Form.Item
               label={t('admin.topup.field.recommended', '推荐')}
               name="recommended"
@@ -285,8 +303,8 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
             >
               <Switch />
             </Form.Item>
-          </Flexbox>
-          <Flexbox horizontal gap={12}>
+          </AdminFormGrid>
+          <AdminFormGrid label={t('admin.topup.promotionFields', '促销状态与原价')}>
             <Form.Item
               label={t('admin.topup.field.promotionEnabled', '启用促销')}
               name="promotionEnabled"
@@ -297,32 +315,41 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
             <Form.Item
               label={t('admin.topup.field.originalAmount', '促销原价')}
               name="originalAmount"
-              style={{ flex: 1 }}
             >
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
-          </Flexbox>
-          <Flexbox horizontal gap={12}>
+          </AdminFormGrid>
+          <AdminFormGrid label={t('admin.topup.promotionCopyFields', '促销文案字段')}>
             <Form.Item
               label={t('admin.topup.field.promotionLabel', '促销标签')}
               name="promotionLabel"
-              style={{ flex: 1 }}
             >
               <Input placeholder={t('admin.topup.field.promotionLabelPlaceholder', '限时优惠')} />
             </Form.Item>
             <Form.Item
               label={t('admin.topup.field.promotionNote', '促销说明')}
               name="promotionNote"
-              style={{ flex: 1 }}
             >
               <Input
                 placeholder={t('admin.topup.field.promotionNotePlaceholder', '有效期 6 个月')}
               />
             </Form.Item>
-          </Flexbox>
+          </AdminFormGrid>
         </Form>
       </Modal>
     </Flexbox>
+  );
+
+  return embedded ? (
+    content
+  ) : (
+    <AdminPageShell
+      description={t('admin.topup.subtitle', '维护充值套餐、积分额度、促销和启用状态。')}
+      title={t('admin.topup.title', '充值套餐')}
+      width="full"
+    >
+      {content}
+    </AdminPageShell>
   );
 });
 

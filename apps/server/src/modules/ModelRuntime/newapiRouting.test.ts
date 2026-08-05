@@ -152,6 +152,76 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     );
   });
 
+  it('uses the managed NewAPI credential when a caller requires the platform route', async () => {
+    const db = { id: 'db' } as any;
+    mocks.getAiProviderById.mockResolvedValue({
+      keyVaults: { apiKey: 'user-supplied-key', baseURL: 'https://user.example.com/v1' },
+    });
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([
+      {
+        apiKey: 'platform-managed-key',
+        baseUrl: 'https://newapi.example.com/v1',
+        groupKey: 'default',
+        instanceId: 'platform-instance',
+        instanceName: 'Platform NewAPI',
+        priority: 1,
+        providerType: 'newapi',
+        source: 'instance' as const,
+      },
+    ]);
+
+    await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'gpt-test',
+      requireAdminManagedNewapi: true,
+    });
+
+    expect(mocks.initializeWithProvider).toHaveBeenCalledWith(
+      'newapi',
+      expect.objectContaining({
+        apiKey: 'platform-managed-key',
+        baseURL: 'https://newapi.example.com/v1',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('does not read user NewAPI credentials for a required platform route', async () => {
+    mocks.getAiProviderById.mockRejectedValue(new Error('user-key-decryption-failed'));
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([
+      {
+        apiKey: 'platform-managed-key',
+        baseUrl: 'https://newapi.example.com/v1',
+        groupKey: 'default',
+        instanceId: 'platform-instance',
+        instanceName: 'Platform NewAPI',
+        priority: 1,
+        providerType: 'newapi',
+        source: 'instance' as const,
+      },
+    ]);
+
+    await expect(
+      initModelRuntimeFromDB({ id: 'db' } as any, 'user-1', 'newapi', {
+        model: 'gpt-test',
+        requireAdminManagedNewapi: true,
+      }),
+    ).resolves.toBeDefined();
+
+    expect(mocks.getAiProviderById).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a required managed NewAPI model route is unavailable', async () => {
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([]);
+
+    await expect(
+      initModelRuntimeFromDB({ id: 'db' } as any, 'user-1', 'newapi', {
+        model: 'missing-model',
+        requireAdminManagedNewapi: true,
+      }),
+    ).rejects.toThrow('MODULE_APP_NEWAPI_ROUTE_NOT_AVAILABLE');
+    expect(mocks.initializeWithProvider).not.toHaveBeenCalled();
+  });
+
   it('routes admin virtual provider ids through their matching newapi instance', async () => {
     const db = { id: 'db' } as any;
     const primaryRoute = {
@@ -292,12 +362,10 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     const fallbackChat = vi.fn().mockResolvedValue({ text: 'ok' });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    mocks.getBusinessModelRuntimeHooks.mockImplementation(
-      (_userId, _provider, routeMetadata) => ({
-        beforeChat: vi.fn(),
-        routeMetadata,
-      }),
-    );
+    mocks.getBusinessModelRuntimeHooks.mockImplementation((_userId, _provider, routeMetadata) => ({
+      beforeChat: vi.fn(),
+      routeMetadata,
+    }));
     mocks.createLLMGenerationTracingHook.mockReturnValue({ afterChat: vi.fn() });
     mocks.initializeWithProvider
       .mockReturnValueOnce({ chat: primaryChat })

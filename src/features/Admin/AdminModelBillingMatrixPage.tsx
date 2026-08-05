@@ -19,7 +19,6 @@ import {
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Card } from '@/components/antd-compat/Card';
 import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import {
   MATRIX_ACCESS_SAVE_LABEL,
@@ -56,7 +55,15 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-const { Text, Title } = Typography;
+import {
+  AdminFormActions,
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+} from './layout';
+
+const { Text } = Typography;
 
 const MATRIX_KEY = ['admin-model-billing-matrix'];
 const PLANS_KEY = ['admin-plans'];
@@ -153,15 +160,23 @@ const AdminModelBillingMatrixPage = memo(() => {
   const [rowsOverride, setRowsOverride] = useState<MatrixRow[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data: modelData, isLoading: modelsLoading } = useClientDataSWR(
-    canReadModels ? MATRIX_KEY : null,
-    () => adminCommercialService.listAllEnabledAiProviderModels(),
+  const {
+    data: modelData,
+    error: modelError,
+    isLoading: modelsLoading,
+  } = useClientDataSWR(canReadModels ? MATRIX_KEY : null, () =>
+    adminCommercialService.listAllEnabledAiProviderModels(),
   );
-  const { data: planData, isLoading: plansLoading } = useClientDataSWR(
-    canReadPlans ? PLANS_KEY : null,
-    () => adminCommercialService.listPlans(),
-  );
-  const { data: settings, isLoading: settingsLoading } = useClientDataSWR(
+  const {
+    data: planData,
+    error: planError,
+    isLoading: plansLoading,
+  } = useClientDataSWR(canReadPlans ? PLANS_KEY : null, () => adminCommercialService.listPlans());
+  const {
+    data: settings,
+    error: settingsError,
+    isLoading: settingsLoading,
+  } = useClientDataSWR(
     canReadSettings ? ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix') : null,
     () => adminCommercialService.getSettingsSection('model-billing-matrix'),
   );
@@ -224,6 +239,16 @@ const AdminModelBillingMatrixPage = memo(() => {
     (canReadModels && modelsLoading) ||
     (canReadPlans && plansLoading) ||
     (canReadSettings && settingsLoading);
+  const hasLoadError =
+    (canReadModels && Boolean(modelError)) ||
+    (canReadPlans && Boolean(planError)) ||
+    (canReadSettings && Boolean(settingsError));
+  const refreshMatrixData = () =>
+    Promise.all([
+      ...(canReadModels ? [mutate(MATRIX_KEY)] : []),
+      ...(canReadPlans ? [mutate(PLANS_KEY)] : []),
+      ...(canReadSettings ? [mutate(ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix'))] : []),
+    ]);
   const billingBasisInitial = useMemo(() => buildBillingBasisValues(settings), [settings]);
   const billingBasis = billingBasisOverride ?? billingBasisInitial;
   const defaultModelHealth = useMemo(
@@ -319,7 +344,7 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSaveBillingBasis = async () => {
-    if (!canWriteSystem) return;
+    if (!canWriteSystem || !settings) return;
 
     const updates = buildBillingBasisUpdates(billingBasis, billingBasisInitial);
 
@@ -342,7 +367,7 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSetDefault = async (target: MatrixRow) => {
-    if (!canWriteSystem) return;
+    if (!canWriteSystem || !modelData || !settings) return;
 
     if (['chat', 'image', 'video'].includes(target.modelType) && target.planAccess.free === false) {
       message.error('该模型未对免费套餐开启，不能设为默认模型。请先开启免费套餐权限。');
@@ -393,7 +418,7 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSaveAccess = async () => {
-    if (!canWriteFinance) return;
+    if (!canWriteFinance || !planData) return;
 
     const conflict = findFreePlanDefaultModelConflict(rows);
     if (conflict) {
@@ -420,7 +445,7 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSavePricing = async () => {
-    if (!canWriteSystem) return;
+    if (!canWriteSystem || !settings) return;
 
     setSaving(true);
 
@@ -442,7 +467,7 @@ const AdminModelBillingMatrixPage = memo(() => {
     render: (_, row) => (
       <Switch
         checked={row.planAccess[plan.plan] !== false}
-        disabled={!canWriteFinance}
+        disabled={!canWriteFinance || !planData || saving}
         size="small"
         onChange={(checked: boolean) =>
           setRowsOverride((current) =>
@@ -505,7 +530,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'pricingMultiplier',
       render: (value: number | undefined, row) => (
         <InputNumber
-          disabled={!canWriteSystem}
+          disabled={!canWriteSystem || !settings || saving}
           min={0.0001}
           placeholder="默认"
           precision={4}
@@ -526,7 +551,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'creditsPerDollar',
       render: (value: number | undefined, row) => (
         <InputNumber
-          disabled={!canWriteSystem}
+          disabled={!canWriteSystem || !settings || saving}
           min={1}
           placeholder="默认"
           size="small"
@@ -545,7 +570,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'actions',
       render: (_, row) => (
         <Button
-          disabled={!canWriteSystem || row.isDefault}
+          disabled={!canWriteSystem || !modelData || !settings || row.isDefault}
           loading={saving}
           size="small"
           onClick={() => handleSetDefault(row)}
@@ -565,19 +590,29 @@ const AdminModelBillingMatrixPage = memo(() => {
       );
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox gap={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          {t('admin.modelBillingMatrix.title', '模型与计费矩阵')}
-        </Title>
-        <Text type="secondary">{t('admin.modelBillingMatrix.subtitle', MATRIX_SUBTITLE)}</Text>
-      </Flexbox>
+    <AdminPageShell
+      description={t('admin.modelBillingMatrix.subtitle', MATRIX_SUBTITLE)}
+      title={t('admin.modelBillingMatrix.title', '模型与计费矩阵')}
+      width="full"
+    >
+      <Flexbox gap={24}>
+        <Alert showIcon message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)} type="info" />
 
-      <Alert showIcon message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)} type="info" />
+        {hasLoadError ? (
+          <AdminPageError
+            description={t(
+              'admin.modelBillingMatrix.loadFailed',
+              '部分模型、套餐或计费配置加载失败，请重试。',
+            )}
+            onRetry={refreshMatrixData}
+          />
+        ) : null}
 
-      {canReadPlans && canReadSettings ? (
-        <Card title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}>
-          <Flexbox gap={12}>
+        {canReadPlans && canReadSettings ? (
+          <AdminSection
+            description="检查服务商模型、套餐开放范围、默认模型和计费数据是否可以正常使用。"
+            title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}
+          >
             <Alert
               showIcon
               type={configHealthMeta.alertType as 'error' | 'success' | 'warning'}
@@ -648,34 +683,33 @@ const AdminModelBillingMatrixPage = memo(() => {
                 'Provider, model access, and billing configuration',
               )}
             />
-          </Flexbox>
-        </Card>
-      ) : (
-        <Alert
-          showIcon
-          type="info"
-          message={t(
-            'admin.modelBillingMatrix.scopedReadNotice',
-            '当前仅显示此角色有权读取的模型、套餐或系统设置分区。',
-          )}
-        />
-      )}
+          </AdminSection>
+        ) : (
+          <Alert
+            showIcon
+            type="info"
+            message={t(
+              'admin.modelBillingMatrix.scopedReadNotice',
+              '当前仅显示此角色有权读取的模型、套餐或系统设置分区。',
+            )}
+          />
+        )}
 
-      {canReadSettings ? (
-        <Card title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}>
-          <Flexbox gap={16}>
-            <Text type="secondary">
-              {t(
-                'admin.modelBillingMatrix.billingBasisDescription',
-                '在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
-              )}
-            </Text>
+        {canReadSettings ? (
+          <AdminSection
+            title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}
+            description={t(
+              'admin.modelBillingMatrix.billingBasisDescription',
+              '在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
+            )}
+          >
+            <Text type="secondary">当前修改只影响后续计费计算，不会开启在线平台支付。</Text>
 
             <Space wrap align="start" size={24}>
               <Flexbox gap={8} style={{ minWidth: 220 }}>
                 <Text strong>{t('admin.modelBillingMatrix.globalMultiplier', '全局积分倍率')}</Text>
                 <InputNumber
-                  disabled={!canWriteSystem}
+                  disabled={!canWriteSystem || !settings || savingBillingBasis}
                   max={100}
                   min={0.0001}
                   precision={4}
@@ -715,7 +749,7 @@ const AdminModelBillingMatrixPage = memo(() => {
 
             <Space wrap>
               <Button
-                disabled={!canWriteSystem}
+                disabled={!canWriteSystem || !settings}
                 loading={savingBillingBasis}
                 type="primary"
                 onClick={handleSaveBillingBasis}
@@ -728,83 +762,96 @@ const AdminModelBillingMatrixPage = memo(() => {
                 </Button>
               )}
             </Space>
-          </Flexbox>
-        </Card>
-      ) : null}
-
-      {canReadSettings ? (
-        <Alert
-          showIcon
-          message="默认模型健康检查"
-          type={hasDefaultModelRisk ? 'warning' : 'success'}
-          description={
-            <Flexbox gap={8}>
-              {Object.values(defaultModelHealth).map((health) => {
-                const meta = DEFAULT_HEALTH_STATUS[health.status];
-
-                return (
-                  <Space wrap align="start" key={health.modelType} size={6}>
-                    <Tag color="blue">{getAdminModelTypeLabel(health.modelType)}</Tag>
-                    <Text>
-                      {health.model
-                        ? `${health.provider}/${health.model}`
-                        : `${health.provider}/未配置`}
-                    </Text>
-                    <Tag color={meta.color}>{meta.label}</Tag>
-                    <Text type="secondary">{getDefaultModelHealthMessage(health)}</Text>
-                  </Space>
-                );
-              })}
-            </Flexbox>
-          }
-        />
-      ) : null}
-
-      <Space wrap>
-        {canReadPlans ? (
-          <Button
-            disabled={!canWriteFinance}
-            loading={saving}
-            type="primary"
-            onClick={handleSaveAccess}
-          >
-            {MATRIX_ACCESS_SAVE_LABEL}
-          </Button>
+          </AdminSection>
         ) : null}
+
         {canReadSettings ? (
-          <Button disabled={!canWriteSystem} loading={saving} onClick={handleSavePricing}>
-            {MATRIX_PRICING_SAVE_LABEL}
-          </Button>
+          <Alert
+            showIcon
+            message="默认模型健康检查"
+            type={hasDefaultModelRisk ? 'warning' : 'success'}
+            description={
+              <Flexbox gap={8}>
+                {Object.values(defaultModelHealth).map((health) => {
+                  const meta = DEFAULT_HEALTH_STATUS[health.status];
+
+                  return (
+                    <Space wrap align="start" key={health.modelType} size={6}>
+                      <Tag color="blue">{getAdminModelTypeLabel(health.modelType)}</Tag>
+                      <Text>
+                        {health.model
+                          ? `${health.provider}/${health.model}`
+                          : `${health.provider}/未配置`}
+                      </Text>
+                      <Tag color={meta.color}>{meta.label}</Tag>
+                      <Text type="secondary">{getDefaultModelHealthMessage(health)}</Text>
+                    </Space>
+                  );
+                })}
+              </Flexbox>
+            }
+          />
         ) : null}
-        {rowsOverride && (
-          <Button onClick={() => setRowsOverride(null)}>{MATRIX_DISCARD_LABEL}</Button>
-        )}
-      </Space>
 
-      {focusedHealthCheck ? (
-        <Alert
-          showIcon
-          description={`当前显示 ${displayRows.length}/${rows.length} 个相关模型。`}
-          message={`已定位：${focusedHealthCheck.title}`}
-          type="warning"
-          action={
-            <Button size="small" onClick={() => setFocusedHealthCheckKey(null)}>
-              显示全部
+        {focusedHealthCheck ? (
+          <Alert
+            showIcon
+            description={`当前显示 ${displayRows.length}/${rows.length} 个相关模型。`}
+            message={`已定位：${focusedHealthCheck.title}`}
+            type="warning"
+            action={
+              <Button size="small" onClick={() => setFocusedHealthCheckKey(null)}>
+                显示全部
+              </Button>
+            }
+          />
+        ) : null}
+
+        <AdminSection
+          description={`当前显示 ${displayRows.length}/${rows.length} 个模型`}
+          title={t('admin.modelBillingMatrix.matrixSection', '模型权限与计费')}
+        >
+          <AdminResponsiveTable label="模型与计费矩阵">
+            <Table
+              columns={visibleColumns}
+              dataSource={displayRows}
+              loading={loading}
+              locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
+              pagination={{ defaultPageSize: 50, hideOnSinglePage: true, showSizeChanger: true }}
+              rowKey="key"
+              scroll={{ x: 900 + plans.length * 104 }}
+            />
+          </AdminResponsiveTable>
+        </AdminSection>
+
+        <AdminFormActions label="模型与计费矩阵操作">
+          {canReadPlans ? (
+            <Button
+              disabled={!canWriteFinance || !planData}
+              loading={saving}
+              type="primary"
+              onClick={handleSaveAccess}
+            >
+              {MATRIX_ACCESS_SAVE_LABEL}
             </Button>
-          }
-        />
-      ) : null}
-
-      <Table
-        columns={visibleColumns}
-        dataSource={displayRows}
-        loading={loading}
-        locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
-        pagination={{ defaultPageSize: 50, hideOnSinglePage: true, showSizeChanger: true }}
-        rowKey="key"
-        scroll={{ x: 900 + plans.length * 104 }}
-      />
-    </Flexbox>
+          ) : null}
+          {canReadSettings ? (
+            <Button
+              disabled={!canWriteSystem || !settings}
+              loading={saving}
+              onClick={handleSavePricing}
+            >
+              {MATRIX_PRICING_SAVE_LABEL}
+            </Button>
+          ) : null}
+          {rowsOverride && (
+            <Button disabled={saving} onClick={() => setRowsOverride(null)}>
+              {MATRIX_DISCARD_LABEL}
+            </Button>
+          )}
+        </AdminFormActions>
+      </Flexbox>
+    </AdminPageShell>
   );
 });
 

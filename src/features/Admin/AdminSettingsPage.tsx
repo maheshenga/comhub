@@ -2,7 +2,8 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, message, Select, Space, Switch, Tabs, Typography } from 'antd';
+import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
+import { Alert, Form, Input, message, Switch, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -23,8 +24,9 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminSettingsGovernanceCard from './AdminSettingsGovernanceCard';
+import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const helpMenuActionOptions = HELP_MENU_ACTIONS.map((value) => ({ label: value, value }));
 const helpMenuIconOptions = HELP_MENU_ICONS.map((value) => ({ label: value, value }));
@@ -37,7 +39,12 @@ const aboutLinkGroups = [
 
 const AdminSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('settings'), () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('settings'), () =>
     adminCommercialService.getSettingsSection('settings'),
   );
   const { data: storageSettings } = useClientDataSWR(
@@ -60,6 +67,8 @@ const AdminSettingsPage = memo(() => {
   }, [data, form]);
 
   const handleSave = async () => {
+    if (!data) return;
+
     try {
       const values = await form.validateFields();
       const updates = buildSettingUpdates(values, initialValues);
@@ -159,14 +168,11 @@ const AdminSettingsPage = memo(() => {
   );
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 920 }}>
-      <Flexbox gap={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          {t('admin.settings.title', '站点基础设置')}
-        </Title>
-        <Text type="secondary">{t('admin.settings.subtitle', SETTINGS_SUBTITLE)}</Text>
-      </Flexbox>
-
+    <AdminPageShell
+      description={t('admin.settings.subtitle', SETTINGS_SUBTITLE)}
+      title={t('admin.settings.title', '站点基础设置')}
+      width="medium"
+    >
       <Alert
         showIcon
         type="info"
@@ -175,32 +181,38 @@ const AdminSettingsPage = memo(() => {
           '这里仅维护站点基础展示。默认模型请到“模型与计费矩阵”，文件存储请到“文件存储”，Cron 与记忆任务请到“系统维护”，客户端配置请到“客户端”。',
         )}
       />
+      {error ? (
+        <AdminPageError
+          description={t('admin.settings.loadFailed', '无法读取当前站点设置，请重试。')}
+          onRetry={refresh}
+        />
+      ) : null}
 
       <AdminSettingsGovernanceCard />
 
-      <Form disabled={isLoading} form={form} layout="vertical">
+      <Form disabled={isLoading || !data} form={form} layout="vertical">
         <Tabs
           items={[
             {
               children: (
                 <Card>
                   <Form.Item
+                    label={t('admin.settings.brandName', '品牌名称')}
+                    name="brandName"
                     extra={t(
                       'admin.settings.brandName.help',
                       '用于页面标题、导航、关于页面和站内品牌展示。',
                     )}
-                    label={t('admin.settings.brandName', '品牌名称')}
-                    name="brandName"
                   >
                     <Input placeholder="玄果 AI" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandLoadingText', '加载页文案')}
+                    name="brandLoadingText"
                     extra={t(
                       'admin.settings.brandLoadingText.help',
                       '用于首屏静态加载和 React 接管后的页面中央加载状态。',
                     )}
-                    label={t('admin.settings.brandLoadingText', '加载页文案')}
-                    name="brandLoadingText"
                   >
                     <Input placeholder="与 Agent 团队一起无限进步" />
                   </Form.Item>
@@ -215,32 +227,32 @@ const AdminSettingsPage = memo(() => {
                     <Input placeholder="/images/brand/loading.svg" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandAuthTitle', '登录页主文案')}
+                    name="brandAuthTitle"
                     extra={t(
                       'admin.settings.brandAuthTitle.help',
                       '显示在登录和注册表单上方，例如 Agent teammates that grow with you。',
                     )}
-                    label={t('admin.settings.brandAuthTitle', '登录页主文案')}
-                    name="brandAuthTitle"
                   >
                     <Input placeholder="Agent teammates that grow with you" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandCopyrightText', '登录页底部版权')}
+                    name="brandCopyrightText"
                     extra={t(
                       'admin.settings.brandCopyrightText.help',
                       '显示在登录页底部，留空时使用默认版权文案。',
                     )}
-                    label={t('admin.settings.brandCopyrightText', '登录页底部版权')}
-                    name="brandCopyrightText"
                   >
                     <Input placeholder="© 2026 玄果 AI. All rights reserved." />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
+                    name="brandLogoUrl"
                     extra={t(
                       'admin.settings.brandLogoUrl.help',
                       '用于登录页右上角、站内品牌 Logo 和图标展示。可填写 URL，也可上传图片后自动填入。',
                     )}
-                    label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
-                    name="brandLogoUrl"
                   >
                     <ImageUrlUploadInput
                       placeholder="https://.../logo.svg"
@@ -248,12 +260,12 @@ const AdminSettingsPage = memo(() => {
                     />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandFaviconUrl', '网站图标地址（Favicon URL）')}
+                    name="brandFaviconUrl"
                     extra={t(
                       'admin.settings.brandFaviconUrl.help',
                       '用于浏览器标签页和收藏夹图标。可填写 URL，也可上传图片后自动填入。',
                     )}
-                    label={t('admin.settings.brandFaviconUrl', '网站图标地址（Favicon URL）')}
-                    name="brandFaviconUrl"
                   >
                     <ImageUrlUploadInput
                       placeholder="https://.../favicon.ico"
@@ -261,12 +273,12 @@ const AdminSettingsPage = memo(() => {
                     />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.aboutLogoUrl', '关于页面 Logo 地址')}
+                    name="aboutLogoUrl"
                     extra={t(
                       'admin.settings.aboutLogoUrl.help',
                       '用于“关于”页面的 Logo。留空时使用站点 Logo；可填写 URL，也可上传图片后自动填入。',
                     )}
-                    label={t('admin.settings.aboutLogoUrl', '关于页面 Logo 地址')}
-                    name="aboutLogoUrl"
                   >
                     <ImageUrlUploadInput
                       placeholder="https://.../about-logo.svg"
@@ -274,22 +286,22 @@ const AdminSettingsPage = memo(() => {
                     />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandPrimaryColor', '主题主色')}
+                    name="brandPrimaryColor"
                     extra={t(
                       'admin.settings.brandPrimary.help',
                       '填写十六进制颜色值，例如 #1677ff。',
                     )}
-                    label={t('admin.settings.brandPrimaryColor', '主题主色')}
-                    name="brandPrimaryColor"
                   >
                     <Input placeholder="#1677ff" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandSlogan', '品牌标语')}
+                    name="brandSlogan"
                     extra={t(
                       'admin.settings.brandSlogan.help',
                       '用于公开展示页和旧版品牌文案兜底。',
                     )}
-                    label={t('admin.settings.brandSlogan', '品牌标语')}
-                    name="brandSlogan"
                   >
                     <Input placeholder="与 Agent 团队一起无限进步" />
                   </Form.Item>
@@ -302,22 +314,22 @@ const AdminSettingsPage = memo(() => {
               children: (
                 <Card>
                   <Form.Item
+                    label={t('admin.settings.defaultAgentName', '助手名称')}
+                    name="defaultAgentName"
                     extra={t(
                       'admin.settings.defaultAgentName.help',
                       '用于新用户默认会话、欢迎页和侧边栏中的助手名称。',
                     )}
-                    label={t('admin.settings.defaultAgentName', '助手名称')}
-                    name="defaultAgentName"
                   >
                     <Input placeholder="玄果助手" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.defaultAgentAvatar', '助手头像代码')}
+                    name="defaultAgentAvatar"
                     extra={t(
                       'admin.settings.defaultAgentAvatar.help',
                       '支持图片 URL、站内路径或 emoji。留空时使用默认头像。',
                     )}
-                    label={t('admin.settings.defaultAgentAvatar', '助手头像代码')}
-                    name="defaultAgentAvatar"
                   >
                     <ImageUrlUploadInput
                       placeholder={DEFAULT_COMHUB_AGENT_AVATAR}
@@ -325,12 +337,12 @@ const AdminSettingsPage = memo(() => {
                     />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.defaultSkillName', '默认技能名称')}
+                    name="defaultSkillName"
                     extra={t(
                       'admin.settings.defaultSkillName.help',
                       '用于配置内置默认技能的显示名称；留空时使用品牌名称。',
                     )}
-                    label={t('admin.settings.defaultSkillName', '默认技能名称')}
-                    name="defaultSkillName"
                   >
                     <Input
                       placeholder={t('admin.settings.defaultSkillName.placeholder', '玄果技能')}
@@ -345,73 +357,73 @@ const AdminSettingsPage = memo(() => {
               children: (
                 <Card>
                   <Form.Item
+                    label={t('admin.settings.homeMessengerEnabled', '启用首页聊天平台入口')}
+                    name="homeMessengerEnabled"
+                    valuePropName="checked"
                     extra={t(
                       'admin.settings.homeMessengerEnabled.help',
                       '关闭后首页聊天框下方不会再随机显示聊天平台入口；/settings/messenger 功能页仍保留。',
                     )}
-                    label={t('admin.settings.homeMessengerEnabled', '启用首页聊天平台入口')}
-                    name="homeMessengerEnabled"
-                    valuePropName="checked"
                   >
                     <Switch />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.homeMessengerBannerTitle', '首页聊天平台文案')}
+                    name="homeMessengerBannerTitle"
                     extra={t(
                       'admin.settings.homeMessengerBannerTitle.help',
                       '控制首页聊天框下方“聊天平台”入口文字，留空时使用系统默认文案。',
                     )}
-                    label={t('admin.settings.homeMessengerBannerTitle', '首页聊天平台文案')}
-                    name="homeMessengerBannerTitle"
                   >
                     <Input placeholder="在你喜爱的聊天应用中，与 {{brandName}} 畅聊" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.communityForkAndChatLabel', '社区派生按钮文字')}
+                    name="communityForkAndChatLabel"
                     extra={t(
                       'admin.settings.communityForkAndChatLabel.help',
                       '控制社区详情页派生按钮文字，留空时使用系统默认文案。',
                     )}
-                    label={t('admin.settings.communityForkAndChatLabel', '社区派生按钮文字')}
-                    name="communityForkAndChatLabel"
                   >
                     <Input placeholder="派生并聊天" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.communitySkillUseButtonLabel', 'Skill 使用按钮文字')}
+                    name="communitySkillUseButtonLabel"
                     extra={t(
                       'admin.settings.communitySkillUseButtonLabel.help',
                       '控制 Skill 详情页“在 LobeAI 上使用”按钮文字，留空时使用当前品牌名生成默认文案。',
                     )}
-                    label={t('admin.settings.communitySkillUseButtonLabel', 'Skill 使用按钮文字')}
-                    name="communitySkillUseButtonLabel"
                   >
                     <Input placeholder="在 QingyouAI 上使用" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.sidebarMemberLabel', '侧栏会员按钮名称')}
+                    name="sidebarMemberLabel"
                     extra={t(
                       'admin.settings.sidebarMemberLabel.help',
                       '显示在侧栏首页下方的会员入口，留空时显示“会员”。',
                     )}
-                    label={t('admin.settings.sidebarMemberLabel', '侧栏会员按钮名称')}
-                    name="sidebarMemberLabel"
                   >
                     <Input placeholder="会员" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.sidebarMemberUrl', '侧栏会员按钮链接')}
+                    name="sidebarMemberUrl"
                     extra={t(
                       'admin.settings.sidebarMemberUrl.help',
                       '会员入口点击后打开的站内或外部链接，默认 /settings/plans。',
                     )}
-                    label={t('admin.settings.sidebarMemberUrl', '侧栏会员按钮链接')}
-                    name="sidebarMemberUrl"
                   >
                     <Input placeholder="/settings/plans" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.sidebarGenerationLabel', '侧栏生成按钮名称')}
+                    name="sidebarGenerationLabel"
                     extra={t(
                       'admin.settings.sidebarGenerationLabel.help',
                       '控制侧栏 /image 生成入口显示名称，留空时显示“生成”。',
                     )}
-                    label={t('admin.settings.sidebarGenerationLabel', '侧栏生成按钮名称')}
-                    name="sidebarGenerationLabel"
                   >
                     <Input placeholder="生成" />
                   </Form.Item>
@@ -461,11 +473,11 @@ const AdminSettingsPage = memo(() => {
                       <Input placeholder="https://example.com/changelog" />
                     </Form.Item>
                     <Form.Item
+                      label={t('admin.settings.helpMenuItems', '帮助菜单')}
                       extra={t(
                         'admin.settings.helpMenuItems.help',
                         '配置客户端帮助菜单。每项需要显示名称，链接 URL 可选。',
                       )}
-                      label={t('admin.settings.helpMenuItems', '帮助菜单')}
                     >
                       <Form.List name="helpMenuItems">
                         {(fields, { add, remove }) => (
@@ -543,7 +555,17 @@ const AdminSettingsPage = memo(() => {
           ]}
         />
 
-        <Space>
+        <AdminFormActions label={t('admin.settings.actions', '站点设置操作')}>
+          {hasPendingChanges ? (
+            <Text type="secondary">有 {pendingUpdates.length} 项待保存</Text>
+          ) : null}
+          <Button
+            disabled={isLoading || !data || submitting}
+            loading={materializing}
+            onClick={handleMaterializeDefaults}
+          >
+            {t('admin.settings.materializeDefaults', '同步推荐默认配置')}
+          </Button>
           <Button
             disabled={isLoading || !data || !hasPendingChanges || materializing}
             loading={submitting}
@@ -552,17 +574,9 @@ const AdminSettingsPage = memo(() => {
           >
             {t('admin.settings.save', '保存设置')}
           </Button>
-          {hasPendingChanges && <Text type="secondary">有 {pendingUpdates.length} 项待保存</Text>}
-          <Button
-            disabled={isLoading || !data || submitting}
-            loading={materializing}
-            onClick={handleMaterializeDefaults}
-          >
-            {t('admin.settings.materializeDefaults', '同步推荐默认配置')}
-          </Button>
-        </Space>
+        </AdminFormActions>
       </Form>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

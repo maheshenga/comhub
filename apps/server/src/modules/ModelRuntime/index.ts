@@ -46,6 +46,7 @@ export interface InitModelRuntimeFromDBOptions {
   model?: string | null;
   modelType?: NewapiModelType;
   onRouteResolved?: (routeMetadata: AiUsageRouteMetadata | undefined) => void;
+  requireAdminManagedNewapi?: boolean;
   workspaceId?: string;
 }
 
@@ -472,7 +473,11 @@ const wrapNewapiRuntimeWithFailover = (
             buildNewapiRouteMetadata(instance),
             workspaceId,
           );
-          const fallbackTracingHooks = createLLMGenerationTracingHook(userId, provider, workspaceId);
+          const fallbackTracingHooks = createLLMGenerationTracingHook(
+            userId,
+            provider,
+            workspaceId,
+          );
           const fallbackHooks = mergeModelRuntimeHooks(fallbackBusinessHooks, fallbackTracingHooks);
           const fallbackRuntime = await initModelRuntimeWithUserPayload(
             fallbackRuntimeProvider,
@@ -564,14 +569,17 @@ export const initModelRuntimeFromDB = async (
   const options = normalizeInitOptions(optionsOrWorkspaceId);
   const { onRouteResolved, workspaceId } = options;
 
-  // 1. Get user's provider configuration from database
-  const aiProviderModel = new AiProviderModel(db, userId, workspaceId);
+  if (options.requireAdminManagedNewapi && provider !== ModelProvider.NewAPI) {
+    throw new Error('MODULE_APP_NEWAPI_PROVIDER_REQUIRED');
+  }
 
-  // Use getAiProviderById with KeyVaultsGateKeeper.getUserKeyVaults as decryptor
-  const providerConfig = await aiProviderModel.getAiProviderById(
-    provider,
-    KeyVaultsGateKeeper.getUserKeyVaults,
-  );
+  // 1. Get user's provider configuration from database
+  const providerConfig = options.requireAdminManagedNewapi
+    ? null
+    : await new AiProviderModel(db, userId, workspaceId).getAiProviderById(
+        provider,
+        KeyVaultsGateKeeper.getUserKeyVaults,
+      );
 
   // 2. Resolve the runtime provider for custom providers
   // For custom providers, use sdkType from settings (defaults to 'openai')
@@ -589,7 +597,7 @@ export const initModelRuntimeFromDB = async (
   // converges on this function.
   const oauthDeviceFlowConfig = DEFAULT_MODEL_PROVIDER_LIST.find((p) => p.id === provider)?.settings
     ?.oauthDeviceFlow;
-  if (oauthDeviceFlowConfig?.refreshTokenGrant) {
+  if (!options.requireAdminManagedNewapi && oauthDeviceFlowConfig?.refreshTokenGrant) {
     const freshKeyVaults = await ensureFreshOAuthToken({
       config: oauthDeviceFlowConfig,
       db,
@@ -604,7 +612,9 @@ export const initModelRuntimeFromDB = async (
   const payload = buildPayloadFromKeyVaults(keyVaults, runtimeProvider);
 
   const adminManagedInstance =
-    provider === ModelProvider.NewAPI ? null : await resolveNewapiInstanceByProviderId(db, provider);
+    provider === ModelProvider.NewAPI
+      ? null
+      : await resolveNewapiInstanceByProviderId(db, provider);
   const isAdminManagedNewapiProvider = provider === ModelProvider.NewAPI || !!adminManagedInstance;
 
   if (isAdminManagedNewapiProvider) {
@@ -633,9 +643,17 @@ export const initModelRuntimeFromDB = async (
     }
 
     const primary = resolvedInstances[0];
+    if (!primary && options.requireAdminManagedNewapi) {
+      throw new Error('MODULE_APP_NEWAPI_ROUTE_NOT_AVAILABLE');
+    }
     if (primary) {
-      payload.apiKey ||= primary.apiKey;
-      payload.baseURL ||= primary.baseUrl;
+      if (options.requireAdminManagedNewapi) {
+        payload.apiKey = primary.apiKey;
+        payload.baseURL = primary.baseUrl;
+      } else {
+        payload.apiKey ||= primary.apiKey;
+        payload.baseURL ||= primary.baseUrl;
+      }
     }
     const adminRuntimeProvider = resolveAdminRuntimeProvider(primary?.providerType);
     payload.runtimeProvider = adminRuntimeProvider;

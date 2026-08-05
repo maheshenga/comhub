@@ -29,6 +29,7 @@ import {
   verifyModuleAppCapability,
 } from '@/server/services/moduleAppRuntime/capability';
 import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
+import { getServerModuleAppRuntimeConfig } from '@/server/services/moduleAppRuntime/config';
 import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRuntime/gateway';
 import { createModuleAppServerAction } from '@/server/services/moduleAppRuntime/serverAction';
 
@@ -39,6 +40,7 @@ import {
   getWorkspaceMembership,
   moduleAppProcedure,
 } from './data';
+import { mapModuleAppGatewayError } from './errors';
 
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
 const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
@@ -66,54 +68,18 @@ const ModuleAppGatewayCallInputSchema = z.object({
     'files.createUpload',
     'http.fetch',
     'notifications.create',
+    'ai.models.list',
+    'ai.chat',
+    'payments.methods.list',
+    'payments.catalog.list',
+    'payments.checkout.create',
+    'payments.status.get',
     'secrets.get',
     'tasks.cancel',
     'tasks.getRun',
   ]),
   requestId: z.string().min(1).max(160).optional(),
 });
-
-const getErrorIdentifier = (error: unknown) => {
-  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
-    return error.code;
-  }
-
-  return error instanceof Error ? error.message : 'module_app_runtime_failed';
-};
-
-const mapGatewayError = (error: unknown) => {
-  if (error instanceof TRPCError) return error;
-  const identifier = getErrorIdentifier(error);
-
-  if (identifier === 'MODULE_APP_CAPABILITY_REPLAYED') {
-    return new TRPCError({ cause: error, code: 'CONFLICT', message: identifier });
-  }
-  if (identifier === 'MODULE_APP_NOTIFICATION_RATE_LIMITED') {
-    return new TRPCError({ cause: error, code: 'TOO_MANY_REQUESTS', message: identifier });
-  }
-  if (
-    identifier === 'MODULE_APP_CAPABILITY_DENIED' ||
-    identifier === 'MODULE_APP_CAPABILITY_SCOPE_MISMATCH' ||
-    identifier === 'MODULE_APP_FILE_SCOPE_DENIED' ||
-    identifier === 'MODULE_APP_HTTP_HOST_DENIED' ||
-    identifier === 'MODULE_APP_UNSAFE_API_URL'
-  ) {
-    return new TRPCError({ cause: error, code: 'FORBIDDEN', message: identifier });
-  }
-  if (
-    identifier.startsWith('MODULE_APP_FILE_') ||
-    identifier.startsWith('MODULE_APP_DATA_') ||
-    identifier.startsWith('MODULE_APP_HTTP_') ||
-    identifier.startsWith('MODULE_APP_NOTIFICATION_') ||
-    identifier.startsWith('MODULE_APP_SECRET_') ||
-    identifier.startsWith('MODULE_APP_TASK_') ||
-    identifier === 'MODULE_APP_CAPABILITY_REQUEST_ID_REQUIRED'
-  ) {
-    return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });
-  }
-
-  return new TRPCError({ cause: error, code: 'INTERNAL_SERVER_ERROR', message: 'module_app_gateway_failed' });
-};
 
 const assertRuntimeRolloutAllowed = (identity: {
   appId?: null | string;
@@ -137,7 +103,8 @@ export const moduleAppRuntimeProcedures = {
   callSdk: moduleAppProcedure
     .input(ModuleAppGatewayCallInputSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+      const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+      if (!runtimeConfig.switches.executionEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_unavailable',
@@ -148,7 +115,11 @@ export const moduleAppRuntimeProcedures = {
       try {
         capability = await verifyModuleAppCapability(input.capability, { userId: ctx.userId });
       } catch (error) {
-        throw new TRPCError({ cause: error, code: 'UNAUTHORIZED', message: 'MODULE_APP_CAPABILITY_INVALID' });
+        throw new TRPCError({
+          cause: error,
+          code: 'UNAUTHORIZED',
+          message: 'MODULE_APP_CAPABILITY_INVALID',
+        });
       }
       if (capability.surface !== 'browser') {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'MODULE_APP_CAPABILITY_SURFACE_DENIED' });
@@ -173,20 +144,21 @@ export const moduleAppRuntimeProcedures = {
           requestId: input.requestId,
         });
       } catch (error) {
-        throw mapGatewayError(error);
+        throw mapModuleAppGatewayError(error);
       }
     }),
 
   getLaunchContext: moduleAppProcedure
     .input(ModuleAppLaunchInputSchema)
     .query(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN) {
+      const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+      if (!runtimeConfig.connections.publicOrigin) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_unavailable',
         });
       }
-      if (!appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED) {
+      if (!runtimeConfig.switches.publicExecutionEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_public_execution_disabled',
@@ -194,7 +166,7 @@ export const moduleAppRuntimeProcedures = {
       }
       let runtimeOrigin: string;
       try {
-        const publicOrigin = new URL(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN);
+        const publicOrigin = new URL(runtimeConfig.connections.publicOrigin);
         if (publicOrigin.protocol !== 'https:') throw new Error('HTTPS origin required');
         runtimeOrigin = publicOrigin.origin;
       } catch (error) {
@@ -204,9 +176,26 @@ export const moduleAppRuntimeProcedures = {
           message: 'module_app_runtime_unavailable',
         });
       }
+      const readiness = await new ModuleAppRuntimeClient({
+        baseUrl: runtimeConfig.connections.internalUrl,
+        enabled: runtimeConfig.switches.executionEnabled,
+        internalToken: runtimeConfig.connections.internalToken,
+        invocationEnabled: runtimeConfig.switches.invocationEnabled,
+      }).healthCheck();
+      if (readiness.status !== 'ready') {
+        throw new TRPCError({
+          cause: readiness,
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_unavailable',
+        });
+      }
 
       if (input.workspaceId) {
-        const membership = await getWorkspaceMembership(ctx.serverDB, ctx.userId, input.workspaceId);
+        const membership = await getWorkspaceMembership(
+          ctx.serverDB,
+          ctx.userId,
+          input.workspaceId,
+        );
         if (!membership) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
         }
@@ -257,7 +246,7 @@ export const moduleAppRuntimeProcedures = {
         {
           appId: input.appId,
           installationId: installation.installationId,
-          permissions: appEnv.MODULE_APP_EXECUTION_ENABLED
+          permissions: runtimeConfig.switches.executionEnabled
             ? manifest.data.runtime.permissions
             : [],
           surface: 'browser',
@@ -280,7 +269,8 @@ export const moduleAppRuntimeProcedures = {
     }),
 
   runAction: moduleAppProcedure.input(moduleAppRunInputSchema).mutation(async ({ ctx, input }) => {
-    if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+    const runtimeConfig = await getServerModuleAppRuntimeConfig(ctx.serverDB);
+    if (!runtimeConfig.switches.executionEnabled) {
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
         message: 'module_app_runtime_unavailable',
@@ -319,7 +309,8 @@ export const moduleAppRuntimeProcedures = {
         userId: ctx.userId,
         workspaceId: input.workspaceId,
       });
-      if (!record) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
+      if (!record)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
 
       await assertRecordPermission({
         db: ctx.serverDB,
@@ -340,7 +331,7 @@ export const moduleAppRuntimeProcedures = {
     let executableRunner;
     const installationId = installation.installationId;
     if (action.runtimeType === 'executable_action') {
-      if (!appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED) {
+      if (!runtimeConfig.switches.invocationEnabled) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_invocation_disabled',
@@ -358,7 +349,9 @@ export const moduleAppRuntimeProcedures = {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_build_not_ready' });
       }
       const functionKey = action.runtimeConfig.functionKey;
-      const runtimeFunction = manifest.data.runtime.functions.find((item) => item.key === functionKey);
+      const runtimeFunction = manifest.data.runtime.functions.find(
+        (item) => item.key === functionKey,
+      );
       if (!runtimeFunction) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
@@ -386,7 +379,12 @@ export const moduleAppRuntimeProcedures = {
         },
         { expiresInSeconds: 300 },
       );
-      const runtimeClient = new ModuleAppRuntimeClient();
+      const runtimeClient = new ModuleAppRuntimeClient({
+        baseUrl: runtimeConfig.connections.internalUrl,
+        enabled: runtimeConfig.switches.executionEnabled,
+        internalToken: runtimeConfig.connections.internalToken,
+        invocationEnabled: runtimeConfig.switches.invocationEnabled,
+      });
       const invocationId = randomUUID();
       executableRunner = () =>
         runModuleAppExecutableAction({
@@ -469,7 +467,10 @@ export const moduleAppRuntimeProcedures = {
       runner: executableRunner,
       scopeType: input.scopeType,
       serverAction: createModuleAppServerAction({ db: ctx.serverDB }),
-      textGenerator: createModuleAppTextGenerator({ db: ctx.serverDB, workspaceId: input.workspaceId }),
+      textGenerator: createModuleAppTextGenerator({
+        db: ctx.serverDB,
+        workspaceId: input.workspaceId,
+      }),
       userId: ctx.userId,
       workflow,
       workflowEngine,

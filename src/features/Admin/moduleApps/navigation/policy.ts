@@ -57,7 +57,10 @@ export const MODULE_ADMIN_ROUTE_POLICIES = {
     access: MODULE_APP_READ_POLICY,
     write: { allOf: [ADMIN_CAPABILITIES.moduleAppWrite] },
   },
-  'module-app-runtime': { access: MODULE_APP_READ_POLICY },
+  'module-app-runtime': {
+    access: MODULE_APP_READ_POLICY,
+    write: { allOf: [ADMIN_CAPABILITIES.moduleAppWrite] },
+  },
   'module-reviews': {
     access: MODULE_APP_READ_POLICY,
     write: { allOf: [ADMIN_CAPABILITIES.moduleAppWrite] },

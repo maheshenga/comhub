@@ -3,7 +3,7 @@
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Button, Select, Switch, Tabs } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, message, Tag, Typography } from 'antd';
+import { Alert, Form, Input, message, Skeleton, Tag, Typography } from 'antd';
 import { Save } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,13 +17,14 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 import ModulePaymentsPage from './moduleApps/finance/payments/ModulePaymentsPage';
 import CreditSettlementFailuresPage from './payments/CreditSettlementFailuresPage';
 import SubscriptionPaymentsPage from './payments/SubscriptionPaymentsPage';
 import TopUpPaymentsPage from './payments/TopUpPaymentsPage';
 import { useUnsavedChangesGuard } from './shared/useUnsavedChangesGuard';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 type PaymentFormValues = {
   alipayAppCertSn: string;
@@ -83,6 +84,10 @@ type PaymentSettingsData = {
     enabled?: boolean;
     moduleAppEnabled?: boolean;
     publicBaseUrl?: string;
+    source?: {
+      backendManaged?: boolean;
+      legacyEnvironmentKeys?: string[];
+    };
     subscriptionEnabled?: boolean;
     topUpEnabled?: boolean;
     wechat?: {
@@ -262,6 +267,7 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
 
   const config = data?.paymentConfig;
   const status = data?.paymentGatewayStatus;
+  const legacyEnvironmentKeys = config?.source?.legacyEnvironmentKeys ?? [];
   const formDisabled = settings.isLoading || Boolean(settings.error) || submitting || !data;
   const statusMessage = settings.error
     ? t('admin.payments.loadFailed', 'Unable to load payment settings')
@@ -290,15 +296,45 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
     },
   };
 
+  if (settings.isLoading && !settings.data) return <Skeleton active paragraph={{ rows: 8 }} />;
+
   return (
     <Flexbox gap={16} style={{ maxWidth: 980 }}>
-      <Alert
-        showIcon
-        message={statusMessage}
-        type={
-          settings.error ? 'error' : status?.enabled && status?.configured ? 'success' : 'warning'
-        }
-      />
+      {settings.error ? (
+        <AdminPageError description={statusMessage} onRetry={settings.mutate} />
+      ) : (
+        <Alert
+          showIcon
+          message={statusMessage}
+          type={status?.enabled && status?.configured ? 'success' : 'warning'}
+        />
+      )}
+      {legacyEnvironmentKeys.length > 0 ? (
+        <Alert
+          showIcon
+          type="warning"
+          description={
+            <Flexbox gap={8}>
+              <span>
+                {t('admin.payments.legacyEnvironment.description', {
+                  count: legacyEnvironmentKeys.length,
+                  defaultValue:
+                    '{{count}} legacy environment variables are still available as payment configuration fallbacks. Re-enter secret values on this page and save equivalent backend settings before removing them.',
+                })}
+              </span>
+              <Flexbox horizontal gap={6} wrap="wrap">
+                {legacyEnvironmentKeys.map((key) => (
+                  <Tag key={key}>{key}</Tag>
+                ))}
+              </Flexbox>
+            </Flexbox>
+          }
+          message={t(
+            'admin.payments.legacyEnvironment.title',
+            'Payment configuration migration required',
+          )}
+        />
+      ) : null}
       <Alert
         showIcon
         type="info"
@@ -664,15 +700,17 @@ const PaymentChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: bool
               },
             ]}
           />
-          <Button
-            disabled={formDisabled}
-            icon={<Icon icon={Save} size={16} />}
-            loading={submitting}
-            type="primary"
-            onClick={() => void save()}
-          >
-            {t('admin.payments.save', 'Save payment settings')}
-          </Button>
+          <AdminFormActions label={t('admin.payments.actions', '支付渠道配置操作')}>
+            <Button
+              disabled={formDisabled}
+              icon={<Icon icon={Save} size={16} />}
+              loading={submitting}
+              type="primary"
+              onClick={() => void save()}
+            >
+              {t('admin.payments.save', 'Save payment settings')}
+            </Button>
+          </AdminFormActions>
         </Flexbox>
       </Form>
     </Flexbox>
@@ -769,20 +807,16 @@ const AdminPaymentsPage = () => {
   ].filter(Boolean) as Array<{ children: ReactNode; key: PaymentCenterTab; label: string }>;
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 1220, minWidth: 0 }}>
-      <Flexbox gap={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          {t('admin.payments.title', 'Payment center')}
-        </Title>
-        <Text type="secondary">
-          {t(
-            'admin.payments.subtitle',
-            'Manage payment methods, plan purchases, online top-ups, and module-payment diagnostics.',
-          )}
-        </Text>
-      </Flexbox>
+    <AdminPageShell
+      title={t('admin.payments.title', 'Payment center')}
+      width="full"
+      description={t(
+        'admin.payments.subtitle',
+        'Manage payment methods, plan purchases, online top-ups, and module-payment diagnostics.',
+      )}
+    >
       <Tabs activeKey={activeTab} items={tabItems} onChange={changeTab} />
-    </Flexbox>
+    </AdminPageShell>
   );
 };
 

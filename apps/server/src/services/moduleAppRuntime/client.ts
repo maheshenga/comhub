@@ -1,4 +1,9 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
 import {
+  MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER,
+  MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT,
+  MODULE_APP_RUNTIME_READINESS_PROOF_HEADER,
   type ModuleAppInvocation,
   moduleAppInvocationSchema,
   type ModuleAppRuntimeReadiness,
@@ -17,6 +22,23 @@ type ModuleAppRuntimeClientOptions = {
 };
 
 const MODULE_APP_RUNTIME_HEALTH_CHECK_TIMEOUT_MS = 3000;
+
+const createReadinessProof = (internalToken: string, challenge: string) =>
+  createHmac('sha256', internalToken)
+    .update(MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT)
+    .update('\0')
+    .update(challenge)
+    .digest('base64url');
+
+const readinessProofMatches = (actual: null | string, expected: string) => {
+  if (!actual) return false;
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    actualBuffer.byteLength === expectedBuffer.byteLength &&
+    timingSafeEqual(actualBuffer, expectedBuffer)
+  );
+};
 
 export class ModuleAppRuntimeClient {
   private readonly baseUrl?: string;
@@ -56,12 +78,26 @@ export class ModuleAppRuntimeClient {
 
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), this.healthCheckTimeoutMs);
+    const challenge = this.internalToken ? randomBytes(24).toString('base64url') : undefined;
 
     try {
       const response = await this.fetch(endpoint, {
+        ...(challenge
+          ? { headers: { [MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER]: challenge } }
+          : {}),
         method: 'GET',
         signal: abortController.signal,
       });
+      if (
+        this.internalToken &&
+        (!challenge ||
+          !readinessProofMatches(
+            response.headers.get(MODULE_APP_RUNTIME_READINESS_PROOF_HEADER),
+            createReadinessProof(this.internalToken, challenge),
+          ))
+      ) {
+        return { code: 'MODULE_APP_RUNTIME_AUTH_FAILED', status: 'unavailable' };
+      }
       let body: unknown;
       try {
         body = await response.json();
@@ -79,7 +115,7 @@ export class ModuleAppRuntimeClient {
         return { code: 'MODULE_APP_RUNTIME_PROBE_INVALID', status: 'unavailable' };
       }
       return parsed.data;
-    } catch (error) {
+    } catch {
       return abortController.signal.aborted
         ? { code: 'MODULE_APP_RUNTIME_PROBE_TIMEOUT', status: 'unavailable' }
         : { code: 'MODULE_APP_RUNTIME_UNREACHABLE', status: 'unavailable' };

@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, DatePicker, Descriptions, Empty, Input, message, Modal, Tag } from 'antd';
+import { Button, Modal } from '@lobehub/ui/base-ui';
+import { DatePicker, Descriptions, Empty, Input, message, Tag } from 'antd';
 import { type Dayjs } from 'dayjs';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +10,13 @@ import { useSearchParams } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
+import {
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+} from '@/features/Admin/layout';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -131,7 +139,12 @@ const AdminAuditPage = memo(() => {
     ],
   );
 
-  const { data, isLoading } = useClientDataSWR(swrKey, () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(swrKey, () =>
     adminCommercialService.listAudit({
       action: actionFilter || undefined,
       actorUserId: actorFilter || undefined,
@@ -253,99 +266,123 @@ const AdminAuditPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal align="center" gap={12} style={{ flexWrap: 'wrap' }}>
-        <Input
-          allowClear
-          placeholder={t('admin.audit.filter.actor', '操作者用户 ID')}
-          style={{ width: 240 }}
-          value={actorFilter}
-          onChange={(e: { target: { value: string } }) => {
-            setActorFilter(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <Input
-          allowClear
-          placeholder={t('admin.audit.filter.target', '目标用户 ID')}
-          style={{ width: 240 }}
-          value={targetFilter}
-          onChange={(e: { target: { value: string } }) => {
-            setTargetFilter(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <Input
-          allowClear
-          placeholder={t('admin.audit.filter.action', '操作（如 user.ban）')}
-          style={{ width: 240 }}
-          value={actionFilter}
-          onChange={(e: { target: { value: string } }) => {
-            setActionFilter(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <Input
-          allowClear
-          placeholder={t('admin.audit.filter.resourceType', '资源类型')}
-          style={{ width: 180 }}
-          value={resourceTypeFilter}
-          onChange={(e: { target: { value: string } }) => {
-            setResourceTypeFilter(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <Input
-          allowClear
-          placeholder={t('admin.audit.filter.resourceId', '资源 ID')}
-          style={{ width: 240 }}
-          value={resourceIdFilter}
-          onChange={(e: { target: { value: string } }) => {
-            setResourceIdFilter(e.target.value);
-            setCursor(0);
-          }}
-        />
-        <DatePicker.RangePicker
-          allowClear
-          format="YYYY/MM/DD"
-          style={{ width: 260 }}
-          value={dateRangeFilter}
-          onChange={(values) => {
-            setDateRangeFilter(values ? [values[0], values[1]] : null);
-            setCursor(0);
-          }}
-        />
-        <Button loading={exporting} onClick={handleExport}>
-          {t('admin.audit.exportCsv', '导出 CSV')}
-        </Button>
-      </Flexbox>
+    <AdminPageShell
+      description={t('admin.audit.description', '检索管理员操作、目标对象和资源变更，并按筛选条件导出审计记录。')}
+      title={t('admin.audit.title', '审计记录')}
+      width="full"
+    >
+      <AdminSection
+        description={t('admin.audit.resultSummary', '按操作者、目标、资源或时间范围筛选。')}
+        title={t('admin.audit.listTitle', '操作日志')}
+      >
+        <AdminToolbar>
+          <Flexbox
+            horizontal
+            align="center"
+            gap={12}
+            style={{ flex: '1 1 520px', flexWrap: 'wrap' }}
+          >
+            <Input
+              allowClear
+              placeholder={t('admin.audit.filter.actor', '操作者用户 ID')}
+              style={{ width: 'min(240px, 100%)' }}
+              value={actorFilter}
+              onChange={(e: { target: { value: string } }) => {
+                setActorFilter(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <Input
+              allowClear
+              placeholder={t('admin.audit.filter.target', '目标用户 ID')}
+              style={{ width: 'min(240px, 100%)' }}
+              value={targetFilter}
+              onChange={(e: { target: { value: string } }) => {
+                setTargetFilter(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <Input
+              allowClear
+              placeholder={t('admin.audit.filter.action', '操作（如 user.ban）')}
+              style={{ width: 'min(240px, 100%)' }}
+              value={actionFilter}
+              onChange={(e: { target: { value: string } }) => {
+                setActionFilter(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <Input
+              allowClear
+              placeholder={t('admin.audit.filter.resourceType', '资源类型')}
+              style={{ width: 'min(180px, 100%)' }}
+              value={resourceTypeFilter}
+              onChange={(e: { target: { value: string } }) => {
+                setResourceTypeFilter(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <Input
+              allowClear
+              placeholder={t('admin.audit.filter.resourceId', '资源 ID')}
+              style={{ width: 'min(240px, 100%)' }}
+              value={resourceIdFilter}
+              onChange={(e: { target: { value: string } }) => {
+                setResourceIdFilter(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <DatePicker.RangePicker
+              allowClear
+              format="YYYY/MM/DD"
+              style={{ width: 'min(260px, 100%)' }}
+              value={dateRangeFilter}
+              onChange={(values) => {
+                setDateRangeFilter(values ? [values[0], values[1]] : null);
+                setCursor(0);
+              }}
+            />
+            <Button loading={exporting} onClick={handleExport}>
+              {t('admin.audit.exportCsv', '导出 CSV')}
+            </Button>
+          </Flexbox>
+        </AdminToolbar>
 
-      {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.audit.empty', '暂无审计日志')} />
-      ) : (
-        <InlineTable
-          columns={columns}
-          dataSource={items}
-          loading={isLoading}
-          rowKey="id"
-          onRow={(record) => ({
-            onClick: () => setDetail(record as AuditRow),
-            style: { cursor: 'pointer' },
-          })}
-        />
-      )}
+        {error ? (
+          <AdminPageError
+            description={t('admin.audit.loadFailed', '审计日志加载失败，请重试。')}
+            onRetry={refresh}
+          />
+        ) : !isLoading && items.length === 0 ? (
+          <Empty description={t('admin.audit.empty', '暂无审计日志')} />
+        ) : (
+          <AdminResponsiveTable label={t('admin.audit.tableLabel', '审计日志表')}>
+            <InlineTable
+              columns={columns}
+              dataSource={items}
+              loading={isLoading}
+              rowKey="id"
+              onRow={(record) => ({
+                onClick: () => setDetail(record as AuditRow),
+                style: { cursor: 'pointer' },
+              })}
+            />
+          </AdminResponsiveTable>
+        )}
 
-      {data?.nextCursor != null && (
-        <Flexbox align="center">
-          <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            {t('admin.audit.loadMore', '加载更多')}
-          </Button>
-        </Flexbox>
-      )}
+        {data?.nextCursor != null && (
+          <Flexbox align="center">
+            <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
+              {t('admin.audit.loadMore', '加载更多')}
+            </Button>
+          </Flexbox>
+        )}
+      </AdminSection>
 
       <Modal
         footer={null}
         open={!!detail}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         title={t('admin.audit.detail.title', '审计日志详情')}
         width={720}
         onCancel={() => setDetail(null)}
@@ -385,7 +422,7 @@ const AdminAuditPage = memo(() => {
       </Modal>
 
       <AdminUserDetailDrawer userId={drawerUser} onClose={() => setDrawerUser(null)} />
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

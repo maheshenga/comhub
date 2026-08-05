@@ -61,7 +61,9 @@ const getVersionGrantSnapshot = (version: {
 
   return normalizeGrantSnapshot({
     functionKeys: runtime?.functions.map(({ key }) => key) ?? [],
-    outboundHosts: runtime?.outboundHosts ?? [],
+    outboundHosts:
+      runtime?.outboundHosts ??
+      (packageRuntime.success ? (packageRuntime.data.outboundHosts ?? []) : []),
     permissions:
       runtime?.permissions ?? (packageRuntime.success ? packageRuntime.data.permissions : []),
     secretKeys: manifestActions.success ? getModuleAppDeclaredSecretKeys(manifestActions.data) : [],
@@ -1048,6 +1050,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     const [row] = await this.db
       .select({
         appId: moduleApps.id,
+        billing: moduleApps.billing,
         displayName: moduleApps.displayName,
         installationId: moduleAppInstallations.id,
         runtimeManifest: moduleAppVersions.runtimeManifest,

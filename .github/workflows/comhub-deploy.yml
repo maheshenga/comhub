@@ -1,22 +1,21 @@
 name: ComHub Deploy Production
-run-name: ComHub Deploy Production (source=${{ inputs.source_sha || github.sha }}, full=${{ inputs.verify_module_app_full }})
+run-name: ComHub Deploy Production (source=${{ inputs.source_sha || github.sha }})
 
 on:
   workflow_dispatch:
     inputs:
-      source_sha:
-        description: 'Optional full commit SHA from main; defaults to the selected workflow ref SHA'
-        required: false
-        type: string
-      verify_module_app_full:
-        description: 'Require credentialed Alipay and authenticated staging probes before deploy'
+      deploy_module_runtime:
+        description: 'Deploy the optional Module Runtime service while keeping mutation flags closed'
         required: true
         default: 'false'
         type: choice
         options:
           - 'false'
           - 'true'
-
+      source_sha:
+        description: 'Optional full commit SHA from main; defaults to the selected workflow ref SHA'
+        required: false
+        type: string
 permissions:
   contents: read
   packages: read
@@ -69,52 +68,6 @@ jobs:
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "image_tag=sha-${source_sha:0:12}" >> "$GITHUB_OUTPUT"
 
-  verify-module-app-full:
-    name: Verify Module App Credentialed Probes
-    needs: [resolve-source]
-    runs-on: ubuntu-latest
-    if: ${{ inputs.verify_module_app_full == 'true' }}
-    environment: module-app-staging
-    env:
-      MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
-      MODULE_APP_ALIPAY_APP_CERT_SN: ${{ vars.MODULE_APP_ALIPAY_APP_CERT_SN }}
-      MODULE_APP_ALIPAY_CERTIFICATE: ${{ secrets.MODULE_APP_ALIPAY_CERTIFICATE }}
-      MODULE_APP_ALIPAY_CERT_MODE: ${{ vars.MODULE_APP_ALIPAY_CERT_MODE || 'public_key' }}
-      MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY: ${{ secrets.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY }}
-      MODULE_APP_ALIPAY_NOTIFY_URL: ${{ vars.MODULE_APP_ALIPAY_NOTIFY_URL }}
-      MODULE_APP_ALIPAY_PUBLIC_KEY: ${{ secrets.MODULE_APP_ALIPAY_PUBLIC_KEY }}
-      MODULE_APP_ALIPAY_RETURN_URL: ${{ vars.MODULE_APP_ALIPAY_RETURN_URL }}
-      MODULE_APP_ALIPAY_ROOT_CERT_SN: ${{ vars.MODULE_APP_ALIPAY_ROOT_CERT_SN }}
-      MODULE_APP_ALIPAY_SELLER_ID: ${{ secrets.MODULE_APP_ALIPAY_SELLER_ID }}
-      MODULE_APP_E2E_APP_ID: ${{ vars.MODULE_APP_E2E_APP_ID }}
-      MODULE_APP_E2E_BASE_URL: ${{ vars.MODULE_APP_E2E_BASE_URL }}
-      MODULE_APP_E2E_DENIED_WORKSPACE_ID: ${{ vars.MODULE_APP_E2E_DENIED_WORKSPACE_ID }}
-      MODULE_APP_E2E_PAID_APP_ID: ${{ vars.MODULE_APP_E2E_PAID_APP_ID }}
-      MODULE_APP_E2E_PENDING_APP_ID: ${{ vars.MODULE_APP_E2E_PENDING_APP_ID }}
-      MODULE_APP_E2E_REFUNDED_APP_ID: ${{ vars.MODULE_APP_E2E_REFUNDED_APP_ID }}
-      MODULE_APP_E2E_REVOKED_APP_ID: ${{ vars.MODULE_APP_E2E_REVOKED_APP_ID }}
-      MODULE_APP_E2E_RUN_ID: ${{ vars.MODULE_APP_E2E_RUN_ID }}
-      MODULE_APP_E2E_TEAM_WORKSPACE_ID: ${{ vars.MODULE_APP_E2E_TEAM_WORKSPACE_ID }}
-    steps:
-      - name: Checkout deployment source
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.resolve-source.outputs.source_sha }}
-
-      - name: Set up Node.js, pnpm, and Bun
-        uses: ./.github/actions/setup-env
-        with:
-          node-version: ${{ env.NODEJS_VERSION }}
-          package-manager-cache: false
-
-      - name: Install dependencies and browser
-        run: |
-          pnpm install --no-frozen-lockfile
-          pnpm --filter @lobechat/e2e-tests exec playwright install --with-deps chromium
-
-      - name: Run credentialed Alipay and authenticated browser probes
-        run: pnpm verify:module-app-production:full
-
   resolve-images:
     name: Resolve Existing Image Digests
     needs: [resolve-source]
@@ -153,9 +106,9 @@ jobs:
 
   deploy:
     name: Deploy Production
-    needs: [resolve-source, resolve-images, verify-module-app-full]
+    needs: [resolve-source, resolve-images]
     runs-on: ubuntu-latest
-    if: ${{ always() && needs.resolve-source.result == 'success' && needs.resolve-images.result == 'success' && (needs.verify-module-app-full.result == 'success' || needs.verify-module-app-full.result == 'skipped') }}
+    if: ${{ always() && needs.resolve-source.result == 'success' && needs.resolve-images.result == 'success' }}
     timeout-minutes: 45
     environment: production
     concurrency:
@@ -275,7 +228,7 @@ jobs:
           DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
           IMAGE_REF: ${{ needs.resolve-images.outputs.image_ref }}
           IMAGE_TAG: ${{ needs.resolve-source.outputs.image_tag }}
-          REQUIRE_MODULE_RUNTIME: ${{ inputs.verify_module_app_full == 'true' }}
+          REQUIRE_MODULE_RUNTIME: ${{ inputs.deploy_module_runtime == 'true' }}
           RUNTIME_IMAGE_REF: ${{ needs.resolve-images.outputs.runtime_image_ref }}
         run: |
           set -euo pipefail
@@ -298,34 +251,132 @@ jobs:
           cd "$DEPLOY_DIR"
           export COMHUB_MODULE_RUNTIME_IMAGE="$RUNTIME_IMAGE_REF"
 
+          runtime_rollout_started=false
+          runtime_rollout_committed=false
+          previous_runtime_id=""
+          previous_runtime_image=""
+
+          runtime_verify_failed() {
+            local phase="$1"
+            local check="$2"
+            printf 'MODULE_RUNTIME_VERIFY_FAILED: phase=%s check=%s\n' "$phase" "$check" >&2
+            return 1
+          }
+
           verify_module_runtime() {
-            local artifact_source docker_artifact_root docker_host docker_socket_mount runtime_id
+            local expected_image="${1:-}"
+            local phase="${2:-runtime}"
+            local actual_image artifact_source docker_artifact_root docker_host docker_socket_mount runtime_id
+
+            test -n "$expected_image" || {
+              runtime_verify_failed "$phase" expected_image_missing
+              return 1
+            }
+
             runtime_id="$(docker compose ps -q module-runtime)"
-            test -n "${runtime_id}"
-            test "$(docker inspect -f '{{.Config.Image}}' "${runtime_id}")" = "$RUNTIME_IMAGE_REF"
-            test "$(docker inspect -f '{{.Config.User}}' "${runtime_id}")" = "10001:10001"
-            test "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "${runtime_id}")" = "true"
-            docker inspect -f '{{json .HostConfig.SecurityOpt}}' "${runtime_id}" | grep -q no-new-privileges
-            docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.RW}}{{end}}{{end}}' "${runtime_id}" | grep -qx false
+            test -n "${runtime_id}" || {
+              runtime_verify_failed "$phase" container_missing
+              return 1
+            }
+
+            actual_image="$(docker inspect -f '{{.Config.Image}}' "${runtime_id}")"
+            test "$actual_image" = "$expected_image" || {
+              runtime_verify_failed "$phase" image_mismatch
+              return 1
+            }
+            test "$(docker inspect -f '{{.Config.User}}' "${runtime_id}")" = "10001:10001" || {
+              runtime_verify_failed "$phase" user_mismatch
+              return 1
+            }
+            test "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "${runtime_id}")" = "true" || {
+              runtime_verify_failed "$phase" writable_rootfs
+              return 1
+            }
+            docker inspect -f '{{json .HostConfig.SecurityOpt}}' "${runtime_id}" | grep -q no-new-privileges || {
+              runtime_verify_failed "$phase" no_new_privileges_missing
+              return 1
+            }
+            docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.RW}}{{end}}{{end}}' "${runtime_id}" | grep -qx false || {
+              runtime_verify_failed "$phase" artifact_mount_not_read_only
+              return 1
+            }
+
             artifact_source="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")"
             docker_artifact_root="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${runtime_id}" | sed -n 's/^MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT=//p')"
-            test -n "$artifact_source"
-            test "$docker_artifact_root" = "$artifact_source"
+            test -n "$artifact_source" || {
+              runtime_verify_failed "$phase" artifact_source_missing
+              return 1
+            }
+            test "$docker_artifact_root" = "$artifact_source" || {
+              runtime_verify_failed "$phase" artifact_root_mismatch
+              return 1
+            }
+
             docker_host="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${runtime_id}" | sed -n 's/^DOCKER_HOST=//p')"
-            test "$docker_host" = 'unix:///run/module-app-docker/docker.sock'
+            test "$docker_host" = 'unix:///run/module-app-docker/docker.sock' || {
+              runtime_verify_failed "$phase" docker_host_invalid
+              return 1
+            }
             docker_socket_mount="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/run/module-app-docker/docker.sock"}}{{.Type}}|{{.RW}}{{end}}{{end}}' "${runtime_id}")"
-            test "$docker_socket_mount" = 'bind|false'
-            test -z "$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")"
-            docker compose exec -T module-runtime test -S /run/module-app-docker/docker.sock < /dev/null
-            docker compose exec -T module-runtime docker info --format '{{json .SecurityOptions}}' < /dev/null | grep -q 'name=rootless'
-            docker compose exec -T module-runtime node -e "const http=require('http');http.get('http://127.0.0.1:3210/ready',response=>process.exit(response.statusCode===200?0:1)).on('error',()=>process.exit(1))" < /dev/null
-            docker compose exec -T module-runtime node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===503?0:1));request.end('{}')" < /dev/null
+            test "$docker_socket_mount" = 'bind|false' || {
+              runtime_verify_failed "$phase" rootless_socket_mount_invalid
+              return 1
+            }
+            test -z "$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")" || {
+              runtime_verify_failed "$phase" host_docker_socket_exposed
+              return 1
+            }
+            docker compose exec -T module-runtime test -S /run/module-app-docker/docker.sock < /dev/null || {
+              runtime_verify_failed "$phase" rootless_socket_unavailable
+              return 1
+            }
+            docker compose exec -T module-runtime docker info --format '{{json .SecurityOptions}}' < /dev/null | grep -q 'name=rootless' || {
+              runtime_verify_failed "$phase" daemon_not_rootless
+              return 1
+            }
+            docker compose exec -T module-runtime node -e "const http=require('http');http.get('http://127.0.0.1:3210/ready',response=>process.exit(response.statusCode===200?0:1)).on('error',()=>process.exit(1))" < /dev/null || {
+              runtime_verify_failed "$phase" readiness_failed
+              return 1
+            }
+            docker compose exec -T module-runtime node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===503?0:1));request.end('{}')" < /dev/null || {
+              runtime_verify_failed "$phase" disabled_invocation_boundary_failed
+              return 1
+            }
+
+            printf 'MODULE_RUNTIME_VERIFY_PASSED: phase=%s\n' "$phase"
+          }
+
+          rollback_module_runtime() {
+            local failure_status=$?
+            local rollback_status=0
+            trap - ERR EXIT
+            set +e
+
+            if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && [ "$runtime_rollout_started" = "true" ] && [ "$runtime_rollout_committed" != "true" ]; then
+              if [ "$failure_status" -eq 0 ]; then
+                failure_status=1
+              fi
+              echo 'MODULE_RUNTIME_ROLLBACK_STARTED'
+              export COMHUB_MODULE_RUNTIME_IMAGE="$previous_runtime_image"
+              docker compose up -d --no-deps --wait module-runtime || rollback_status=$?
+              if [ "$rollback_status" -eq 0 ]; then
+                verify_module_runtime "$previous_runtime_image" "rollback" || rollback_status=$?
+              fi
+              if [ "$rollback_status" -eq 0 ]; then
+                echo 'MODULE_RUNTIME_ROLLBACK_COMPLETED'
+              else
+                printf 'MODULE_RUNTIME_ROLLBACK_FAILED: status=%s\n' "$rollback_status" >&2
+              fi
+            fi
+
+            exit "$failure_status"
           }
 
           verify_runtime_auth_boundary() {
             local probe_name="module-runtime-auth-probe-${IMAGE_TAG}"
+            local probe_status=""
             docker rm -f "$probe_name" >/dev/null 2>&1 || true
-            docker run -d --name "$probe_name" --read-only --tmpfs /tmp:size=16m \
+            if ! docker run -d --name "$probe_name" --read-only --tmpfs /tmp:size=16m \
               --health-cmd "node -e \"require('http').get('http://127.0.0.1:3210/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\"" \
               --health-interval 1s --health-timeout 3s --health-retries 30 \
               -e MODULE_APP_EXECUTION_ENABLED=true \
@@ -335,24 +386,38 @@ jobs:
               -e 'MODULE_APP_RUNTIME_JWKS={"keys":[{"kty":"RSA","n":"t0juSBx7vW85s4fkqPzJaPHOK5OI2qlJLfjSCo3FlYogbBP67V4VN5L_TRFxtaccpEI0B6dGjFFjmJaHmCU2kKPbi3-c76k0sxCwrL6yuGV0uUc4ZOij2fviiQKdxAMlCA3Ke3XkG-p1JNQCz08Ge0xV0CDicKRh_njO0e0J1cE0X_7GOFwmZtLsU9541C4b4Jj2IsUauOSQkFCARvPTexC4V6hMir7sIbb0f9GqQk2MA0CIdMD2fcl6Q6bVgBCxuU0Q2D0D91JYSZWN-AAuXjT7A8bXErjBEK0_MNEWP3HxJZYjRHMDO_zW_tR1FmRKbP65ZtKKh2HQqkP4CrSn3Q","e":"AQAB","alg":"RS256","use":"sig","kid":"module-runtime-public-test"}]}' \
               -e MODULE_APP_RUNTIME_NODE22_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
               -e MODULE_APP_RUNTIME_PYTHON312_IMAGE=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-              "$RUNTIME_IMAGE_REF" >/dev/null
+              "$RUNTIME_IMAGE_REF" >/dev/null; then
+              echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=container_start' >&2
+              return 1
+            fi
             for attempt in $(seq 1 30); do
-              probe_status="$(docker inspect -f '{{.State.Health.Status}}' "$probe_name")"
+              if ! probe_status="$(docker inspect -f '{{.State.Health.Status}}' "$probe_name")"; then
+                echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=health_inspect' >&2
+                docker logs "$probe_name" || true
+                docker rm -f "$probe_name" >/dev/null 2>&1 || true
+                return 1
+              fi
               [ "$probe_status" = "healthy" ] && break
               [ "$probe_status" = "unhealthy" ] && break
               sleep 1
             done
             if [ "${probe_status:-missing}" != "healthy" ]; then
+              printf 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=health status=%s\n' "${probe_status:-missing}" >&2
               docker logs "$probe_name" || true
               docker rm -f "$probe_name" >/dev/null 2>&1 || true
               return 1
             fi
             if ! docker exec "$probe_name" node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===401?0:1));request.end('{}')"; then
+              echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=unauthorized_boundary' >&2
               docker logs "$probe_name" || true
               docker rm -f "$probe_name" >/dev/null 2>&1 || true
               return 1
             fi
-            docker rm -f "$probe_name" >/dev/null
+            if ! docker rm -f "$probe_name" >/dev/null; then
+              echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=cleanup' >&2
+              return 1
+            fi
+            echo 'MODULE_RUNTIME_AUTH_PROBE_PASSED'
           }
 
           echo "Disk usage before deploy:"
@@ -382,9 +447,19 @@ jobs:
           fi
 
           if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
+            previous_runtime_id="$(docker compose ps -q module-runtime)"
+            test -n "$previous_runtime_id" || runtime_verify_failed "preflight" container_missing
+            previous_runtime_image="$(docker inspect -f '{{.Config.Image}}' "$previous_runtime_id")"
+            test -n "$previous_runtime_image" || runtime_verify_failed "preflight" image_missing
+            [[ "$previous_runtime_image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || runtime_verify_failed "preflight" previous_image_not_immutable
+            verify_module_runtime "$previous_runtime_image" "preflight"
+
             docker pull "$RUNTIME_IMAGE_REF"
+            # EXIT covers shell termination before the rollout reaches its commit point.
+            trap rollback_module_runtime ERR EXIT
+            runtime_rollout_started=true
             docker compose up -d --no-deps --wait module-runtime
-            verify_module_runtime
+            verify_module_runtime "$RUNTIME_IMAGE_REF" "rollout"
             verify_runtime_auth_boundary
           else
             echo "module-runtime rollout skipped; production mutation flags remain disabled"
@@ -429,27 +504,14 @@ jobs:
 
           public_execution="$(docker compose exec -T "$app_service" printenv MODULE_APP_PUBLIC_EXECUTION_ENABLED < /dev/null 2>/dev/null || true)"
           if [ "$public_execution" = "true" ]; then
-            runtime_origin="$(docker compose exec -T "$app_service" printenv MODULE_APP_RUNTIME_PUBLIC_ORIGIN < /dev/null 2>/dev/null || true)"
-            runtime_allowlist="$(docker compose exec -T "$app_service" printenv MODULE_APP_RUNTIME_APP_ALLOWLIST < /dev/null 2>/dev/null || true)"
-            if [ "$module_runtime_configured" != "true" ]; then
-              echo "Public Module App launch requires the module-runtime service"
-              exit 1
-            fi
-            case "$runtime_origin" in
-              https://*) ;;
-              *)
-                echo "Public Module App launch requires an HTTPS runtime origin"
-                exit 1
-                ;;
-            esac
-            if [ -z "$(printf '%s' "$runtime_allowlist" | tr -d '[:space:],')" ]; then
-              echo "Public Module App launch requires a non-empty app allowlist"
-              exit 1
-            fi
+            echo "Public Module App launch must remain disabled until the remaining production gates pass"
+            exit 1
           fi
 
           if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
-            verify_module_runtime
+            verify_module_runtime "$RUNTIME_IMAGE_REF" "post-deploy"
+            runtime_rollout_committed=true
+            trap - ERR EXIT
           else
             echo "module-runtime verification skipped; production mutation flags remain disabled"
           fi

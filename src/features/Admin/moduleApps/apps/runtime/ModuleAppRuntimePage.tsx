@@ -1,14 +1,19 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
+import { Button, confirmModal, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { RefreshCw } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { ArrowRight, Play, RefreshCw } from 'lucide-react';
+import { memo, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
+import { ADMIN_BASE_PATH } from '@/features/Admin/adminCatalog';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 import ArtifactsTable from '../../ArtifactsTable';
 import InstallsTable from '../../InstallsTable';
@@ -24,6 +29,7 @@ import type {
   ModuleAppRunRow,
   ModuleAppRuntimeDiagnostics,
 } from '../../types';
+import ModuleAppRuntimeSettings from './ModuleAppRuntimeSettings';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   diagnosticCode: css`
@@ -31,11 +37,46 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorTextSecondary};
     overflow-wrap: anywhere;
   `,
+  diagnosticActions: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    align-items: center;
+  `,
+  diagnosticAction: css`
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+
+    color: ${cssVar.colorLink};
+    text-decoration: none;
+
+    &:hover {
+      color: ${cssVar.colorLinkHover};
+    }
+
+    svg {
+      flex: none;
+    }
+  `,
   diagnosticGrid: css`
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0 20px;
     margin: 0;
+  `,
+  diagnosticGroup: css`
+    display: grid;
+    gap: 10px;
+
+    h3,
+    p {
+      margin: 0;
+    }
+
+    p {
+      color: ${cssVar.colorTextSecondary};
+    }
   `,
   diagnosticItem: css`
     display: grid;
@@ -56,6 +97,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   diagnosticStatus: css`
     display: inline-flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
 
@@ -163,6 +205,12 @@ const ModuleAppRuntimePage = memo(() => {
   const t = (key: string, options?: Record<string, unknown>) =>
     translate(key as any, options as any);
   const { appId } = useParams<{ appId: string }>();
+  const role = useUserStore(
+    (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
+  );
+  const canWrite = hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppWrite);
+  const [dispatchingSchedules, setDispatchingSchedules] = useState(false);
+  const runtimeSettingsKey = appId ? ADMIN_SETTINGS_SECTION_SWR_KEY('module-runtime') : null;
   const diagnosticsKey = appId ? moduleAppCacheKeys.runtimeDiagnostics() : null;
   const installsKey = appId ? moduleAppCacheKeys.runtime('installs', appId, 10) : null;
   const recordsKey = appId ? moduleAppCacheKeys.runtime('records', appId, 10) : null;
@@ -204,9 +252,46 @@ const ModuleAppRuntimePage = memo(() => {
         limit: 10,
       }) as Promise<ListResponse<ModuleAppArtifactRow>>,
   );
+  const runtimeSettings = useClientDataSWR(runtimeSettingsKey, () =>
+    adminCommercialService.getSettingsSection('module-runtime'),
+  );
   const diagnostics = useClientDataSWR<ModuleAppRuntimeDiagnostics>(diagnosticsKey, () =>
     adminCommercialService.moduleApps.getRuntimeDiagnostics(),
   );
+
+  const confirmScheduleDispatch = () => {
+    confirmModal({
+      content: t('moduleApps.admin.runtime.diagnostics.dispatchNowConfirm'),
+      okText: t('moduleApps.admin.runtime.diagnostics.dispatchNow'),
+      title: t('moduleApps.admin.runtime.diagnostics.dispatchNow'),
+      onOk: async () => {
+        setDispatchingSchedules(true);
+        try {
+          const result = await adminCommercialService.moduleApps.dispatchSchedulesNow();
+          const failed = result.failed + result.bookkeepingFailed;
+          const message = t(
+            failed > 0
+              ? 'moduleApps.admin.runtime.diagnostics.dispatchNowPartial'
+              : 'moduleApps.admin.runtime.diagnostics.dispatchNowSuccess',
+            { claimed: result.claimed, dispatched: result.dispatched, failed },
+          );
+          if (failed > 0) toast.warning(message);
+          else toast.success(message);
+          if (diagnosticsKey) await mutate(diagnosticsKey);
+        } catch (error) {
+          toast.error(
+            t(
+              error instanceof Error && error.message === 'MODULE_APP_SCHEDULE_DISPATCH_DISABLED'
+                ? 'moduleApps.admin.runtime.diagnostics.dispatchNowDisabled'
+                : 'moduleApps.admin.runtime.diagnostics.dispatchNowFailed',
+            ),
+          );
+        } finally {
+          setDispatchingSchedules(false);
+        }
+      },
+    });
+  };
 
   if (!appId) return <p>{t('moduleApps.admin.operations.selectAppDescription')}</p>;
 
@@ -229,6 +314,26 @@ const ModuleAppRuntimePage = memo(() => {
     ),
     tone: (configured ? 'positive' : 'warning') as DiagnosticTone,
   });
+  const unavailableStatus = () => ({
+    label: t('moduleApps.admin.runtime.diagnostics.status.unavailable'),
+    tone: 'negative' as DiagnosticTone,
+  });
+  const countStatus = (
+    value: null | number | undefined,
+    tone: (value: number) => DiagnosticTone,
+  ) =>
+    value === null || value === undefined
+      ? unavailableStatus()
+      : { label: new Intl.NumberFormat().format(value), tone: tone(value) };
+  const formatDiagnosticDate = (value: Date | null | string | undefined) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.valueOf())) return null;
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(date);
+  };
   const probeStatus = diagnostics.data
     ? {
         label: t(`moduleApps.admin.runtime.diagnostics.status.${diagnostics.data.probe.status}`),
@@ -239,7 +344,98 @@ const ModuleAppRuntimePage = memo(() => {
             : 'neutral') as DiagnosticTone,
       }
     : undefined;
-  const diagnosticRows = diagnostics.data
+  const enabledChatModelCount = diagnostics.data?.platformGateways.ai.enabledChatModelCount ?? 0;
+  const paymentMethods = diagnostics.data?.platformGateways.payments.methods ?? [];
+  const paymentMethodStatus = {
+    label:
+      paymentMethods.length > 0
+        ? paymentMethods.map((method) => t(`moduleApps.purchase.methods.${method}`)).join(', ')
+        : t('moduleApps.admin.runtime.diagnostics.status.missing'),
+    tone: (paymentMethods.length > 0 ? 'positive' : 'warning') as DiagnosticTone,
+  };
+  const paymentSource = diagnostics.data?.platformGateways.payments.source;
+  const paymentSourceStatus = {
+    label: paymentSource?.backendManaged
+      ? t('moduleApps.admin.runtime.diagnostics.paymentSource.backend')
+      : t('moduleApps.admin.runtime.diagnostics.paymentSource.legacyEnvironment', {
+          count: paymentSource?.legacyEnvironmentKeyCount ?? 0,
+        }),
+    tone: (paymentSource?.backendManaged ? 'positive' : 'warning') as DiagnosticTone,
+  };
+  const scheduler = diagnostics.data?.scheduler;
+  const schedulerDiagnosticRows = diagnostics.data
+    ? [
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.schedulerStatus'),
+          status:
+            scheduler?.status === 'available'
+              ? {
+                  label: t('moduleApps.admin.runtime.diagnostics.status.available'),
+                  tone: 'positive' as DiagnosticTone,
+                }
+              : unavailableStatus(),
+        },
+        ...(scheduler?.status === 'available'
+          ? [
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.enabledSchedules'),
+                status: countStatus(scheduler.enabledSchedules, () => 'neutral'),
+              },
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.claimableSchedules'),
+                status: countStatus(scheduler.claimableSchedules, (value) =>
+                  value > 0 ? 'warning' : 'positive',
+                ),
+              },
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.activeClaims'),
+                status: countStatus(scheduler.activeClaims, () => 'neutral'),
+              },
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.staleClaims'),
+                status: countStatus(scheduler.staleClaims, (value) =>
+                  value > 0 ? 'negative' : 'positive',
+                ),
+              },
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.oldestClaimableAt'),
+                status: scheduler.oldestClaimableAt
+                  ? {
+                      label:
+                        formatDiagnosticDate(scheduler.oldestClaimableAt) ??
+                        t('moduleApps.admin.runtime.diagnostics.status.unavailable'),
+                      tone: 'warning' as DiagnosticTone,
+                    }
+                  : {
+                      label: t('moduleApps.admin.runtime.diagnostics.status.noBacklog'),
+                      tone: 'positive' as DiagnosticTone,
+                    },
+              },
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.lastScheduledRunAt'),
+                status: scheduler.lastScheduledRunAt
+                  ? {
+                      label:
+                        formatDiagnosticDate(scheduler.lastScheduledRunAt) ??
+                        t('moduleApps.admin.runtime.diagnostics.status.unavailable'),
+                      tone: 'neutral' as DiagnosticTone,
+                    }
+                  : {
+                      label: t('moduleApps.admin.runtime.diagnostics.status.never'),
+                      tone: 'warning' as DiagnosticTone,
+                    },
+              },
+              {
+                label: t('moduleApps.admin.runtime.diagnostics.failedScheduledRuns24h'),
+                status: countStatus(scheduler.failedScheduledRuns24h, (value) =>
+                  value > 0 ? 'negative' : 'positive',
+                ),
+              },
+            ]
+          : []),
+      ]
+    : [];
+  const runtimeDiagnosticRows = diagnostics.data
     ? [
         {
           label: t('moduleApps.admin.runtime.diagnostics.probe'),
@@ -258,6 +454,14 @@ const ModuleAppRuntimePage = memo(() => {
           status: enabledStatus(diagnostics.data.switches.invocationEnabled),
         },
         {
+          label: t('moduleApps.admin.runtime.diagnostics.scheduleDispatch'),
+          status: enabledStatus(diagnostics.data.switches.scheduleDispatchEnabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.workflowExecutors'),
+          status: enabledStatus(diagnostics.data.switches.workflowPrivilegedExecutorsEnabled),
+        },
+        {
           label: t('moduleApps.admin.runtime.diagnostics.internalUrl'),
           status: configuredStatus(diagnostics.data.configuration.internalUrlConfigured),
         },
@@ -271,6 +475,45 @@ const ModuleAppRuntimePage = memo(() => {
         },
       ]
     : [];
+  const gatewayDiagnosticRows = diagnostics.data
+    ? [
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.managedAiModels'),
+          status: {
+            label: t('moduleApps.admin.runtime.diagnostics.enabledChatModels', {
+              count: enabledChatModelCount,
+            }),
+            tone: (enabledChatModelCount > 0 ? 'positive' : 'warning') as DiagnosticTone,
+          },
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentGateway'),
+          status: configuredStatus(diagnostics.data.platformGateways.payments.configured),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentConfigurationSource'),
+          status: paymentSourceStatus,
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentSystem'),
+          status: enabledStatus(diagnostics.data.platformGateways.payments.enabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.modulePayments'),
+          status: enabledStatus(diagnostics.data.platformGateways.payments.moduleAppEnabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentMethods'),
+          status: paymentMethodStatus,
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.paymentCallbackOrigin'),
+          status: configuredStatus(
+            diagnostics.data.platformGateways.payments.publicOriginConfigured,
+          ),
+        },
+      ]
+    : [];
 
   return (
     <section className={styles.page} data-testid="module-app-runtime">
@@ -278,6 +521,27 @@ const ModuleAppRuntimePage = memo(() => {
         <h1>{t('moduleApps.admin.runtime.title')}</h1>
         <p>{t('moduleApps.admin.runtime.description')}</p>
       </header>
+      <section className={styles.section} data-testid="module-runtime-control-center">
+        <header>
+          <h2>{t('moduleApps.admin.runtime.settings.title')}</h2>
+          <p>{t('moduleApps.admin.runtime.settings.subtitle')}</p>
+        </header>
+        <ModulePageState
+          emptyDescription={t('moduleApps.admin.runtime.settings.subtitle')}
+          emptyTitle={t('moduleApps.admin.runtime.settings.title')}
+          error={runtimeSettings.error}
+          isEmpty={false}
+          loading={runtimeSettings.isLoading}
+          onRetry={() => runtimeSettingsKey && void mutate(runtimeSettingsKey)}
+        >
+          {runtimeSettings.data?.moduleAppRuntimeConfig ? (
+            <ModuleAppRuntimeSettings
+              canWrite={canWrite}
+              settings={runtimeSettings.data.moduleAppRuntimeConfig}
+            />
+          ) : null}
+        </ModulePageState>
+      </section>
       <section className={styles.section} data-testid="module-runtime-diagnostics">
         <header className={styles.header}>
           <div>
@@ -301,7 +565,7 @@ const ModuleAppRuntimePage = memo(() => {
           {diagnostics.data ? (
             <>
               <dl className={styles.diagnosticGrid}>
-                {diagnosticRows.map((item) => (
+                {runtimeDiagnosticRows.map((item) => (
                   <div className={styles.diagnosticItem} key={item.label}>
                     <dt className={styles.diagnosticLabel}>{item.label}</dt>
                     <dd>
@@ -310,6 +574,70 @@ const ModuleAppRuntimePage = memo(() => {
                   </div>
                 ))}
               </dl>
+              <div className={styles.diagnosticGroup}>
+                <header className={styles.header}>
+                  <div>
+                    <h3>{t('moduleApps.admin.runtime.diagnostics.schedulerTitle')}</h3>
+                    <p>{t('moduleApps.admin.runtime.diagnostics.schedulerDescription')}</p>
+                  </div>
+                  {canWrite ? (
+                    <Button
+                      icon={Play}
+                      loading={dispatchingSchedules}
+                      disabled={
+                        dispatchingSchedules || !diagnostics.data.switches.scheduleDispatchEnabled
+                      }
+                      title={
+                        diagnostics.data.switches.scheduleDispatchEnabled
+                          ? t('moduleApps.admin.runtime.diagnostics.dispatchNow')
+                          : t('moduleApps.admin.runtime.diagnostics.dispatchNowDisabled')
+                      }
+                      onClick={confirmScheduleDispatch}
+                    >
+                      {t('moduleApps.admin.runtime.diagnostics.dispatchNow')}
+                    </Button>
+                  ) : null}
+                </header>
+                <dl className={styles.diagnosticGrid}>
+                  {schedulerDiagnosticRows.map((item) => (
+                    <div className={styles.diagnosticItem} key={item.label}>
+                      <dt className={styles.diagnosticLabel}>{item.label}</dt>
+                      <dd>
+                        <DiagnosticStatus {...item.status} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <div className={styles.diagnosticGroup}>
+                <header>
+                  <h3>{t('moduleApps.admin.runtime.diagnostics.platformGatewaysTitle')}</h3>
+                  <p>{t('moduleApps.admin.runtime.diagnostics.platformGatewaysDescription')}</p>
+                </header>
+                <dl className={styles.diagnosticGrid}>
+                  {gatewayDiagnosticRows.map((item) => (
+                    <div className={styles.diagnosticItem} key={item.label}>
+                      <dt className={styles.diagnosticLabel}>{item.label}</dt>
+                      <dd>
+                        <DiagnosticStatus {...item.status} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <nav
+                  aria-label={t('moduleApps.admin.runtime.diagnostics.gatewayManagement')}
+                  className={styles.diagnosticActions}
+                >
+                  <Link className={styles.diagnosticAction} to={`${ADMIN_BASE_PATH}/providers`}>
+                    {t('moduleApps.admin.runtime.diagnostics.manageProviders')}
+                    <ArrowRight aria-hidden size={15} />
+                  </Link>
+                  <Link className={styles.diagnosticAction} to={`${ADMIN_BASE_PATH}/payments`}>
+                    {t('moduleApps.admin.runtime.diagnostics.managePayments')}
+                    <ArrowRight aria-hidden size={15} />
+                  </Link>
+                </nav>
+              </div>
               {diagnostics.data.probe.status === 'unavailable' ? (
                 <p className={styles.diagnosticCode} role="status">
                   {t('moduleApps.admin.runtime.diagnostics.failureCode', {

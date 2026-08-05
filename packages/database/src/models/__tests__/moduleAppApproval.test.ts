@@ -43,7 +43,7 @@ const executableManifest = moduleAppPackageManifestSchema.parse({
   entitlements: [],
   manifestVersion: 2 as const,
   packageVersion: '2.1.0',
-  runtime: { functions: [], permissions: [] },
+  runtime: { functions: [], outboundHosts: ['api.example.com'], permissions: [] },
 });
 
 beforeEach(async () => {
@@ -107,6 +107,7 @@ describe('ModuleAppModel executable package approval', () => {
     });
 
     const result = await new ModuleAppModel(serverDB).approvePackageSubmissionForAdmin({
+      outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
       packageId: packageRow.id,
       reviewedByUserId: ADMIN_ID,
     });
@@ -180,6 +181,7 @@ describe('ModuleAppModel executable package approval', () => {
 
     await expect(
       new ModuleAppModel(serverDB).approvePackageSubmissionForAdmin({
+        outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
         packageId: packageRow.id,
         reviewedByUserId: ADMIN_ID,
       }),
@@ -246,6 +248,7 @@ describe('ModuleAppModel executable package approval', () => {
     });
 
     const result = await new ModuleAppModel(serverDB).approvePackageSubmissionForAdmin({
+      outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
       packageId: packageRow.id,
       reviewedByUserId: ADMIN_ID,
     });
@@ -258,7 +261,10 @@ describe('ModuleAppModel executable package approval', () => {
     });
     expect(result.package).toMatchObject({ publisherId: publisher.id });
     expect(await serverDB.query.moduleAppVersions.findFirst()).toMatchObject({
-      runtimeManifest: expect.objectContaining({ manifestVersion: 2 }),
+      runtimeManifest: expect.objectContaining({
+        manifestVersion: 2,
+        outboundHostPolicies: [{ host: 'api.example.com', purpose: 'general' }],
+      }),
       version: '2.1.0',
     });
 

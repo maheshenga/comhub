@@ -2,16 +2,14 @@
 
 import { Plans } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
+import { Button, confirmModal, Modal, Select } from '@lobehub/ui/base-ui';
 import {
   Alert,
-  Button,
   Empty,
   Form,
   Input,
   InputNumber,
   message,
-  Modal,
-  Select,
   Switch,
   Tag,
 } from 'antd';
@@ -33,6 +31,13 @@ import {
   type AdminPlanModelRules,
   getPlanModelRulesSummaryInfo,
 } from '@/features/Admin/adminPlanModelRules';
+import {
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+} from '@/features/Admin/layout';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -94,7 +99,12 @@ const PLAN_OPTIONS = Object.values(Plans).map((plan) => ({
 const AdminPlansPage = memo(() => {
   const { t } = useTranslation('subscription');
   const navigate = useNavigate();
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () => adminCommercialService.listPlans());
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(SWR_KEY, () => adminCommercialService.listPlans());
   const [editing, setEditing] = useState<Partial<PlanRow> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<PlanFormValues>();
@@ -196,7 +206,7 @@ const AdminPlansPage = memo(() => {
   const handleDelete = async (plan: string) => {
     const impact = await adminCommercialService.getPlanDeleteImpact(plan);
 
-    Modal.confirm({
+    confirmModal({
       content: <AdminDependencyImpactPreview impact={impact} />,
       okButtonProps: { danger: true, disabled: !impact.canProceed },
       onOk: async () => {
@@ -351,41 +361,59 @@ const AdminPlansPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Alert
-        showIcon
-        type="info"
-        action={
-          <Button size="small" onClick={() => navigate(ADMIN_PLAN_MODEL_MATRIX_PATH)}>
-            打开矩阵
-          </Button>
-        }
-        message={t(
-          'admin.plans.modelRulesMoved',
-          '套餐模型权限已统一移动到“模型与计费矩阵”。此页只维护套餐价格、积分和权益，避免同一权限在多个入口重复编辑。',
-        )}
-      />
-
-      <Flexbox horizontal>
-        <Button type="primary" onClick={() => openEdit()}>
-          {t('admin.plans.create', '新建套餐')}
-        </Button>
-      </Flexbox>
-      {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.plans.empty', '暂无套餐配置')} />
-      ) : (
-        <InlineTable
-          columns={columns as any}
-          dataSource={items}
-          loading={isLoading}
-          rowKey="plan"
+    <AdminPageShell
+      description={t('admin.plans.description', '维护订阅套餐的价格、积分、权益和展示信息。')}
+      title={t('admin.plans.title', '套餐管理')}
+      width="full"
+    >
+      <AdminSection>
+        <Alert
+          showIcon
+          type="info"
+          action={
+            <Button size="small" onClick={() => navigate(ADMIN_PLAN_MODEL_MATRIX_PATH)}>
+              打开矩阵
+            </Button>
+          }
+          message={t(
+            'admin.plans.modelRulesMoved',
+            '套餐模型权限已统一移动到“模型与计费矩阵”。此页只维护套餐价格、积分和权益，避免同一权限在多个入口重复编辑。',
+          )}
         />
-      )}
-      <AdminPlanFaqCard />
+
+        <AdminToolbar>
+          <Button disabled={isLoading || Boolean(error)} type="primary" onClick={() => openEdit()}>
+            {t('admin.plans.create', '新建套餐')}
+          </Button>
+        </AdminToolbar>
+
+        {error ? (
+          <AdminPageError
+            description={t('admin.plans.loadFailed', '套餐加载失败，请重试。')}
+            onRetry={refresh}
+          />
+        ) : !isLoading && items.length === 0 ? (
+          <Empty description={t('admin.plans.empty', '暂无套餐配置')} />
+        ) : (
+          <AdminResponsiveTable label={t('admin.plans.tableLabel', '套餐配置表')}>
+            <InlineTable
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              rowKey="plan"
+            />
+          </AdminResponsiveTable>
+        )}
+      </AdminSection>
+
+      <AdminSection title={t('admin.plans.faqTitle', '套餐配置说明')}>
+        <AdminPlanFaqCard />
+      </AdminSection>
 
       <Modal
         confirmLoading={submitting}
         open={!!editing}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
         width={600}
         title={
           editing?.plan
@@ -414,7 +442,7 @@ const AdminPlansPage = memo(() => {
           >
             <Input />
           </Form.Item>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               label={t('admin.plans.field.monthlyCredits', '每月积分')}
               name="monthlyCredits"
@@ -430,7 +458,7 @@ const AdminPlansPage = memo(() => {
               <Input />
             </Form.Item>
           </Flexbox>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               label={t('admin.plans.field.monthly', '月付价格')}
               name="monthlyPrice"
@@ -446,7 +474,7 @@ const AdminPlansPage = memo(() => {
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
           </Flexbox>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               extra={t('admin.plans.field.oneTimeHint', '留空时前台不展示一次性周期。')}
               label={t('admin.plans.field.oneTime', '一次性价格')}
@@ -481,7 +509,7 @@ const AdminPlansPage = memo(() => {
           >
             <Input placeholder="https://..." />
           </Form.Item>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               label={t('admin.plans.field.badge', '套餐徽标')}
               name="badge"
@@ -504,7 +532,7 @@ const AdminPlansPage = memo(() => {
           >
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               extra={t('admin.plans.field.storageQuotaHint', '留空表示不限；0 表示禁止上传。')}
               label={t('admin.plans.field.storageQuotaMb', '存储空间上限 MB')}
@@ -525,7 +553,7 @@ const AdminPlansPage = memo(() => {
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Flexbox>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               label={t('admin.plans.field.pptEnabled', '允许 PPT 创作')}
               name="pptEnabled"
@@ -549,7 +577,7 @@ const AdminPlansPage = memo(() => {
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Flexbox>
-          <Flexbox horizontal gap={12}>
+          <Flexbox horizontal gap={12} wrap="wrap">
             <Form.Item
               label={t('admin.plans.field.sortOrder', '排序值')}
               name="sortOrder"
@@ -567,7 +595,7 @@ const AdminPlansPage = memo(() => {
           </Flexbox>
         </Form>
       </Modal>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

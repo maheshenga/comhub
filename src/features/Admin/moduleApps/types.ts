@@ -3,6 +3,7 @@ import type {
   ModuleAppAdminUpsertInput,
   ModuleAppBillingConfig,
   ModuleAppBuildStatus,
+  ModuleAppOutboundHostPurpose,
   ModuleAppPackageReviewStatus,
   ModuleAppPackageScanStatus,
   ModuleAppPage,
@@ -11,6 +12,7 @@ import type {
   ModuleAppSource,
   ModuleAppStatus,
   ModuleAppType,
+  PaymentMethodId,
 } from '@lobechat/types';
 
 export type AdminModuleAppItem = {
@@ -58,12 +60,15 @@ export type AdminModuleAppPackageRow = {
       source?: ModuleAppSource;
     };
     packageVersion?: string;
+    runtime?: { outboundHosts?: string[] };
   };
   rejectionReason?: null | string;
   reviewStatus: ModuleAppPackageReviewStatus;
   scanStatus: ModuleAppPackageScanStatus;
   submittedByUserId?: null | string;
 };
+
+export type AdminModuleAppOutboundHostPurpose = ModuleAppOutboundHostPurpose;
 
 export type ModuleAppRecordRow = {
   collectionKey: string;
@@ -101,18 +106,80 @@ export type ModuleAppInstallRow = {
   workspaceId?: null | string;
 };
 
+export type ModuleAppRuntimeSwitches = {
+  executionEnabled: boolean;
+  invocationEnabled: boolean;
+  publicExecutionEnabled: boolean;
+  scheduleDispatchEnabled: boolean;
+  workflowPrivilegedExecutorsEnabled: boolean;
+};
+
+export type ModuleAppRuntimeSettingsData = {
+  blockers: {
+    invocation: string[];
+    publicExecution: string[];
+    scheduleDispatch: string[];
+    workflowPrivilegedExecutors: string[];
+  };
+  internalTokenConfigured: boolean;
+  internalTokenMasked?: null | string;
+  internalUrl: string;
+  publicOrigin: string;
+  requestedSwitches: ModuleAppRuntimeSwitches;
+  source: {
+    backendManaged: boolean;
+    legacyEnvironmentKeys: string[];
+    values: Record<
+      | 'executionEnabled'
+      | 'internalToken'
+      | 'internalUrl'
+      | 'invocationEnabled'
+      | 'publicExecutionEnabled'
+      | 'publicOrigin'
+      | 'scheduleDispatchEnabled'
+      | 'workflowPrivilegedExecutorsEnabled',
+      'database' | 'default' | 'environment'
+    >;
+  };
+  switches: ModuleAppRuntimeSwitches;
+};
+
 export type ModuleAppRuntimeDiagnostics = {
   configuration: {
     internalTokenConfigured: boolean;
     internalUrlConfigured: boolean;
     publicOriginConfigured: boolean;
   };
-  probe: ModuleAppRuntimeReadiness;
-  switches: {
-    executionEnabled: boolean;
-    invocationEnabled: boolean;
-    publicExecutionEnabled: boolean;
+  platformGateways: {
+    ai: {
+      configured: boolean;
+      enabledChatModelCount: number;
+    };
+    payments: {
+      configured: boolean;
+      enabled: boolean;
+      methods: PaymentMethodId[];
+      moduleAppEnabled: boolean;
+      publicOriginConfigured: boolean;
+      source: {
+        backendManaged: boolean;
+        legacyEnvironmentKeyCount: number;
+      };
+    };
   };
+  probe: ModuleAppRuntimeReadiness;
+  requestedSwitches: ModuleAppRuntimeSwitches;
+  scheduler: {
+    activeClaims: null | number;
+    claimableSchedules: null | number;
+    enabledSchedules: null | number;
+    failedScheduledRuns24h: null | number;
+    lastScheduledRunAt: Date | null | string;
+    oldestClaimableAt: Date | null | string;
+    staleClaims: null | number;
+    status: 'available' | 'unavailable';
+  };
+  switches: ModuleAppRuntimeSwitches;
 };
 
 export type ModuleAppAuditRow = {

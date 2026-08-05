@@ -92,7 +92,14 @@ export const APP_SETTINGS_CATALOG: AppSettingCatalogItem[] = listAppSettingRegis
       ...valueDefinition,
       ownership: externalOwner ? 'external' : 'application',
       publicRuntime: registryItem.publicRuntime,
-      requiredCapability: writable ? 'systemWrite' : 'systemRead',
+      requiredCapability:
+        registryItem.domain === 'module-apps'
+          ? writable
+            ? 'moduleAppWrite'
+            : 'moduleAppRead'
+          : writable
+            ? 'systemWrite'
+            : 'systemRead',
       runtimeConsumers: getAppSettingRuntimeConsumers(registryItem.key, lifecycle),
       runtimeEffects: runtimeEffectsFor(registryItem.key, registryItem.cacheScopes),
       section,

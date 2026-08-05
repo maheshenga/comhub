@@ -20,8 +20,13 @@ const moduleAppPackagePathSchema = z
 export const moduleAppRuntimeLanguageSchema = z.enum(['node22', 'python312']);
 export type ModuleAppRuntimeLanguage = z.infer<typeof moduleAppRuntimeLanguageSchema>;
 
+export const MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER = 'x-comhub-module-runtime-challenge';
+export const MODULE_APP_RUNTIME_READINESS_PROOF_HEADER = 'x-comhub-module-runtime-proof';
+export const MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT = 'comhub-module-runtime-readiness:v1';
+
 export const moduleAppRuntimeReadinessCodeSchema = z.enum([
   'MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE',
+  'MODULE_APP_RUNTIME_AUTH_FAILED',
   'MODULE_APP_RUNTIME_CONFIG_MISSING',
   'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
   'MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED',
@@ -63,6 +68,119 @@ export const moduleAppBuildConfigSchema = z
   .strict();
 export type ModuleAppBuildConfig = z.infer<typeof moduleAppBuildConfigSchema>;
 
+export const normalizeModuleAppOutboundHost = (value: string) => {
+  const host = value.trim().toLowerCase().replace(/\.$/, '');
+  if (!host || host.length > 253) throw new Error('module_app_outbound_host_invalid');
+
+  let parsed: URL;
+  try {
+    parsed = new URL(`https://${host}`);
+  } catch {
+    throw new Error('module_app_outbound_host_invalid');
+  }
+  const normalized = parsed.hostname.toLowerCase().replace(/\.$/, '');
+  if (
+    normalized !== host ||
+    parsed.port ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error('module_app_outbound_host_invalid');
+  }
+
+  return normalized;
+};
+
+export const moduleAppOutboundHostSchema = z.string().transform((value, context) => {
+  try {
+    return normalizeModuleAppOutboundHost(value);
+  } catch {
+    context.addIssue({ code: 'custom', message: 'module_app_outbound_host_invalid' });
+    return z.NEVER;
+  }
+});
+
+export const moduleAppOutboundHostsSchema = z
+  .array(moduleAppOutboundHostSchema)
+  .max(80)
+  .superRefine((hosts, context) => {
+    const seen = new Set<string>();
+    hosts.forEach((host, index) => {
+      if (seen.has(host)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'module_app_outbound_host_duplicate',
+          path: [index],
+        });
+      }
+      seen.add(host);
+    });
+  });
+
+export const moduleAppOutboundHostPurposeSchema = z.enum(['general', 'ai', 'payment']);
+export type ModuleAppOutboundHostPurpose = z.infer<typeof moduleAppOutboundHostPurposeSchema>;
+
+export const moduleAppOutboundHostPolicySchema = z
+  .object({
+    host: moduleAppOutboundHostSchema,
+    purpose: moduleAppOutboundHostPurposeSchema,
+  })
+  .strict();
+export type ModuleAppOutboundHostPolicy = z.infer<typeof moduleAppOutboundHostPolicySchema>;
+
+export const moduleAppOutboundHostPoliciesSchema = z
+  .array(moduleAppOutboundHostPolicySchema)
+  .max(80)
+  .superRefine((policies, context) => {
+    const seen = new Set<string>();
+    policies.forEach(({ host }, index) => {
+      if (seen.has(host)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'module_app_outbound_host_duplicate',
+          path: [index, 'host'],
+        });
+      }
+      seen.add(host);
+    });
+  });
+
+export const assertModuleAppOutboundHostPolicyCoverage = (
+  declaredHosts: string[],
+  policies: ModuleAppOutboundHostPolicy[],
+) => {
+  const declared = moduleAppOutboundHostsSchema.parse(declaredHosts);
+  const reviewed = moduleAppOutboundHostPoliciesSchema.parse(policies);
+  const byHost = new Map(reviewed.map((policy) => [policy.host, policy]));
+  if (declared.length !== reviewed.length || declared.some((host) => !byHost.has(host))) {
+    throw new Error('MODULE_APP_OUTBOUND_HOST_CLASSIFICATION_REQUIRED');
+  }
+
+  return declared.map((host) => byHost.get(host)!);
+};
+
+export const getModuleAppGeneralOutboundHosts = (runtimeManifest: unknown) => {
+  if (!runtimeManifest || typeof runtimeManifest !== 'object') return [];
+  const manifest = runtimeManifest as Record<string, unknown>;
+  if (!('outboundHostPolicies' in manifest)) return [];
+  const runtime =
+    manifest.runtime && typeof manifest.runtime === 'object'
+      ? (manifest.runtime as Record<string, unknown>)
+      : {};
+  const declared = moduleAppOutboundHostsSchema.safeParse(runtime.outboundHosts ?? []);
+  const reviewed = moduleAppOutboundHostPoliciesSchema.safeParse(manifest.outboundHostPolicies);
+  if (!declared.success || !reviewed.success) {
+    throw new Error('MODULE_APP_OUTBOUND_HOST_POLICIES_INVALID');
+  }
+
+  return assertModuleAppOutboundHostPolicyCoverage(declared.data, reviewed.data)
+    .filter(({ purpose }) => purpose === 'general')
+    .map(({ host }) => host);
+};
+
 export const moduleAppRuntimeFunctionSchema = z
   .object({
     entry: moduleAppPackagePathSchema,
@@ -79,7 +197,7 @@ export const moduleAppExecutableRuntimeSchema = z
       .optional(),
     functions: z.array(moduleAppRuntimeFunctionSchema).max(80).default([]),
     kind: z.literal('sandboxed_app').default('sandboxed_app'),
-    outboundHosts: z.array(z.string().min(1).max(253)).max(80).default([]),
+    outboundHosts: moduleAppOutboundHostsSchema.default([]),
     permissions: z
       .array(z.string().regex(/^[a-z][a-z0-9_.:-]{1,79}$/))
       .max(80)

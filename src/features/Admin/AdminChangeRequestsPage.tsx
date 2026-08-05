@@ -3,7 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button, Modal, Select } from '@lobehub/ui/base-ui';
 import { Empty, Input, message, Tag } from 'antd';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
@@ -12,6 +12,13 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminBulkActionFlow from './AdminBulkActionFlow';
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
+import {
+  AdminPageError,
+  AdminPageShell,
+  AdminResponsiveTable,
+  AdminSection,
+  AdminToolbar,
+} from './layout';
 
 type StatusFilter = 'all' | 'pending' | 'completed' | 'canceled' | 'rejected';
 
@@ -47,7 +54,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
     [status, userIdFilter, cursor],
   );
 
-  const { data, isLoading, mutate } = useClientDataSWR(swrKey, () =>
+  const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
     adminCommercialService.listChangeRequests({
       cursor,
       limit: 50,
@@ -55,6 +62,10 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
       userId: userIdFilter || undefined,
     }),
   );
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [cursor, status, userIdFilter]);
 
   const items = data?.items ?? [];
 
@@ -210,117 +221,140 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
     },
   ];
 
-  return (
-    <Flexbox gap={16} padding={embedded ? 0 : 24}>
-      <Flexbox horizontal align="center" gap={12}>
-        <Select
-          style={{ width: 160 }}
-          value={status}
-          options={[
-            { label: t('admin.changeRequests.status.all', '全部'), value: 'all' },
-            { label: t('admin.changeRequests.status.pending', '待处理'), value: 'pending' },
-            { label: t('admin.changeRequests.status.completed', '已完成'), value: 'completed' },
-            { label: t('admin.changeRequests.status.canceled', '已取消'), value: 'canceled' },
-            { label: t('admin.changeRequests.status.rejected', '已拒绝'), value: 'rejected' },
-          ]}
-          onChange={(value: StatusFilter) => {
-            setStatus(value);
-            setCursorStack([0]);
-          }}
+  const content = (
+    <Flexbox gap={24}>
+      {error ? (
+        <AdminPageError
+          description={t('admin.changeRequests.loadFailed', '套餐变更请求加载失败，请重试。')}
+          onRetry={mutate}
         />
-        <Input
-          allowClear
-          placeholder={t('admin.changeRequests.filter.user', '用户 ID')}
-          style={{ width: 240 }}
-          value={userIdFilter}
-          onChange={(event: { target: { value: string } }) => {
-            setUserIdFilter(event.target.value);
-            setCursorStack([0]);
-          }}
-        />
-      </Flexbox>
+      ) : null}
 
-      {!isLoading && items.length === 0 ? (
+      <AdminToolbar>
+        <Flexbox horizontal gap={12} style={{ flex: '1 1 420px', flexWrap: 'wrap' }}>
+          <Select
+            style={{ width: 160 }}
+            value={status}
+            options={[
+              { label: t('admin.changeRequests.status.all', '全部'), value: 'all' },
+              { label: t('admin.changeRequests.status.pending', '待处理'), value: 'pending' },
+              { label: t('admin.changeRequests.status.completed', '已完成'), value: 'completed' },
+              { label: t('admin.changeRequests.status.canceled', '已取消'), value: 'canceled' },
+              { label: t('admin.changeRequests.status.rejected', '已拒绝'), value: 'rejected' },
+            ]}
+            onChange={(value: StatusFilter) => {
+              setStatus(value);
+              setCursorStack([0]);
+            }}
+          />
+          <Input
+            allowClear
+            placeholder={t('admin.changeRequests.filter.user', '用户 ID')}
+            style={{ width: 240 }}
+            value={userIdFilter}
+            onChange={(event: { target: { value: string } }) => {
+              setUserIdFilter(event.target.value);
+              setCursorStack([0]);
+            }}
+          />
+        </Flexbox>
+      </AdminToolbar>
+
+      {!error && !isLoading && items.length === 0 ? (
         <Empty description={t('admin.changeRequests.empty', '暂无变更请求')} />
       ) : (
         <>
           {selectedIds.length > 0 && (
-            <Flexbox horizontal gap={8}>
-              <AdminBulkActionFlow
-                actionId="subscription.changeRequest.bulkApprove"
-                count={selectedIds.length}
-                size="small"
-                summary={formatBulkApproveChangeRequestResult}
-                type="primary"
-                confirmTitle={t(
-                  'admin.changeRequests.confirmBulkApprove',
-                  `确认通过 ${selectedIds.length} 个套餐变更请求？`,
-                )}
-                progressDescription={t(
-                  'admin.changeRequests.bulkApproveProgress',
-                  '正在通过选中的套餐变更请求，请勿关闭页面。',
-                )}
-                onRun={handleBulkApprove}
-                onSuccess={finishBulkAction}
-              >
-                {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
-              </AdminBulkActionFlow>
-              <AdminBulkActionFlow
-                danger
-                actionId="subscription.changeRequest.bulkReject"
-                count={selectedIds.length}
-                size="small"
-                summary={formatBulkRejectChangeRequestResult}
-                confirmTitle={t(
-                  'admin.changeRequests.confirmBulkReject',
-                  `确认拒绝 ${selectedIds.length} 个套餐变更请求？`,
-                )}
-                progressDescription={t(
-                  'admin.changeRequests.bulkRejectProgress',
-                  '正在拒绝选中的套餐变更请求，请勿关闭页面。',
-                )}
-                onRun={handleBulkReject}
-                onSuccess={finishBulkAction}
-              >
-                {t('admin.changeRequests.bulkReject', `批量拒绝（${selectedIds.length}）`)}
-              </AdminBulkActionFlow>
-              <Button size="small" onClick={() => setSelectedIds([])}>
-                {t('admin.changeRequests.clearSel', '清空选择')}
-              </Button>
-            </Flexbox>
+            <AdminToolbar>
+              <Flexbox horizontal gap={8} style={{ flexWrap: 'wrap' }}>
+                <AdminBulkActionFlow
+                  actionId="subscription.changeRequest.bulkApprove"
+                  count={selectedIds.length}
+                  size="small"
+                  summary={formatBulkApproveChangeRequestResult}
+                  type="primary"
+                  confirmTitle={t(
+                    'admin.changeRequests.confirmBulkApprove',
+                    `确认通过 ${selectedIds.length} 个套餐变更请求？`,
+                  )}
+                  progressDescription={t(
+                    'admin.changeRequests.bulkApproveProgress',
+                    '正在通过选中的套餐变更请求，请勿关闭页面。',
+                  )}
+                  onRun={handleBulkApprove}
+                  onSuccess={finishBulkAction}
+                >
+                  {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
+                </AdminBulkActionFlow>
+                <AdminBulkActionFlow
+                  danger
+                  actionId="subscription.changeRequest.bulkReject"
+                  count={selectedIds.length}
+                  size="small"
+                  summary={formatBulkRejectChangeRequestResult}
+                  confirmTitle={t(
+                    'admin.changeRequests.confirmBulkReject',
+                    `确认拒绝 ${selectedIds.length} 个套餐变更请求？`,
+                  )}
+                  progressDescription={t(
+                    'admin.changeRequests.bulkRejectProgress',
+                    '正在拒绝选中的套餐变更请求，请勿关闭页面。',
+                  )}
+                  onRun={handleBulkReject}
+                  onSuccess={finishBulkAction}
+                >
+                  {t('admin.changeRequests.bulkReject', `批量拒绝（${selectedIds.length}）`)}
+                </AdminBulkActionFlow>
+                <Button size="small" onClick={() => setSelectedIds([])}>
+                  {t('admin.changeRequests.clearSel', '清空选择')}
+                </Button>
+              </Flexbox>
+            </AdminToolbar>
           )}
-          <InlineTable
-            columns={columns}
-            dataSource={items}
-            loading={isLoading}
-            rowKey="id"
-            rowSelection={{
-              getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),
-              onChange: (keys) => setSelectedIds(keys as string[]),
-              selectedRowKeys: selectedIds,
-            }}
-          />
+          <AdminSection
+            title={t('admin.changeRequests.tableTitle', '套餐变更请求')}
+            description={t(
+              'admin.changeRequests.tableDescription',
+              '只允许对待处理请求执行审批或拒绝，批量操作会要求再次确认。',
+            )}
+          >
+            <AdminResponsiveTable label="套餐变更请求表格">
+              <InlineTable
+                columns={columns}
+                dataSource={items}
+                loading={isLoading}
+                rowKey="id"
+                rowSelection={{
+                  getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),
+                  onChange: (keys) => setSelectedIds(keys as string[]),
+                  selectedRowKeys: selectedIds,
+                }}
+              />
+            </AdminResponsiveTable>
+          </AdminSection>
         </>
       )}
 
       {(cursorStack.length > 1 || data?.nextCursor != null) && (
-        <Flexbox horizontal align="center" gap={8}>
-          <Button
-            disabled={cursorStack.length === 1}
-            onClick={() =>
-              setCursorStack((current) => (current.length > 1 ? current.slice(0, -1) : current))
-            }
-          >
-            {t('admin.pagination.previous', '上一页')}
-          </Button>
-          <Button
-            disabled={data?.nextCursor == null}
-            loading={isLoading}
-            onClick={() => setCursorStack((current) => [...current, data!.nextCursor!])}
-          >
-            {t('admin.pagination.next', '下一页')}
-          </Button>
-        </Flexbox>
+        <AdminToolbar>
+          <Flexbox horizontal align="center" gap={8}>
+            <Button
+              disabled={cursorStack.length === 1}
+              onClick={() =>
+                setCursorStack((current) => (current.length > 1 ? current.slice(0, -1) : current))
+              }
+            >
+              {t('admin.pagination.previous', '上一页')}
+            </Button>
+            <Button
+              disabled={data?.nextCursor == null}
+              loading={isLoading}
+              onClick={() => setCursorStack((current) => [...current, data!.nextCursor!])}
+            >
+              {t('admin.pagination.next', '下一页')}
+            </Button>
+          </Flexbox>
+        </AdminToolbar>
       )}
 
       <Modal
@@ -343,6 +377,18 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         </Flexbox>
       </Modal>
     </Flexbox>
+  );
+
+  return embedded ? (
+    content
+  ) : (
+    <AdminPageShell
+      description={t('admin.changeRequests.subtitle', '集中处理套餐升级、降级和周期变更请求。')}
+      title={t('admin.changeRequests.title', '套餐变更请求')}
+      width="full"
+    >
+      {content}
+    </AdminPageShell>
   );
 });
 

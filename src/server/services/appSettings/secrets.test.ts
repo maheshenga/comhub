@@ -29,9 +29,24 @@ describe('app setting secret codec', () => {
       new RegExp(`^${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.composioApiKey}:`),
     );
     expect(encrypted).not.toContain('composio-secret');
+    await expect(decryptAppSettingSecret(APP_SETTING_KEYS.composioApiKey, encrypted)).resolves.toBe(
+      'composio-secret',
+    );
+  });
+
+  it('encrypts and decrypts the Module Runtime internal token as a key-bound secret', async () => {
+    const encrypted = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+      'runtime-secret',
+    );
+
+    expect(encrypted).toMatch(
+      new RegExp(`^${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.moduleAppRuntimeInternalToken}:`),
+    );
+    expect(encrypted).not.toContain('runtime-secret');
     await expect(
-      decryptAppSettingSecret(APP_SETTING_KEYS.composioApiKey, encrypted),
-    ).resolves.toBe('composio-secret');
+      decryptAppSettingSecret(APP_SETTING_KEYS.moduleAppRuntimeInternalToken, encrypted),
+    ).resolves.toBe('runtime-secret');
   });
 
   it('keeps historical plaintext and non-string values readable', async () => {

@@ -1,11 +1,12 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Space, Typography } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert } from 'antd';
 import { memo } from 'react';
 import { useNavigate } from 'react-router';
 
-const { Text, Title } = Typography;
+import { AdminPageShell, AdminSection } from './layout';
 
 type MergedRouteAction = {
   label: string;
@@ -24,29 +25,25 @@ const AdminMergedRoutePage = memo<AdminMergedRoutePageProps>(
     const navigate = useNavigate();
 
     return (
-      <Flexbox gap={16} padding={24} style={{ maxWidth: 760 }}>
-        <Flexbox gap={4}>
-          <Title level={3} style={{ margin: 0 }}>
-            {title}
-          </Title>
-          <Text type="secondary">{description}</Text>
-        </Flexbox>
-
+      <AdminPageShell description={description} title={title} width="small">
         <Alert
           showIcon
           message="此旧入口不再提供独立保存表单，避免同一配置在多个页面被覆盖。"
           type="info"
         />
-
-        <Space wrap>
-          <Button type="primary" onClick={() => navigate(primaryAction.path)}>
-            {primaryAction.label}
-          </Button>
-          {secondaryAction && (
-            <Button onClick={() => navigate(secondaryAction.path)}>{secondaryAction.label}</Button>
-          )}
-        </Space>
-      </Flexbox>
+        <AdminSection description="继续前往当前负责该配置的管理页面。" title="配置入口">
+          <Flexbox horizontal gap={8} style={{ flexWrap: 'wrap' }}>
+            <Button type="primary" onClick={() => navigate(primaryAction.path)}>
+              {primaryAction.label}
+            </Button>
+            {secondaryAction ? (
+              <Button onClick={() => navigate(secondaryAction.path)}>
+                {secondaryAction.label}
+              </Button>
+            ) : null}
+          </Flexbox>
+        </AdminSection>
+      </AdminPageShell>
     );
   },
 );

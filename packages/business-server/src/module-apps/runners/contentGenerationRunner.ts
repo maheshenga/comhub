@@ -1,4 +1,4 @@
-import type { ModuleAppActionConfig } from '@lobechat/types';
+import type { ModuleAppActionConfig, ModuleAppAiMessage } from '@lobechat/types';
 
 import {
   renderModuleAppTemplateString,
@@ -11,9 +11,12 @@ export type ModuleAppTextGenerator = (input: {
   appMultiplier: number;
   chargeAiUsage: boolean;
   idempotencyKey: string;
+  maxTokens?: number;
+  messages?: ModuleAppAiMessage[];
   model?: string;
-  prompt: string;
+  prompt?: string;
   provider?: string;
+  temperature?: number;
   userId: string;
 }) => Promise<{
   actualAiCredits: number;
@@ -57,7 +60,7 @@ export const runModuleAppContentGeneration = async ({
     throw new Error('MODULE_APP_TEXT_GENERATOR_REQUIRED');
   }
 
-  const provider = getStringConfig(config, 'provider');
+  const provider = 'newapi';
   const model = getStringConfig(config, 'model');
   const prompt = renderModuleAppTemplateString(promptTemplate, input);
   const generated = await textGenerator({

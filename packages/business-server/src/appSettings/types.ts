@@ -47,6 +47,10 @@ export type AppSettingNormalizer =
   | 'model-policy-mode-enum'
   | 'model-policy-string'
   | 'model-policy-string-list'
+  | 'module-app-runtime-boolean'
+  | 'module-app-runtime-internal-url'
+  | 'module-app-runtime-public-origin'
+  | 'module-app-runtime-secret'
   | 'notification-boolean'
   | 'notification-event-defaults-record'
   | 'notification-retention-integer'
@@ -96,15 +100,22 @@ export type AppSettingRuntimeConsumer = {
   symbol: string;
 };
 
+type AppSettingRuntimeConsumerKeyEvidenceSource = {
+  consumerReferenceSymbol?: string;
+  sourcePath?: string;
+  sourceSymbol?: string;
+};
+
 export type AppSettingRuntimeConsumerContract = AppSettingRuntimeConsumer & {
-  keyEvidence:
-    | { kind: 'literal'; sourceSymbol?: string }
-    | { kind: 'prefix'; prefix: string; sourceSymbol?: string }
-    | {
-        kind: 'registry';
-        namespace: 'APP_SETTING_KEYS' | 'SETTING_KEYS';
-        sourceSymbol?: string;
-      };
+  keyEvidence: AppSettingRuntimeConsumerKeyEvidenceSource &
+    (
+      | { kind: 'literal' }
+      | { kind: 'prefix'; prefix: string }
+      | {
+          kind: 'registry';
+          namespace: 'APP_SETTING_KEYS' | 'SETTING_KEYS';
+        }
+    );
   keys: AppSettingKey[];
 };
 
@@ -122,7 +133,7 @@ export type AppSettingCatalogItem = {
   normalizeValue: (value: unknown) => unknown;
   ownership: 'application' | 'external';
   publicRuntime: boolean;
-  requiredCapability: 'systemRead' | 'systemWrite';
+  requiredCapability: 'moduleAppRead' | 'moduleAppWrite' | 'systemRead' | 'systemWrite';
   runtimeConsumers: AppSettingRuntimeConsumer[];
   runtimeEffects: string[];
   section: AppSettingsSection;

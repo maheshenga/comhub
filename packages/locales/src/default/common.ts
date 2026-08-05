@@ -1517,6 +1517,10 @@ export default {
   'moduleApps.admin.reviews.filters.reviewStatus': 'Review status',
   'moduleApps.admin.reviews.filters.submittedByUserId': 'Submitter ID',
   'moduleApps.admin.reviews.next': 'Next',
+  'moduleApps.admin.reviews.outboundPurpose.ai': 'AI endpoint',
+  'moduleApps.admin.reviews.outboundPurpose.general': 'General API',
+  'moduleApps.admin.reviews.outboundPurpose.payment': 'Payment endpoint',
+  'moduleApps.admin.reviews.outboundPurpose.unclassified': 'Select purpose',
   'moduleApps.admin.reviews.previous': 'Previous',
   'moduleApps.admin.reviews.reject': 'Reject',
   'moduleApps.admin.reviews.rejectReason': 'Rejection reason',
@@ -1528,33 +1532,128 @@ export default {
   'moduleApps.admin.runtime.artifacts': 'Artifacts',
   'moduleApps.admin.runtime.description':
     "Inspect this app's operational activity without leaving its detail view.",
+  'moduleApps.admin.runtime.diagnostics.activeClaims': 'Active leases',
+  'moduleApps.admin.runtime.diagnostics.claimableSchedules': 'Waiting schedules',
   'moduleApps.admin.runtime.diagnostics.description':
-    'Review deployment configuration, rollout switches, and runtime readiness.',
+    'Review deployment configuration, rollout switches, and backend-managed gateway readiness.',
+  'moduleApps.admin.runtime.diagnostics.dispatchNow': 'Dispatch now',
+  'moduleApps.admin.runtime.diagnostics.dispatchNowConfirm':
+    'Run one global dispatcher pass for up to 25 due Module App schedules? Workflows may invoke managed AI or payment actions.',
+  'moduleApps.admin.runtime.diagnostics.dispatchNowDisabled':
+    'Scheduled dispatch is disabled in Runtime settings.',
+  'moduleApps.admin.runtime.diagnostics.dispatchNowFailed':
+    'Schedule dispatch failed. Review Runtime diagnostics and try again.',
+  'moduleApps.admin.runtime.diagnostics.dispatchNowPartial':
+    'Dispatch completed with issues: {{claimed}} claimed, {{dispatched}} dispatched, {{failed}} failed.',
+  'moduleApps.admin.runtime.diagnostics.dispatchNowSuccess':
+    'Dispatch complete: {{claimed}} claimed, {{dispatched}} dispatched, {{failed}} failed.',
+  'moduleApps.admin.runtime.diagnostics.enabledSchedules': 'Enabled schedules',
+  'moduleApps.admin.runtime.diagnostics.enabledChatModels': '{{count}} enabled chat models',
   'moduleApps.admin.runtime.diagnostics.emptyDescription':
     'Refresh the diagnostics to check the runtime service again.',
   'moduleApps.admin.runtime.diagnostics.emptyTitle': 'Runtime diagnostics are unavailable',
   'moduleApps.admin.runtime.diagnostics.execution': 'Module execution',
+  'moduleApps.admin.runtime.diagnostics.failedScheduledRuns24h': 'Failed scheduled runs (24h)',
   'moduleApps.admin.runtime.diagnostics.failureCode': 'Failure code: {{code}}',
+  'moduleApps.admin.runtime.diagnostics.gatewayManagement': 'Gateway management',
   'moduleApps.admin.runtime.diagnostics.internalToken': 'Internal authentication',
   'moduleApps.admin.runtime.diagnostics.internalUrl': 'Internal endpoint',
   'moduleApps.admin.runtime.diagnostics.invocation': 'Sandbox invocation',
+  'moduleApps.admin.runtime.diagnostics.lastScheduledRunAt': 'Latest scheduled run',
+  'moduleApps.admin.runtime.diagnostics.managePayments': 'Manage payment settings',
+  'moduleApps.admin.runtime.diagnostics.manageProviders': 'Manage AI providers',
+  'moduleApps.admin.runtime.diagnostics.managedAiModels': 'Managed AI models',
+  'moduleApps.admin.runtime.diagnostics.modulePayments': 'Module purchases',
+  'moduleApps.admin.runtime.diagnostics.oldestClaimableAt': 'Oldest waiting schedule',
+  'moduleApps.admin.runtime.diagnostics.paymentCallbackOrigin': 'Payment callback origin',
+  'moduleApps.admin.runtime.diagnostics.paymentConfigurationSource': 'Payment configuration source',
+  'moduleApps.admin.runtime.diagnostics.paymentGateway': 'Module payment gateway',
+  'moduleApps.admin.runtime.diagnostics.paymentMethods': 'Available payment methods',
+  'moduleApps.admin.runtime.diagnostics.paymentSource.backend': 'Backend managed',
+  'moduleApps.admin.runtime.diagnostics.paymentSource.legacyEnvironment':
+    '{{count}} legacy environment variables',
+  'moduleApps.admin.runtime.diagnostics.paymentSystem': 'Payment system',
+  'moduleApps.admin.runtime.diagnostics.platformGatewaysDescription':
+    'Backend-managed AI and payment readiness. Credentials are never exposed here.',
+  'moduleApps.admin.runtime.diagnostics.platformGatewaysTitle': 'Platform gateways',
   'moduleApps.admin.runtime.diagnostics.probe': 'Runtime service',
   'moduleApps.admin.runtime.diagnostics.publicExecution': 'Public access',
   'moduleApps.admin.runtime.diagnostics.publicOrigin': 'Public origin',
   'moduleApps.admin.runtime.diagnostics.refresh': 'Refresh runtime diagnostics',
+  'moduleApps.admin.runtime.diagnostics.scheduleDispatch': 'Scheduled dispatch',
+  'moduleApps.admin.runtime.diagnostics.schedulerDescription':
+    'Live database view of waiting schedules, claim leases, and scheduled workflow results.',
+  'moduleApps.admin.runtime.diagnostics.schedulerStatus': 'Scheduler telemetry',
+  'moduleApps.admin.runtime.diagnostics.schedulerTitle': 'Schedule operations',
+  'moduleApps.admin.runtime.diagnostics.staleClaims': 'Expired leases',
+  'moduleApps.admin.runtime.diagnostics.status.available': 'Available',
   'moduleApps.admin.runtime.diagnostics.status.configured': 'Configured',
   'moduleApps.admin.runtime.diagnostics.status.disabled': 'Disabled',
   'moduleApps.admin.runtime.diagnostics.status.enabled': 'Enabled',
   'moduleApps.admin.runtime.diagnostics.status.missing': 'Missing',
+  'moduleApps.admin.runtime.diagnostics.status.never': 'No scheduled run yet',
+  'moduleApps.admin.runtime.diagnostics.status.noBacklog': 'No waiting schedules',
   'moduleApps.admin.runtime.diagnostics.status.ready': 'Ready',
   'moduleApps.admin.runtime.diagnostics.status.unavailable': 'Unavailable',
   'moduleApps.admin.runtime.diagnostics.title': 'Runtime diagnostics',
+  'moduleApps.admin.runtime.diagnostics.workflowExecutors': 'Privileged workflow executors',
   'moduleApps.admin.runtime.emptyDescription':
     'Recent activity for this module app will appear here.',
   'moduleApps.admin.runtime.emptyTitle': 'No recent activity',
   'moduleApps.admin.runtime.installs': 'Installs',
   'moduleApps.admin.runtime.records': 'Records',
   'moduleApps.admin.runtime.runs': 'Runs',
+  'moduleApps.admin.runtime.settings.description':
+    'Database values take precedence. Environment variables remain available only as migration fallbacks.',
+  'moduleApps.admin.runtime.settings.environmentFallback':
+    '{{count}} settings still use legacy environment variables. Save this panel to move them under backend management.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_PUBLIC_EXECUTION_CONFIG_REQUIRED':
+    'Public access requires the internal endpoint, internal token, and HTTPS public origin.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_PUBLIC_EXECUTION_REQUIRES_EXECUTION':
+    'Enable module execution before enabling public access.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_AUTH_FAILED':
+    'The internal token does not match the Runtime service. Update both sides before enabling access.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_INVOCATION_CONFIG_REQUIRED':
+    'Sandbox invocation requires the internal endpoint and internal token.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_INVOCATION_REQUIRES_EXECUTION':
+    'Enable module execution before enabling sandbox invocation.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_NOT_READY':
+    'The Runtime readiness probe did not pass. Check the service and connection settings.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_SCHEDULE_DISPATCH_REQUIRES_EXECUTION':
+    'Enable module execution before enabling scheduled dispatch.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_WORKFLOW_EXECUTORS_REQUIRE_EXECUTION':
+    'Enable module execution before enabling privileged workflow executors.',
+  'moduleApps.admin.runtime.settings.execution': 'Module execution',
+  'moduleApps.admin.runtime.settings.executionDescription':
+    'Master switch for Module App runtime capabilities.',
+  'moduleApps.admin.runtime.settings.internalToken': 'Internal token',
+  'moduleApps.admin.runtime.settings.internalTokenConfigured':
+    'A token is stored. Leave this field empty to keep it unchanged.',
+  'moduleApps.admin.runtime.settings.internalTokenMissing':
+    'Set a token before enabling public access or sandbox invocation.',
+  'moduleApps.admin.runtime.settings.internalUrl': 'Internal Runtime URL',
+  'moduleApps.admin.runtime.settings.invocation': 'Sandbox invocation',
+  'moduleApps.admin.runtime.settings.invocationDescription':
+    'Allow executable actions to call the isolated Runtime service.',
+  'moduleApps.admin.runtime.settings.publicExecution': 'Public access',
+  'moduleApps.admin.runtime.settings.publicExecutionDescription':
+    'Allow approved Module Apps to launch through the public Runtime origin.',
+  'moduleApps.admin.runtime.settings.publicOrigin': 'Public HTTPS origin',
+  'moduleApps.admin.runtime.settings.reset': 'Reset',
+  'moduleApps.admin.runtime.settings.safetyBlocked':
+    'One or more requested switches are currently blocked by safety prerequisites.',
+  'moduleApps.admin.runtime.settings.save': 'Save runtime settings',
+  'moduleApps.admin.runtime.settings.saveFailed': 'Failed to save Runtime settings.',
+  'moduleApps.admin.runtime.settings.saved': 'Runtime settings saved.',
+  'moduleApps.admin.runtime.settings.schedule': 'Scheduled dispatch',
+  'moduleApps.admin.runtime.settings.scheduleDescription':
+    'Allow due schedules to create and dispatch workflow runs.',
+  'moduleApps.admin.runtime.settings.subtitle':
+    'Manage Runtime connections and rollout controls from the backend.',
+  'moduleApps.admin.runtime.settings.title': 'Runtime control center',
+  'moduleApps.admin.runtime.settings.workflow': 'Privileged workflow executors',
+  'moduleApps.admin.runtime.settings.workflowDescription':
+    'Allow trusted workflow routes to execute privileged server-side steps.',
   'moduleApps.admin.runtime.title': 'Runtime',
   'userPanel.workspaceSetting': 'Workspace Settings',
   'userPanel.workspaceUsage': 'Workspace Usage',

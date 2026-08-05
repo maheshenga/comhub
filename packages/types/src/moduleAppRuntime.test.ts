@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertModuleAppOutboundHostPolicyCoverage,
+  getModuleAppGeneralOutboundHosts,
   moduleAppBuildProfileSchema,
   moduleAppCapabilityClaimsSchema,
   moduleAppExecutableRuntimeSchema,
   moduleAppLaunchContextSchema,
+  moduleAppOutboundHostPoliciesSchema,
   moduleAppRuntimeReadinessSchema,
 } from './moduleAppRuntime';
 
@@ -26,6 +29,53 @@ describe('module app executable runtime contracts', () => {
         permissions: [],
       }),
     ).toThrow();
+  });
+
+  it('allows direct HTTP only for administrator-reviewed general hosts', () => {
+    expect(
+      getModuleAppGeneralOutboundHosts({
+        outboundHostPolicies: [
+          { host: 'api.example.com', purpose: 'general' },
+          { host: 'models.example.com', purpose: 'ai' },
+          { host: 'checkout.example.com', purpose: 'payment' },
+        ],
+        runtime: {
+          outboundHosts: ['api.example.com', 'models.example.com', 'checkout.example.com'],
+        },
+      }),
+    ).toEqual(['api.example.com']);
+
+    expect(
+      getModuleAppGeneralOutboundHosts({
+        runtime: { outboundHosts: ['unreviewed.example.com'] },
+      }),
+    ).toEqual([]);
+
+    expect(() =>
+      moduleAppOutboundHostPoliciesSchema.parse([
+        { host: 'api.example.com', purpose: 'general' },
+        { host: 'API.EXAMPLE.COM.', purpose: 'ai' },
+      ]),
+    ).toThrow();
+
+    expect(() =>
+      assertModuleAppOutboundHostPolicyCoverage(
+        ['api.example.com', 'models.example.com'],
+        [{ host: 'api.example.com', purpose: 'general' }],
+      ),
+    ).toThrow('MODULE_APP_OUTBOUND_HOST_CLASSIFICATION_REQUIRED');
+    expect(
+      assertModuleAppOutboundHostPolicyCoverage(
+        ['api.example.com', 'models.example.com'],
+        [
+          { host: 'api.example.com', purpose: 'general' },
+          { host: 'models.example.com', purpose: 'ai' },
+        ],
+      ),
+    ).toEqual([
+      { host: 'api.example.com', purpose: 'general' },
+      { host: 'models.example.com', purpose: 'ai' },
+    ]);
   });
 
   it('requires installation-bound short-lived capability claims', () => {

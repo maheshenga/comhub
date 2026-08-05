@@ -23,14 +23,25 @@ const workflow = {
 };
 
 describe('module app action dependencies', () => {
-  it('resolves reviewed outbound hosts from the immutable runtime manifest', () => {
+  it('resolves only general-purpose reviewed hosts from the immutable runtime manifest', () => {
     expect(
       resolveModuleAppActionOutboundHosts({
-        runtimeManifest: { runtime: { outboundHosts: ['api.example.com'] } },
+        runtimeManifest: {
+          outboundHostPolicies: [
+            { host: 'api.example.com', purpose: 'general' },
+            { host: 'models.example.com', purpose: 'ai' },
+            { host: 'checkout.example.com', purpose: 'payment' },
+          ],
+          runtime: {
+            outboundHosts: ['api.example.com', 'models.example.com', 'checkout.example.com'],
+          },
+        },
       }),
     ).toEqual(['api.example.com']);
     expect(
-      resolveModuleAppActionOutboundHosts({ runtimeManifest: { runtime: { outboundHosts: [] } } }),
+      resolveModuleAppActionOutboundHosts({
+        runtimeManifest: { runtime: { outboundHosts: ['unreviewed.example.com'] } },
+      }),
     ).toEqual([]);
   });
 

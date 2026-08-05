@@ -1,4 +1,21 @@
-import { and, asc, desc, eq, gt, ilike, inArray, lt, or, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  lte,
+  or,
+  type SQL,
+} from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import {
@@ -21,6 +38,8 @@ import {
   moduleAppRevenueEntries,
   moduleAppRuns,
   moduleApps,
+  moduleAppSchedules,
+  moduleAppWorkflowRuns,
 } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
@@ -93,6 +112,83 @@ const groupIds = <T>(items: T[], key: (item: T) => null | string | undefined) =>
 
 export class ModuleAppAdminReadModel {
   constructor(private readonly db: LobeChatDatabase) {}
+
+  getRuntimeScheduleDiagnostics = async (now = new Date()) => {
+    const claimableCondition = and(
+      eq(moduleAppSchedules.enabled, true),
+      lte(moduleAppSchedules.nextRunAt, now),
+      or(isNull(moduleAppSchedules.claimExpiresAt), lte(moduleAppSchedules.claimExpiresAt, now)),
+    );
+    const scheduledRunCondition = like(
+      moduleAppWorkflowRuns.idempotencyKey,
+      'module-app-schedule:%',
+    );
+    const failureWindowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const [
+      [enabledSchedules],
+      [claimableSchedules],
+      [activeClaims],
+      [staleClaims],
+      [oldestClaimable],
+      [lastScheduledRun],
+      [failedScheduledRuns],
+    ] = await Promise.all([
+      this.db
+        .select({ count: count() })
+        .from(moduleAppSchedules)
+        .where(eq(moduleAppSchedules.enabled, true)),
+      this.db.select({ count: count() }).from(moduleAppSchedules).where(claimableCondition),
+      this.db
+        .select({ count: count() })
+        .from(moduleAppSchedules)
+        .where(
+          and(eq(moduleAppSchedules.enabled, true), gt(moduleAppSchedules.claimExpiresAt, now)),
+        ),
+      this.db
+        .select({ count: count() })
+        .from(moduleAppSchedules)
+        .where(
+          and(
+            eq(moduleAppSchedules.enabled, true),
+            isNotNull(moduleAppSchedules.claimToken),
+            lte(moduleAppSchedules.claimExpiresAt, now),
+          ),
+        ),
+      this.db
+        .select({ nextRunAt: moduleAppSchedules.nextRunAt })
+        .from(moduleAppSchedules)
+        .where(claimableCondition)
+        .orderBy(asc(moduleAppSchedules.nextRunAt))
+        .limit(1),
+      this.db
+        .select({ createdAt: moduleAppWorkflowRuns.createdAt })
+        .from(moduleAppWorkflowRuns)
+        .where(scheduledRunCondition)
+        .orderBy(desc(moduleAppWorkflowRuns.createdAt))
+        .limit(1),
+      this.db
+        .select({ count: count() })
+        .from(moduleAppWorkflowRuns)
+        .where(
+          and(
+            scheduledRunCondition,
+            eq(moduleAppWorkflowRuns.status, 'failed'),
+            gte(moduleAppWorkflowRuns.updatedAt, failureWindowStart),
+          ),
+        ),
+    ]);
+
+    return {
+      activeClaims: Number(activeClaims?.count ?? 0),
+      claimableSchedules: Number(claimableSchedules?.count ?? 0),
+      enabledSchedules: Number(enabledSchedules?.count ?? 0),
+      failedScheduledRuns24h: Number(failedScheduledRuns?.count ?? 0),
+      lastScheduledRunAt: lastScheduledRun?.createdAt ?? null,
+      oldestClaimableAt: oldestClaimable?.nextRunAt ?? null,
+      staleClaims: Number(staleClaims?.count ?? 0),
+    };
+  };
 
   listApplications = async (
     input: {

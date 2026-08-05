@@ -466,6 +466,8 @@
   "admin.payments.enabled": "Enable unified payments",
   "admin.payments.environment": "Environment",
   "admin.payments.general": "General",
+  "admin.payments.legacyEnvironment.description": "{{count}} legacy environment variables are still available as payment configuration fallbacks. Re-enter secret values on this page and save equivalent backend settings before removing them.",
+  "admin.payments.legacyEnvironment.title": "Payment configuration migration required",
   "admin.payments.loadFailed": "Unable to load payment settings",
   "admin.payments.loading": "Loading payment status",
   "admin.payments.moduleAppEnabled": "Module purchases",

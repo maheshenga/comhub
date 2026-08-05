@@ -1,4 +1,7 @@
-import { recordModuleAppWorkflowBacklog } from '@lobechat/observability-otel/modules/module-app';
+import {
+  recordModuleAppScheduleDispatch,
+  recordModuleAppWorkflowBacklog,
+} from '@lobechat/observability-otel/modules/module-app';
 import {
   moduleAppExecutableRuntimeSchema,
   type ModuleAppWorkflowDefinition,
@@ -9,7 +12,7 @@ import { createModuleAppWorkflowExecutor } from '@/business/server/module-apps/w
 import { ModuleAppTriggerModel } from '@/database/models/moduleAppTrigger';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import type { LobeChatDatabase } from '@/database/type';
-import { appEnv } from '@/envs/app';
+import { getServerModuleAppRuntimeConfig } from '@/server/services/moduleAppRuntime/config';
 
 import { ModuleAppWorkflowDispatch } from './index';
 import { getNextModuleAppScheduleTime } from './schedule';
@@ -52,9 +55,7 @@ const resolveWorkflow = (claim: ScheduleClaim) => {
   if (claim.workflow) return claim.workflow;
   const manifest = claim.runtimeManifest;
   const runtime = moduleAppExecutableRuntimeSchema.safeParse(
-    manifest && typeof manifest === 'object' && 'runtime' in manifest
-      ? manifest.runtime
-      : manifest,
+    manifest && typeof manifest === 'object' && 'runtime' in manifest ? manifest.runtime : manifest,
   );
   if (!runtime.success) throw new Error('MODULE_APP_SCHEDULE_WORKFLOW_NOT_FOUND');
   const workflow = runtime.data.workflows?.find(
@@ -147,25 +148,44 @@ export const runModuleAppScheduleDispatcher = async (input: {
 export const dispatchDueModuleAppSchedules = async (input: {
   batchSize?: number;
   db: LobeChatDatabase;
-  enabled?: boolean;
   leaseMs?: number;
   now?: Date;
 }) => {
-  if (!(input.enabled ?? appEnv.MODULE_APP_SCHEDULE_DISPATCH_ENABLED)) {
+  const startedAt = Date.now();
+  let enabled: boolean;
+  try {
+    enabled = (await getServerModuleAppRuntimeConfig(input.db)).switches.scheduleDispatchEnabled;
+  } catch (error) {
+    recordModuleAppScheduleDispatch({ durationMs: Date.now() - startedAt, outcome: 'failed' });
+    throw error;
+  }
+  if (!enabled) {
+    recordModuleAppScheduleDispatch({ durationMs: Date.now() - startedAt, outcome: 'disabled' });
     throw new Error('MODULE_APP_SCHEDULE_DISPATCH_DISABLED');
   }
-  const repository = new ModuleAppTriggerModel(input.db);
-  const engine = new ModuleAppWorkflowEngine({
-    execute: createModuleAppWorkflowExecutor({}),
-    repository: new ModuleAppWorkflowModel(input.db),
-  });
 
-  return runModuleAppScheduleDispatcher({
-    batchSize: input.batchSize,
-    dispatch: (payload, options) => ModuleAppWorkflowDispatch.triggerRun(payload, options),
-    leaseMs: input.leaseMs,
-    now: input.now ?? new Date(),
-    repository,
-    start: (run) => engine.start(run),
-  });
+  try {
+    const repository = new ModuleAppTriggerModel(input.db);
+    const engine = new ModuleAppWorkflowEngine({
+      execute: createModuleAppWorkflowExecutor({}),
+      repository: new ModuleAppWorkflowModel(input.db),
+    });
+    const result = await runModuleAppScheduleDispatcher({
+      batchSize: input.batchSize,
+      dispatch: (payload, options) => ModuleAppWorkflowDispatch.triggerRun(payload, options),
+      leaseMs: input.leaseMs,
+      now: input.now ?? new Date(),
+      repository,
+      start: (run) => engine.start(run),
+    });
+    recordModuleAppScheduleDispatch({
+      ...result,
+      durationMs: Date.now() - startedAt,
+      outcome: 'completed',
+    });
+    return result;
+  } catch (error) {
+    recordModuleAppScheduleDispatch({ durationMs: Date.now() - startedAt, outcome: 'failed' });
+    throw error;
+  }
 };

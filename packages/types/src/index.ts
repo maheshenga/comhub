@@ -36,6 +36,7 @@ export * from './moduleAppCommerce';
 export * from './moduleAppData';
 export * from './moduleAppDeveloper';
 export * from './moduleAppPayment';
+export * from './moduleAppPlatform';
 export * from './moduleAppPublisher';
 export * from './moduleAppRuntime';
 export * from './moduleAppWorkflow';

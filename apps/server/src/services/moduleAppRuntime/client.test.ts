@@ -1,3 +1,10 @@
+import { createHmac } from 'node:crypto';
+
+import {
+  MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER,
+  MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT,
+  MODULE_APP_RUNTIME_READINESS_PROOF_HEADER,
+} from '@lobechat/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ModuleAppRuntimeClient } from './client';
@@ -25,10 +32,22 @@ describe('ModuleAppRuntimeClient', () => {
     expect(JSON.stringify(status)).not.toContain('operator:password');
   });
 
-  it('probes the unauthenticated readiness endpoint without exposing invocation credentials', async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(new Response(JSON.stringify({ status: 'ready' }), { status: 200 }));
+  it('authenticates readiness with a challenge proof without sending the internal token', async () => {
+    const fetch = vi.fn(async (_input: string, init?: RequestInit) => {
+      const challenge = new Headers(init?.headers).get(
+        MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER,
+      );
+      if (!challenge) throw new Error('readiness challenge missing');
+      const proof = createHmac('sha256', 'internal-token')
+        .update(MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT)
+        .update('\0')
+        .update(challenge)
+        .digest('base64url');
+      return new Response(JSON.stringify({ status: 'ready' }), {
+        headers: { [MODULE_APP_RUNTIME_READINESS_PROOF_HEADER]: proof },
+        status: 200,
+      });
+    });
     const client = new ModuleAppRuntimeClient({
       baseUrl: 'http://module-runtime:3210',
       fetch,
@@ -37,8 +56,38 @@ describe('ModuleAppRuntimeClient', () => {
 
     await expect(client.healthCheck()).resolves.toEqual({ status: 'ready' });
     expect(fetch).toHaveBeenCalledWith('http://module-runtime:3210/ready', {
+      headers: {
+        [MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER]: expect.stringMatching(/^[\w-]{32}$/),
+      },
       method: 'GET',
       signal: expect.any(AbortSignal),
+    });
+    expect(JSON.stringify(fetch.mock.calls)).not.toContain('internal-token');
+  });
+
+  it('fails closed when a configured runtime does not prove token possession', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ready' }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'ready' }), {
+          headers: { [MODULE_APP_RUNTIME_READINESS_PROOF_HEADER]: 'invalid-proof' },
+          status: 200,
+        }),
+      );
+    const client = new ModuleAppRuntimeClient({
+      baseUrl: 'http://module-runtime:3210',
+      fetch,
+      internalToken: 'internal-token',
+    });
+
+    await expect(client.healthCheck()).resolves.toEqual({
+      code: 'MODULE_APP_RUNTIME_AUTH_FAILED',
+      status: 'unavailable',
+    });
+    await expect(client.healthCheck()).resolves.toEqual({
+      code: 'MODULE_APP_RUNTIME_AUTH_FAILED',
+      status: 'unavailable',
     });
     expect(JSON.stringify(fetch.mock.calls)).not.toContain('internal-token');
   });
@@ -59,6 +108,15 @@ describe('ModuleAppRuntimeClient', () => {
         new Response(JSON.stringify({ code: '/private/docker.sock', status: 'unavailable' }), {
           status: 503,
         }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 'MODULE_APP_RUNTIME_AUTH_FAILED',
+            status: 'unavailable',
+          }),
+          { status: 401 },
+        ),
       );
     const client = new ModuleAppRuntimeClient({
       baseUrl: 'http://module-runtime:3210',
@@ -71,6 +129,10 @@ describe('ModuleAppRuntimeClient', () => {
     });
     await expect(client.healthCheck()).resolves.toEqual({
       code: 'MODULE_APP_RUNTIME_PROBE_INVALID',
+      status: 'unavailable',
+    });
+    await expect(client.healthCheck()).resolves.toEqual({
+      code: 'MODULE_APP_RUNTIME_AUTH_FAILED',
       status: 'unavailable',
     });
   });
@@ -132,18 +194,16 @@ describe('ModuleAppRuntimeClient', () => {
   });
 
   it('sends an enabled invocation only to the configured internal endpoint', async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            invocationId: invocation.invocationId,
-            output: {},
-            status: 'succeeded',
-          }),
-          { headers: { 'content-type': 'application/json' }, status: 200 },
-        ),
-      );
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          invocationId: invocation.invocationId,
+          output: {},
+          status: 'succeeded',
+        }),
+        { headers: { 'content-type': 'application/json' }, status: 200 },
+      ),
+    );
     const client = new ModuleAppRuntimeClient({
       baseUrl: 'http://module-runtime:3210',
       enabled: true,

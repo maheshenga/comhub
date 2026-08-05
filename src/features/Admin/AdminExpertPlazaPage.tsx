@@ -1,8 +1,9 @@
 'use client';
 
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, type FormInstance, Input, message, Switch, Typography } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert, Form, type FormInstance, Input, message, Switch, Tooltip, Typography } from 'antd';
+import { Plus, Trash2 } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -14,7 +15,15 @@ import { DEFAULT_EXPERT_PLAZA_CONFIG, type ExpertPlazaCard } from '@/const/exper
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-const { Text, Title } = Typography;
+import {
+  AdminFormActions,
+  AdminFormGrid,
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+} from './layout';
+
+const { Text } = Typography;
 
 const SETTING_KEYS = {
   cards: 'expertPlaza.cards',
@@ -80,7 +89,12 @@ const toCards = (cards: CardFormValue[]) =>
 const AdminExpertPlazaPage = memo(() => {
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('expert-plaza'), () =>
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('expert-plaza'), () =>
     adminCommercialService.getSettingsSection('expert-plaza'),
   );
 
@@ -90,6 +104,8 @@ const AdminExpertPlazaPage = memo(() => {
   }, [data, form]);
 
   const handleSave = async () => {
+    if (!data) return;
+
     setSubmitting(true);
     try {
       const values = await form.validateFields();
@@ -123,19 +139,19 @@ const AdminExpertPlazaPage = memo(() => {
   };
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 1040 }}>
-      <Flexbox gap={4}>
-        <Title level={3} style={{ margin: 0 }}>
-          专家广场
-        </Title>
-        <Text type="secondary">配置侧栏新栏目、页面标题、分类和展示卡片。</Text>
-      </Flexbox>
-
+    <AdminPageShell
+      description="配置专家广场入口、页面信息、分类和展示卡片。"
+      title="专家广场"
+      width="medium"
+    >
       <Alert
         showIcon
         message="开启后左侧栏会显示该入口；卡片可跳转到内部路径或外部链接。未填写 URL 时仅作为展示卡片。"
         type="info"
       />
+      {error ? (
+        <AdminPageError description="无法读取当前专家广场配置，请重试。" onRetry={refresh} />
+      ) : null}
 
       <Form
         disabled={isLoading}
@@ -143,176 +159,164 @@ const AdminExpertPlazaPage = memo(() => {
         initialValues={toFormValues({ expertPlazaConfig: DEFAULT_EXPERT_PLAZA_CONFIG })}
         layout="vertical"
       >
-        <Card title="入口与页面">
-          <Form.Item label="启用侧栏入口" name="enabled" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            label="栏目名称"
-            name="name"
-            rules={[{ message: '请填写栏目名称', required: true }]}
+        <Flexbox gap={24}>
+          <AdminSection description="设置侧栏入口状态、公开栏目名称和页面分类。" title="入口与页面">
+            <AdminFormGrid>
+              <Form.Item label="启用侧栏入口" name="enabled" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                label="栏目名称"
+                name="name"
+                rules={[{ message: '请填写栏目名称', required: true }]}
+              >
+                <Input placeholder="专家广场" />
+              </Form.Item>
+            </AdminFormGrid>
+            <Form.Item label="页面说明" name="description">
+              <Input.TextArea autoSize={{ minRows: 2 }} />
+            </Form.Item>
+            <Form.Item
+              extra="每行一个分类，也支持逗号分隔。"
+              label="分类列表"
+              name="categoriesText"
+            >
+              <Input.TextArea autoSize={{ minRows: 4 }} />
+            </Form.Item>
+          </AdminSection>
+
+          <AdminSection
+            description="卡片按列表顺序展示；必填标题和描述，ID 留空时会根据标题生成。"
+            title="卡片信息"
           >
-            <Input placeholder="专家广场" />
-          </Form.Item>
-          <Form.Item label="页面说明" name="description">
-            <Input.TextArea autoSize={{ minRows: 2 }} />
-          </Form.Item>
-          <Form.Item extra="每行一个分类，也支持逗号分隔。" label="分类列表" name="categoriesText">
-            <Input.TextArea autoSize={{ minRows: 4 }} />
-          </Form.Item>
-        </Card>
+            <Form.List name="cards">
+              {(fields, { add, remove }) => (
+                <Flexbox gap={12}>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Card
+                      key={key}
+                      size="small"
+                      title={<SpacePreview form={form} name={name} />}
+                      extra={
+                        <Tooltip title="删除卡片">
+                          <Button
+                            danger
+                            aria-label="删除卡片"
+                            icon={<Trash2 aria-hidden size={16} />}
+                            size="small"
+                            onClick={() => remove(name)}
+                          />
+                        </Tooltip>
+                      }
+                    >
+                      <Flexbox gap={12}>
+                        <AdminFormGrid columns={3}>
+                          <Form.Item {...restField} label="ID" name={[name, 'id']}>
+                            <Input placeholder="finance-advisor" />
+                          </Form.Item>
+                          <Form.Item
+                            {...restField}
+                            label="标题"
+                            name={[name, 'title']}
+                            rules={[{ message: '请填写标题', required: true }]}
+                          >
+                            <Input placeholder="财务顾问" />
+                          </Form.Item>
+                          <Form.Item {...restField} label="分类" name={[name, 'category']}>
+                            <Input placeholder="办公" />
+                          </Form.Item>
+                        </AdminFormGrid>
+                        <Form.Item
+                          {...restField}
+                          label="描述"
+                          name={[name, 'description']}
+                          rules={[{ message: '请填写描述', required: true }]}
+                        >
+                          <Input.TextArea autoSize={{ minRows: 2 }} />
+                        </Form.Item>
+                        <AdminFormGrid>
+                          <Form.Item {...restField} label="头像 / 图标地址" name={[name, 'avatar']}>
+                            <Input placeholder="/images/avatar-presets/avatar-1.svg" />
+                          </Form.Item>
+                          <Form.Item {...restField} label="跳转链接" name={[name, 'url']}>
+                            <Input placeholder="/market/..." />
+                          </Form.Item>
+                        </AdminFormGrid>
+                        <AdminFormGrid columns={3}>
+                          <Form.Item {...restField} label="作者/来源" name={[name, 'author']}>
+                            <Input />
+                          </Form.Item>
+                          <Form.Item {...restField} label="指标名称" name={[name, 'metricLabel']}>
+                            <Input placeholder="使用人数" />
+                          </Form.Item>
+                          <Form.Item {...restField} label="指标值" name={[name, 'metricValue']}>
+                            <Input placeholder="1.2k" />
+                          </Form.Item>
+                        </AdminFormGrid>
+                        <Form.Item
+                          {...restField}
+                          extra="每行一个标签，也支持逗号分隔。"
+                          label="标签"
+                          name={[name, 'tagsText']}
+                        >
+                          <Input.TextArea autoSize={{ minRows: 2 }} />
+                        </Form.Item>
+                        <AdminFormGrid>
+                          <Form.Item
+                            {...restField}
+                            label="启用"
+                            name={[name, 'enabled']}
+                            valuePropName="checked"
+                          >
+                            <Switch defaultChecked />
+                          </Form.Item>
+                          <Form.Item
+                            {...restField}
+                            label="精选"
+                            name={[name, 'featured']}
+                            valuePropName="checked"
+                          >
+                            <Switch />
+                          </Form.Item>
+                        </AdminFormGrid>
+                      </Flexbox>
+                    </Card>
+                  ))}
+                  <Button
+                    block
+                    icon={<Plus aria-hidden size={16} />}
+                    type="dashed"
+                    onClick={() =>
+                      add({
+                        description: '',
+                        enabled: true,
+                        featured: false,
+                        id: '',
+                        tagsText: '',
+                        title: '',
+                      })
+                    }
+                  >
+                    添加卡片
+                  </Button>
+                </Flexbox>
+              )}
+            </Form.List>
+          </AdminSection>
 
-        <Card style={{ marginTop: 16 }} title="卡片信息">
-          <Form.List name="cards">
-            {(fields, { add, remove }) => (
-              <Flexbox gap={12}>
-                {fields.map(({ key, name, ...restField }) => (
-                  <Card key={key} size="small" style={{ borderRadius: 8 }}>
-                    <Flexbox gap={12}>
-                      <Flexbox horizontal align="center" justify="space-between">
-                        <SpacePreview form={form} name={name} />
-                        <MinusCircleOutlined
-                          style={{ color: '#ff4d4f' }}
-                          onClick={() => remove(name)}
-                        />
-                      </Flexbox>
-                      <Flexbox horizontal gap={12}>
-                        <Form.Item
-                          {...restField}
-                          label="ID"
-                          name={[name, 'id']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="finance-advisor" />
-                        </Form.Item>
-                        <Form.Item
-                          {...restField}
-                          label="标题"
-                          name={[name, 'title']}
-                          rules={[{ message: '请填写标题', required: true }]}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="财务顾问" />
-                        </Form.Item>
-                        <Form.Item
-                          {...restField}
-                          label="分类"
-                          name={[name, 'category']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="办公" />
-                        </Form.Item>
-                      </Flexbox>
-                      <Form.Item
-                        {...restField}
-                        label="描述"
-                        name={[name, 'description']}
-                        rules={[{ message: '请填写描述', required: true }]}
-                      >
-                        <Input.TextArea autoSize={{ minRows: 2 }} />
-                      </Form.Item>
-                      <Flexbox horizontal gap={12}>
-                        <Form.Item
-                          {...restField}
-                          label="头像 / 图标地址"
-                          name={[name, 'avatar']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="/images/avatar-presets/avatar-1.svg" />
-                        </Form.Item>
-                        <Form.Item
-                          {...restField}
-                          label="跳转链接"
-                          name={[name, 'url']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="/market/..." />
-                        </Form.Item>
-                      </Flexbox>
-                      <Flexbox horizontal gap={12}>
-                        <Form.Item
-                          {...restField}
-                          label="作者/来源"
-                          name={[name, 'author']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input />
-                        </Form.Item>
-                        <Form.Item
-                          {...restField}
-                          label="指标名称"
-                          name={[name, 'metricLabel']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="使用人数" />
-                        </Form.Item>
-                        <Form.Item
-                          {...restField}
-                          label="指标值"
-                          name={[name, 'metricValue']}
-                          style={{ flex: 1 }}
-                        >
-                          <Input placeholder="1.2k" />
-                        </Form.Item>
-                      </Flexbox>
-                      <Form.Item
-                        {...restField}
-                        extra="每行一个标签，也支持逗号分隔。"
-                        label="标签"
-                        name={[name, 'tagsText']}
-                      >
-                        <Input.TextArea autoSize={{ minRows: 2 }} />
-                      </Form.Item>
-                      <Flexbox horizontal gap={24}>
-                        <Form.Item
-                          {...restField}
-                          label="启用"
-                          name={[name, 'enabled']}
-                          valuePropName="checked"
-                        >
-                          <Switch defaultChecked />
-                        </Form.Item>
-                        <Form.Item
-                          {...restField}
-                          label="精选"
-                          name={[name, 'featured']}
-                          valuePropName="checked"
-                        >
-                          <Switch />
-                        </Form.Item>
-                      </Flexbox>
-                    </Flexbox>
-                  </Card>
-                ))}
-                <Button
-                  block
-                  icon={<PlusOutlined />}
-                  type="dashed"
-                  onClick={() =>
-                    add({
-                      description: '',
-                      enabled: true,
-                      featured: false,
-                      id: '',
-                      tagsText: '',
-                      title: '',
-                    })
-                  }
-                >
-                  添加卡片
-                </Button>
-              </Flexbox>
-            )}
-          </Form.List>
-        </Card>
-
-        <Flexbox horizontal justify="flex-end" style={{ marginTop: 16 }}>
-          <Button loading={submitting} type="primary" onClick={handleSave}>
-            保存专家广场
-          </Button>
+          <AdminFormActions label="专家广场配置操作">
+            <Button
+              disabled={isLoading || !data}
+              loading={submitting}
+              type="primary"
+              onClick={handleSave}
+            >
+              保存专家广场
+            </Button>
+          </AdminFormActions>
         </Flexbox>
       </Form>
-    </Flexbox>
+    </AdminPageShell>
   );
 });
 

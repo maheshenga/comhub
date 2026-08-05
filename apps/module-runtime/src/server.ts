@@ -1,10 +1,16 @@
+import { createHmac } from 'node:crypto';
 import { constants, createReadStream } from 'node:fs';
 import { access, realpath, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import type { ModuleAppRuntimeReadinessCode } from '@lobechat/types';
+import {
+  MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER,
+  MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT,
+  MODULE_APP_RUNTIME_READINESS_PROOF_HEADER,
+  type ModuleAppRuntimeReadinessCode,
+} from '@lobechat/types';
 import { importJWK } from 'jose';
 
 import { verifyRuntimeCapability } from './capability';
@@ -18,7 +24,30 @@ import { assertModuleAppRuntimePolicy } from './policy';
 const MAX_REQUEST_BYTES = 1024 * 1024 + 16 * 1024;
 const MODULE_APP_RUNTIME_ARTIFACT_ROOT = '/runtime/artifacts';
 const MODULE_APP_RUNTIME_RECONCILE_INTERVAL_MS = 10_000;
+const READINESS_CHALLENGE_PATTERN = /^[\w-]{32,128}$/;
 const privateJwkParameters = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'];
+
+const setReadinessProof = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  internalToken: string,
+) => {
+  const challenge = request.headers[MODULE_APP_RUNTIME_READINESS_CHALLENGE_HEADER];
+  if (
+    typeof challenge !== 'string' ||
+    !internalToken ||
+    !READINESS_CHALLENGE_PATTERN.test(challenge)
+  ) {
+    return;
+  }
+
+  const proof = createHmac('sha256', internalToken)
+    .update(MODULE_APP_RUNTIME_READINESS_PROOF_CONTEXT)
+    .update('\0')
+    .update(challenge)
+    .digest('base64url');
+  response.setHeader(MODULE_APP_RUNTIME_READINESS_PROOF_HEADER, proof);
+};
 
 const readinessFailureCodes = new Set<ModuleAppRuntimeReadinessCode>([
   'MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE',
@@ -232,6 +261,7 @@ export const createModuleAppRuntimeServer = (options: {
       return;
     }
     if (request.method === 'GET' && request.url === '/ready') {
+      setReadinessProof(request, response, options.internalToken);
       if (!invocationEnabled) {
         sendJson(response, 200, { status: 'disabled' });
         return;

@@ -39,11 +39,44 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
+  Input: ({ ...props }: any) => <input data-component="base-input" {...props} />,
   Modal: ({ children, open }: any) => (open ? <div>{children}</div> : null),
+  Select: ({ onChange, options, value, ...props }: any) => (
+    <select
+      data-component="base-select"
+      value={value}
+      {...props}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {options.map((option: { label: string; value: string }) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
+  TextArea: ({ ...props }: any) => <textarea data-component="base-textarea" {...props} />,
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 describe('ModuleAppsPage', () => {
+  it('uses styled controls in the application directory toolbar', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/apps']}>
+        <ModuleAppsPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('module-app-filters')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'moduleApps.admin.apps.search' })).toHaveAttribute(
+      'data-component',
+      'base-input',
+    );
+    expect(
+      screen.getByRole('combobox', { name: 'moduleApps.admin.apps.status.label' }),
+    ).toHaveAttribute('data-component', 'base-select');
+  });
+
   it('uses only the application list service for the directory request', async () => {
     render(
       <MemoryRouter initialEntries={['/settings/admin/modules/apps?q=work&status=draft']}>

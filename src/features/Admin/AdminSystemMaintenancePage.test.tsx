@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { ConfigProvider } from '@lobehub/ui';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import * as m from 'motion/react-m';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -59,7 +61,11 @@ describe('AdminSystemMaintenancePage', () => {
   });
 
   it('shows module app cleanup counts in the maintenance result', async () => {
-    render(<AdminSystemMaintenancePage />);
+    render(
+      <ConfigProvider motion={m}>
+        <AdminSystemMaintenancePage />
+      </ConfigProvider>,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'admin.maintenance.runNow' }));
 
@@ -69,7 +75,10 @@ describe('AdminSystemMaintenancePage', () => {
         confirmed: true,
       });
     });
-    expect(await screen.findByText('已清理模块应用上传：2')).toBeInTheDocument();
-    expect(screen.getByText('模块应用上传清理失败：1')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('已清理模块应用上传')).toBeInTheDocument();
+    expect(within(dialog).getByText('模块应用上传清理失败')).toBeInTheDocument();
+    expect(within(dialog).getByText('2')).toBeInTheDocument();
+    expect(within(dialog).getByText('1')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
-import { Tabs } from 'antd';
+import { Tabs } from '@lobehub/ui/base-ui';
+import { createStaticStyles } from 'antd-style';
 import { memo } from 'react';
 import { useSearchParams } from 'react-router';
 
@@ -10,7 +11,38 @@ import AdminNotificationsPage from './AdminNotificationsPage';
 import AdminOperationsPage from './AdminOperationsPage';
 import AdminRecommendationsPage from './AdminRecommendationsPage';
 
-const selectTab = <T extends string>(
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  tabs: css`
+    min-width: 0;
+
+    .ant-tabs-nav {
+      position: sticky;
+      z-index: 4;
+      inset-block-start: 0;
+
+      margin: 0;
+      padding-block-start: 12px;
+      padding-inline: 24px;
+
+      background: color-mix(in srgb, ${cssVar.colorBgLayout} 94%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .ant-tabs-content-holder,
+    .ant-tabs-tabpane {
+      min-width: 0;
+    }
+
+    @media (width < 640px) {
+      .ant-tabs-nav {
+        padding-block-start: 8px;
+        padding-inline: 16px;
+      }
+    }
+  `,
+}));
+
+export const selectAdminHubTab = <T extends string>(
   tabs: readonly T[],
   fallback: T,
   value: string | null,
@@ -18,7 +50,7 @@ const selectTab = <T extends string>(
 
 const useAdminHubTab = <T extends string>(tabs: readonly T[], fallback: T) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = selectTab(tabs, fallback, searchParams.get('tab'));
+  const activeTab = selectAdminHubTab(tabs, fallback, searchParams.get('tab'));
 
   const setActiveTab = (tab: string) => {
     const next = new URLSearchParams(searchParams);
@@ -38,7 +70,7 @@ export const AdminContentResourcesPage = memo(() => {
   return (
     <Tabs
       activeKey={activeTab}
-      tabBarStyle={{ marginInline: 24, marginTop: 16 }}
+      className={styles.tabs}
       items={[
         { children: <AdminTopicsPage />, key: 'topics', label: '话题' },
         { children: <AdminFilesPage />, key: 'files', label: '文件' },
@@ -57,7 +89,7 @@ export const AdminContentOperationsPage = memo(() => {
   return (
     <Tabs
       activeKey={activeTab}
-      tabBarStyle={{ marginInline: 24, marginTop: 16 }}
+      className={styles.tabs}
       items={[
         { children: <AdminRecommendationsPage />, key: 'recommendations', label: '推荐' },
         { children: <AdminExpertPlazaPage />, key: 'expert-plaza', label: '专家广场' },

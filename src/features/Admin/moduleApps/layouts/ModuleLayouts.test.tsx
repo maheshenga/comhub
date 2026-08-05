@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AdminModuleAppDetail } from '../types';
 import ModuleAppDetailLayout, { type ModuleAppDetailOutletContext } from './ModuleAppDetailLayout';
-import ModuleCenterLayout from './ModuleCenterLayout';
+import ModuleCenterLayout, { shouldUseModuleNavigationSheet } from './ModuleCenterLayout';
 
 const detailState = vi.hoisted(() => ({
   app: undefined as AdminModuleAppDetail | undefined,
@@ -27,6 +27,12 @@ const DetailChild = () => {
 };
 
 describe('module layouts', () => {
+  it('moves module navigation into a sheet below the extra-large breakpoint', () => {
+    expect(shouldUseModuleNavigationSheet({ mobile: false, xl: false })).toBe(true);
+    expect(shouldUseModuleNavigationSheet({ mobile: false, xl: true })).toBe(false);
+    expect(shouldUseModuleNavigationSheet({ mobile: true, xl: true })).toBe(true);
+  });
+
   it('renders center navigation beside nested route content', () => {
     render(
       <MemoryRouter initialEntries={['/settings/admin/modules']}>
