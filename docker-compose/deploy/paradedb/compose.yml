@@ -1,0 +1,22 @@
+name: paradedb
+
+services:
+  paradedb:
+    image: paradedb/paradedb@sha256:0606ed798dd5ecda1ddec002f36dd807c3342b269b57ce14cad7eb2033bbb344
+    container_name: comhub-paradedb
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '127.0.0.1:${HOST_PORT:-15432}:5432'
+    volumes:
+      - ./data:/var/lib/postgresql
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
