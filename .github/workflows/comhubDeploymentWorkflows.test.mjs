@@ -136,6 +136,34 @@ test('main deployment is manual and reuses existing digest images', () => {
   assertProductionLock(workflow.jobs.deploy);
 });
 
+test('production ParadeDB manifest pins the image and preserves the server contract', () => {
+  const source = readRepositoryFile('docker-compose/deploy/paradedb/compose.yml');
+  const compose = parse(source);
+  const service = compose.services.paradedb;
+
+  assert.equal(compose.name, 'paradedb');
+  assert.deepEqual(Object.keys(compose.services), ['paradedb']);
+  assert.equal(
+    service.image,
+    'paradedb/paradedb@sha256:0606ed798dd5ecda1ddec002f36dd807c3342b269b57ce14cad7eb2033bbb344',
+  );
+  assert.equal(service.container_name, 'comhub-paradedb');
+  assert.equal(service.restart, 'always');
+  assert.deepEqual(service.env_file, ['.env']);
+  assert.deepEqual(service.environment, {
+    POSTGRES_DB: '${POSTGRES_DB}',
+    POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}',
+    POSTGRES_USER: '${POSTGRES_USER}',
+  });
+  assert.deepEqual(service.ports, ['127.0.0.1:${HOST_PORT:-15432}:5432']);
+  assert.deepEqual(service.volumes, ['./data:/var/lib/postgresql']);
+  assert.deepEqual(service.logging, {
+    driver: 'json-file',
+    options: { 'max-file': '5', 'max-size': '20m' },
+  });
+  assert.doesNotMatch(source, /paradedb\/paradedb:latest/u);
+});
+
 test('main deployment relays immutable OCI images before the remote traffic switch', () => {
   const { workflow } = loadWorkflow('comhub-deploy.yml');
   const steps = workflow.jobs.deploy.steps;
