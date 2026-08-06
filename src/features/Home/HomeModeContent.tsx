@@ -210,9 +210,12 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
   const authLoaded = useUserStore(authSelectors.isLoaded);
   const myId = useUserStore(userProfileSelectors.userId);
   const recentsCount = useGlobalStore(systemStatusSelectors.homeRecentsCount);
+  const hiddenWidgets = useGlobalStore(systemStatusSelectors.hiddenHomeWidgets);
+  const recentsHidden = hiddenWidgets.includes('recents');
+  const tasksHidden = hiddenWidgets.includes('tasks');
   const cacheScope = useCacheScope();
   const recentsSWR = useClientDataSWR(
-    isLogin ? recentKeys.topicList(HOME_TOPIC_RECENT_LIMIT, cacheScope) : null,
+    isLogin && !recentsHidden ? recentKeys.topicList(HOME_TOPIC_RECENT_LIMIT, cacheScope) : null,
     () => recentService.getAll(HOME_TOPIC_RECENT_LIMIT, ['topic'], true),
     { revalidateOnFocus: false },
   );
@@ -234,12 +237,15 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
   const topicRecents = recentsSWR.data ?? [];
 
   if (mode === 'chat') {
+    // With the recents section switched off nothing is fetched, so it reports as
+    // settled-and-empty rather than perpetually loading, and the remaining
+    // activity alone decides what this column is.
     const state = resolveHomeChatContentState({
       authLoaded: !!authLoaded,
-      hasError: !!recentsSWR.error,
+      hasError: !recentsHidden && !!recentsSWR.error,
       isLogin: !!isLogin,
       recentsCount: topicRecents.length,
-      recentsInit: recentsSWR.data !== undefined,
+      recentsInit: recentsHidden || recentsSWR.data !== undefined,
       activityCount: mineRunningCount + mineUnreadCount + needsYouCount,
       activityError: Boolean(inboxTopics.error || briefsSWR.error),
       activityResolved:
@@ -247,12 +253,13 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
         (briefsInit || Boolean(briefsSWR.error)),
     });
 
-    if (state === 'empty') return <EmptySuggestions onSelect={onSuggestionSelect} />;
+    if (state === 'empty')
+      return recentsHidden ? null : <EmptySuggestions onSelect={onSuggestionSelect} />;
 
     return (
       <Flexbox gap={32}>
         <HomeInbox variant={'main'} />
-        {(state !== 'ready' || topicRecents.length > 0) && (
+        {!recentsHidden && (state !== 'ready' || topicRecents.length > 0) && (
           <GroupBlock
             count={resolveRecentsBadgeCount(topicRecents.length, recentsCount)}
             title={t('dashboard.chat.recents')}
@@ -277,7 +284,7 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
   if (!isLogin) return null;
 
   if (mode === 'task') {
-    return <TaskContent />;
+    return tasksHidden ? null : <TaskContent />;
   }
 
   return null;
