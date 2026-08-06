@@ -20,8 +20,8 @@ import {
 } from '@/business/client/BusinessDesktopRoutes';
 import { agentDocumentRouteMeta } from '@/features/AgentDocumentPage/routeMeta';
 import { taskRouteMeta, tasksRouteMeta } from '@/features/AgentTasks/routeMeta';
-import { fleetRouteMeta } from '@/features/Fleet/routeMeta';
 import { agentsRouteMeta } from '@/features/AgentViewAll/routeMeta';
+import { fleetRouteMeta } from '@/features/Fleet/routeMeta';
 import { pageRouteMeta } from '@/features/Pages/routeMeta';
 import {
   acceptanceRouteMeta,
@@ -892,6 +892,7 @@ export const createMainAreaChildren = (): RouteObject[] => [
         element: redirectElement('/settings/profile'),
         index: true,
       },
+      ...BusinessDesktopRoutesWithSettingsLayout,
       // Provider routes with nested structure
       {
         children: [
@@ -899,8 +900,6 @@ export const createMainAreaChildren = (): RouteObject[] => [
             element: redirectElement('/settings/provider/all'),
             index: true,
           },
-          ...BusinessDesktopRoutesWithSettingsLayout,
-          // Provider routes with nested structure
           {
             element: dynamicElement(
               () => import('@/routes/(main)/settings/provider').then((m) => m.ProviderDetailPage),
