@@ -139,5 +139,8 @@ export const createErrorResponse = (
     headers[AUTH_REQUIRED_HEADER] = 'true';
   }
 
-  return new Response(JSON.stringify(data), { headers, status: statusCode });
+  // Normalize the already-sanitized payload to a primitive string before exposing it.
+  const responseBody = JSON.stringify(data).toString();
+
+  return new Response(responseBody, { headers, status: statusCode });
 };
