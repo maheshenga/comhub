@@ -46,15 +46,16 @@ const ApiKey: FC = () => {
   const activeWorkspaceId = useActiveWorkspaceId();
   const { message } = App.useApp();
   const { allowed: canEdit, reason } = usePermission('create_content');
-  // Workspace API keys are owner-managed shared config. The server gates every
-  // procedure at `requireWorkspaceRoleWhenScoped('owner')`, so mirror that
-  // policy here: owners can manage every workspace key, while members should
-  // not see an enabled mutation flow that will be rejected.
+  // Workspace API keys are shared admin config: the server gates every
+  // mutation (create included) at Admin-or-higher
+  // (`requireWorkspaceRoleWhenScoped('admin')`), with no per-row creator
+  // check — mirror that here so Admins can manage keys created by other
+  // members and Members don't get an enabled create flow that always 403s.
   const { allowed: canManageKeys } = usePermission('manage_settings');
   const canCreate = canEdit && (!activeWorkspaceId || canManageKeys);
   const checkManageable = (_creatorUserId?: string | null) => !activeWorkspaceId || canManageKeys;
   const manageTooltip = activeWorkspaceId
-    ? ts('workspace.permission.requiresOwner')
+    ? ts('workspace.permission.requiresAdmin')
     : tc('manageOnlyCreator', 'Only the creator or a workspace owner can do this');
 
   const { data, isLoading, mutate } = useClientDataSWR<ApiKeyItem[]>(apiKeyKeys.list(), () =>

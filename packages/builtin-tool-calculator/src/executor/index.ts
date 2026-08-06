@@ -1,7 +1,6 @@
 import { BaseExecutor, type BuiltinToolResult, type IBuiltinToolExecutor } from '@lobechat/types';
 import { defBase } from '@thi.ng/base-n/base';
 import { all, create } from 'mathjs';
-// @ts-ignore - nerdamer doesn't have TypeScript definitions
 import nerdamer from 'nerdamer-prime/all';
 
 import {
@@ -374,12 +373,14 @@ class CalculatorExecutor
         }
 
         const result = nerdamer.solveEquations(equation, solveVariables);
-        if (result === null) {
-          const message = 'System does not have a distinct solution';
+        // `solveEquations` yields nothing for an unsolvable system. The
+        // single-equation branch above already surfaces that as a SolveError;
+        // mirror it here instead of dereferencing the empty result.
+        if (!result) {
           return {
-            content: `Equation solver error: ${message}`,
+            content: 'No solution found for the given system of equations',
             error: {
-              message,
+              message: 'No solution found',
               type: 'SolveError',
             },
             success: false,

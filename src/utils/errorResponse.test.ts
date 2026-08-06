@@ -134,12 +134,20 @@ describe('createErrorResponse', () => {
     const error = new Error('database path C:\\secret');
     const response = createErrorResponse(ChatErrorType.InternalServerError, {
       error,
+      nested: {
+        cause: 'sensitive cause',
+        error,
+        stack: 'nested sensitive stack trace',
+      },
       stack: 'sensitive stack trace',
     });
 
     await expect(response.json()).resolves.toEqual({
       body: {
         error: { message: 'An internal error occurred', name: 'Error' },
+        nested: {
+          error: { message: 'An internal error occurred', name: 'Error' },
+        },
       },
       errorType: ChatErrorType.InternalServerError,
     });

@@ -29,9 +29,16 @@ const runtimeMocks = vi.hoisted(() => ({
   initModelRuntimeFromDB: vi.fn(),
 }));
 
+const mockGetHiddenBuiltinModelsForUser = vi.hoisted(() => vi.fn());
+
 vi.mock('@/business/server/planModelRules', () => ({
   isModelAllowedByPlanRules: planRuleMocks.isModelAllowedByPlanRules,
   resolvePlanModelRules: planRuleMocks.resolvePlanModelRules,
+}));
+
+vi.mock('@/business/server/aiProvider', () => ({
+  getHiddenBuiltinModelsForUser: mockGetHiddenBuiltinModelsForUser,
+  getModelRedirects: vi.fn(async () => ({})),
 }));
 vi.mock('@/server/globalConfig');
 vi.mock('@/server/modules/KeyVaultsEncrypt');
@@ -84,6 +91,9 @@ describe('aiProviderRouter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetHiddenBuiltinModelsForUser.mockResolvedValue([]);
+    planRuleMocks.isModelAllowedByPlanRules.mockReturnValue(true);
+    planRuleMocks.resolvePlanModelRules.mockResolvedValue(null);
 
     vi.mocked(getServerGlobalConfig).mockReturnValue({
       aiProvider: {},
@@ -224,7 +234,7 @@ describe('aiProviderRouter', () => {
       const caller = aiProviderRouter.createCaller(createMockContext());
       const result = await caller.getAiProviderRuntimeState({});
 
-      expect(result).toEqual(mockRuntimeState);
+      expect(result).toEqual({ ...mockRuntimeState, hiddenBuiltinModels: [], modelRedirects: {} });
       expect(mockGetState).toHaveBeenCalledWith(KeyVaultsGateKeeper.getUserKeyVaults);
     });
 
@@ -320,6 +330,67 @@ describe('aiProviderRouter', () => {
       expect(result.enabledAiModels).toEqual([
         expect.objectContaining({ groupKey: 'pro', id: 'shared-chat' }),
       ]);
+    });
+
+    it('should append user-scoped hidden builtin models without changing runtime state loading', async () => {
+      const mockGetState = vi.fn().mockResolvedValue(mockRuntimeState);
+      const hiddenBuiltinModels = [{ id: 'hidden-model', providerId: 'lobehub' }];
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = mockGetState;
+      mockGetHiddenBuiltinModelsForUser.mockResolvedValue(hiddenBuiltinModels);
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.getAiProviderRuntimeState({});
+
+      expect(result).toEqual({ ...mockRuntimeState, hiddenBuiltinModels, modelRedirects: {} });
+      expect(mockGetHiddenBuiltinModelsForUser).toHaveBeenCalledWith(mockUserId);
+      expect(mockGetState).toHaveBeenCalledWith(KeyVaultsGateKeeper.getUserKeyVaults);
+    });
+
+    it('should remove hidden models and providers from the runtime state', async () => {
+      const lobehubProvider = { id: 'lobehub', source: 'builtin' as const };
+      const openaiProvider = { id: 'openai', source: 'builtin' as const };
+      const hiddenImageModel = {
+        abilities: {},
+        enabled: true,
+        id: 'hidden-image',
+        providerId: 'lobehub',
+        type: 'image' as const,
+      };
+      const visibleChatModel = {
+        abilities: {},
+        enabled: true,
+        id: 'visible-chat',
+        providerId: 'lobehub',
+        type: 'chat' as const,
+      };
+      const visibleImageModel = {
+        abilities: {},
+        enabled: true,
+        id: 'visible-image',
+        providerId: 'openai',
+        type: 'image' as const,
+      };
+      const runtimeState: AiProviderRuntimeState = {
+        enabledAiModels: [hiddenImageModel, visibleChatModel, visibleImageModel],
+        enabledAiProviders: [lobehubProvider, openaiProvider],
+        enabledChatAiProviders: [lobehubProvider],
+        enabledImageAiProviders: [lobehubProvider, openaiProvider],
+        enabledVideoAiProviders: [],
+        runtimeConfig: {},
+      };
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi
+        .fn()
+        .mockResolvedValue(runtimeState);
+      mockGetHiddenBuiltinModelsForUser.mockResolvedValue([
+        { id: 'hidden-image', providerId: 'lobehub' },
+      ]);
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.getAiProviderRuntimeState({});
+
+      expect(result.enabledAiModels).toEqual([visibleChatModel, visibleImageModel]);
+      expect(result.enabledChatAiProviders).toEqual([lobehubProvider]);
+      expect(result.enabledImageAiProviders).toEqual([openaiProvider]);
     });
   });
 

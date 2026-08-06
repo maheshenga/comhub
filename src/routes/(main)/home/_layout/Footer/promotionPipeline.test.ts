@@ -4,11 +4,6 @@ import type { FooterPromotionContext } from './promotionPipeline';
 import { resolveFooterPromotionState } from './promotionPipeline';
 
 const createContext = (overrides: Partial<FooterPromotionContext> = {}) => ({
-  agentOnboardingFinished: false,
-  agentOnboardingStarted: false,
-  classicOnboardingFinished: true,
-  enableAgentOnboarding: true,
-  isAgentOnboardingPromoRead: false,
   isDesktop: false,
   isMobile: false,
   isProductHuntNotificationRead: false,
@@ -18,21 +13,8 @@ const createContext = (overrides: Partial<FooterPromotionContext> = {}) => ({
 });
 
 describe('resolveFooterPromotionState', () => {
-  it('prioritizes the agent onboarding promotion over product hunt', () => {
+  it('shows the product hunt promotion during its active window', () => {
     expect(resolveFooterPromotionState(createContext())).toEqual({
-      isAgentOnboardingPromoAvailable: true,
-      shouldAutoShowAgentOnboardingPromo: true,
-      shouldAutoShowProductHuntCard: false,
-      shouldShowProductHuntMenuEntry: false,
-    });
-  });
-
-  it('falls back to product hunt when agent onboarding promotion is unavailable', () => {
-    expect(
-      resolveFooterPromotionState(createContext({ classicOnboardingFinished: false })),
-    ).toEqual({
-      isAgentOnboardingPromoAvailable: false,
-      shouldAutoShowAgentOnboardingPromo: false,
       shouldAutoShowProductHuntCard: true,
       shouldShowProductHuntMenuEntry: true,
     });
@@ -42,13 +24,10 @@ describe('resolveFooterPromotionState', () => {
     expect(
       resolveFooterPromotionState(
         createContext({
-          classicOnboardingFinished: false,
           isProductHuntNotificationRead: true,
         }),
       ),
     ).toEqual({
-      isAgentOnboardingPromoAvailable: false,
-      shouldAutoShowAgentOnboardingPromo: false,
       shouldAutoShowProductHuntCard: false,
       shouldShowProductHuntMenuEntry: true,
     });
@@ -58,13 +37,10 @@ describe('resolveFooterPromotionState', () => {
     expect(
       resolveFooterPromotionState(
         createContext({
-          classicOnboardingFinished: false,
           isWithinProductHuntWindow: false,
         }),
       ),
     ).toEqual({
-      isAgentOnboardingPromoAvailable: false,
-      shouldAutoShowAgentOnboardingPromo: false,
       shouldAutoShowProductHuntCard: false,
       shouldShowProductHuntMenuEntry: false,
     });

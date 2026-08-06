@@ -16,6 +16,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { messengerService } from '@/services/messenger';
 
 import { getMessengerErrorMessage } from '../i18n';
+import { MessengerPushSection } from './MessengerPush';
 import {
   DetailLayout,
   IntegrationDetailSkeleton,
@@ -287,6 +288,11 @@ const WechatDetail = memo<WechatDetailProps>(({ access, name, onBack }) => {
       headerAction={headerAction}
       name={name}
       platform="wechat"
+      extraSections={
+        !paidBlocked && hasConnection ? (
+          <MessengerPushSection name={name} platform="wechat" />
+        ) : undefined
+      }
       sectionTitle={
         hasConnection ? t('messenger.detail.connections.title') : t('messenger.wechat.setupTitle')
       }

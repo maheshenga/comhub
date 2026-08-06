@@ -33,6 +33,7 @@ export const WORKSPACE_SETTINGS_TABS: ReadonlySet<string> = new Set([
   'apikey',
   'audit-log',
   'billing',
+  'budget',
   'connector',
   'credential',
   // Legacy alias for `credential` — the routers keep a redirect, so prefixed
@@ -42,11 +43,15 @@ export const WORKSPACE_SETTINGS_TABS: ReadonlySet<string> = new Set([
   'devices',
   'general',
   'members',
+  'notification',
   'oauth-apps',
   'plans',
   'provider',
   'service-model',
   'skill',
+  'statistics',
+  // Legacy alias for `statistics` — the routers keep a redirect, so prefixed
+  // deep-links still land on `/:slug/settings/statistics`.
   'stats',
   'storage',
   'usage',
@@ -57,6 +62,7 @@ const FIRST_SEGMENT_REGEX = /^\/([^/?#]+)/;
 
 const WORKSPACE_MIRRORED_FIRST_SEGMENTS = new Set([
   'agent',
+  'agents',
   'community',
   'eval',
   'group',

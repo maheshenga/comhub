@@ -8,6 +8,7 @@ import type { TopicGroupMode, TopicSortBy } from '../topic';
 import type { UserAgentOnboarding } from './agentOnboarding';
 import type { UserOnboarding } from './onboarding';
 import type { UserSettings } from './settings';
+import type { NotificationSettings } from './settings/notification';
 
 /**
  * Per-agent override for the device execution decision. Stored on
@@ -45,10 +46,71 @@ export interface AgentDeviceOverride {
  * deserve its own column (à la `user_settings.hotkey` / `user_settings.tts`),
  * split it out at that point.
  */
+/**
+ * Per-user sidebar layout config for one workspace. Mirrors the two
+ * client-side `status.workspace.*` overlay fields that are worth syncing
+ * across devices; expansion state stays device-local.
+ */
+export interface SidebarLayoutPreference {
+  /** Section keys hidden from the sidebar (customize-sidebar "Hide"). */
+  hiddenSections?: string[];
+  /** Full sidebar item order, including the flex-spacer sentinel. */
+  items?: string[];
+}
+
 export interface WorkspaceUserPreference {
   agentDeviceOverrides?: Record<string /* agentId */, AgentDeviceOverride>;
   /** Personal model choices for workspace agents that allow member selection. */
   agentModelOverrides?: Record<string /* agentId */, AgentModelOverride>;
+  /** Per-member Agent/Chat runtime mode for shared workspace agents. */
+  agentModeOverrides?: Record<string /* agentId */, boolean>;
+  /**
+   * This member's notification preferences for workspace-scoped scenarios
+   * (the `workspace` category of the scenario registry). Same shape as the
+   * personal `user_settings.notification` bag; missing = every workspace
+   * notification enabled. Workspace notifications consult only this bag —
+   * personal notification settings no longer apply to them.
+   */
+  notification?: NotificationSettings;
+  /**
+   * Per-member sidebar sections layout (order + hidden sections). Written as
+   * a complete object on every update — partial patches would drop the
+   * sibling field through the model's top-level merge.
+   */
+  sidebar?: SidebarLayoutPreference;
+  /**
+   * Explicit per-member sidebar membership for workspace Agents / chat groups
+   * (itemId -> visible). When absent, Agents created by the caller are shown
+   * and Agents created by another member are hidden; chat groups and builtin
+   * Agents keep their existing visible default. An explicit entry always wins
+   * over that ownership-based default and the legacy hidden-id list.
+   */
+  sidebarAgentVisibilityOverrides?: Record<string /* itemId */, boolean>;
+  /**
+   * Per-member folder assignment for sidebar items (agentId/chatGroupId →
+   * sessionGroupId). Folders are per-member in workspace mode, so moving a
+   * shared item into "my" folder must not rewrite the shared
+   * `agents.sessionGroupId` column (which would regroup every member's
+   * sidebar). This map is the sole source in workspace mode — items absent
+   * here sit in the default (ungrouped) list; the shared column is ignored.
+   */
+  sidebarGroupAssignments?: Record<string /* itemId */, string | null>;
+  /**
+   * Sidebar agents/chat-groups the caller removed from their own sidebar
+   * before ownership-based workspace defaults were introduced. Retained for
+   * backward compatibility; new workspace writes use
+   * `sidebarAgentVisibilityOverrides`. Personal mode still uses this list.
+   */
+  sidebarHiddenAgentIds?: string[];
+  /**
+   * Per-member pins for sidebar items (agentId/chatGroupId → pinned).
+   * Pinning is fully per-member in workspace mode: this map is the sole
+   * source — the shared `agents.pinned` / `chat_groups.pinned` columns are
+   * ignored (a transferred-in agent's personal pin, or a pin made before
+   * this preference existed, must not surface for anyone). Items absent
+   * here are unpinned.
+   */
+  sidebarPinnedOverrides?: Record<string /* itemId */, boolean>;
 }
 
 export interface LobeUser {
@@ -165,6 +227,12 @@ export interface UserPreference {
    */
   lastWorkspaceId?: string | null;
   /**
+   * Personal-mode counterpart of
+   * {@link WorkspaceUserPreference.sidebarHiddenAgentIds}: agents/chat-groups
+   * removed from the personal sidebar via the View All page.
+   */
+  sidebarHiddenAgentIds?: string[];
+  /**
    * @deprecated Use settings.general.telemetry instead
    */
   telemetry?: boolean | null;
@@ -238,6 +306,7 @@ export const UserPreferenceSchema = z
     hideSyncAlert: z.boolean().optional(),
     lab: UserLabSchema.optional(),
     lastWorkspaceId: z.string().nullish(),
+    sidebarHiddenAgentIds: z.array(z.string()).optional(),
     terminalFontFamily: z.string().optional(),
     telemetry: z.boolean().nullable(),
     topicGroupMode: z.enum(['byTime', 'byProject', 'flat', 'byStatus']).optional(),

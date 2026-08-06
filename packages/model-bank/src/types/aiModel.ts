@@ -350,6 +350,7 @@ export type ExtendParamsType =
   | 'grok4_3ReasoningEffort'
   | 'grok4_5ReasoningEffort'
   | 'hy3ReasoningEffort'
+  | 'kimiK3ReasoningEffort'
   | 'ring2_6ReasoningEffort'
   | 'codexMaxReasoningEffort'
   | 'opus47Effort'
@@ -407,6 +408,7 @@ export const ExtendParamsTypeSchema = z.enum([
   'grok4_3ReasoningEffort',
   'grok4_5ReasoningEffort',
   'hy3ReasoningEffort',
+  'kimiK3ReasoningEffort',
   'ring2_6ReasoningEffort',
   'codexMaxReasoningEffort',
   'opus47Effort',
@@ -550,6 +552,7 @@ export interface AiProviderModelListItem {
   abilities?: ModelAbilities;
   config?: AiModelConfig;
   contextWindowTokens?: number;
+  description?: string;
   displayName?: string;
   enabled: boolean;
   family?: string;

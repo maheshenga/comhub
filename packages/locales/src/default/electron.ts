@@ -179,4 +179,11 @@ export default {
   'window.pinToTop': 'Pin on top',
   'window.restore': 'Restore window',
   'window.unpinFromTop': 'Unpin from top',
+  "navigation.agents": "Agents",
+  "navigation.channels": "Channels",
+  "navigation.groupProfile": "Group Profile",
+  "navigation.newChat": "New Chat",
+  "navigation.permission": "Member Permissions",
+  "navigation.profile": "Agent Profile",
+  "navigation.stats": "Statistics",
 };

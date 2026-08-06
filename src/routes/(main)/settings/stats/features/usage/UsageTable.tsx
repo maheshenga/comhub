@@ -5,7 +5,7 @@ import { DatePicker, type TableColumnType } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs, { type Dayjs } from 'dayjs';
 import { Braces, Database, FileImage, FileText, MessageSquareText, Video } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import BusinessMobileRecordList from '@/business/client/BusinessSettingPages/mobile/BusinessMobileRecordList';
@@ -15,6 +15,7 @@ import {
 } from '@/business/client/BusinessSettingPages/mobile/businessRecordBuilders';
 import { formatCredits } from '@/business/client/BusinessSettingPages/shared';
 import InlineTable from '@/components/InlineTable';
+import TablePagination from '@/components/TablePagination';
 import { parseAsInteger, useQueryParam } from '@/hooks/useQueryParam';
 import { useClientDataSWR } from '@/libs/swr';
 import { statsKeys } from '@/libs/swr/keys';
@@ -24,6 +25,8 @@ import { formatDate, formatNumber } from '@/utils/format';
 
 import { type UsageChartProps } from '../../types';
 
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
 const formatUsageSpend = (value: number) =>
   new Intl.NumberFormat('en-US', {
     currency: 'USD',
@@ -31,6 +34,22 @@ const formatUsageSpend = (value: number) =>
     minimumFractionDigits: 6,
     style: 'currency',
   }).format(value);
+
+type UsageDateRange = [Dayjs | null, Dayjs | null] | null;
+
+type SortField = 'createdAt' | 'credits' | 'spend' | 'tokens';
+
+interface SortState {
+  field: SortField;
+  order: 'ascend' | 'descend';
+}
+
+const SORT_VALUES: Record<SortField, (row: UsageRecordItem) => number> = {
+  createdAt: (row) => new Date(row.createdAt).getTime(),
+  credits: (row) => row.credits ?? 0,
+  spend: (row) => row.spend ?? 0,
+  tokens: (row) => row.totalTokens ?? 0,
+};
 
 const styles = createStaticStyles(({ css }) => ({
   filterBar: css`
@@ -68,6 +87,9 @@ const styles = createStaticStyles(({ css }) => ({
       width: 100%;
     }
   `,
+  pagination: css`
+    padding-inline: 24px;
+  `,
   tokenBreakdown: css`
     display: inline-flex;
     flex-wrap: wrap;
@@ -76,8 +98,6 @@ const styles = createStaticStyles(({ css }) => ({
   `,
 }));
 
-type UsageDateRange = [Dayjs | null, Dayjs | null] | null;
-
 const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
   const { t } = useTranslation('auth');
   const { t: tSubscription } = useTranslation('subscription');
@@ -85,6 +105,7 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
   const [modelQuery, setModelQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>();
   const [dateRange, setDateRange] = useState<UsageDateRange>(null);
+  const [sort, setSort] = useState<SortState | null>(null);
   const rangeStart = dateRange?.[0]?.format('YYYY-MM-DD');
   const rangeEnd = dateRange?.[1]?.format('YYYY-MM-DD');
 
@@ -102,21 +123,28 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
   const [pageSize, setPageSize] = useQueryParam('pageSize', parseAsInteger.withDefault(5), {
     clearOnDefault: true,
   });
+
+  useEffect(() => {
+    if (dateStrings) void mutate();
+  }, [dateStrings, mutate]);
+
   const typeLabels: Record<string, string> = {
-    chat: t('usage.type.chat', { defaultValue: '对话' }),
-    embedding: t('usage.type.embedding', { defaultValue: '嵌入' }),
-    image: t('usage.type.image', { defaultValue: '图片' }),
+    chat: t('usage.type.chat', { defaultValue: '\u5BF9\u8BDD' }),
+    embedding: t('usage.type.embedding', { defaultValue: '\u5D4C\u5165' }),
+    image: t('usage.type.image', { defaultValue: '\u56FE\u7247' }),
     ppt: t('usage.type.ppt', { defaultValue: 'PPT' }),
-    structured_output: t('usage.type.structuredOutput', { defaultValue: '结构化输出' }),
-    video: t('usage.type.video', { defaultValue: '视频' }),
+    structured_output: t('usage.type.structuredOutput', {
+      defaultValue: '\u7ED3\u6784\u5316\u8F93\u51FA',
+    }),
+    video: t('usage.type.video', { defaultValue: '\u89C6\u9891' }),
   };
   const triggerLabels: Record<string, string> = {
-    chat: '聊天消息',
-    embedding: '向量嵌入',
-    image: '图片生成',
-    ppt: 'PPT 生成',
-    structured_output: '结构化输出',
-    video: '视频生成',
+    chat: '\u804A\u5929\u6D88\u606F',
+    embedding: '\u5411\u91CF\u5D4C\u5165',
+    image: '\u56FE\u7247\u751F\u6210',
+    ppt: 'PPT \u751F\u6210',
+    structured_output: '\u7ED3\u6784\u5316\u8F93\u51FA',
+    video: '\u89C6\u9891\u751F\u6210',
   };
   const typeIcons = {
     chat: MessageSquareText,
@@ -149,6 +177,22 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     });
   }, [data, dateRange, modelQuery, typeFilter]);
 
+  const sortedData = useMemo(() => {
+    const getValue = sort && SORT_VALUES[sort.field];
+    if (!getValue) return filteredData;
+
+    const direction = sort.order === 'ascend' ? 1 : -1;
+    return [...filteredData].sort((a, b) => (getValue(a) - getValue(b)) * direction);
+  }, [filteredData, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(sortedData.length / pageSize));
+  const normalizedPage = Math.min(Math.max(currentPage, 1), pageCount);
+  const paginatedData = useMemo(() => {
+    const start = (normalizedPage - 1) * pageSize;
+
+    return sortedData.slice(start, start + pageSize);
+  }, [normalizedPage, pageSize, sortedData]);
+
   const resetPage = () => {
     setCurrentPage(1);
   };
@@ -157,6 +201,7 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     setModelQuery('');
     setTypeFilter(undefined);
     setDateRange(null);
+    setSort(null);
     resetPage();
   };
 
@@ -166,9 +211,9 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     <Flexbox horizontal className={styles.filterBar} width="100%">
       <Input
         allowClear
-        aria-label="搜索模型"
+        aria-label={t('usage.filter.model', { defaultValue: '\u641C\u7D22\u6A21\u578B' })}
         className={styles.modelFilter}
-        placeholder={t('usage.filter.model', { defaultValue: '搜索模型' })}
+        placeholder={t('usage.filter.model', { defaultValue: '\u641C\u7D22\u6A21\u578B' })}
         value={modelQuery}
         onChange={(event) => {
           setModelQuery(event.target.value);
@@ -177,10 +222,10 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
       />
       <Select
         allowClear
-        aria-label="类型"
+        aria-label={t('usage.filter.type', { defaultValue: '\u7C7B\u578B' })}
         className={styles.typeFilter}
         options={Object.entries(typeLabels).map(([value, label]) => ({ label, value }))}
-        placeholder={t('usage.filter.type', { defaultValue: '全部类型' })}
+        placeholder={t('usage.filter.type', { defaultValue: '\u5168\u90E8\u7C7B\u578B' })}
         value={typeFilter}
         onChange={(value) => {
           setTypeFilter(value);
@@ -193,8 +238,8 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
         format="YYYY/MM/DD"
         value={dateRange}
         placeholder={[
-          t('usage.filter.startDate', { defaultValue: '开始日期' }),
-          t('usage.filter.endDate', { defaultValue: '结束日期' }),
+          t('usage.filter.startDate', { defaultValue: '\u5F00\u59CB\u65E5\u671F' }),
+          t('usage.filter.endDate', { defaultValue: '\u7ED3\u675F\u65E5\u671F' }),
         ]}
         onChange={(values) => {
           setDateRange(values ? [values[0], values[1]] : null);
@@ -202,19 +247,20 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
         }}
       />
       <Button disabled={!hasFilters} onClick={resetFilters}>
-        重置
+        {t('usage.filter.reset', { defaultValue: '\u91CD\u7F6E' })}
       </Button>
     </Flexbox>
   );
 
-  const columns: TableColumnType<UsageRecordItem>[] = [
+  const columns: TableColumnType<any>[] = [
     {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (value) => dayjs(value).format('MM-DD HH:mm:ss'),
-      sortDirections: ['descend'],
-      sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
-      title: '时间',
+      sorter: true,
+      sortOrder: sort?.field === 'createdAt' ? sort.order : null,
+      title: '\u65F6\u95F4',
+      width: 150,
     },
     {
       dataIndex: 'type',
@@ -224,20 +270,20 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
           <Icon icon={typeIcons[value as keyof typeof typeIcons] ?? MessageSquareText} size={16} />
         </Tooltip>
       ),
-      title: '类型',
+      title: '\u7C7B\u578B',
       width: 64,
     },
     {
       dataIndex: 'type',
       key: 'trigger',
       render: (value) => triggerLabels[value] ?? typeLabels[value] ?? value,
-      title: '触发方式',
+      title: '\u89E6\u53D1\u65B9\u5F0F',
     },
     {
       dataIndex: 'model',
       key: 'model',
       render: (value, record) => (
-        <Flexbox horizontal align={'center'} gap={8}>
+        <Flexbox horizontal align="center" gap={8}>
           <ProviderIcon
             provider={record.provider}
             size={18}
@@ -247,13 +293,14 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
             }}
           />
           <Tooltip title={value}>
-            <Text>{value}</Text>
+            <Text>{value?.length > 12 ? `${value.slice(0, 12)}...` : value}</Text>
           </Tooltip>
         </Flexbox>
       ),
-      title: '模型',
+      title: '\u6A21\u578B',
     },
     {
+      dataIndex: 'totalTokens',
       key: 'tokens',
       render: (_, record) => (
         <span className={styles.tokenBreakdown}>
@@ -264,12 +311,28 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
           <span>{formatNumber(record.totalOutputTokens ?? 0)}</span>
         </span>
       ),
-      title: 'Token 使用量',
+      sorter: true,
+      sortOrder: sort?.field === 'tokens' ? sort.order : null,
+      title: 'Token \u4F7F\u7528\u91CF',
+      width: 180,
     },
     {
+      align: 'end',
+      dataIndex: 'spend',
+      key: 'spend',
+      render: (value) => formatUsageSpend(value ?? 0),
+      sorter: true,
+      sortOrder: sort?.field === 'spend' ? sort.order : null,
+      title: t('usage.table.spend', { defaultValue: 'Spend' }),
+    },
+    {
+      align: 'end',
+      dataIndex: 'credits',
       key: 'credits',
       render: (_, record) => formatNumber(record.credits ?? 0),
-      title: '消耗积分',
+      sorter: true,
+      sortOrder: sort?.field === 'credits' ? sort.order : null,
+      title: '\u6D88\u8017\u79EF\u5206',
     },
     {
       key: 'duration',
@@ -281,13 +344,13 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
 
         return (
           <Tooltip
-            title={`TTFT ${formatNumber((record.ttft ?? 0) / 1000, 2)}s · TPS ${formatNumber(record.tps ?? 0, 2)}`}
+            title={`TTFT ${formatNumber((record.ttft ?? 0) / 1000, 2)}s \u00B7 TPS ${formatNumber(record.tps ?? 0, 2)}`}
           >
             <span>{formatNumber(duration / 1000, 2)}s</span>
           </Tooltip>
         );
       },
-      title: '耗时',
+      title: '\u8017\u65F6',
     },
   ];
 
@@ -313,29 +376,41 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
           emptyDescription={tSubscription('mobile.usage.records.empty')}
           error={error ? tSubscription('mobile.error.title') : undefined}
           isLoading={isLoading}
-          records={filteredData.map((item) => buildUsageRecord(item, usageFormatters))}
+          records={sortedData.map((item) => buildUsageRecord(item, usageFormatters))}
           sheetTitle={tSubscription('mobile.usage.records.details')}
           onRetry={() => void mutate()}
         />
       ) : (
-        <InlineTable
-          columns={columns as any}
-          dataSource={filteredData}
-          loading={isLoading}
-          rowKey={(record) => record.id || `${record.model}-${record.createdAt}-${record.provider}`}
-          size="small"
-          pagination={{
-            current: currentPage,
-            onChange: (page) => {
-              setCurrentPage(page);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(current);
-              setPageSize(size);
-            },
-            pageSize,
-          }}
-        />
+        <>
+          <InlineTable
+            columns={columns}
+            dataSource={paginatedData}
+            loading={isLoading}
+            size="small"
+            rowKey={(record) =>
+              record.id || `${record.model}-${record.createdAt}-${record.provider}`
+            }
+            onChange={(_pagination, _filters, sorter) => {
+              const next = Array.isArray(sorter) ? sorter[0] : sorter;
+              const field = String(next?.columnKey ?? '') as SortField;
+              setSort(next?.order && SORT_VALUES[field] ? { field, order: next.order } : null);
+              resetPage();
+            }}
+          />
+          {sortedData.length > 0 && (
+            <TablePagination
+              className={styles.pagination}
+              current={normalizedPage}
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              total={sortedData.length}
+              onChange={(nextPage, nextPageSize) => {
+                setCurrentPage(nextPage);
+                setPageSize(nextPageSize);
+              }}
+            />
+          )}
+        </>
       )}
     </Flexbox>
   );

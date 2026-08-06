@@ -5,6 +5,7 @@ import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { AGENT_CHAT_URL } from '@/const/url';
 import { useMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
+import { resolveInboxAgentRouteId } from '@/features/AgentRoute/useResolvedAgentRouteId';
 import { useNavigateToAgent } from '@/hooks/useNavigateToAgent';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors';
@@ -21,14 +22,15 @@ const Inbox = memo(() => {
   const navigateToAgent = useNavigateToAgent();
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const title = config.brand.displayName || DEFAULT_RUNTIME_BRAND.name;
+  const inboxRouteAgentId = resolveInboxAgentRouteId(inboxAgentId);
 
   return (
     <Link
       aria-label={title}
-      to={AGENT_CHAT_URL(inboxAgentId, mobile)}
+      to={AGENT_CHAT_URL(inboxRouteAgentId, mobile)}
       onClick={(e) => {
         e.preventDefault();
-        navigateToAgent(inboxAgentId);
+        navigateToAgent(inboxRouteAgentId);
       }}
     >
       <ListItem
