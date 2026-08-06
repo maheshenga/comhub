@@ -16,6 +16,8 @@ permissions:
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
   NODEJS_VERSION: '24.18.0'
+  POSTGRES_PROBE_IMAGE_REF: docker.io/library/postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+  POSTGRES_PROBE_IMAGE_TAG: docker.io/library/postgres:17-alpine
 
 jobs:
   resolve-source:
@@ -126,7 +128,7 @@ jobs:
     name: Deploy Module App Worker
     needs: [resolve-source, verify-worker, resolve-image]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -152,6 +154,117 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/comhub_deploy_key
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Login to GHCR for production image relay
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
+          password: ${{ secrets.COMHUB_GHCR_TOKEN || github.token }}
+
+      - name: Install OCI relay tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends --yes skopeo
+          fi
+
+      - name: Relay Worker prerequisites to production
+        shell: bash
+        env:
+          POSTGRES_PROBE_IMAGE_REF: ${{ env.POSTGRES_PROBE_IMAGE_REF }}
+          POSTGRES_PROBE_IMAGE_TAG: ${{ env.POSTGRES_PROBE_IMAGE_TAG }}
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+          WORKER_IMAGE_REF: ${{ needs.resolve-image.outputs.worker_image_ref }}
+        run: |
+          set -euo pipefail
+
+          [[ "$WORKER_IMAGE_REF" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] || {
+            echo 'Worker relay requires an immutable GHCR image reference' >&2
+            exit 1
+          }
+          [[ "$POSTGRES_PROBE_IMAGE_REF" =~ ^docker\.io/library/postgres@sha256:[0-9a-f]{64}$ ]] || {
+            echo 'PostgreSQL probe relay requires an immutable official image reference' >&2
+            exit 1
+          }
+          [ "$POSTGRES_PROBE_IMAGE_TAG" = 'docker.io/library/postgres:17-alpine' ] || {
+            echo 'PostgreSQL probe relay tag must match deploy.sh' >&2
+            exit 1
+          }
+
+          ssh_options=(
+            -i "$HOME/.ssh/comhub_deploy_key"
+            -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=6
+            -o ConnectTimeout=30
+          )
+          remote_target="$SSH_USER@$SSH_HOST"
+          relay_root="$(mktemp -d)"
+          trap 'rm -rf "$relay_root"' EXIT
+
+          ssh "${ssh_options[@]}" "$remote_target" 'bash -s' <<'REMOTE_PREPARE'
+          set -euo pipefail
+          echo "Disk usage before Worker prerequisite relay:"
+          df -h /
+          docker system df || true
+          echo "Pruning unused Docker images before Worker prerequisite relay..."
+          docker image prune -af || true
+          REMOTE_PREPARE
+
+          relay_image() {
+            local image_ref="$1"
+            local archive_ref="$2"
+            local label="$3"
+            local src_authfile="${4:-}"
+            local archive="$relay_root/${label}.oci.tar"
+            local -a copy_options=(--all --preserve-digests)
+
+            if [ -n "$src_authfile" ]; then
+              copy_options+=(--src-authfile "$src_authfile")
+            fi
+
+            echo "Exporting $label as a digest-preserving OCI archive..."
+            skopeo copy \
+              "${copy_options[@]}" \
+              "docker://${image_ref}" \
+              "oci-archive:${archive}:${archive_ref}"
+
+            echo "Streaming $label to the production containerd content store..."
+            gzip -1 -c "$archive" | \
+              timeout "${COMHUB_IMAGE_RELAY_TIMEOUT:-1800}" \
+                ssh "${ssh_options[@]}" "$remote_target" \
+                  'gzip -dc | ctr -n moby images import --all-platforms -'
+            rm -f "$archive"
+          }
+
+          worker_repository="${WORKER_IMAGE_REF%@sha256:*}"
+          worker_digest="${WORKER_IMAGE_REF##*@sha256:}"
+          worker_relay_ref="${worker_repository}:relay-${worker_digest:0:12}"
+
+          relay_image \
+            "$WORKER_IMAGE_REF" \
+            "$worker_relay_ref" \
+            module-worker \
+            "$HOME/.docker/config.json"
+          relay_image \
+            "$POSTGRES_PROBE_IMAGE_REF" \
+            "$POSTGRES_PROBE_IMAGE_TAG" \
+            postgres-probe
+
+          echo 'Registering the immutable Worker digest on production...'
+          timeout 120 ssh "${ssh_options[@]}" "$remote_target" \
+            "timeout 90 ctr -n moby images pull --platform linux/amd64 '$WORKER_IMAGE_REF' >/dev/null"
+
+          echo 'Verifying relayed Worker prerequisites on production...'
+          timeout 60 ssh "${ssh_options[@]}" "$remote_target" \
+            "docker image inspect '$WORKER_IMAGE_REF' '$POSTGRES_PROBE_IMAGE_TAG' >/dev/null"
 
       - name: Deploy independent Module App worker
         shell: bash
@@ -551,11 +664,6 @@ jobs:
             current_promotion_active=true
             incoming_cleanup_enabled=false
             echo "Disk usage before Worker deploy:"
-            df -h /
-            docker system df || true
-            echo "Pruning unused Docker images before Worker deploy..."
-            docker image prune -af || true
-            echo "Disk usage after Worker pre-prune:"
             df -h /
             docker system df || true
             "$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"
