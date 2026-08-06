@@ -13,8 +13,8 @@ import type {
   VerifyVerdict,
 } from '@lobechat/types';
 import { toRecord } from '@lobechat/utils/object';
-import { Block, Center, Drawer, Empty, Flexbox, Icon, Image, Markdown, Text } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Block, Center, Empty, Flexbox, Icon, Image, Markdown, Text } from '@lobehub/ui';
+import { Button, Drawer } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar, cx } from 'antd-style';
 import type { TFunction } from 'i18next';
 import {
@@ -61,6 +61,8 @@ import {
   filenameFromUrl,
   markdownTextEvidenceTypes,
 } from './components/MarkdownEvidence';
+import { readVisualizationManifest } from './components/visualization';
+import { VisualizationRenderer } from './components/VisualizationRenderer';
 import { useVerifyReportBundle } from './hooks';
 import {
   buildCheckRows,
@@ -111,6 +113,7 @@ const styles = createStaticStyles(({ css }) => ({
   `,
   summary: css`
     max-width: 100%;
+    line-height: 1.6;
     color: ${cssVar.colorText};
   `,
   meta: css`
@@ -1304,14 +1307,13 @@ const EvidenceDrawer = memo<{
   title: string;
 }>(({ evidence, onClose, open, title }) => (
   <Drawer
-    destroyOnHidden
     containerMaxWidth={'100%'}
     open={open}
     placement={'right'}
     title={title}
     width={'min(1120px, calc(100vw - 48px))'}
     styles={{
-      body: {
+      content: {
         height: '100%',
         padding: 0,
       },
@@ -1373,6 +1375,7 @@ const CheckRow = memo<{ defaultOpen: boolean; row: CheckRowData }>(({ defaultOpe
   const meta = VERDICT_META[state];
   const evidence = result?.evidence ?? [];
   const evidenceCount = evidence.length;
+  const visualization = readVisualizationManifest(result?.metadata);
   // An agent-authored plan item records how it meant to check this and what it
   // expected to see (prose), plus the evidence media it is required to produce
   // (a closed set the executor's coverage gate enforces).
@@ -1391,6 +1394,7 @@ const CheckRow = memo<{ defaultOpen: boolean; row: CheckRowData }>(({ defaultOpe
   const hasBody =
     Boolean(result?.toulmin?.evidence) ||
     Boolean(result?.suggestion) ||
+    Boolean(visualization) ||
     Boolean(planConfig.method) ||
     Boolean(planConfig.expected) ||
     requiredEvidence.length > 0 ||
@@ -1495,6 +1499,7 @@ const CheckRow = memo<{ defaultOpen: boolean; row: CheckRowData }>(({ defaultOpe
             <p className={styles.reasoning}>{result.toulmin.evidence}</p>
           )}
           {result?.suggestion && <p className={styles.suggestion}>{result.suggestion}</p>}
+          {visualization && <VisualizationRenderer manifest={visualization} />}
           {evidenceCount > 0 && (
             <>
               <div className={styles.evidenceList}>

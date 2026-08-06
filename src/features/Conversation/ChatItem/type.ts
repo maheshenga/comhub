@@ -1,6 +1,6 @@
-import { type AlertProps, type AvatarProps, type DivProps, type FlexboxProps } from '@lobehub/ui';
-import { type EditableMessageProps, type MetaData } from '@lobehub/ui/chat';
-import { type ReactNode } from 'react';
+import type { AlertProps, AvatarProps, DivProps, FlexboxProps } from '@lobehub/ui';
+import type { EditableMessageProps, MetaData } from '@lobehub/ui/chat';
+import type { ReactNode } from 'react';
 
 export type ChatItemAvatar = Partial<MetaData> & { title?: string };
 

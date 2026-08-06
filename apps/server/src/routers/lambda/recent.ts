@@ -2,7 +2,7 @@ import type { TaskStatus } from '@lobechat/types';
 import { z } from 'zod';
 
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
-import { AGENT_CHAT_TOPIC_URL } from '@/const/url';
+import { AGENT_CHAT_TOPIC_URL, GROUP_CHAT_TOPIC_URL } from '@/const/url';
 import {
   type MobileWorkspaceRecentDbItem,
   type MobileWorkspaceRecentQuery,
@@ -15,8 +15,10 @@ import type { ChatTopicMetadata } from '@/types/topic';
 
 export interface RecentItem {
   agentId?: string | null;
+  description?: string | null;
   icon: string;
   id: string;
+  lastAssistantMessage?: string | null;
   metadata?: ChatTopicMetadata;
   routePath: string;
   /** Task lifecycle status when `type === 'task'`; null for topic/document. */
@@ -60,7 +62,7 @@ const toRecentItem = (item: RecentDbItem): RecentItem => {
   switch (item.type) {
     case 'topic': {
       if (item.routeGroupId) {
-        routePath = `/group/${item.routeGroupId}?topic=${item.id}`;
+        routePath = GROUP_CHAT_TOPIC_URL(item.routeGroupId, item.id);
       } else if (item.routeId) {
         routePath = AGENT_CHAT_TOPIC_URL(item.routeId, item.id);
       } else {
@@ -80,8 +82,10 @@ const toRecentItem = (item: RecentDbItem): RecentItem => {
 
   return {
     agentId: item.routeId,
+    description: item.description,
     icon: item.type,
     id: item.id,
+    lastAssistantMessage: item.lastAssistantMessage,
     metadata: item.metadata as ChatTopicMetadata | undefined,
     routePath,
     status: item.status,
@@ -119,13 +123,18 @@ export const recentRouter = router({
         .object({
           limit: z.number().optional(),
           types: z.array(z.enum(['topic', 'document', 'task'])).optional(),
+          withTopicPreview: z.boolean().optional(),
         })
         .optional(),
     )
     .query(async ({ ctx, input }): Promise<RecentItem[]> => {
       const limit = input?.limit ?? 10;
 
-      const items = await ctx.recentModel.queryRecent(limit, input?.types);
+      const items = await ctx.recentModel.queryRecent(
+        limit,
+        input?.types,
+        input?.withTopicPreview,
+      );
       return items.map(toRecentItem);
     }),
   getMobileWorkspace: recentProcedure

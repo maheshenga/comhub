@@ -17,6 +17,7 @@ import {
   Pin,
   PinOff,
   Trash,
+  UsersIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +27,7 @@ import { useAgentTransferMenuItem } from '@/business/client/hooks/useAgentTransf
 import { openEditingPopover } from '@/features/EditingPopover/store';
 import { useResourceAccess } from '@/features/ResourcePermission/useResourceAccess';
 import VisibilityConfirmContent from '@/features/VisibilityConfirmContent';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { usePermission } from '@/hooks/usePermission';
 import { useResourceManageable } from '@/hooks/useResourceManageable';
 import { agentService } from '@/services/agent';
@@ -37,6 +39,7 @@ import { userProfileSelectors } from '@/store/user/selectors';
 import { isForbiddenError, isOwnerOnlyForbiddenError } from '@/utils/forbiddenError';
 
 import { useRevealSidebarSection } from '../../../../hooks';
+import { useSidebarItemVisibility } from '../../useSidebarItemVisibility';
 import { getAgentPublishErrorKey } from './agentMenuVisibility';
 
 const BUILTIN_SLUGS = new Set<string>(Object.values(BUILTIN_AGENT_SLUGS));
@@ -68,8 +71,9 @@ export const useAgentDropdownMenu = ({
   userId,
   visibility,
 }: UseAgentDropdownMenuParams): (() => MenuProps['items']) => {
-  const { t } = useTranslation(['chat', 'common']);
+  const { t } = useTranslation(['chat', 'common', 'setting']);
   const { message } = App.useApp();
+  const navigate = useWorkspaceAwareNavigate();
 
   const openAgentInNewWindow = useGlobalStore((s) => s.openAgentInNewWindow);
   // Pick the group bucket that matches this agent's visibility so the
@@ -92,13 +96,15 @@ export const useAgentDropdownMenu = ({
 
   // Visibility actions are only meaningful inside a workspace: in personal
   // mode every row is implicitly owner-private. "Publish to Workspace"
-  // appears on private agents; the inverse "Make private" (LOBE-11551)
-  // appears on published agents, but only for the creator (LOBE-11760 —
+  // appears on private agents; the inverse "Make private"
+  // appears on published agents, but only for the creator ( —
   // owners demoting another member's agent would appropriate it), and never
   // on builtin agents (LobeAI etc.). The server enforces the same rules as
   // a backstop.
   const activeWorkspaceId = useActiveWorkspaceId();
   const currentUserId = useUserStore(userProfileSelectors.userId);
+  const { isSidebarItemVisible, setSidebarItemVisible } = useSidebarItemVisibility();
+  const isShownInSidebar = isSidebarItemVisible({ id, slug, type: 'agent', userId });
   const isPrivate = visibility === 'private';
   const isBuiltin = !!slug && BUILTIN_SLUGS.has(slug);
   const showPublishAction = Boolean(activeWorkspaceId) && isPrivate;
@@ -109,8 +115,8 @@ export const useAgentDropdownMenu = ({
     !!currentUserId &&
     userId === currentUserId;
 
-  // Chat-only resource access hides configuration mutations entirely. The
-  // pure navigation action remains available to Can use members and viewers.
+  // Member Permissions only gate Agent configuration. Workspace-level list
+  // organization (pin/group) and duplication remain available to members.
   const { allowed: canEdit } = usePermission('edit_own_content');
   const { allowed: canCreate } = usePermission('create_content');
   const { canEditResource, isAccessResolved } = useResourceAccess('agent', id);
@@ -137,20 +143,55 @@ export const useAgentDropdownMenu = ({
   // Visibility flips move the item across accordions. Reveal the destination
   // section afterwards — with a collapsed/hidden target (stale persisted
   // `sidebarExpandedKeys` predate newer sections) the item would silently
-  // vanish from the sidebar (LOBE-11758).
+  // vanish from the sidebar.
   const revealSidebarSection = useRevealSidebarSection();
 
   return useMemo(
     () => () =>
       [
-        ...(canConfigure
+        ...(canEdit
           ? [
               {
                 icon: <Icon icon={pinned ? PinOff : Pin} />,
                 key: 'pin',
                 label: t(pinned ? 'pinOff' : 'pin'),
                 onClick: () => pinAgent(id, !pinned),
+                sfSymbol: pinned ? 'pin.slash' : 'pin',
               },
+            ]
+          : []),
+        ...(isShownInSidebar
+          ? [
+              {
+                icon: <Icon icon={EyeOffIcon} />,
+                key: 'hideFromSidebar',
+                label: t('agentViewAll.removeFromSidebar', { ns: 'common' }),
+                onClick: async ({ domEvent }: any) => {
+                  domEvent?.stopPropagation();
+                  try {
+                    await setSidebarItemVisible(id, false);
+                  } catch (error) {
+                    console.error('Failed to hide Agent from sidebar:', error);
+                    message.error(t('operationFailed', { ns: 'common' }));
+                  }
+                },
+                sfSymbol: 'sidebar.left',
+              },
+            ]
+          : []),
+        {
+          icon: <Icon icon={PictureInPicture2Icon} />,
+          key: 'openInNewWindow',
+          label: t('openInNewWindow'),
+          onClick: ({ domEvent }: any) => {
+            domEvent.stopPropagation();
+            openAgentInNewWindow(id);
+          },
+          sfSymbol: 'macwindow.badge.plus',
+        },
+        ...(canConfigure || canCreate || canEdit ? [{ type: 'divider' as const }] : []),
+        ...(canConfigure
+          ? [
               {
                 // Renaming is config co-editing, which stays collaborative for
                 // shared agents — only ownership actions remain creator/owner-scoped.
@@ -163,32 +204,26 @@ export const useAgentDropdownMenu = ({
                     openEditingPopover({ anchor, avatar, id, title, type: 'agent' });
                   }
                 },
+                sfSymbol: 'pencil',
               },
+            ]
+          : []),
+        ...(canCreate
+          ? [
               {
-                disabled: !canCreate,
                 icon: <Icon icon={LucideCopy} />,
                 key: 'duplicate',
                 label: t('duplicate', { ns: 'common' }),
                 onClick: ({ domEvent }: any) => {
                   domEvent.stopPropagation();
-                  if (!canCreate) return;
                   duplicateAgent(id);
                 },
+                sfSymbol: 'doc.on.doc',
               },
             ]
           : []),
-        {
-          icon: <Icon icon={PictureInPicture2Icon} />,
-          key: 'openInNewWindow',
-          label: t('openInNewWindow'),
-          onClick: ({ domEvent }: any) => {
-            domEvent.stopPropagation();
-            openAgentInNewWindow(id);
-          },
-        },
-        ...(canConfigure
+        ...(canEdit
           ? [
-              { type: 'divider' as const },
               {
                 children: [
                   ...sessionCustomGroups.map(({ id: groupId, name }) => ({
@@ -196,34 +231,56 @@ export const useAgentDropdownMenu = ({
                     key: groupId,
                     label: name,
                     onClick: () => updateAgentGroup(id, groupId),
+                    sfSymbol: group === groupId ? 'checkmark' : undefined,
                   })),
                   {
                     icon: isDefault ? <Icon icon={Check} /> : <div />,
                     key: 'defaultList',
                     label: t('defaultList'),
                     onClick: () => updateAgentGroup(id, SessionDefaultGroup.Default),
+                    sfSymbol: isDefault ? 'checkmark' : undefined,
                   },
                   { type: 'divider' as const },
                   {
                     icon: <Icon icon={LucidePlus} />,
                     key: 'createGroup',
-                    label: <div>{t('sessionGroup.createGroup')}</div>,
+                    label: t('sessionGroup.createGroup'),
                     onClick: ({ domEvent }: any) => {
                       domEvent.stopPropagation();
                       openCreateGroupModal();
                     },
+                    sfSymbol: 'folder.badge.plus',
                   },
                 ],
                 icon: <Icon icon={FolderInputIcon} />,
                 key: 'moveGroup',
                 label: t('sessionGroup.moveGroup'),
+                sfSymbol: 'folder',
               },
-              ...(transferMenuItems?.length
-                ? [{ type: 'divider' as const }, ...transferMenuItems]
+            ]
+          : []),
+        ...(canConfigure && transferMenuItems?.length ? transferMenuItems : []),
+        ...(canConfigure
+          ? [
+              // Permissions live on their own page now — the sidebar keeps a
+              // shortcut so members don't have to open the Agent first.
+              ...(activeWorkspaceId
+                ? [
+                    { type: 'divider' as const },
+                    {
+                      icon: <Icon icon={UsersIcon} />,
+                      key: 'permission',
+                      label: t('permission.page.entry', { ns: 'setting' }),
+                      onClick: ({ domEvent }: any) => {
+                        domEvent?.stopPropagation();
+                        navigate(`/agent/${id}/permission`);
+                      },
+                      sfSymbol: 'person.2',
+                    },
+                  ]
                 : []),
               ...(showPublishAction
                 ? [
-                    { type: 'divider' as const },
                     {
                       icon: <Icon icon={GlobeIcon} />,
                       key: 'publishToWorkspace',
@@ -232,25 +289,15 @@ export const useAgentDropdownMenu = ({
                       }),
                       onClick: async ({ domEvent }: any) => {
                         domEvent?.stopPropagation();
-                        const accessLevelRef: { current: 'edit' | 'use' } = { current: 'use' };
                         confirmModal({
                           cancelText: t('cancel', { ns: 'common' }),
-                          content: (
-                            <VisibilityConfirmContent
-                              accessLevelRef={accessLevelRef}
-                              resourceType="agent"
-                              variant="publish"
-                            />
-                          ),
+                          content: <VisibilityConfirmContent variant="publish" />,
                           okText: t('agent.publishToWorkspace', {
                             defaultValue: 'Publish to Workspace',
                           }),
                           onOk: async () => {
                             try {
-                              await agentService.publishAgentToWorkspace(
-                                id,
-                                accessLevelRef.current,
-                              );
+                              await agentService.publishAgentToWorkspace(id);
                               await refreshAgentList();
                               revealSidebarSection('agent');
                               message.success(
@@ -276,12 +323,12 @@ export const useAgentDropdownMenu = ({
                           }),
                         });
                       },
+                      sfSymbol: 'globe',
                     },
                   ]
                 : []),
               ...(showMakePrivateAction
                 ? [
-                    { type: 'divider' as const },
                     {
                       icon: <Icon icon={EyeOffIcon} />,
                       key: 'makePrivate',
@@ -307,6 +354,7 @@ export const useAgentDropdownMenu = ({
                           title: t('makePrivate.confirm.title', { ns: 'common' }),
                         });
                       },
+                      sfSymbol: 'eye.slash',
                     },
                   ]
                 : []),
@@ -342,6 +390,7 @@ export const useAgentDropdownMenu = ({
                           title: t('delete', { ns: 'common' }),
                         });
                       },
+                      sfSymbol: 'trash',
                     },
                   ]
                 : []),
@@ -349,10 +398,13 @@ export const useAgentDropdownMenu = ({
           : []),
       ] as MenuProps['items'],
     [
+      activeWorkspaceId,
       anchor,
       canCreate,
       canConfigure,
+      canEdit,
       canManage,
+      navigate,
       pinned,
       id,
       avatar,
@@ -370,6 +422,8 @@ export const useAgentDropdownMenu = ({
       transferMenuItems,
       showPublishAction,
       showMakePrivateAction,
+      isShownInSidebar,
+      setSidebarItemVisible,
       refreshAgentList,
       revealSidebarSection,
       t,

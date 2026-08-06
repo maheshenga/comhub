@@ -1,11 +1,9 @@
 import path from 'node:path';
 
-import { copySpaBuild } from './copySpaBuildCore.mjs';
+import { copySpaBuild } from './copySpaBuildCore.ts';
 
-const root = path.resolve(import.meta.dirname, '..');
-const targets = [
-  { distDir: 'desktop', publicDir: 'public/_spa' },
-  { distDir: 'mobile', publicDir: 'public/_spa' },
-] as const;
+const root = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.resolve(import.meta.dirname, '..');
 
-copySpaBuild(root, targets);
+copySpaBuild(root);

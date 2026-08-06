@@ -24,13 +24,14 @@ import type {
 import {
   getWorkingDirEffectivePath,
   getWorkingDirSourcePath,
-  resolveAgencyConfig,
+  resolveAgentAgencyConfig,
 } from '@lobechat/types';
 import { nanoid } from '@lobechat/utils';
 import { TRPCClientError } from '@trpc/client';
 import { t } from 'i18next';
 
 import { message as antdMessage } from '@/components/AntdStaticMethods';
+import { type ChatInputEditor } from '@/features/ChatInput';
 import {
   resolveAgentWorkingDirectory,
   resolveAgentWorkingDirectoryConfig,
@@ -82,9 +83,10 @@ import { topicMapKey } from '@/store/chat/utils/topicMapKey';
 import { getElectronStoreState } from '@/store/electron';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
-import { pageAgentRuntime } from '@/store/tool/slices/builtin/executors/lobe-page-agent';
+import { pageAgentRuntime } from '@/store/tool/slices/builtin/executors/pageAgentRuntime';
 import { type StoreSetter } from '@/store/types';
 import { getUserStoreState } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 import { useUserMemoryStore } from '@/store/userMemory';
 import { markdownToTxt } from '@/utils/markdownToTxt';
 
@@ -112,6 +114,12 @@ export interface SendMessageWithContextParams extends SendMessageParams {
    * Contains sessionId, topicId, and threadId
    */
   context: ConversationContext;
+  /**
+   * Editor owned by the calling ConversationProvider. Embedded conversations
+   * must not fall back to ChatStore's global editor, which may belong to a
+   * sibling panel.
+   */
+  inputEditor?: ChatInputEditor | null;
   /**
    * Called as soon as the backend reports a newly created topic id, so callers
    * with an isolated topic scope (e.g. Task Manager) can switch their UI to the
@@ -253,6 +261,7 @@ export class ConversationLifecycleActionImpl {
     onlyAddUserMessage,
     context,
     contextSelections,
+    inputEditor,
     messages: inputMessages,
     parentId: inputParentId,
     pageSelections,
@@ -260,6 +269,7 @@ export class ConversationLifecycleActionImpl {
   }: SendMessageWithContextParams): Promise<SendMessageResult | undefined> => {
     let editorData = inputEditorData;
     const { executeClientAgent, mainInputEditor } = this.#get();
+    const targetInputEditor = inputEditor ?? mainInputEditor;
     const { agentId } = context;
     const selectedSkills = parseSelectedSkillsFromEditorData(editorData);
     const selectedTools = parseSelectedToolsFromEditorData(editorData);
@@ -286,15 +296,23 @@ export class ConversationLifecycleActionImpl {
 
     const agentState = getAgentStoreState();
     const agentConfig = agentSelectors.getAgentConfigById(agentId)(agentState);
-    const isWorkspaceAgent = agentByIdSelectors.isWorkspaceAgentById(agentId)(agentState);
-    const deviceOverride = isWorkspaceAgent
+    const agent = agentByIdSelectors.getAgentById(agentId)(agentState);
+    const currentUserId = userProfileSelectors.userId(getUserStoreState());
+    const isAuthor = !!currentUserId && agent?.userId === currentUserId;
+    const usesWorkspaceMemberSelection =
+      !!agent?.workspaceId && agent.visibility !== 'private' && !isAuthor;
+    const deviceOverride = usesWorkspaceMemberSelection
       ? getUserStoreState().workspaceUserPreference.agentDeviceOverrides?.[agentId]
       : undefined;
-    const workspaceScoped = resolveWorkspaceScoped(isWorkspaceAgent, deviceOverride);
+    const workspaceScoped = resolveWorkspaceScoped(usesWorkspaceMemberSelection, deviceOverride);
     // Runtime selection must use the same per-user device override as the
     // switcher. A workspace-local pick is intentionally private to this member
     // and is therefore safe to execute in-process on their desktop.
-    const agencyConfig = resolveAgencyConfig(agentConfig?.agencyConfig, deviceOverride);
+    const agencyConfig = resolveAgentAgencyConfig(agentConfig?.agencyConfig, deviceOverride, {
+      canManage: isAuthor,
+      visibility: agent?.visibility,
+      workspaceId: agent?.workspaceId,
+    });
     const heterogeneousProvider = agencyConfig?.heterogeneousProvider;
     const runtimeType = selectRuntimeType({
       boundDeviceId: agencyConfig?.boundDeviceId,
@@ -816,7 +834,7 @@ export class ConversationLifecycleActionImpl {
     }
 
     // Store editor state in operation metadata for cancel restoration
-    const jsonState = inputEditorData ?? mainInputEditor?.getJSONState();
+    const jsonState = inputEditorData ?? targetInputEditor?.getJSONState();
     this.#get().updateOperationMetadata(operationId, {
       inputEditorTempState: jsonState,
       inputSendErrorMsg: undefined,
@@ -1296,7 +1314,7 @@ export class ConversationLifecycleActionImpl {
         // Optimistically bump the sort key (`sortUpdatedAt`, the sidebar's activity-time
         // sort/group key) so the topic jumps to the top immediately, before the SWR
         // refetch returns the server's fresh `topicActivityAt`. Bumping `updatedAt` here
-        // would no longer reorder anything — the sidebar sorts by `sortUpdatedAt`. (LOBE-11543)
+        // would no longer reorder anything — the sidebar sorts by `sortUpdatedAt`.
         this.#get().internal_dispatchTopic({
           type: 'updateTopic',
           id: operationContext.topicId,
@@ -1328,6 +1346,7 @@ export class ConversationLifecycleActionImpl {
       // Create final context with updated topicId/threadId from server response
       const finalContext = {
         ...operationContext,
+        isNew: data.createdThreadId || isCreateNewTopic ? false : operationContext.isNew,
         threadId: finalThreadId,
         topicId: finalTopicId,
       };
@@ -1383,9 +1402,9 @@ export class ConversationLifecycleActionImpl {
           this.#get().updateOperationMetadata(operationId, { inputSendErrorMsg: e.message });
           const op = this.#get().operations[operationId];
           if (op?.metadata.inputEditorTempState) {
-            this.#get().mainInputEditor?.setJSONState(op.metadata.inputEditorTempState);
+            targetInputEditor?.setJSONState(op.metadata.inputEditorTempState);
           } else {
-            this.#get().mainInputEditor?.setDocument('markdown', message);
+            targetInputEditor?.setDocument('markdown', message);
           }
         }
       }
@@ -1439,6 +1458,10 @@ export class ConversationLifecycleActionImpl {
 
     const execContext = {
       ...operationContext,
+      // The persisted topic/thread is now the identity of this conversation.
+      // Clear the draft marker before creating the child runtime operation so
+      // Stop from the re-rendered ConversationProvider matches it.
+      isNew: data.createdThreadId || isCreatedTopicResponse(data) ? false : operationContext.isNew,
       topicId: data.topicId ?? operationContext.topicId,
       threadId: data.createdThreadId ?? operationContext.threadId,
     };

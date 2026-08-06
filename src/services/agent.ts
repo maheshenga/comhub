@@ -129,12 +129,12 @@ class AgentService {
    * the shared list. The inverse (public → private) goes through
    * {@link setAgentVisibility}.
    */
-  publishAgentToWorkspace = async (id: string, accessLevel?: 'use' | 'edit'): Promise<void> => {
-    await lambdaClient.agent.publishAgentToWorkspace.mutate({ accessLevel, id });
+  publishAgentToWorkspace = async (id: string): Promise<void> => {
+    await lambdaClient.agent.publishAgentToWorkspace.mutate({ id });
   };
 
   /**
-   * Bidirectional visibility switch (LOBE-11551). The server only allows the
+   * Bidirectional visibility switch. The server only allows the
    * agent's creator or a workspace owner to pull a published agent back to
    * private, and rejects builtin agents (LobeAI etc.) outright.
    */
@@ -302,11 +302,25 @@ class AgentService {
     agentId: string,
     targetWorkspaceId: string | null,
     targetVisibility?: 'private' | 'public',
-    targetAccessLevel?: 'edit' | 'use',
   ): Promise<{ agentId: string; slug: string | null }> => {
     return lambdaClient.agent.transferAgent.mutate({
       agentId,
-      targetAccessLevel,
+      targetVisibility,
+      targetWorkspaceId,
+    });
+  };
+
+  /**
+   * Batch transfer: moves all agents in one request / one DB transaction
+   * instead of a serial per-agent call chain.
+   */
+  transferAgents = async (
+    agentIds: string[],
+    targetWorkspaceId: string | null,
+    targetVisibility?: 'private' | 'public',
+  ): Promise<{ agentId: string; slug: string | null }[]> => {
+    return lambdaClient.agent.transferAgents.mutate({
+      agentIds,
       targetVisibility,
       targetWorkspaceId,
     });

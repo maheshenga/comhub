@@ -13,6 +13,7 @@ export const REQUEST_TOPIC_ID_HEADER = 'x-topic-id';
 export const REQUEST_MESSAGE_ID_HEADER = 'x-message-id';
 export const REQUEST_ASSISTANT_MESSAGE_ID_HEADER = 'x-assistant-message-id';
 export const REQUEST_OPERATION_ID_HEADER = 'x-operation-id';
+export const CLIENT_VERSION_HEADER = 'x-lobe-client-version';
 
 /**
  * @deprecated

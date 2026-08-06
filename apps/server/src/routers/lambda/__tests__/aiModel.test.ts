@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AiModelModel } from '@/database/models/aiModel';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
@@ -6,6 +6,12 @@ import { getServerGlobalConfig } from '@/server/globalConfig';
 
 import { aiModelRouter } from '../aiModel';
 
+const mockGetHiddenBuiltinModelsForUser = vi.hoisted(() => vi.fn());
+
+vi.mock('@/business/server/aiProvider', () => ({
+  getHiddenBuiltinModelsForUser: mockGetHiddenBuiltinModelsForUser,
+  getModelRedirects: vi.fn(async () => ({})),
+}));
 vi.mock('@/database/models/aiModel');
 vi.mock('@/database/models/user');
 vi.mock('@/database/repositories/aiInfra');
@@ -28,6 +34,11 @@ describe('aiModelRouter', () => {
     serverDB: { query: {} },
     userId: 'test-user',
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetHiddenBuiltinModelsForUser.mockResolvedValue([]);
+  });
 
   it('should create ai model', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ id: 'model-1' });

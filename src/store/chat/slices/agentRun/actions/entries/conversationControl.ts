@@ -7,7 +7,9 @@ import {
   type MessageMetadata,
   type UIChatMessage,
 } from '@lobechat/types';
+import { t } from 'i18next';
 
+import { type ChatInputEditor } from '@/features/ChatInput';
 import { lambdaClient } from '@/libs/trpc/client';
 import { getAgentStoreState } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
@@ -170,6 +172,24 @@ export class ConversationControlActionImpl {
   };
 
   /**
+   * Parent for the synthetic user turn that answers / skips a tool interaction.
+   *
+   * Anchor it on the assistant that requested the interaction — the tool
+   * message's own parent — rather than leaving it null. A null parent makes the
+   * turn a SECOND root of the topic, which `conversation-flow`'s doctor reports
+   * as `segment-split`: the reader still shows it (roots are flattened in
+   * order), but it starts a fresh parent chain, so anything walking the tree
+   * (branch resolution, chain-based context assembly) loses the history before
+   * it.
+   *
+   * Deliberately not the tool message itself: `canAnchor` in the doctor's
+   * repair rule never treats a tool row as a spine tail, and this mirrors it so
+   * the write side and the repair side agree on the same shape.
+   */
+  #interactionTurnParentId = (toolMessage: UIChatMessage): string | undefined =>
+    toolMessage.parentId ?? undefined;
+
+  /**
    * Client-side fallback guard that retires paused server ops once a Gateway
    * resume op has started successfully. The server emits `agent_runtime_end`
    * after `human_approve_required`, but if that event is delayed or the
@@ -221,19 +241,26 @@ export class ConversationControlActionImpl {
     );
   };
 
-  cancelSendMessageInServer = (topicId?: string): void => {
+  cancelSendMessageInServer = (
+    target?: string | ConversationContext,
+    editor?: ChatInputEditor | null,
+  ): void => {
     const { activeAgentId, activeGroupId, activeThreadId, activeTopicId } = this.#get();
 
-    // Determine which operation to cancel
-    const targetTopicId = topicId ?? activeTopicId;
-    // Include groupId/threadId so the key matches how the operation was stored
-    // (operationsByContext is keyed by the full messageMapKey).
-    const contextKey = messageMapKey({
+    const activeContext: ConversationContext = {
       agentId: activeAgentId,
       groupId: activeGroupId,
       threadId: activeThreadId,
-      topicId: targetTopicId,
-    });
+      topicId: activeTopicId,
+    };
+    const targetContext =
+      typeof target === 'object'
+        ? target
+        : {
+            ...activeContext,
+            topicId: target ?? activeTopicId,
+          };
+    const contextKey = messageMapKey(targetContext);
 
     // Cancel operations in the operation system
     const operationIds = this.#get().operationsByContext[contextKey] || [];
@@ -245,21 +272,18 @@ export class ConversationControlActionImpl {
       }
     });
 
-    // Restore editor state if it's the active session
-    if (
-      contextKey ===
-      messageMapKey({
-        agentId: activeAgentId,
-        groupId: activeGroupId,
-        threadId: activeThreadId,
-        topicId: activeTopicId,
-      })
-    ) {
+    // An embedded conversation (for example the create-thread portal) owns a
+    // separate editor even though ChatStore only tracks the most recently
+    // mounted editor globally. Prefer the explicitly supplied editor. The
+    // active-conversation fallback preserves the legacy call sites.
+    const targetEditor =
+      editor ?? (contextKey === messageMapKey(activeContext) ? this.#get().mainInputEditor : null);
+    if (targetEditor) {
       // Find the latest sendMessage operation with editor state
       for (const opId of [...operationIds].reverse()) {
         const op = this.#get().operations[opId];
         if (op && op.type === 'sendMessage' && op.metadata.inputEditorTempState) {
-          this.#get().mainInputEditor?.setJSONState(op.metadata.inputEditorTempState);
+          targetEditor.setJSONState(op.metadata.inputEditorTempState);
           break;
         }
       }
@@ -699,6 +723,7 @@ export class ConversationControlActionImpl {
         content: userMessageContent,
         groupId: groupId ?? undefined,
         ...(requestMetadata && { metadata: requestMetadata }),
+        parentId: this.#interactionTurnParentId(toolMessage),
         role: 'user',
         threadId: threadId ?? undefined,
         topicId: topicId ?? undefined,
@@ -817,7 +842,9 @@ export class ConversationControlActionImpl {
     // 2. Create a user message indicating the skip
     const chatKey = messageMapKey({ agentId, topicId, threadId, scope });
     const requestMetadata = this.#getRequestMetadataFromMessageChain(toolMessageId);
-    const userMessageContent = reason ? `I'll skip this. ${reason}` : "I'll skip this.";
+    const userMessageContent = reason
+      ? t('tool.intervention.skipMessageWithReason', { ns: 'chat', reason })
+      : t('tool.intervention.skipMessage', { ns: 'chat' });
     const groupId = toolMessage.groupId;
     const userMsg = await this.#get().optimisticCreateMessage(
       {
@@ -825,6 +852,7 @@ export class ConversationControlActionImpl {
         content: userMessageContent,
         groupId: groupId ?? undefined,
         ...(requestMetadata && { metadata: requestMetadata }),
+        parentId: this.#interactionTurnParentId(toolMessage),
         role: 'user',
         threadId: threadId ?? undefined,
         topicId: topicId ?? undefined,

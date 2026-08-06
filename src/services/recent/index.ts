@@ -7,6 +7,7 @@ import {
 export interface RecentQueryOptions {
   limit?: number;
   types?: RecentItem['type'][];
+  withTopicPreview?: boolean;
 }
 
 export interface MobileWorkspaceRecentQuery {
@@ -16,8 +17,15 @@ export interface MobileWorkspaceRecentQuery {
 }
 
 class RecentService {
-  getAll = (input?: number | RecentQueryOptions): Promise<RecentItem[]> => {
-    const query = typeof input === 'number' || input === undefined ? { limit: input } : input;
+  getAll = (
+    input?: number | RecentQueryOptions,
+    types?: RecentItem['type'][],
+    withTopicPreview?: boolean,
+  ): Promise<RecentItem[]> => {
+    const query =
+      typeof input === 'number' || input === undefined
+        ? { limit: input, types, withTopicPreview }
+        : input;
     return lambdaClient.recent.getAll.query(query);
   };
 

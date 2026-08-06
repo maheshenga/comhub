@@ -1,19 +1,24 @@
 import { SkillsIcon } from '@lobehub/ui/icons';
 import {
   AppWindowIcon,
+  BellIcon,
   Blocks,
   Brain,
   ChartColumnBigIcon,
+  Coins,
+  CreditCard,
   Database,
+  HandCoins,
   KeyIcon,
   KeyRound,
+  Map,
   MonitorSmartphoneIcon,
   Sparkles,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useIsWorkspaceOwner } from '@/business/client/hooks/useIsWorkspaceOwner';
+import { usePermission } from '@/hooks/usePermission';
 import { useUserStore } from '@/store/user';
 import { labPreferSelectors } from '@/store/user/selectors';
 import { WorkspaceSettingsTabs } from '@/types/workspaceSettings';
@@ -41,7 +46,9 @@ export interface WorkspaceSettingCategoryGroup {
 export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] => {
   const { t } = useTranslation('setting');
   const { t: tAuth } = useTranslation('auth');
-  const isOwner = useIsWorkspaceOwner();
+  const { t: tSubscription } = useTranslation('subscription');
+  const { allowed: canManageWorkspace } = usePermission('manage_settings');
+  const { allowed: canViewBilling } = usePermission('view_billing');
   const enableOAuthApps = useUserStore(labPreferSelectors.enableOAuthApps);
 
   return useMemo(
@@ -55,6 +62,11 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
               label: t('tab.devices'),
             },
             {
+              icon: BellIcon,
+              key: WorkspaceSettingsTabs.Notification,
+              label: t('tab.notification'),
+            },
+            {
               icon: ChartColumnBigIcon,
               key: WorkspaceSettingsTabs.Stats,
               label: tAuth('tab.stats'),
@@ -65,14 +77,52 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
         },
         {
           items: [
+            {
+              icon: Map,
+              key: WorkspaceSettingsTabs.Plans,
+              label: tSubscription('tab.plans'),
+            },
+            {
+              icon: ChartColumnBigIcon,
+              key: WorkspaceSettingsTabs.Usage,
+              label: t('tab.usage'),
+            },
+            // Credits / Billing are readable by Admin-or-higher; the pages
+            // themselves keep the money-moving controls (top-up, payment
+            // methods, plan changes) behind the narrower subscription gate.
+            canViewBilling && {
+              icon: Coins,
+              key: WorkspaceSettingsTabs.Credits,
+              label: tSubscription('tab.credits'),
+            },
+            // Spend governance (budget pools + member caps) — admin task,
+            // same visibility gate as the other money pages.
+            canViewBilling && {
+              icon: HandCoins,
+              key: WorkspaceSettingsTabs.Budget,
+              label: tSubscription('tab.budget'),
+            },
+            canViewBilling && {
+              icon: CreditCard,
+              key: WorkspaceSettingsTabs.Billing,
+              label: tSubscription('tab.billing'),
+            },
+          ].filter(Boolean) as WorkspaceSettingCategoryItem[],
+          key: WorkspaceSettingsGroupKey.Subscription,
+          title: t('group.subscription'),
+        },
+        {
+          items: [
             // AI provider config (keys/endpoints) is shared workspace infra —
-            // owner-only, hidden from members entirely (LOBE-11834).
-            isOwner && {
+            // Admin-or-higher, hidden from members entirely.
+            canManageWorkspace && {
               icon: Brain,
               key: WorkspaceSettingsTabs.Provider,
               label: t('tab.provider'),
             },
-            {
+            // Service-model preferences steer the shared workspace model
+            // policy — Admin-or-higher, hidden from members like Provider.
+            canManageWorkspace && {
               icon: Sparkles,
               key: WorkspaceSettingsTabs.ServiceModel,
               label: t('tab.serviceModel'),
@@ -112,9 +162,8 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
           key: WorkspaceSettingsGroupKey.Developer,
           title: t('group.developer'),
         },
-        // The Admin group is owner-only — managing shared infra and audit
-        // surfaces is an owner action.
-        isOwner && {
+        // The Admin group is available to Admin and Owner.
+        canManageWorkspace && {
           items: [
             {
               icon: Database,
@@ -131,6 +180,6 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
           title: t('workspaceSetting.group.admin'),
         },
       ].filter(Boolean) as WorkspaceSettingCategoryGroup[],
-    [t, tAuth, enableOAuthApps, isOwner],
+    [t, tAuth, tSubscription, enableOAuthApps, canManageWorkspace, canViewBilling],
   );
 };

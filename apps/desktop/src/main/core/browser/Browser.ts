@@ -19,6 +19,7 @@ import { WindowStateManager } from './WindowStateManager';
 import { WindowThemeManager } from './WindowThemeManager';
 
 const logger = createLogger('core:Browser');
+const BROWSER_WEBVIEW_PARTITION = 'persist:lobe-browser-app';
 
 const getExternalNavigationHosts = () =>
   DESKTOP_EXTERNAL_NAVIGATION_HOSTS.split(',')
@@ -181,6 +182,7 @@ export default class Browser {
         contextIsolation: true,
         preload: path.join(preloadDir, 'index.js'),
         sandbox: false,
+        webviewTag: true,
       },
       width: resolvedState.width,
       x: resolvedState.x,
@@ -214,6 +216,35 @@ export default class Browser {
 
     // Setup external link handler (prevents opening new windows in renderer)
     this.setupWindowOpenHandler(browserWindow);
+    this.setupWebviewSecurity(browserWindow);
+  }
+
+  private setupWebviewSecurity(browserWindow: BrowserWindow): void {
+    browserWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+      if (params.partition !== BROWSER_WEBVIEW_PARTITION) {
+        event.preventDefault();
+        return;
+      }
+
+      let url: URL;
+      try {
+        url = new URL(params.src);
+      } catch {
+        event.preventDefault();
+        return;
+      }
+
+      if (!['about:', 'http:', 'https:'].includes(url.protocol)) {
+        event.preventDefault();
+        return;
+      }
+
+      delete webPreferences.preload;
+      webPreferences.contextIsolation = true;
+      webPreferences.nodeIntegration = false;
+      webPreferences.partition = BROWSER_WEBVIEW_PARTITION;
+      webPreferences.sandbox = true;
+    });
   }
 
   private initiateContentLoading(): void {

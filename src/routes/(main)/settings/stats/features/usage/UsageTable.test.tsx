@@ -101,9 +101,13 @@ vi.mock('@/components/InlineTable', () => ({
   ),
 }));
 
+vi.mock('@/components/TablePagination', () => ({
+  default: () => <div data-testid="usage-pagination" />,
+}));
+
 vi.mock('@/hooks/useQueryParam', () => ({
   parseAsInteger: { withDefault: () => ({}) },
-  useQueryParam: () => [1, vi.fn()],
+  useQueryParam: (key: string) => [key === 'pageSize' ? 5 : 1, vi.fn()],
 }));
 
 vi.mock('@/libs/swr', () => ({
@@ -168,6 +172,7 @@ describe('UsageTable', () => {
       '触发方式',
       '模型',
       'Token 使用量',
+      'Spend',
       '消耗积分',
       '耗时',
     ]);

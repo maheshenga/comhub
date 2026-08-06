@@ -424,6 +424,118 @@ describe('GeneralChatAgent', () => {
       ]);
     });
 
+    it('should block every tool when allowedToolNames is empty', async () => {
+      const agent = new GeneralChatAgent({
+        agentConfig: { maxSteps: 100 },
+        allowedToolNames: [],
+        operationId: 'test-session',
+        modelRuntimeConfig: mockModelRuntimeConfig,
+      });
+      const toolCall: ChatToolPayload = {
+        apiName: 'runCommand',
+        arguments: '{}',
+        id: 'call-1',
+        identifier: 'lobe-local-system',
+        type: 'builtin',
+      };
+
+      const result = await agent.runner(
+        createMockContext('llm_result', {
+          hasToolsCalling: true,
+          parentMessageId: 'msg-1',
+          toolsCalling: [toolCall],
+        }),
+        createMockState(),
+      );
+
+      expect(result).toEqual([
+        {
+          payload: {
+            blockedContent:
+              'Tool execution blocked because the tool is not allowed in the current execution scope.',
+            blockedReason: 'tool_not_allowed',
+            parentMessageId: 'msg-1',
+            toolsCalling: [toolCall],
+          },
+          type: 'resolve_blocked_tools',
+        },
+      ]);
+    });
+
+    it('should execute allowed tools, resolve denied tools, then pause for approval', async () => {
+      const agent = new GeneralChatAgent({
+        agentConfig: { maxSteps: 100 },
+        allowedToolNames: ['lobe-local-system____readFile', 'lobe-local-system____deleteFile'],
+        operationId: 'test-session',
+        modelRuntimeConfig: mockModelRuntimeConfig,
+      });
+      const readFile: ChatToolPayload = {
+        apiName: 'readFile',
+        arguments: '{}',
+        id: 'call-read',
+        identifier: 'lobe-local-system',
+        type: 'builtin',
+      };
+      const deleteFile: ChatToolPayload = {
+        apiName: 'deleteFile',
+        arguments: '{}',
+        id: 'call-delete',
+        identifier: 'lobe-local-system',
+        type: 'builtin',
+      };
+      const runCommand: ChatToolPayload = {
+        apiName: 'runCommand',
+        arguments: '{}',
+        id: 'call-command',
+        identifier: 'lobe-local-system',
+        type: 'builtin',
+      };
+
+      const result = await agent.runner(
+        createMockContext('llm_result', {
+          hasToolsCalling: true,
+          parentMessageId: 'msg-1',
+          toolsCalling: [readFile, deleteFile, runCommand],
+        }),
+        createMockState({
+          toolManifestMap: {
+            'lobe-local-system': {
+              api: [
+                { name: 'readFile' },
+                { humanIntervention: 'require', name: 'deleteFile' },
+                { name: 'runCommand' },
+              ],
+              identifier: 'lobe-local-system',
+              type: 'builtin',
+            },
+          },
+        }),
+      );
+
+      expect(result).toEqual([
+        {
+          payload: { parentMessageId: 'msg-1', toolCalling: readFile },
+          type: 'call_tool',
+        },
+        {
+          payload: {
+            blockedContent:
+              'Tool execution blocked because the tool is not allowed in the current execution scope.',
+            blockedReason: 'tool_not_allowed',
+            parentMessageId: 'msg-1',
+            toolsCalling: [runCommand],
+          },
+          type: 'resolve_blocked_tools',
+        },
+        {
+          parentMessageId: 'msg-1',
+          pendingToolsCalling: [deleteFile],
+          reason: 'human_intervention_required',
+          type: 'request_human_approve',
+        },
+      ]);
+    });
+
     it('should handle invalid JSON in tool arguments gracefully', async () => {
       const agent = new GeneralChatAgent({
         agentConfig: { maxSteps: 100 },
@@ -500,9 +612,13 @@ describe('GeneralChatAgent', () => {
 
       const result = await agent.runner(context, state);
 
+      // `parentMessageId` must be carried: the executor persists the pending
+      // tool row under it, and without it the row lands on the previous turn's
+      // assistant and renders as an orphaned tool call.
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -562,7 +678,10 @@ describe('GeneralChatAgent', () => {
           },
         },
         {
+          // Same parent as the sibling call_tool above — both halves of a mixed
+          // step belong to the assistant this llm_result produced.
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [dangerousTool],
           reason: 'human_intervention_required',
         },
@@ -2041,6 +2160,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -2233,6 +2353,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -2287,6 +2408,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -2396,6 +2518,7 @@ describe('GeneralChatAgent', () => {
         },
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [blockedTool],
           reason: 'human_intervention_required',
         },
@@ -2460,6 +2583,7 @@ describe('GeneralChatAgent', () => {
         },
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [dangerousTool],
           reason: 'human_intervention_required',
         },
@@ -2511,6 +2635,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [alwaysTool],
           reason: 'human_intervention_required',
         },
@@ -2557,6 +2682,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [alwaysTool],
           reason: 'human_intervention_required',
         },
@@ -2627,6 +2753,7 @@ describe('GeneralChatAgent', () => {
         },
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [alwaysTool],
           reason: 'human_intervention_required',
         },
@@ -2679,6 +2806,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -2726,6 +2854,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -2911,6 +3040,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [toolCall],
           reason: 'human_intervention_required',
         },
@@ -3053,6 +3183,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [blacklistedTool],
           reason: 'human_intervention_required',
         },
@@ -3092,6 +3223,7 @@ describe('GeneralChatAgent', () => {
       expect(result).toEqual([
         {
           type: 'request_human_approve',
+          parentMessageId: 'msg-1',
           pendingToolsCalling: [alwaysTool],
           reason: 'human_intervention_required',
         },

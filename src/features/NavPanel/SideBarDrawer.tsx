@@ -1,16 +1,16 @@
 'use client';
 
 import { ActionIcon, Flexbox, Text } from '@lobehub/ui';
-import { Drawer } from 'antd';
+import { Drawer } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
 import { XIcon } from 'lucide-react';
-import type { ReactNode, Ref } from 'react';
-import { cloneElement, isValidElement, memo, Suspense, useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
+import { memo, Suspense, useState } from 'react';
 
 import { DESKTOP_HEADER_ICON_SMALL_SIZE } from '@/const/layoutTokens';
 
-import { NAV_PANEL_RIGHT_DRAWER_ID } from './';
 import SkeletonList from './components/SkeletonList';
+import { NAV_PANEL_RIGHT_DRAWER_ID } from './constants';
 import { OverlayContainerContext } from './OverlayContainer';
 import SideBarHeaderLayout from './SideBarHeaderLayout';
 
@@ -23,62 +23,29 @@ interface SideBarDrawerProps {
   title?: ReactNode;
 }
 
-interface DrawerRenderNodeProps {
-  containerRef?: Ref<HTMLDivElement>;
-}
-
-const setRef = <T,>(ref: Ref<T> | undefined, value: T | null) => {
-  if (!ref) return;
-
-  if (typeof ref === 'function') {
-    ref(value);
-    return;
-  }
-
-  (ref as { current: T | null }).current = value;
-};
-
 const SideBarDrawer = memo<SideBarDrawerProps>(
   ({ subHeader, open, onClose, children, title, action }) => {
     const size = 280;
 
     const [overlayContainer, setOverlayContainer] = useState<HTMLDivElement | null>(null);
-
-    const renderDrawerContent = useCallback((node: ReactNode) => {
-      if (!isValidElement<DrawerRenderNodeProps>(node)) return node;
-
-      const originalContainerRef = node.props.containerRef;
-
-      // Intentionally hook rc-drawer's section ref so dropdown portals stay inside the real drawer content.
-      // eslint-disable-next-line @eslint-react/no-clone-element
-      return cloneElement(node, {
-        containerRef: (instance: HTMLDivElement | null) => {
-          setOverlayContainer((current) => (current === instance ? current : instance));
-          setRef(originalContainerRef, instance);
-        },
-      });
-    }, []);
+    const drawerHost =
+      typeof document === 'undefined'
+        ? null
+        : document.querySelector<HTMLElement>(`#${NAV_PANEL_RIGHT_DRAWER_ID}`);
 
     return (
       <OverlayContainerContext value={overlayContainer}>
         <Drawer
-          destroyOnHidden
           closable={false}
-          drawerRender={renderDrawerContent}
-          getContainer={() => document.querySelector(`#${NAV_PANEL_RIGHT_DRAWER_ID}`)!}
+          getContainer={drawerHost}
           mask={false}
           open={open}
           placement="left"
-          size={size}
-          rootStyle={{
-            bottom: 0,
-            overflow: 'hidden',
-            position: 'absolute',
-            top: 0,
-            width: `${size}px`,
-          }}
+          push={false}
+          width={size}
+          zIndex={0}
           styles={{
-            body: {
+            content: {
               background: cssVar.colorBgLayout,
               padding: 0,
             },
@@ -87,11 +54,11 @@ const SideBarDrawer = memo<SideBarDrawerProps>(
               borderBottom: 'none',
               padding: 0,
             },
-            wrapper: {
+            panel: {
               borderLeft: `1px solid ${cssVar.colorBorderSecondary}`,
               borderRight: `1px solid ${cssVar.colorBorderSecondary}`,
               boxShadow: `4px 0 8px -2px rgba(0,0,0,.04)`,
-              zIndex: 0,
+              height: '100%',
             },
           }}
           title={
@@ -130,15 +97,17 @@ const SideBarDrawer = memo<SideBarDrawerProps>(
           }
           onClose={onClose}
         >
-          <Suspense
-            fallback={
-              <Flexbox gap={1} paddingBlock={1} paddingInline={4}>
-                <SkeletonList rows={3} />
-              </Flexbox>
-            }
-          >
-            {children}
-          </Suspense>
+          <div ref={setOverlayContainer} style={{ height: '100%' }}>
+            <Suspense
+              fallback={
+                <Flexbox gap={1} paddingBlock={1} paddingInline={4}>
+                  <SkeletonList rows={3} />
+                </Flexbox>
+              }
+            >
+              {children}
+            </Suspense>
+          </div>
         </Drawer>
       </OverlayContainerContext>
     );

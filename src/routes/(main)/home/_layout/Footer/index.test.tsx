@@ -1,22 +1,17 @@
 import type * as LobechatConst from '@lobechat/const';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const analyticsTrack = vi.fn();
-const navigateMock = vi.fn();
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en-US' },
     t: (key: string) =>
       ({
-        'agentOnboardingPromo.actionLabel': 'Try it now',
-        'agentOnboardingPromo.description':
-          'Set up your agent teams in a quick chat with Lobe AI. Your existing agents remain unchanged.',
-        'agentOnboardingPromo.title': 'Quick Wizard',
         'changelog': 'Changelog',
         'getApp': 'Get App',
         'productHunt.actionLabel': 'Support us',
@@ -33,14 +28,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 interface RenderFooterOptions {
-  agentFinished?: boolean;
-  agentStarted?: boolean;
   billboardItems?: unknown[];
-  classicFinished?: boolean;
   customization?: Record<string, unknown>;
   desktop?: boolean;
   enableBusinessFeatures?: boolean;
-  enabled?: boolean;
   hideGitHub?: boolean;
   homeSidebar?: boolean;
   mobile?: boolean;
@@ -74,13 +65,9 @@ const createGlobalState = (readSlugs: string[] = []) => ({
 });
 
 const renderFooter = async ({
-  agentFinished = false,
-  agentStarted = false,
   billboardItems = [],
-  classicFinished = true,
   customization,
   desktop = false,
-  enabled = true,
   enableBusinessFeatures = false,
   homeSidebar = false,
   hideGitHub = true,
@@ -91,7 +78,6 @@ const renderFooter = async ({
 }: RenderFooterOptions = {}) => {
   vi.resetModules();
   analyticsTrack.mockReset();
-  navigateMock.mockReset();
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     removeItem: vi.fn(),
@@ -101,18 +87,12 @@ const renderFooter = async ({
   mockGlobalState = createGlobalState(readSlugs);
   mockServerConfigState = {
     enableBusinessFeatures,
-    featureFlags: { enableAgentOnboarding: enabled },
     isMobile: mobile,
     serverConfig: { customization, enableBusinessFeatures },
     serverConfigInit,
   };
   mockUserState = {
-    agentOnboarding: {
-      activeTopicId: agentStarted ? 'topic-1' : undefined,
-      finishedAt: agentFinished ? '2026-04-15T00:00:00.000Z' : undefined,
-    },
     defaultSettings: {},
-    onboarding: classicFinished ? { finishedAt: '2026-04-14T00:00:00.000Z' } : undefined,
     settings: { general: { isDevMode: false } },
   };
 
@@ -131,12 +111,6 @@ const renderFooter = async ({
   }
   vi.doMock('@lobehub/analytics/react', () => ({
     useAnalytics: createAnalyticsApi,
-  }));
-  function createNavigate() {
-    return navigateMock;
-  }
-  vi.doMock('react-router', () => ({
-    useNavigate: createNavigate,
   }));
   const renderMenuLabels = (
     items?: Array<{
@@ -242,7 +216,7 @@ const renderFooter = async ({
   vi.doMock('@/features/Brand', () => ({
     useBrand: () => ({ sidebarMemberLabel: 'Upgrade plan', sidebarMemberUrl: '/settings/plans' }),
   }));
-  vi.doMock('@/features/NavPanel', () => ({
+  vi.doMock('@/features/NavPanel/useActiveNavKey', () => ({
     useActiveNavKey: () => (homeSidebar ? 'home' : 'discover'),
   }));
   vi.doMock('@/business/client/hooks/useHasActiveWorkspace', () => ({
@@ -298,7 +272,7 @@ const renderFooter = async ({
   vi.doMock('@/store/user', () => ({
     useUserStore: selectFromUserStore,
   }));
-  vi.doMock('@/store/user/slices/settings/selectors', () => ({
+  vi.doMock('@/store/user/selectors', () => ({
     userGeneralSettingsSelectors: {
       config: (state: Record<string, unknown>) =>
         ((state.settings as Record<string, unknown>)?.general as Record<string, unknown>) ?? {},
@@ -325,7 +299,6 @@ afterEach(() => {
   vi.doUnmock('@lobechat/const');
   vi.doUnmock('@lobehub/analytics/react');
   vi.doUnmock('@lobehub/ui');
-  vi.doUnmock('react-router');
   vi.doUnmock('@/components/ChangelogModal');
   vi.doUnmock('@/components/FeedbackModal');
   vi.doUnmock('@/components/HighlightNotification');
@@ -333,104 +306,29 @@ afterEach(() => {
   vi.doUnmock('@/features/Billboard/MenuItems');
   vi.doUnmock('@/features/Brand');
   vi.doUnmock('@/business/client/hooks/useHasActiveWorkspace');
-  vi.doUnmock('@/features/NavPanel');
+  vi.doUnmock('@/features/NavPanel/useActiveNavKey');
   vi.doUnmock('@/features/User/UserPanel/ThemeButton');
   vi.doUnmock('@/features/Workspace/WorkspaceLink');
   vi.doUnmock('@/hooks/useNavLayout');
   vi.doUnmock('@/store/global');
   vi.doUnmock('@/store/serverConfig');
   vi.doUnmock('@/store/user');
-  vi.doUnmock('@/store/user/slices/settings/selectors');
+  vi.doUnmock('@/store/user/selectors');
   vi.doUnmock('@/services/adminCommercial');
 });
 
-describe('Footer agent onboarding promotion', () => {
-  it('shows the agent onboarding promotion for eligible web users', async () => {
-    await renderFooter();
-
-    expect(screen.getByTestId('highlight-notification')).toBeInTheDocument();
-    expect(screen.getByText('Quick Wizard')).toBeInTheDocument();
-    expect(analyticsTrack).toHaveBeenCalledWith({
-      name: 'agent_onboarding_promo_viewed',
-      properties: {
-        spm: 'homepage.agent_onboarding_promo.viewed',
-        trigger: 'auto',
-      },
-    });
-  }, 40000);
-
-  it('stores the dismiss slug when the agent onboarding promotion is closed', async () => {
-    const user = userEvent.setup();
-    await renderFooter();
-    const card = screen.getAllByTestId('highlight-notification').at(-1)!;
-
-    await user.click(within(card).getByRole('button', { name: 'Close promo' }));
-
-    expect(
-      (mockGlobalState.status as { readNotificationSlugs: string[] }).readNotificationSlugs,
-    ).toContain('agent-onboarding-promo-v1');
-  }, 20000);
-
-  it('marks the promotion as read and navigates into agent onboarding on CTA click', async () => {
-    const user = userEvent.setup();
-    await renderFooter();
-    const card = screen.getAllByTestId('highlight-notification').at(-1)!;
-
-    await user.click(within(card).getByRole('button', { name: 'Try it now' }));
-
-    expect(
-      (mockGlobalState.status as { readNotificationSlugs: string[] }).readNotificationSlugs,
-    ).toContain('agent-onboarding-promo-v1');
-    expect(navigateMock).toHaveBeenCalledWith('/onboarding/agent');
-    expect(analyticsTrack).toHaveBeenCalledWith({
-      name: 'agent_onboarding_promo_clicked',
-      properties: {
-        spm: 'homepage.agent_onboarding_promo.clicked',
-      },
-    });
-  }, 20000);
-
-  it('does not show the promotion after agent onboarding has already started', async () => {
-    await renderFooter({ agentStarted: true });
-
-    expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
-  });
-
-  it('does not show the promotion when classic onboarding is not finished', async () => {
-    await renderFooter({ classicFinished: false });
-
-    expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
-  });
-
-  it('does not show the promotion after the current device has dismissed it', async () => {
-    await renderFooter({ readSlugs: ['agent-onboarding-promo-v1'] });
-
-    expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
-  });
-
-  it('does not show the promotion on mobile web variants', async () => {
-    await renderFooter({ mobile: true });
-
-    expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
-  });
-
-  it('does not show the promotion on desktop builds', async () => {
-    await renderFooter({ desktop: true });
-
-    expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
-  });
-
+describe('Footer', () => {
   it('shows the configured membership CTA in the home sidebar footer', async () => {
-    await renderFooter({ enableBusinessFeatures: true, enabled: false, homeSidebar: true });
+    await renderFooter({ enableBusinessFeatures: true, homeSidebar: true });
 
     expect(screen.getByRole('link', { name: /Upgrade plan/ })).toHaveAttribute(
       'href',
       '/settings/plans',
     );
-  });
+  }, 20000);
 
   it('does not restore default help links when the public help menu is explicitly empty', async () => {
-    await renderFooter({ enabled: false, publicHelpMenu: [] });
+    await renderFooter({ publicHelpMenu: [] });
 
     await waitFor(() => {
       expect(screen.queryByText('Docs')).not.toBeInTheDocument();
@@ -438,16 +336,16 @@ describe('Footer agent onboarding promotion', () => {
       expect(screen.queryByText('Discord')).not.toBeInTheDocument();
       expect(screen.queryByText('Changelog')).not.toBeInTheDocument();
     });
-  });
+  }, 20000);
 
   it('uses default help links while the public help menu setting is missing', async () => {
-    await renderFooter({ enabled: false, publicHelpMenu: null });
+    await renderFooter({ publicHelpMenu: null });
 
     expect(screen.getByText('Docs')).toBeInTheDocument();
     expect(screen.getByText('Feedback')).toBeInTheDocument();
     expect(screen.getByText('Discord')).toBeInTheDocument();
     expect(screen.getByText('Changelog')).toBeInTheDocument();
-  });
+  }, 20000);
 });
 
 describe('Footer help menu tracking', () => {

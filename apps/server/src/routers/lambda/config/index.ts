@@ -1,6 +1,7 @@
 import { EdgeConfig } from '@lobechat/edge-config';
 import debug from 'debug';
 
+import { getDevDockAccess } from '@/business/server/devDockAccess';
 import { businessConfigEndpoints } from '@/business/server/lambda-routers/config';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { publicProcedure, router } from '@/libs/trpc/lambda';
@@ -74,15 +75,23 @@ export const configRouter = router({
 
     const serverDB = await getOptionalServerDB();
 
-    const [serverConfig, serverFeatureFlags, billboard] = await Promise.all([
+    const [serverConfig, serverFeatureFlags, billboard, businessDevDockAccess] = await Promise.all([
       getServerGlobalConfig(serverDB),
       getServerFeatureFlagsStateFromRuntimeConfig(ctx.userId || undefined),
       getActiveBillboard(),
+      getDevDockAccess(ctx.userId || undefined),
     ]);
 
     log('[GlobalConfig] Server config retrieved');
 
-    return { billboard, serverConfig, serverFeatureFlags };
+    return {
+      billboard,
+      serverConfig,
+      serverFeatureFlags: {
+        ...serverFeatureFlags,
+        enableDevDock: serverFeatureFlags.enableDevDock || businessDevDockAccess,
+      },
+    };
   }),
 
   ...businessConfigEndpoints,
