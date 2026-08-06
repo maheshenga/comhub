@@ -476,6 +476,69 @@ test('Worker deployment is manual, targeted, and build-free', () => {
   assert.doesNotMatch(failedDeployDiagnostics?.run ?? '', /\.Config\.Env|printenv/);
 });
 
+test('Worker deployment relays immutable prerequisites after pruning and before deploy', () => {
+  const { workflow } = loadWorkflow('comhub-deploy-worker.yml');
+  const steps = workflow.jobs.deploy.steps;
+  const loginIndex = steps.findIndex(
+    (step) => step.name === 'Login to GHCR for production image relay',
+  );
+  const toolingIndex = steps.findIndex((step) => step.name === 'Install OCI relay tooling');
+  const relayIndex = steps.findIndex(
+    (step) => step.name === 'Relay Worker prerequisites to production',
+  );
+  const deployIndex = steps.findIndex(
+    (step) => step.name === 'Deploy independent Module App worker',
+  );
+  const relay = steps[relayIndex];
+  const workerDeploy = steps[deployIndex];
+  const relayScript = relay?.run ?? '';
+  const deployScript = workerDeploy?.run ?? '';
+  const relayPruneIndex = relayScript.indexOf('docker image prune -af');
+  const relaySetupIndex = relayScript.indexOf('worker_repository=');
+  const workerDeployCommandIndex = deployScript.indexOf(
+    '"$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"',
+  );
+
+  assert.equal(
+    workflow.env.POSTGRES_PROBE_IMAGE_REF,
+    'docker.io/library/postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193',
+  );
+  assert.equal(workflow.env.POSTGRES_PROBE_IMAGE_TAG, 'docker.io/library/postgres:17-alpine');
+  assert.ok(relayIndex >= 0, 'expected a Worker prerequisite relay step');
+  assert.ok(loginIndex >= 0 && loginIndex < relayIndex, 'GHCR login must precede image relay');
+  assert.ok(
+    toolingIndex >= 0 && toolingIndex < relayIndex,
+    'relay tooling must be installed first',
+  );
+  assert.ok(deployIndex > relayIndex, 'Worker prerequisites must be relayed before deployment');
+  assert.ok(relaySetupIndex >= 0, 'expected Worker relay reference setup');
+  assert.ok(
+    relayPruneIndex >= 0 && relayPruneIndex < relaySetupIndex,
+    'remote image pruning must finish before the first relay is prepared',
+  );
+  assert.match(relayScript, /local -a copy_options=\(--all --preserve-digests\)/u);
+  assert.match(relayScript, /oci-archive:/u);
+  assert.match(relayScript, /ctr -n moby images import --all-platforms/u);
+  assert.match(relayScript, /\^ghcr\\\.io\/\[a-z0-9\._\/-\]\+@sha256:\[0-9a-f\]\{64\}\$/u);
+  assert.match(relayScript, /\^docker\\\.io\/library\/postgres@sha256:\[0-9a-f\]\{64\}\$/u);
+  assert.match(relayScript, /ctr -n moby images pull --platform linux\/amd64/u);
+  assert.match(
+    relayScript,
+    /docker image inspect '\$WORKER_IMAGE_REF' '\$POSTGRES_PROBE_IMAGE_TAG'/u,
+  );
+  assert.ok(workerDeployCommandIndex >= 0, 'expected the promoted Worker release to execute');
+  assert.equal(
+    deployScript.lastIndexOf('docker image prune -af', workerDeployCommandIndex),
+    -1,
+    'the remote deployment must not prune relayed images before Worker startup',
+  );
+  assert.ok(
+    deployScript.indexOf('docker image prune -af', workerDeployCommandIndex) >
+      workerDeployCommandIndex,
+    'the remote deployment must retain post-deploy image cleanup',
+  );
+});
+
 test('deployment workflows never trigger from push', () => {
   for (const filename of ['comhub-deploy.yml', 'comhub-deploy-worker.yml']) {
     const { workflow } = loadWorkflow(filename);
