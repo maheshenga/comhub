@@ -13,6 +13,38 @@ import { ChatErrorType } from '@lobechat/types';
  */
 const AUTH_REQUIRED_ERROR_TYPES = new Set<ErrorType>([ChatErrorType.Unauthorized]);
 
+const INTERNAL_ERROR_MESSAGE = 'An internal error occurred';
+
+const sanitizeErrorResponseValue = (
+  value: unknown,
+  seen: WeakSet<object> = new WeakSet(),
+): unknown => {
+  if (value instanceof Error) {
+    return { message: INTERNAL_ERROR_MESSAGE, name: value.name };
+  }
+
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Date) return value.toJSON();
+  if (seen.has(value)) return undefined;
+
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    const sanitized = value.map((item) => sanitizeErrorResponseValue(item, seen));
+    seen.delete(value);
+    return sanitized;
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (key === 'cause' || key === 'stack') continue;
+    sanitized[key] = sanitizeErrorResponseValue(nestedValue, seen);
+  }
+
+  seen.delete(value);
+  return sanitized;
+};
+
 const getStatus = (errorType: ILobeAgentRuntimeErrorType | ErrorType) => {
   // InvalidAccessCode / InvalidAzureAPIKey / InvalidOpenAIAPIKey / InvalidZhipuAPIKey ....
   if (errorType.toString().includes('Invalid')) return 401;
@@ -85,7 +117,10 @@ export const createErrorResponse = (
 ) => {
   const statusCode = getStatus(errorType);
 
-  const data: ErrorResponse = { body, errorType };
+  const data: ErrorResponse = {
+    body: sanitizeErrorResponseValue(body),
+    errorType,
+  };
 
   if (typeof statusCode !== 'number' || statusCode < 200 || statusCode > 599) {
     console.error(
@@ -104,14 +139,5 @@ export const createErrorResponse = (
     headers[AUTH_REQUIRED_HEADER] = 'true';
   }
 
-  return new Response(
-    JSON.stringify(data, (key, value) => {
-      if (key === 'cause' || key === 'stack') return undefined;
-      if (value instanceof Error) {
-        return { message: 'An internal error occurred', name: value.name };
-      }
-      return value;
-    }),
-    { headers, status: statusCode },
-  );
+  return new Response(JSON.stringify(data), { headers, status: statusCode });
 };

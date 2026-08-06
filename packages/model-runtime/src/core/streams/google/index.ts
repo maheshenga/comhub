@@ -44,6 +44,27 @@ const getCandidateBlockedReason = (
   return undefined;
 };
 
+const stripHtmlTags = (value: string): string => {
+  const text: string[] = [];
+  let insideTag = false;
+
+  for (const character of value) {
+    if (character === '<') {
+      insideTag = true;
+      continue;
+    }
+
+    if (character === '>') {
+      insideTag = false;
+      continue;
+    }
+
+    if (!insideTag) text.push(character);
+  }
+
+  return text.join('').trim();
+};
+
 const transformGoogleGenerativeAIStream = (
   chunk: GenerateContentResponse,
   context: StreamContext,
@@ -310,7 +331,9 @@ const transformGoogleGenerativeAIStream = (
               webChunks.length > 0
                 ? webChunks.map((chunk) => {
                     // Fall back to hostname when title is empty
-                    let displayTitle = chunk.web?.title?.replaceAll(/<[^>]*>/g, '');
+                    let displayTitle = chunk.web?.title
+                      ? stripHtmlTags(chunk.web.title)
+                      : undefined;
                     if (!displayTitle) {
                       try {
                         displayTitle = new URL(chunk.web?.uri || '').hostname.replace('www.', '');

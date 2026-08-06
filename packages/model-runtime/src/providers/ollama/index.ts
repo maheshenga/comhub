@@ -36,6 +36,8 @@ export const params = {
   provider: ModelProvider.Ollama,
 };
 
+const MODEL_PULL_ERROR_MESSAGE = 'Failed to download model';
+
 export class LobeOllamaAI implements LobeRuntimeAI {
   private client: Ollama;
 
@@ -308,10 +310,9 @@ export class LobeOllamaAI implements LobeRuntimeAI {
       }
 
       // Return an error response
-      const errorMessage = error instanceof Error ? error.message : String(error);
       return new Response(
         JSON.stringify({
-          error: errorMessage,
+          error: MODEL_PULL_ERROR_MESSAGE,
           model,
           status: 'error',
         }),

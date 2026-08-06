@@ -898,6 +898,45 @@ describe('GoogleGenerativeAIStream', () => {
       );
     });
 
+    it('should remove nested HTML tags from grounding titles', async () => {
+      vi.spyOn(uuidModule, 'nanoid').mockReturnValueOnce('1');
+
+      const mockGoogleStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue({
+            candidates: [
+              {
+                content: { parts: [{ text: 'result' }], role: 'model' },
+                finishReason: 'STOP',
+                groundingMetadata: {
+                  groundingChunks: [
+                    {
+                      web: {
+                        title: '<scr<script>ipt>alert(1)</scr<script>ipt>',
+                        uri: 'https://example.com/result',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          } as unknown as GenerateContentResponse);
+          controller.close();
+        },
+      });
+
+      const chunks = await decodeStreamChunks(GoogleGenerativeAIStream(mockGoogleStream));
+      const dataChunk = chunks.find((chunk) => chunk.startsWith('data: {"citations"'));
+
+      expect(dataChunk).toBeDefined();
+      expect(JSON.parse(dataChunk!.slice('data: '.length)).citations[0]).toEqual({
+        favicon: 'iptalert(1)ipt',
+        title: 'iptalert(1)ipt',
+        url: 'https://example.com/result',
+      });
+      expect(dataChunk).not.toContain('<script');
+    });
+
     it('should handle groundingMetadata with image search results', async () => {
       vi.spyOn(uuidModule, 'nanoid').mockReturnValueOnce('1');
 

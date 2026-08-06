@@ -982,7 +982,7 @@ describe('LobeOllamaAI', () => {
     });
 
     it('should handle generic errors', async () => {
-      const genericError = new Error('Generic error');
+      const genericError = new Error('Generic error at /srv/ollama/models');
       vi.mocked(Ollama.prototype.pull).mockRejectedValue(genericError);
 
       const response = await ollamaAI.pullModel({ model: 'test-model' });
@@ -990,10 +990,11 @@ describe('LobeOllamaAI', () => {
       expect(response.status).toBe(500);
       const body = await response.json();
       expect(body).toEqual({
-        error: 'Generic error',
+        error: 'Failed to download model',
         model: 'test-model',
         status: 'error',
       });
+      expect(JSON.stringify(body)).not.toContain('/srv/ollama/models');
     });
 
     it('should handle non-Error objects', async () => {
@@ -1004,7 +1005,7 @@ describe('LobeOllamaAI', () => {
       expect(response.status).toBe(500);
       const body = await response.json();
       expect(body).toEqual({
-        error: 'String error',
+        error: 'Failed to download model',
         model: 'test-model',
         status: 'error',
       });
