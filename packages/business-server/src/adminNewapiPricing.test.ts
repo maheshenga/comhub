@@ -4,21 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminNewapiModelCard, resolveAdminNewapiModelPricing } from './adminNewapiPricing';
 
 const mocks = vi.hoisted(() => ({
-  getLobeHubOfficialModelPricing: vi.fn(),
-  getModelPricing: vi.fn(),
+  resolveNewapiModelPricing: vi.fn(),
   resolveNewapiModelPricingFromMetadata: vi.fn(),
-}));
-
-vi.mock('@lobechat/model-runtime', () => ({
-  getModelPricing: mocks.getModelPricing,
-}));
-
-vi.mock('@/server/services/newapiInstance/lobeHubOfficialPricing', () => ({
-  getLobeHubOfficialModelPricing: mocks.getLobeHubOfficialModelPricing,
 }));
 
 vi.mock('@/server/services/newapiInstance', () => ({
   resolveNewapiModelPricingFromMetadata: mocks.resolveNewapiModelPricingFromMetadata,
+}));
+
+vi.mock('@/server/services/newapiInstance/pricingResolution', () => ({
+  resolveNewapiModelPricing: mocks.resolveNewapiModelPricing,
 }));
 
 vi.mock('drizzle-orm', () => ({
@@ -56,8 +51,7 @@ const createDb = (rows: any[]) => {
 describe('getAdminNewapiModelCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getLobeHubOfficialModelPricing.mockResolvedValue(undefined);
-    mocks.getModelPricing.mockResolvedValue(undefined);
+    mocks.resolveNewapiModelPricing.mockResolvedValue({ source: 'missing' });
   });
 
   it('reads pricing metadata for the exact selected instance', async () => {
@@ -194,7 +188,10 @@ describe('getAdminNewapiModelCard', () => {
     const official = {
       units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
     };
-    mocks.getLobeHubOfficialModelPricing.mockResolvedValue(official);
+    mocks.resolveNewapiModelPricing.mockResolvedValue({
+      pricing: official,
+      source: 'lobehub-official',
+    });
     const adminModelCard = {
       lobeHubOfficialPricingEnabled: true,
       modelBankFallbackEnabled: true,
@@ -205,15 +202,23 @@ describe('getAdminNewapiModelCard', () => {
     await expect(
       resolveAdminNewapiModelPricing({ adminModelCard, model: 'gpt-test' }),
     ).resolves.toEqual({ pricing: official, source: 'lobehub-official' });
-    expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('gpt-test');
-    expect(mocks.getModelPricing).not.toHaveBeenCalled();
+    expect(mocks.resolveNewapiModelPricing).toHaveBeenCalledWith({
+      databasePricing: undefined,
+      lobeHubOfficialPricingEnabled: true,
+      model: 'gpt-test',
+      modelBankFallbackEnabled: true,
+      modelBankProvider: 'openai',
+    });
   });
 
   it('falls back to the generic model bank when official pricing has no exact match', async () => {
     const modelBankPricing = {
       units: [{ name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' }],
     };
-    mocks.getModelPricing.mockResolvedValue(modelBankPricing);
+    mocks.resolveNewapiModelPricing.mockResolvedValue({
+      pricing: modelBankPricing,
+      source: 'model-bank',
+    });
     const adminModelCard = {
       lobeHubOfficialPricingEnabled: true,
       modelBankFallbackEnabled: true,
@@ -224,7 +229,12 @@ describe('getAdminNewapiModelCard', () => {
     await expect(
       resolveAdminNewapiModelPricing({ adminModelCard, model: 'gpt-test' }),
     ).resolves.toEqual({ pricing: modelBankPricing, source: 'model-bank' });
-    expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('gpt-test');
-    expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-test', 'openai');
+    expect(mocks.resolveNewapiModelPricing).toHaveBeenCalledWith({
+      databasePricing: undefined,
+      lobeHubOfficialPricingEnabled: true,
+      model: 'gpt-test',
+      modelBankFallbackEnabled: true,
+      modelBankProvider: 'openai',
+    });
   });
 });

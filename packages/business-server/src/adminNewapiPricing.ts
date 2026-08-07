@@ -1,4 +1,3 @@
-import { getModelPricing } from '@lobechat/model-runtime';
 import { and, eq } from 'drizzle-orm';
 import type { AiProviderModelListItem, Pricing } from 'model-bank';
 import { normalizeAiModelType } from 'model-bank';
@@ -10,11 +9,14 @@ import {
   type NewapiModelType,
   resolveNewapiModelPricingFromMetadata,
 } from '@/server/services/newapiInstance';
-import { getLobeHubOfficialModelPricing } from '@/server/services/newapiInstance/lobeHubOfficialPricing';
 import {
   resolveAdminProviderPricingPolicy,
   resolveModelBankProviderForAdminType,
 } from '@/server/services/newapiInstance/pricingPolicy';
+import {
+  type NewapiModelPricingSource,
+  resolveNewapiModelPricing,
+} from '@/server/services/newapiInstance/pricingResolution';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -33,8 +35,7 @@ export interface AdminNewapiModelCardResult {
   modelCard: AiProviderModelListItem;
 }
 
-export type AdminNewapiModelPricingSource =
-  'database' | 'lobehub-official' | 'missing' | 'model-bank';
+export type AdminNewapiModelPricingSource = NewapiModelPricingSource;
 
 export interface AdminNewapiModelPricingResolution {
   pricing?: Pricing;
@@ -48,21 +49,13 @@ export const resolveAdminNewapiModelPricing = async ({
   adminModelCard: AdminNewapiModelCardResult;
   model: string;
 }): Promise<AdminNewapiModelPricingResolution> => {
-  if (adminModelCard.modelCard.pricing) {
-    return { pricing: adminModelCard.modelCard.pricing, source: 'database' };
-  }
-
-  if (adminModelCard.lobeHubOfficialPricingEnabled) {
-    const officialPricing = await getLobeHubOfficialModelPricing(model);
-    if (officialPricing) return { pricing: officialPricing, source: 'lobehub-official' };
-  }
-
-  if (adminModelCard.modelBankFallbackEnabled) {
-    const modelBankPricing = await getModelPricing(model, adminModelCard.modelBankProvider);
-    if (modelBankPricing) return { pricing: modelBankPricing, source: 'model-bank' };
-  }
-
-  return { source: 'missing' };
+  return resolveNewapiModelPricing({
+    databasePricing: adminModelCard.modelCard.pricing,
+    lobeHubOfficialPricingEnabled: adminModelCard.lobeHubOfficialPricingEnabled,
+    model,
+    modelBankFallbackEnabled: adminModelCard.modelBankFallbackEnabled,
+    modelBankProvider: adminModelCard.modelBankProvider,
+  });
 };
 
 const resolveInstanceId = ({

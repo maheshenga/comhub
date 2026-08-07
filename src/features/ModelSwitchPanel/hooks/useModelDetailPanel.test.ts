@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
-import { useModelDetailPanel } from './useModelDetailPanel';
+import { getTextPriceSummary, useModelDetailPanel } from './useModelDetailPanel';
 
 const {
   globalState,
@@ -144,6 +144,15 @@ describe('useModelDetailPanel', () => {
     updateExpandedKeysMock.mockReset();
     useEnabledChatModelsMock.mockReturnValue([]);
     useBusinessModelPricingMock.mockReturnValue(({ pricing }: { pricing?: Pricing }) => pricing);
+  });
+
+  it('formats compact text pricing and omits media-only pricing', () => {
+    expect(getTextPriceSummary(discountedPricing, true)).toMatchObject({
+      cachedInput: { current: '0.3M' },
+      input: { current: '2.5M' },
+      output: { current: '12.5M' },
+    });
+    expect(getTextPriceSummary(unitPricing, false)).toBeUndefined();
   });
 
   it('applies business pricing before formatting LobeHub credit prices', () => {

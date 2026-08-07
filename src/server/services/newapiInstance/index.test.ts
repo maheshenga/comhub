@@ -11,6 +11,10 @@ import {
   resolveNewapiModelPricingFromMetadata,
 } from './index';
 
+const pricingMocks = vi.hoisted(() => ({
+  resolveNewapiModelPricing: vi.fn(),
+}));
+
 vi.mock('@/business/server/planModelRules', async () => {
   const actual = await vi.importActual<typeof PlanModelRulesModule>(
     '@/business/server/planModelRules',
@@ -32,6 +36,10 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
       encrypt: vi.fn(async (value: string) => `enc:${value}`),
     }),
   },
+}));
+
+vi.mock('./pricingResolution', () => ({
+  resolveNewapiModelPricing: pricingMocks.resolveNewapiModelPricing,
 }));
 
 const createDb = (rows: any[]) => {
@@ -62,6 +70,12 @@ describe('NewAPI instance resolver', () => {
     vi.clearAllMocks();
     invalidateNewapiInstancesCache();
     vi.mocked(resolvePlanModelRules).mockResolvedValue(null);
+    pricingMocks.resolveNewapiModelPricing.mockImplementation(
+      async ({ databasePricing }: { databasePricing?: unknown }) => ({
+        pricing: databasePricing,
+        source: databasePricing ? 'database' : 'missing',
+      }),
+    );
   });
 
   it('allows free plan basic group and denies pro group for the same model', async () => {
@@ -428,6 +442,51 @@ describe('NewAPI instance resolver', () => {
         },
       }),
     ]);
+  });
+
+  it('resolves official pricing into runtime model cards when upstream sync is disabled', async () => {
+    const officialPricing = {
+      units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
+    };
+    pricingMocks.resolveNewapiModelPricing.mockResolvedValue({
+      pricing: officialPricing,
+      source: 'lobehub-official',
+    });
+    const db = createDb([
+      {
+        displayName: 'Official Model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceMetadata: {
+          pricingPolicy: {
+            lobeHubOfficialPricingEnabled: true,
+            modelBankFallbackEnabled: false,
+            upstreamSyncEnabled: false,
+          },
+        },
+        instanceName: 'Basic Gateway',
+        metadata: {
+          syncedPricing: {
+            units: [{ name: 'textInput', rate: 9, strategy: 'fixed', unit: 'millionTokens' }],
+          },
+        },
+        modelId: 'official-model',
+        modelType: 'chat',
+        providerType: 'newapi',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({ id: 'official-model', pricing: officialPricing }),
+    ]);
+    expect(pricingMocks.resolveNewapiModelPricing).toHaveBeenCalledWith({
+      databasePricing: undefined,
+      lobeHubOfficialPricingEnabled: true,
+      model: 'official-model',
+      modelBankFallbackEnabled: false,
+      modelBankProvider: undefined,
+    });
   });
 
   it('prefers manual official cost pricing over synced NewAPI pricing metadata', async () => {

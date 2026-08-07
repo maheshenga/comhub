@@ -12,6 +12,11 @@ import {
   maybeBackfillPlaintextAdminProviderApiKey,
   tryDecryptAdminProviderApiKey,
 } from './credentials';
+import {
+  resolveAdminProviderPricingPolicy,
+  resolveModelBankProviderForAdminType,
+} from './pricingPolicy';
+import { resolveNewapiModelPricing } from './pricingResolution';
 
 const log = debug('newapi-instance:runtime');
 
@@ -520,6 +525,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
         groupKey: adminNewapiInstances.groupKey,
         groupName: adminNewapiInstances.groupName,
         instanceId: adminNewapiInstances.id,
+        instanceMetadata: adminNewapiInstances.metadata,
         instanceName: adminNewapiInstances.name,
         metadata: adminNewapiInstanceModels.metadata,
         providerType: adminNewapiInstances.providerType,
@@ -535,12 +541,34 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
       .orderBy(asc(adminNewapiInstanceModels.sortOrder));
 
     const seen = new Set<string>();
-    const result: EnabledModelEntry[] = [];
-    for (const row of rows) {
+    const uniqueRows = rows.filter((row) => {
       const key = `${row.instanceId}:${row.modelId}:${row.modelType}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push({
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return await Promise.all(
+      uniqueRows.map(async (row): Promise<EnabledModelEntry> => {
+        const modelType = row.modelType as NewapiModelType;
+        const pricingPolicy = resolveAdminProviderPricingPolicy(
+          row.instanceMetadata as Record<string, unknown> | null | undefined,
+          row.providerType,
+        );
+        const metadataPricing = resolveNewapiModelPricingFromMetadata(
+          row.metadata as Record<string, unknown> | null | undefined,
+          modelType,
+          { includeSyncedPricing: pricingPolicy.upstreamSyncEnabled },
+        );
+        const pricingResolution = await resolveNewapiModelPricing({
+          databasePricing: metadataPricing,
+          lobeHubOfficialPricingEnabled: pricingPolicy.lobeHubOfficialPricingEnabled,
+          model: row.modelId,
+          modelBankFallbackEnabled: pricingPolicy.modelBankFallbackEnabled,
+          modelBankProvider: resolveModelBankProviderForAdminType(row.providerType),
+        });
+
+        return {
           abilities: resolveManualAbilities(
             row.metadata as Record<string, unknown> | null | undefined,
           ),
@@ -550,20 +578,16 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
           id: row.modelId,
           instanceId: row.instanceId,
           instanceName: row.instanceName,
-          pricing: resolveNewapiModelPricingFromMetadata(
-            row.metadata as Record<string, unknown> | null | undefined,
-            row.modelType as NewapiModelType,
-          ),
+          pricing: pricingResolution.pricing,
           providerId: getRuntimeProviderId({
             instanceId: row.instanceId,
             providerType: row.providerType,
           }),
           providerType: row.providerType,
-          type: toAiModelType(row.modelType as NewapiModelType),
-        });
-      }
-    }
-    return result;
+          type: toAiModelType(modelType),
+        };
+      }),
+    );
   } catch {
     return [];
   }

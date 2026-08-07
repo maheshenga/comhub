@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { type ModelAbilities } from 'model-bank';
 import numeral from 'numeral';
-import { type CSSProperties, type FC } from 'react';
+import { type CSSProperties, type FC, type ReactNode } from 'react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -249,6 +249,7 @@ export const ModelInfoTags = memo<ModelInfoTagsProps>(
 interface ModelItemRenderProps extends ChatModelCard, Partial<Omit<FlexboxProps, 'id' | 'title'>> {
   abilities?: ModelAbilities;
   newBadgeLabel?: string;
+  priceLabel?: ReactNode;
   proBadgeLabel?: string;
   showInfoTag?: boolean;
 }
@@ -262,6 +263,7 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
     functionCall,
     imageOutput,
     newBadgeLabel,
+    priceLabel,
     proBadgeLabel,
     video,
     vision,
@@ -314,16 +316,21 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
             </Tag>
           )}
         </Flexbox>
-        {showInfoTag && (
-          <ModelInfoTags
-            contextWindowTokens={contextWindowTokens}
-            files={files ?? abilities?.files}
-            functionCall={functionCall ?? abilities?.functionCall}
-            imageOutput={imageOutput ?? abilities?.imageOutput}
-            style={{ zoom: 0.9 }}
-            video={video ?? abilities?.video}
-            vision={vision ?? abilities?.vision}
-          />
+        {(priceLabel || showInfoTag) && (
+          <Flexbox horizontal align="center" gap={8} style={{ flexShrink: 0 }}>
+            {priceLabel}
+            {showInfoTag && (
+              <ModelInfoTags
+                contextWindowTokens={contextWindowTokens}
+                files={files ?? abilities?.files}
+                functionCall={functionCall ?? abilities?.functionCall}
+                imageOutput={imageOutput ?? abilities?.imageOutput}
+                style={{ zoom: 0.9 }}
+                video={video ?? abilities?.video}
+                vision={vision ?? abilities?.vision}
+              />
+            )}
+          </Flexbox>
         )}
       </Flexbox>
     );
