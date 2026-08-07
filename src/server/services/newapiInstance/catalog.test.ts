@@ -1,3 +1,4 @@
+import type { Pricing } from 'model-bank';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -125,6 +126,37 @@ describe('NewAPI catalog sync', () => {
     });
   });
 
+  it('clears prior synced pricing that the upstream reports as unsafe', () => {
+    const rows = normalizeNewapiSyncRows({
+      existingRows: [
+        {
+          enabled: true,
+          metadata: {
+            manualPricing: { inputRate: 7 },
+            modelRatio: 12,
+            pricingAvailable: true,
+            syncedPricing: {
+              units: [{ name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' }],
+            },
+          },
+          modelId: 'gpt-4o',
+          modelType: 'chat',
+        },
+      ],
+      models: [{ id: 'gpt-4o', object: 'model' }],
+      pricing: [],
+      pricingStatus: 'unsafe',
+    });
+
+    expect(rows[0].metadata).toMatchObject({
+      manualPricing: { inputRate: 7 },
+      pricingAvailable: false,
+      pricingSyncStatus: 'unsafe',
+    });
+    expect(rows[0].metadata).not.toHaveProperty('modelRatio');
+    expect(rows[0].metadata).not.toHaveProperty('syncedPricing');
+  });
+
   it('deduplicates repeated remote model ids', () => {
     const rows = normalizeNewapiSyncRows({
       existingRows: [],
@@ -198,6 +230,195 @@ describe('NewAPI catalog sync', () => {
     });
   });
 
+  it('stores standardized pricing returned by Sub2API sync', () => {
+    const syncedPricing = {
+      units: [{ name: 'textInput', rate: 0.25, strategy: 'fixed', unit: 'millionTokens' }],
+    } satisfies Pricing;
+    const rows = normalizeNewapiSyncRows({
+      existingRows: [],
+      models: [{ id: 'gpt-4o' }],
+      pricing: [{ model_name: 'gpt-4o', resolvedPricing: syncedPricing }],
+      syncSource: 'sub2api',
+    });
+
+    expect(rows[0].metadata).toMatchObject({
+      pricingAvailable: true,
+      syncedPricing,
+      syncSource: 'sub2api',
+    });
+  });
+
+  it('reads unambiguous Sub2API model-plaza prices for the authenticated key rate', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const body = url.endsWith('/v1/sub2api/billing')
+        ? {
+            billing_scope: 'token',
+            group_rate_multiplier: 0.5,
+            object: 'sub2api.key_billing',
+            peak_rate_enabled: false,
+            resolved_rate_multiplier: 0.25,
+          }
+        : {
+            code: 0,
+            data: {
+              groups: [
+                {
+                  models: [
+                    {
+                      name: 'gpt-4o',
+                      pricing: {
+                        billing_mode: 'token',
+                        cache_read_price: 0.0000005,
+                        input_price: 0.000001,
+                        output_price: 0.000002,
+                      },
+                    },
+                  ],
+                  rate_multiplier: 0.5,
+                },
+              ],
+            },
+          };
+
+      return {
+        headers: new Headers({ 'content-type': 'application/json' }),
+        ok: true,
+        text: async () => JSON.stringify(body),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      fetchNewapiPricing({
+        apiKey: 'sk-sub2api',
+        baseUrl: 'https://sub2api.example.com/v1',
+        providerType: 'sub2api',
+      }),
+    ).resolves.toEqual({
+      items: [
+        {
+          model_name: 'gpt-4o',
+          resolvedPricing: {
+            units: [
+              { name: 'textInput', rate: 0.25, strategy: 'fixed', unit: 'millionTokens' },
+              { name: 'textOutput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+              {
+                name: 'textInput_cacheRead',
+                rate: 0.125,
+                strategy: 'fixed',
+                unit: 'millionTokens',
+              },
+            ],
+          },
+        },
+      ],
+      status: 'available',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sub2api.example.com/v1/sub2api/billing',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer sk-sub2api' }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sub2api.example.com/api/v1/model-plaza',
+      expect.objectContaining({ headers: { Accept: 'application/json' } }),
+    );
+  });
+
+  it('does not import a time-varying Sub2API peak price as a static rate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string) => ({
+        headers: new Headers({ 'content-type': 'application/json' }),
+        ok: true,
+        text: async () =>
+          JSON.stringify(
+            url.endsWith('/v1/sub2api/billing')
+              ? {
+                  billing_scope: 'token',
+                  group_rate_multiplier: 1,
+                  object: 'sub2api.key_billing',
+                  peak_rate_enabled: true,
+                  resolved_rate_multiplier: 1,
+                }
+              : { code: 0, data: { groups: [] } },
+          ),
+      })),
+    );
+
+    await expect(
+      fetchNewapiPricing({
+        apiKey: 'sk-sub2api',
+        baseUrl: 'https://sub2api.example.com',
+        providerType: 'sub2api',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        items: [],
+        status: 'unsafe',
+        warnings: expect.arrayContaining([expect.stringContaining('peak pricing')]),
+      }),
+    );
+  });
+
+  it('does not import Sub2API interval prices as a fixed commercial rate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string) => ({
+        headers: new Headers({ 'content-type': 'application/json' }),
+        ok: true,
+        text: async () =>
+          JSON.stringify(
+            url.endsWith('/v1/sub2api/billing')
+              ? {
+                  billing_scope: 'token',
+                  group_rate_multiplier: 1,
+                  object: 'sub2api.key_billing',
+                  peak_rate_enabled: false,
+                  resolved_rate_multiplier: 1,
+                }
+              : {
+                  code: 0,
+                  data: {
+                    groups: [
+                      {
+                        models: [
+                          {
+                            name: 'tiered-model',
+                            pricing: {
+                              billing_mode: 'token',
+                              intervals: [
+                                { input_price: 0.000001, max_tokens: 100_000 },
+                                { input_price: 0.000002, max_tokens: null, min_tokens: 100_001 },
+                              ],
+                            },
+                          },
+                        ],
+                        rate_multiplier: 1,
+                      },
+                    ],
+                  },
+                },
+          ),
+      })),
+    );
+
+    await expect(
+      fetchNewapiPricing({
+        apiKey: 'sk-sub2api',
+        baseUrl: 'https://sub2api.example.com',
+        providerType: 'sub2api',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        items: [],
+        status: 'unsafe',
+        warnings: expect.arrayContaining([expect.stringContaining('cannot be represented safely')]),
+      }),
+    );
+  });
+
   it('distinguishes unavailable pricing responses from valid empty pricing', async () => {
     vi.stubGlobal(
       'fetch',
@@ -262,6 +483,18 @@ describe('NewAPI catalog sync', () => {
   it('reports pricing transport failures without treating them as an empty catalog', () => {
     expect(buildNewapiPricingSyncWarnings('newapi', 0, 'unavailable')).toEqual([
       'Pricing endpoint unavailable; existing pricing metadata was preserved',
+    ]);
+  });
+
+  it('reports unsafe upstream pricing as cleared rather than cached', () => {
+    expect(buildNewapiPricingSyncWarnings('sub2api', 0, 'unsafe')).toEqual([
+      'Upstream prices that could not be represented safely were cleared',
+    ]);
+  });
+
+  it('reports an explicitly disabled upstream pricing source', () => {
+    expect(buildNewapiPricingSyncWarnings('newapi', 0, 'disabled')).toEqual([
+      'Upstream pricing sync is disabled for this instance',
     ]);
   });
 

@@ -1,5 +1,5 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
 import debug from 'debug';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { AiModelType, ModelAbilities, Pricing } from 'model-bank';
 import { normalizeAiModelType } from 'model-bank';
 
@@ -16,15 +16,7 @@ import {
 const log = debug('newapi-instance:runtime');
 
 export type NewapiModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'asr'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'asr' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 const getCompatibleNewapiModelTypes = (modelType: NewapiModelType): NewapiModelType[] => {
   const normalized = normalizeAiModelType(modelType) as AiModelType | NewapiModelType;
@@ -36,6 +28,7 @@ export const toAiModelType = (modelType: NewapiModelType): AiModelType =>
 
 export type AdminModelApiProviderType =
   | 'newapi'
+  | 'sub2api'
   | 'openai-compatible'
   | 'openai'
   | 'claude'
@@ -451,9 +444,24 @@ const resolveManualAbilities = (
 export const resolveNewapiModelPricingFromMetadata = (
   metadata: Record<string, unknown> | null | undefined,
   modelType: NewapiModelType,
+  options: { includeSyncedPricing?: boolean } = {},
 ): Pricing | undefined => {
   const manualPricing = resolveManualPricing(metadata, modelType);
   if (manualPricing) return manualPricing;
+
+  if (options.includeSyncedPricing !== false) {
+    const syncedPricing = metadata?.syncedPricing;
+    if (
+      syncedPricing &&
+      typeof syncedPricing === 'object' &&
+      !Array.isArray(syncedPricing) &&
+      Array.isArray((syncedPricing as Pricing).units)
+    ) {
+      return syncedPricing as Pricing;
+    }
+  } else {
+    return undefined;
+  }
 
   const quotaType = Number(metadata?.quotaType);
   const modelPrice = toPositiveNumber(metadata?.modelPrice);
@@ -533,7 +541,9 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
       if (!seen.has(key)) {
         seen.add(key);
         result.push({
-          abilities: resolveManualAbilities(row.metadata as Record<string, unknown> | null | undefined),
+          abilities: resolveManualAbilities(
+            row.metadata as Record<string, unknown> | null | undefined,
+          ),
           displayName: row.displayName,
           groupKey: row.groupKey,
           groupName: row.groupName,

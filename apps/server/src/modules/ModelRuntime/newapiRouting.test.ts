@@ -152,6 +152,42 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     );
   });
 
+  it('routes Sub2API instances through the NewAPI-compatible runtime', async () => {
+    const db = { id: 'db' } as any;
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([
+      {
+        apiKey: 'sk-sub2api',
+        baseUrl: 'https://sub2api.example.com/v1',
+        groupKey: 'default',
+        instanceId: 'instance-sub2api',
+        instanceName: 'Sub2API',
+        priority: 1,
+        providerType: 'sub2api',
+        source: 'instance' as const,
+      },
+    ]);
+
+    await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'gpt-test',
+      modelType: 'chat',
+    });
+
+    expect(mocks.initializeWithProvider).toHaveBeenCalledWith(
+      'newapi',
+      expect.objectContaining({
+        apiKey: 'sk-sub2api',
+        baseURL: 'https://sub2api.example.com/v1',
+      }),
+      expect.anything(),
+    );
+    expect(mocks.getBusinessModelRuntimeHooks).toHaveBeenCalledWith(
+      'user-1',
+      'newapi',
+      expect.objectContaining({ providerType: 'sub2api' }),
+      undefined,
+    );
+  });
+
   it('uses the managed NewAPI credential when a caller requires the platform route', async () => {
     const db = { id: 'db' } as any;
     mocks.getAiProviderById.mockResolvedValue({

@@ -28,6 +28,8 @@ vi.mock('@/database/schemas', () => ({
   adminNewapiInstances: {
     enabled: 'instanceEnabled',
     id: 'id',
+    metadata: 'instanceMetadata',
+    providerType: 'providerType',
   },
 }));
 
@@ -65,9 +67,11 @@ describe('getAdminNewapiModelCard', () => {
     const db = createDb([
       {
         displayName: 'GPT 5.6 SOL',
+        instanceMetadata: null,
         metadata,
         modelId: 'gpt-5.6-sol',
         modelType: 'chat',
+        providerType: 'newapi',
       },
     ]);
     mocks.resolveNewapiModelPricingFromMetadata.mockReturnValue(pricing);
@@ -80,23 +84,31 @@ describe('getAdminNewapiModelCard', () => {
         type: 'chat',
       }),
     ).resolves.toEqual({
-      displayName: 'GPT 5.6 SOL',
-      enabled: true,
-      id: 'gpt-5.6-sol',
-      pricing,
-      source: 'custom',
-      type: 'chat',
+      modelBankFallbackEnabled: false,
+      modelBankProvider: undefined,
+      modelCard: {
+        displayName: 'GPT 5.6 SOL',
+        enabled: true,
+        id: 'gpt-5.6-sol',
+        pricing,
+        source: 'custom',
+        type: 'chat',
+      },
     });
-    expect(mocks.resolveNewapiModelPricingFromMetadata).toHaveBeenCalledWith(metadata, 'chat');
+    expect(mocks.resolveNewapiModelPricingFromMetadata).toHaveBeenCalledWith(metadata, 'chat', {
+      includeSyncedPricing: true,
+    });
   });
 
   it('uses the route metadata instance when the runtime provider is generic', async () => {
     const db = createDb([
       {
         displayName: null,
+        instanceMetadata: null,
         metadata: { manualPricing: { inputRate: 1 } },
         modelId: 'custom-chat',
         modelType: 'chat',
+        providerType: 'newapi',
       },
     ]);
     mocks.resolveNewapiModelPricingFromMetadata.mockReturnValue({ units: [] });
@@ -109,7 +121,44 @@ describe('getAdminNewapiModelCard', () => {
         routeMetadata: { instanceId: 'bd31d12b-3edc-480c-8fbe-e05a305f5384' },
         type: 'chat',
       }),
-    ).resolves.toMatchObject({ id: 'custom-chat', type: 'chat' });
+    ).resolves.toMatchObject({ modelCard: { id: 'custom-chat', type: 'chat' } });
+  });
+
+  it('returns the instance pricing policy with the selected model card', async () => {
+    const db = createDb([
+      {
+        displayName: null,
+        instanceMetadata: {
+          pricingPolicy: {
+            modelBankFallbackEnabled: true,
+            upstreamSyncEnabled: false,
+          },
+        },
+        metadata: { modelRatio: 10 },
+        modelId: 'gpt-4o',
+        modelType: 'chat',
+        providerType: 'openai',
+      },
+    ]);
+    mocks.resolveNewapiModelPricingFromMetadata.mockReturnValue(undefined);
+
+    await expect(
+      getAdminNewapiModelCard({
+        db,
+        model: 'gpt-4o',
+        provider: 'bd31d12b-3edc-480c-8fbe-e05a305f5384',
+        type: 'chat',
+      }),
+    ).resolves.toMatchObject({
+      modelBankFallbackEnabled: true,
+      modelBankProvider: 'openai',
+      modelCard: { id: 'gpt-4o', pricing: undefined },
+    });
+    expect(mocks.resolveNewapiModelPricingFromMetadata).toHaveBeenCalledWith(
+      { modelRatio: 10 },
+      'chat',
+      { includeSyncedPricing: false },
+    );
   });
 
   it('does not query admin rows for a non-instance provider id', async () => {

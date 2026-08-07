@@ -1,9 +1,11 @@
+import type { Pricing, PricingUnit, PricingUnitName } from 'model-bank';
 import urlJoin from 'url-join';
 
 import type { NewapiModelType } from './index';
 
 export type AdminModelApiProviderType =
   | 'newapi'
+  | 'sub2api'
   | 'openai-compatible'
   | 'openai'
   | 'claude'
@@ -29,6 +31,7 @@ export interface NewapiRemotePricing {
   model_price?: number;
   model_ratio?: number;
   quota_type?: number;
+  resolvedPricing?: Pricing;
   supported_endpoint_types?: string[];
 }
 
@@ -50,11 +53,13 @@ export interface NormalizedNewapiSyncRow {
   sortOrder: number;
 }
 
-export type NewapiPricingSyncStatus = 'available' | 'unavailable' | 'unsupported';
+export type NewapiPricingSyncStatus =
+  'available' | 'disabled' | 'unavailable' | 'unsafe' | 'unsupported';
 
 export interface NewapiPricingFetchResult {
   items: NewapiRemotePricing[];
   status: NewapiPricingSyncStatus;
+  warnings?: string[];
 }
 
 const DEFAULT_CATALOG_TIMEOUT_MS = 10_000;
@@ -75,7 +80,7 @@ const normalizeNewapiApiBase = (baseUrl: string) => {
 
 export const supportsNewapiPricingSync = (
   providerType?: AdminModelApiProviderType | string | null,
-) => !providerType || providerType === 'newapi';
+) => !providerType || providerType === 'newapi' || providerType === 'sub2api';
 
 export const buildNewapiPricingSyncWarnings = (
   providerType: AdminModelApiProviderType | string | null | undefined,
@@ -88,8 +93,16 @@ export const buildNewapiPricingSyncWarnings = (
     ];
   }
 
+  if (status === 'disabled') {
+    return ['Upstream pricing sync is disabled for this instance'];
+  }
+
   if (status === 'unavailable') {
     return ['Pricing endpoint unavailable; existing pricing metadata was preserved'];
+  }
+
+  if (status === 'unsafe') {
+    return ['Upstream prices that could not be represented safely were cleared'];
   }
 
   return pricingCount === 0 ? ['Pricing endpoint returned no entries'] : [];
@@ -171,11 +184,13 @@ export const normalizeNewapiSyncRows = ({
   models,
   pricing,
   pricingStatus = 'available',
+  syncSource = 'newapi',
 }: {
   existingRows: ExistingNewapiModelRow[];
   models: NewapiRemoteModel[];
   pricing: NewapiRemotePricing[];
   pricingStatus?: NewapiPricingSyncStatus;
+  syncSource?: 'newapi' | 'sub2api';
 }): NormalizedNewapiSyncRow[] => {
   const pricingByModel = new Map<string, NewapiRemotePricing>();
   for (const item of pricing) {
@@ -205,7 +220,7 @@ export const normalizeNewapiSyncRows = ({
 
     const metadata: Record<string, unknown> = {
       ...existingMetadata,
-      syncSource: 'newapi',
+      syncSource,
       syncStatus: 'active',
     };
 
@@ -225,24 +240,26 @@ export const normalizeNewapiSyncRows = ({
       metadata.supportedEndpointTypes = supportedEndpointTypes;
     }
 
-    if (pricingStatus === 'available') {
+    if (pricingStatus === 'available' || pricingStatus === 'unsafe') {
       for (const key of [
         'completionRatio',
         'enableGroups',
         'modelPrice',
         'modelRatio',
         'quotaType',
+        'syncedPricing',
       ]) {
         delete metadata[key];
       }
 
       metadata.pricingAvailable = Boolean(pricingItem);
-      metadata.pricingSyncStatus = 'available';
+      metadata.pricingSyncStatus = pricingStatus;
       assignIfDefined('completionRatio', pricingItem?.completion_ratio);
       assignIfDefined('enableGroups', pricingItem?.enable_groups);
       assignIfDefined('modelPrice', pricingItem?.model_price);
       assignIfDefined('modelRatio', pricingItem?.model_ratio);
       assignIfDefined('quotaType', pricingItem?.quota_type);
+      assignIfDefined('syncedPricing', pricingItem?.resolvedPricing);
     } else {
       metadata.pricingSyncStatus = pricingStatus;
     }
@@ -259,7 +276,11 @@ export const normalizeNewapiSyncRows = ({
 
   const staleRows = existingRows.flatMap((existing) => {
     const key = `${existing.modelId}:${existing.modelType}`;
-    if (activeKeys.has(key) || existing.metadata?.syncSource !== 'newapi') return [];
+    if (
+      activeKeys.has(key) ||
+      !['newapi', 'sub2api'].includes(String(existing.metadata?.syncSource))
+    )
+      return [];
 
     return [
       {
@@ -271,7 +292,7 @@ export const normalizeNewapiSyncRows = ({
             typeof existing.metadata?.staleSince === 'string'
               ? existing.metadata.staleSince
               : new Date().toISOString(),
-          syncSource: 'newapi',
+          syncSource,
           syncStatus: 'stale',
         },
         modelId: existing.modelId,
@@ -360,6 +381,314 @@ const readBoundedJson = async (
   return response.json();
 };
 
+interface Sub2apiPricingInterval {
+  cache_read_price?: number | null;
+  cache_write_price?: number | null;
+  input_price?: number | null;
+  max_tokens?: number | null;
+  min_tokens?: number;
+  output_price?: number | null;
+  per_request_price?: number | null;
+}
+
+interface Sub2apiModelPricing {
+  billing_mode?: string;
+  cache_read_price?: number | null;
+  cache_write_price?: number | null;
+  image_input_price?: number | null;
+  image_output_price?: number | null;
+  input_price?: number | null;
+  intervals?: Sub2apiPricingInterval[];
+  output_price?: number | null;
+  per_request_price?: number | null;
+}
+
+interface Sub2apiModelPlazaGroup {
+  image_rate_independent?: boolean;
+  image_rate_multiplier?: number;
+  models?: Array<{
+    name?: string;
+    platform?: string;
+    pricing?: Sub2apiModelPricing | null;
+  }>;
+  rate_multiplier?: number;
+}
+
+interface Sub2apiBillingInfo {
+  billing_scope?: string;
+  group_rate_multiplier?: number;
+  object?: string;
+  peak_rate_enabled?: boolean;
+  resolved_rate_multiplier?: number;
+}
+
+const toNonNegativeNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : undefined;
+};
+
+const scaleSub2apiTokenRate = (value: unknown, multiplier: number) => {
+  const number = toNonNegativeNumber(value);
+  return number === undefined ? undefined : number * multiplier * 1_000_000;
+};
+
+const buildSub2apiTokenUnit = ({
+  baseRate,
+  intervalKey,
+  intervals,
+  multiplier,
+  name,
+}: {
+  baseRate: unknown;
+  intervalKey: keyof Sub2apiPricingInterval;
+  intervals: Sub2apiPricingInterval[];
+  multiplier: number;
+  name: PricingUnitName;
+}): { invalid: boolean; unit?: PricingUnit } => {
+  const intervalRates = intervals.map((interval) =>
+    scaleSub2apiTokenRate(interval[intervalKey], multiplier),
+  );
+  const hasIntervalRates = intervalRates.some((rate) => rate !== undefined);
+
+  if (hasIntervalRates) {
+    return { invalid: true };
+  }
+
+  const rate = scaleSub2apiTokenRate(baseRate, multiplier);
+  return rate === undefined
+    ? { invalid: false }
+    : {
+        invalid: false,
+        unit: { name, rate, strategy: 'fixed', unit: 'millionTokens' },
+      };
+};
+
+const resolveSub2apiModelPricing = ({
+  imageMultiplier,
+  modelId,
+  pricing,
+  tokenMultiplier,
+}: {
+  imageMultiplier: number;
+  modelId: string;
+  pricing: Sub2apiModelPricing;
+  tokenMultiplier: number;
+}): Pricing | undefined => {
+  const billingMode = (pricing.billing_mode || 'token').toLowerCase();
+  const intervals = Array.isArray(pricing.intervals) ? pricing.intervals : [];
+
+  if (billingMode === 'token') {
+    const unitSpecs: Array<{
+      baseRate: unknown;
+      intervalKey: keyof Sub2apiPricingInterval;
+      name: PricingUnitName;
+    }> = [
+      { baseRate: pricing.input_price, intervalKey: 'input_price', name: 'textInput' },
+      { baseRate: pricing.output_price, intervalKey: 'output_price', name: 'textOutput' },
+      {
+        baseRate: pricing.cache_read_price,
+        intervalKey: 'cache_read_price',
+        name: 'textInput_cacheRead',
+      },
+      {
+        baseRate: pricing.cache_write_price,
+        intervalKey: 'cache_write_price',
+        name: 'textInput_cacheWrite',
+      },
+      { baseRate: pricing.image_input_price, intervalKey: 'input_price', name: 'imageInput' },
+      { baseRate: pricing.image_output_price, intervalKey: 'output_price', name: 'imageOutput' },
+    ];
+    const units: PricingUnit[] = [];
+
+    for (const spec of unitSpecs) {
+      const result = buildSub2apiTokenUnit({
+        ...spec,
+        intervals: spec.name === 'imageInput' || spec.name === 'imageOutput' ? [] : intervals,
+        multiplier: tokenMultiplier,
+      });
+      if (result.invalid) return undefined;
+      if (result.unit) units.push(result.unit);
+    }
+
+    return units.length > 0 ? { units } : undefined;
+  }
+
+  if (billingMode !== 'image' && billingMode !== 'per_request') return undefined;
+  if (intervals.length > 0) return undefined;
+
+  const perRequestPrice = toNonNegativeNumber(pricing.per_request_price);
+  if (perRequestPrice === undefined) return undefined;
+  const modelType = classifyNewapiModelType({
+    id: modelId,
+    supported_endpoint_types: billingMode === 'image' ? ['image_generation'] : undefined,
+  });
+  const rate = perRequestPrice * imageMultiplier;
+
+  if (modelType === 'image') {
+    return {
+      approximatePricePerImage: rate,
+      units: [{ name: 'imageGeneration', rate, strategy: 'fixed', unit: 'image' }],
+    };
+  }
+
+  return undefined;
+};
+
+const sameRate = (left: unknown, right: unknown) => {
+  const leftNumber = toNonNegativeNumber(left);
+  const rightNumber = toNonNegativeNumber(right);
+  if (leftNumber === undefined || rightNumber === undefined) return false;
+  return Math.abs(leftNumber - rightNumber) <= 1e-9;
+};
+
+const fetchSub2apiPricing = async ({
+  apiKey,
+  baseUrl,
+  maxBodyBytes,
+  timeoutMs,
+}: {
+  apiKey: string;
+  baseUrl: string;
+  maxBodyBytes: number;
+  timeoutMs: number;
+}): Promise<NewapiPricingFetchResult> => {
+  try {
+    const billingHeaders = { Accept: 'application/json', Authorization: `Bearer ${apiKey}` };
+    const [billing, plazaGroups] = await Promise.all([
+      fetchWithTimeout(
+        urlJoin(normalizeNewapiApiBase(baseUrl), '/sub2api/billing'),
+        { headers: billingHeaders },
+        'Sub2API billing',
+        timeoutMs,
+        async (response): Promise<Sub2apiBillingInfo> => {
+          if (!response.ok) throw new Error(`Sub2API billing request failed: ${response.status}`);
+          return (await readBoundedJson(
+            response,
+            'Sub2API billing',
+            maxBodyBytes,
+          )) as Sub2apiBillingInfo;
+        },
+      ),
+      fetchWithTimeout(
+        urlJoin(normalizeNewapiRoot(baseUrl), '/api/v1/model-plaza'),
+        { headers: { Accept: 'application/json' } },
+        'Sub2API model plaza',
+        timeoutMs,
+        async (response): Promise<Sub2apiModelPlazaGroup[]> => {
+          if (!response.ok)
+            throw new Error(`Sub2API model plaza request failed: ${response.status}`);
+          const body = (await readBoundedJson(response, 'Sub2API model plaza', maxBodyBytes)) as {
+            code?: number;
+            data?: { groups?: Sub2apiModelPlazaGroup[] };
+          };
+          return body?.code === 0 && Array.isArray(body.data?.groups) ? body.data.groups : [];
+        },
+      ),
+    ]);
+
+    if (
+      billing.object !== 'sub2api.key_billing' ||
+      billing.billing_scope !== 'token' ||
+      billing.peak_rate_enabled === true
+    ) {
+      return {
+        items: [],
+        status: 'unsafe',
+        warnings:
+          billing.peak_rate_enabled === true
+            ? ['Sub2API peak pricing cannot be represented safely; existing pricing was cleared']
+            : ['Sub2API billing metadata is incomplete; existing pricing was cleared'],
+      };
+    }
+
+    const tokenMultiplier = toNonNegativeNumber(billing.resolved_rate_multiplier);
+    if (tokenMultiplier === undefined) {
+      return {
+        items: [],
+        status: 'unsafe',
+        warnings: ['Sub2API resolved billing multiplier is unavailable'],
+      };
+    }
+
+    const matchingGroups = plazaGroups.filter((group) =>
+      sameRate(group.rate_multiplier, billing.group_rate_multiplier),
+    );
+    if (matchingGroups.length === 0) {
+      return {
+        items: [],
+        status: 'unsafe',
+        warnings: ['Sub2API API key group was not available in the model plaza'],
+      };
+    }
+
+    const candidatesByModel = new Map<
+      string,
+      Array<{ group: Sub2apiModelPlazaGroup; pricing: Sub2apiModelPricing }>
+    >();
+    for (const group of matchingGroups) {
+      for (const model of group.models ?? []) {
+        const modelId = model.name?.trim();
+        if (!modelId || !model.pricing) continue;
+        const candidates = candidatesByModel.get(modelId) ?? [];
+        candidates.push({ group, pricing: model.pricing });
+        candidatesByModel.set(modelId, candidates);
+      }
+    }
+
+    const warnings: string[] = [];
+    const items: NewapiRemotePricing[] = [];
+    let unsupportedCount = 0;
+    for (const [modelId, candidates] of candidatesByModel) {
+      const signatures = new Set(
+        candidates.map(({ group, pricing }) =>
+          JSON.stringify({
+            imageRateIndependent: group.image_rate_independent === true,
+            imageRateMultiplier: group.image_rate_multiplier,
+            pricing,
+          }),
+        ),
+      );
+      if (signatures.size !== 1) {
+        warnings.push(`Skipped ambiguous Sub2API pricing for model ${modelId}`);
+        continue;
+      }
+
+      const [{ group, pricing }] = candidates;
+      const imageMultiplier =
+        group.image_rate_independent === true
+          ? (toNonNegativeNumber(group.image_rate_multiplier) ?? tokenMultiplier)
+          : tokenMultiplier;
+      const resolvedPricing = resolveSub2apiModelPricing({
+        imageMultiplier,
+        modelId,
+        pricing,
+        tokenMultiplier,
+      });
+      if (!resolvedPricing) {
+        unsupportedCount += 1;
+        continue;
+      }
+
+      items.push({ model_name: modelId, resolvedPricing });
+    }
+
+    if (unsupportedCount > 0) {
+      warnings.push(
+        `Skipped ${unsupportedCount} Sub2API model prices that cannot be represented safely`,
+      );
+    }
+
+    return {
+      items,
+      status: warnings.length > 0 ? 'unsafe' : 'available',
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
+  } catch {
+    return { items: [], status: 'unavailable' };
+  }
+};
+
 export const fetchNewapiModels = async ({
   apiKey,
   baseUrl,
@@ -431,6 +760,10 @@ export const fetchNewapiPricing = async ({
   timeoutMs?: number;
 }): Promise<NewapiPricingFetchResult> => {
   if (!supportsNewapiPricingSync(providerType)) return { items: [], status: 'unsupported' };
+
+  if (providerType === 'sub2api') {
+    return fetchSub2apiPricing({ apiKey, baseUrl, maxBodyBytes, timeoutMs });
+  }
 
   try {
     return await fetchWithTimeout(

@@ -7,6 +7,7 @@ import {
   type ASRPayload,
   type ASRUsage,
   type ChatStreamPayload,
+  getModelPricing,
   resolveImageSinglePrice,
   resolveVideoSinglePrice,
 } from '@lobechat/model-runtime';
@@ -308,7 +309,16 @@ const getProviderModelCard = async ({
     routeMetadata,
     type: modelType,
   });
-  if (adminModelCard) return adminModelCard;
+  if (adminModelCard) {
+    if (adminModelCard.modelCard.pricing || !adminModelCard.modelBankFallbackEnabled) {
+      return adminModelCard.modelCard;
+    }
+
+    const fallbackPricing = await getModelPricing(model, adminModelCard.modelBankProvider);
+    return fallbackPricing
+      ? { ...adminModelCard.modelCard, pricing: fallbackPricing }
+      : adminModelCard.modelCard;
+  }
 
   const { aiProvider } = await getServerGlobalConfig(db);
   const aiInfraRepos = new AiInfraRepos(db, userId, aiProvider as Record<string, ProviderConfig>);

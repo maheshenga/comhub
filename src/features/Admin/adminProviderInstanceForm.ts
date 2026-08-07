@@ -1,12 +1,5 @@
 type ProviderModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 export type ProviderInstanceFormValues = {
   apiKey?: string;
@@ -18,13 +11,20 @@ export type ProviderInstanceFormValues = {
   groupMultiplier?: number;
   groupName?: string;
   name: string;
+  pricingPolicy?: ProviderPricingPolicy;
   priority?: number;
   providerType?: AdminModelApiProviderType;
   usageScope?: ProviderModelType[];
 };
 
+export interface ProviderPricingPolicy {
+  modelBankFallbackEnabled: boolean;
+  upstreamSyncEnabled: boolean;
+}
+
 export type AdminModelApiProviderType =
   | 'newapi'
+  | 'sub2api'
   | 'openai-compatible'
   | 'openai'
   | 'claude'
@@ -35,6 +35,7 @@ export type AdminModelApiProviderType =
 
 export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
   'newapi',
+  'sub2api',
   'openai-compatible',
   'openai',
   'claude',
@@ -43,6 +44,40 @@ export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
   'opencode-go',
   'siliconflow',
 ];
+
+const UPSTREAM_PRICING_PROVIDER_TYPES = new Set<AdminModelApiProviderType>(['newapi', 'sub2api']);
+const LEGACY_MODEL_BANK_PROVIDER_TYPES = new Set<AdminModelApiProviderType>([
+  'claude',
+  'deepseek',
+  'openai',
+  'siliconflow',
+]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+export const resolveProviderPricingPolicyForForm = ({
+  metadata,
+  newInstance = false,
+  providerType = 'newapi',
+}: {
+  metadata?: Record<string, unknown> | null;
+  newInstance?: boolean;
+  providerType?: AdminModelApiProviderType;
+}): ProviderPricingPolicy => {
+  const storedPolicy = isRecord(metadata?.pricingPolicy) ? metadata.pricingPolicy : undefined;
+
+  return {
+    modelBankFallbackEnabled:
+      typeof storedPolicy?.modelBankFallbackEnabled === 'boolean'
+        ? storedPolicy.modelBankFallbackEnabled
+        : newInstance || LEGACY_MODEL_BANK_PROVIDER_TYPES.has(providerType),
+    upstreamSyncEnabled:
+      typeof storedPolicy?.upstreamSyncEnabled === 'boolean'
+        ? storedPolicy.upstreamSyncEnabled
+        : UPSTREAM_PRICING_PROVIDER_TYPES.has(providerType),
+  };
+};
 
 const DEFAULT_BASE_URL_BY_PROVIDER_TYPE: Partial<Record<AdminModelApiProviderType, string>> = {
   'aliyun': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
@@ -78,6 +113,7 @@ export const buildProviderInstancePayload = (
     groupKey: cleanText(values.groupKey) ?? 'default',
     groupName: cleanText(values.groupName),
     name: values.name,
+    pricingPolicy: values.pricingPolicy,
     priority: Number(values.priority || 0),
     providerType: values.providerType ?? 'newapi',
     usageScope: values.usageScope ?? [],

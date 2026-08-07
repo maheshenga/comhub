@@ -30,6 +30,8 @@ export interface ServerModelPricingSnapshot {
 
 type ResolvedServerModelCard = {
   adminManaged: boolean;
+  modelBankFallbackEnabled?: boolean;
+  modelBankProvider?: string;
   modelCard?: AiProviderModelListItem;
 };
 
@@ -48,7 +50,14 @@ const resolveServerModelCard = async ({
     routeMetadata,
     type,
   });
-  if (adminModelCard) return { adminManaged: true, modelCard: adminModelCard };
+  if (adminModelCard) {
+    return {
+      adminManaged: true,
+      modelBankFallbackEnabled: adminModelCard.modelBankFallbackEnabled,
+      modelBankProvider: adminModelCard.modelBankProvider,
+      modelCard: adminModelCard.modelCard,
+    };
+  }
 
   if (!db || !userId) return { adminManaged: false };
 
@@ -70,7 +79,8 @@ export const getServerModelCard = async (
 export const getServerModelPricingSnapshot = async (
   params: ServerModelPricingParams,
 ): Promise<ServerModelPricingSnapshot> => {
-  const { adminManaged, modelCard } = await resolveServerModelCard(params);
+  const { adminManaged, modelBankFallbackEnabled, modelBankProvider, modelCard } =
+    await resolveServerModelCard(params);
   if (modelCard?.pricing) {
     return {
       modelCard,
@@ -79,11 +89,18 @@ export const getServerModelPricingSnapshot = async (
     };
   }
 
-  // An enabled admin-managed row is the authoritative route-specific record.
-  // Do not silently borrow model-bank pricing for the same model id: the
-  // upstream gateway may use different rates, and billing must stay blocked
-  // until this exact instance has a configured price.
   if (adminManaged) {
+    if (modelBankFallbackEnabled) {
+      const staticPricing = await getModelPricing(params.model, modelBankProvider);
+      if (staticPricing) {
+        return {
+          modelCard,
+          pricing: staticPricing,
+          source: 'model-bank',
+        };
+      }
+    }
+
     return {
       modelCard,
       pricing: undefined,

@@ -54,7 +54,10 @@ describe('getServerModelPricing', () => {
       type: 'chat',
     } as const;
     const db = { id: 'request-db' } as any;
-    mocks.getAdminNewapiModelCard.mockResolvedValue(adminModelCard);
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelBankFallbackEnabled: false,
+      modelCard: adminModelCard,
+    });
 
     const snapshot = await getServerModelPricingSnapshot({
       db,
@@ -144,7 +147,10 @@ describe('getServerModelPricing', () => {
       id: 'gpt-5.6-sol',
       type: 'chat',
     } as const;
-    mocks.getAdminNewapiModelCard.mockResolvedValue(adminModelCard);
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelBankFallbackEnabled: false,
+      modelCard: adminModelCard,
+    });
     mocks.getModelPricing.mockResolvedValue({
       units: [{ name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' }],
     });
@@ -163,6 +169,39 @@ describe('getServerModelPricing', () => {
       source: 'missing',
     });
     expect(mocks.getModelPricing).not.toHaveBeenCalled();
+    expect(mocks.getAiProviderModelList).not.toHaveBeenCalled();
+  });
+
+  it('uses exact-name model-bank pricing when the admin instance enables it', async () => {
+    const adminModelCard = {
+      enabled: true,
+      id: 'gpt-5.6-sol',
+      type: 'chat',
+    } as const;
+    const staticPricing = {
+      units: [{ name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' }],
+    } as const;
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelBankFallbackEnabled: true,
+      modelBankProvider: undefined,
+      modelCard: adminModelCard,
+    });
+    mocks.getModelPricing.mockResolvedValue(staticPricing);
+
+    await expect(
+      getServerModelPricingSnapshot({
+        db: {} as any,
+        model: 'gpt-5.6-sol',
+        provider: 'a61d4caa-adcb-45cd-a9b6-0d3fd9d5535a',
+        type: 'chat',
+        userId: 'user-1',
+      }),
+    ).resolves.toMatchObject({
+      modelCard: adminModelCard,
+      pricing: staticPricing,
+      source: 'model-bank',
+    });
+    expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-5.6-sol', undefined);
     expect(mocks.getAiProviderModelList).not.toHaveBeenCalled();
   });
 

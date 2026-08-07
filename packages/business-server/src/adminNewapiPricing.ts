@@ -9,6 +9,10 @@ import {
   type NewapiModelType,
   resolveNewapiModelPricingFromMetadata,
 } from '@/server/services/newapiInstance';
+import {
+  resolveAdminProviderPricingPolicy,
+  resolveModelBankProviderForAdminType,
+} from '@/server/services/newapiInstance/pricingPolicy';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -19,6 +23,12 @@ type AdminNewapiPricingParams = {
   routeMetadata?: AiUsageRouteMetadata;
   type?: AiProviderModelListItem['type'];
 };
+
+export interface AdminNewapiModelCardResult {
+  modelBankFallbackEnabled: boolean;
+  modelBankProvider?: string;
+  modelCard: AiProviderModelListItem;
+}
 
 const resolveInstanceId = ({
   provider,
@@ -53,7 +63,7 @@ export const getAdminNewapiModelCard = async ({
   provider,
   routeMetadata,
   type,
-}: AdminNewapiPricingParams): Promise<AiProviderModelListItem | undefined> => {
+}: AdminNewapiPricingParams): Promise<AdminNewapiModelCardResult | undefined> => {
   const instanceId = resolveInstanceId({ provider, routeMetadata });
   const modelId = model.trim();
   if (!db || !instanceId || !modelId) return undefined;
@@ -62,9 +72,11 @@ export const getAdminNewapiModelCard = async ({
     const rows = await db
       .select({
         displayName: adminNewapiInstanceModels.displayName,
+        instanceMetadata: adminNewapiInstances.metadata,
         metadata: adminNewapiInstanceModels.metadata,
         modelId: adminNewapiInstanceModels.modelId,
         modelType: adminNewapiInstanceModels.modelType,
+        providerType: adminNewapiInstances.providerType,
       })
       .from(adminNewapiInstanceModels)
       .innerJoin(
@@ -84,18 +96,24 @@ export const getAdminNewapiModelCard = async ({
     if (!row) return undefined;
 
     const modelType = normalizeAiModelType(row.modelType) as NewapiModelType;
+    const pricingPolicy = resolveAdminProviderPricingPolicy(row.instanceMetadata, row.providerType);
     const pricing = resolveNewapiModelPricingFromMetadata(
       row.metadata as Record<string, unknown> | null | undefined,
       modelType,
+      { includeSyncedPricing: pricingPolicy.upstreamSyncEnabled },
     );
 
     return {
-      displayName: row.displayName ?? undefined,
-      enabled: true,
-      id: row.modelId,
-      pricing,
-      source: 'custom',
-      type: modelType as AiProviderModelListItem['type'],
+      modelBankFallbackEnabled: pricingPolicy.modelBankFallbackEnabled,
+      modelBankProvider: resolveModelBankProviderForAdminType(row.providerType),
+      modelCard: {
+        displayName: row.displayName ?? undefined,
+        enabled: true,
+        id: row.modelId,
+        pricing,
+        source: 'custom',
+        type: modelType as AiProviderModelListItem['type'],
+      },
     };
   } catch {
     return undefined;
