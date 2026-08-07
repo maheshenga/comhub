@@ -786,6 +786,43 @@ describe('commercial AI reservations', () => {
     });
   });
 
+  it('prices a generic NewAPI provider from the selected gateway instance', async () => {
+    const routeMetadata = {
+      groupKey: 'pro',
+      instanceId: 'bd31d12b-3edc-480c-8fbe-e05a305f5384',
+      providerType: 'newapi',
+    };
+
+    await reserveCommercialAiUsage({
+      db: {} as any,
+      estimatedCredits: 25,
+      model: 'gpt-5.6-sol',
+      operationId: 'operation-newapi',
+      provider: 'newapi',
+      routeMetadata,
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+
+    expect(mocks.getServerModelPricingSnapshot).toHaveBeenCalledTimes(2);
+    expect(mocks.getServerModelPricingSnapshot).toHaveBeenNthCalledWith(1, {
+      db: {},
+      model: 'gpt-5.6-sol',
+      provider: 'newapi',
+      routeMetadata,
+      type: 'chat',
+      userId: 'user-1',
+    });
+    expect(mocks.getServerModelPricingSnapshot).toHaveBeenNthCalledWith(2, {
+      db: {},
+      model: 'gpt-5.6-sol',
+      provider: 'newapi',
+      routeMetadata,
+      type: 'chat',
+      userId: 'user-1',
+    });
+  });
+
   it('rejects platform-billed models without reliable pricing', async () => {
     mocks.getServerModelPricingSnapshot.mockResolvedValue({
       pricing: undefined,
