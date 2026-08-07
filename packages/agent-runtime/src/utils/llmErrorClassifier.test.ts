@@ -44,6 +44,32 @@ describe('llmErrorClassifier', () => {
     ).toBe('retry');
   });
 
+  it('stops a commercial pricing guard wrapped as AgentRuntimeError', () => {
+    expect(
+      classifyWithSpecs({
+        error: {
+          message: 'COMMERCIAL_MODEL_PRICING_MISSING',
+          reason: 'COMMERCIAL_MODEL_NOT_SELLABLE',
+        },
+        errorType: 'AgentRuntimeError',
+        message: 'access denied',
+      }),
+    ).toMatchObject({
+      code: 'COMMERCIAL_MODEL_NOT_SELLABLE',
+      kind: 'stop',
+    });
+  });
+
+  it('lets a permanent HTTP status override the generic AgentRuntimeError retry policy', () => {
+    expect(
+      classifyWithSpecs({
+        errorType: 'AgentRuntimeError',
+        message: 'access denied',
+        status: 403,
+      }).kind,
+    ).toBe('stop');
+  });
+
   it('stops ProviderBizError invalid request shapes but retries transient ones', () => {
     expect(
       classifyWithSpecs({
@@ -68,6 +94,7 @@ describe('llmErrorClassifier', () => {
 
   it('falls back to numeric status and keyword classification without injected specs', () => {
     expect(classifyLLMError({ code: 401, message: 'upstream refused' }).kind).toBe('stop');
+    expect(classifyLLMError({ errorType: 403, message: 'upstream refused' }).kind).toBe('stop');
     expect(classifyLLMError({ code: 429, message: 'upstream refused' }).kind).toBe('retry');
     expect(classifyLLMError(new Error('unexpected upstream issue')).kind).toBe('retry');
   });

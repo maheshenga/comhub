@@ -13,15 +13,7 @@ import {
 import { amountNumeric, createdAt, updatedAt } from './_helpers';
 
 export type NewapiModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'asr'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'asr' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 export const NEWAPI_MODEL_TYPES = [
   'chat',
@@ -37,6 +29,7 @@ export const NEWAPI_MODEL_TYPES = [
 
 export type AdminNewapiProviderType =
   | 'newapi'
+  | 'sub2api'
   | 'openai-compatible'
   | 'openai'
   | 'claude'
@@ -44,6 +37,15 @@ export type AdminNewapiProviderType =
   | 'aliyun'
   | 'opencode-go'
   | 'siliconflow';
+
+export interface AdminNewapiPricingPolicy {
+  modelBankFallbackEnabled?: boolean;
+  upstreamSyncEnabled?: boolean;
+}
+
+export type AdminNewapiInstanceMetadata = Record<string, unknown> & {
+  pricingPolicy?: AdminNewapiPricingPolicy;
+};
 
 /**
  * Admin-managed NewAPI gateway instances. Each row represents a single upstream
@@ -78,7 +80,7 @@ export const adminNewapiInstances = pgTable(
     description: text('description'),
     fetchOnClient: boolean('fetch_on_client').notNull().default(false),
 
-    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    metadata: jsonb('metadata').$type<AdminNewapiInstanceMetadata>(),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),

@@ -8,6 +8,7 @@ import {
   invalidateNewapiInstancesCache,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
+  resolveNewapiModelPricingFromMetadata,
 } from './index';
 
 vi.mock('@/business/server/planModelRules', async () => {
@@ -457,27 +458,62 @@ describe('NewAPI instance resolver', () => {
 
     await expect(getAllEnabledModels(db)).resolves.toEqual([
       expect.objectContaining({
-          id: 'manual-cost-model',
-          pricing: {
-            units: [
-              {
-                name: 'textInput',
-                originalRate: 1.2,
-                rate: 1.2,
-                strategy: 'fixed',
-                unit: 'millionTokens',
-              },
-              {
-                name: 'textOutput',
-                originalRate: 3.4,
-                rate: 3.4,
-                strategy: 'fixed',
-                unit: 'millionTokens',
-              },
-            ],
-          },
-        }),
+        id: 'manual-cost-model',
+        pricing: {
+          units: [
+            {
+              name: 'textInput',
+              originalRate: 1.2,
+              rate: 1.2,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+            {
+              name: 'textOutput',
+              originalRate: 3.4,
+              rate: 3.4,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+          ],
+        },
+      }),
     ]);
+  });
+
+  it('uses standardized synchronized pricing and can disable upstream metadata', () => {
+    const syncedPricing = {
+      units: [{ name: 'textInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' }],
+    } as const;
+    const metadata = {
+      modelRatio: 10,
+      quotaType: 0,
+      syncedPricing,
+    };
+
+    expect(resolveNewapiModelPricingFromMetadata(metadata, 'chat')).toBe(syncedPricing);
+    expect(
+      resolveNewapiModelPricingFromMetadata(metadata, 'chat', { includeSyncedPricing: false }),
+    ).toBeUndefined();
+  });
+
+  it('keeps manual pricing active when upstream pricing is disabled', () => {
+    expect(
+      resolveNewapiModelPricingFromMetadata(
+        {
+          manualPricing: { inputRate: 1.5, outputRate: 3 },
+          modelRatio: 10,
+          quotaType: 0,
+        },
+        'chat',
+        { includeSyncedPricing: false },
+      ),
+    ).toMatchObject({
+      units: [
+        expect.objectContaining({ name: 'textInput', rate: 1.5 }),
+        expect.objectContaining({ name: 'textOutput', rate: 3 }),
+      ],
+    });
   });
 
   it('returns admin manual abilities and media pricing for frontend model cards', async () => {

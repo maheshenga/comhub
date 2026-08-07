@@ -115,6 +115,18 @@ describe('getBusinessModelRuntimeHooks', () => {
 
     await hooks?.beforeChat?.(payload);
 
+    expect(mocks.estimateCommercialChatCredits).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      payload,
+      provider: 'newapi',
+      routeMetadata: {
+        groupKey: 'pro',
+        groupName: 'Pro Group',
+        instanceId: 'instance-pro',
+        instanceName: 'NewAPI Pro',
+      },
+      userId: 'user-1',
+    });
     expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith({
       db: { id: 'db' },
       estimatedCredits: 25,

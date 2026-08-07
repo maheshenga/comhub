@@ -72,6 +72,13 @@ const normalizeCode = (value?: unknown): string | undefined => {
     .replaceAll(/[\s-]+/g, '_');
 };
 
+const firstNormalizedCode = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    const code = normalizeCode(value);
+    if (code) return code;
+  }
+};
+
 const normalizeErrorType = (value?: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -120,7 +127,7 @@ const normalizeSignal = (error: unknown): LLMErrorSignal => {
           ? raw.status
           : typeof raw.statusCode === 'number'
             ? raw.statusCode
-            : (numericStatusFromCode(raw.code) ?? tryExtractStatus(message)),
+            : (numericStatusFromCode(raw.code, raw.errorType) ?? tryExtractStatus(message)),
     };
   }
 
@@ -129,14 +136,23 @@ const normalizeSignal = (error: unknown): LLMErrorSignal => {
       code?: unknown;
       error?: {
         code?: unknown;
-        error?: { code?: unknown; message?: string; status?: number; type?: unknown };
+        error?: {
+          code?: unknown;
+          errorType?: unknown;
+          message?: string;
+          reason?: unknown;
+          status?: number;
+          type?: unknown;
+        };
         errorType?: unknown;
         message?: string;
+        reason?: unknown;
         status?: number;
         type?: unknown;
       };
       errorType?: unknown;
       message?: string;
+      reason?: unknown;
       status?: number;
       statusCode?: number;
       type?: unknown;
@@ -151,7 +167,14 @@ const normalizeSignal = (error: unknown): LLMErrorSignal => {
     ).toLowerCase();
 
     return {
-      code: normalizeCode(raw.code || nested?.code || nestedError?.code),
+      code: firstNormalizedCode(
+        raw.code,
+        nested?.code,
+        nestedError?.code,
+        raw.reason,
+        nested?.reason,
+        nestedError?.reason,
+      ),
       errorType: normalizeErrorType(
         raw.errorType || raw.type || nested?.errorType || nested?.type || nestedError?.type,
       ),
@@ -165,8 +188,14 @@ const normalizeSignal = (error: unknown): LLMErrorSignal => {
               ? nested.status
               : typeof nestedError?.status === 'number'
                 ? nestedError.status
-                : (numericStatusFromCode(raw.code, nested?.code, nestedError?.code) ??
-                  tryExtractStatus(message)),
+                : (numericStatusFromCode(
+                    raw.code,
+                    raw.errorType,
+                    nested?.code,
+                    nested?.errorType,
+                    nestedError?.code,
+                    nestedError?.errorType,
+                  ) ?? tryExtractStatus(message)),
     };
   }
 
@@ -210,23 +239,36 @@ const createKindClassifier = (options: LLMErrorClassifierOptions = {}) => {
       }
     }
 
+    if (
+      status === 400 ||
+      status === 401 ||
+      status === 403 ||
+      status === 404 ||
+      status === 409 ||
+      status === 422
+    ) {
+      return 'stop';
+    }
+
+    if (code) {
+      if (code.includes('UNAUTHORIZED') || code.includes('FORBIDDEN')) return 'stop';
+      if (code.includes('MODEL_NOT_FOUND')) return 'stop';
+      if (code.includes('PRICING_MISSING') || code.includes('NOT_SELLABLE')) return 'stop';
+    }
+
     if (errorType) {
       const canonical = options.getErrorCodeSpec?.(errorType)?.code ?? errorType;
       if (stopErrorTypes.has(canonical)) return 'stop';
       if (retryErrorTypes.has(canonical)) return 'retry';
     }
 
-    if (code) {
-      if (code.includes('UNAUTHORIZED') || code.includes('FORBIDDEN')) return 'stop';
-      if (code.includes('MODEL_NOT_FOUND')) return 'stop';
-      if (code.includes('RATE_LIMIT') || code.includes('TIMEOUT')) return 'retry';
-    }
+    if (code && (code.includes('RATE_LIMIT') || code.includes('TIMEOUT'))) return 'retry';
 
-    if (status !== undefined) {
-      if (status === 401 || status === 403) return 'stop';
-      if (status === 400 || status === 404 || status === 409 || status === 422) return 'stop';
-      if (status === 408 || status === 425 || status === 429 || status >= 500) return 'retry';
-    }
+    if (
+      status !== undefined &&
+      (status === 408 || status === 425 || status === 429 || status >= 500)
+    )
+      return 'retry';
 
     if (hasAnyKeyword(message, STOP_KEYWORDS)) return 'stop';
     if (hasAnyKeyword(message, RETRY_KEYWORDS)) return 'retry';

@@ -50,7 +50,9 @@ const mocks = vi.hoisted(() => ({
   consumeCreditsForChatUsage: vi.fn(),
   getAiProviderModelList: vi.fn(),
   getAiProviderById: vi.fn(),
+  getAdminNewapiModelCard: vi.fn(),
   getCreditAccountSummary: vi.fn(),
+  getModelPricing: vi.fn(),
   getServerGlobalConfig: vi.fn(),
   getServerModelPricingSnapshot: vi.fn(),
   quoteCreditsForAiUsage: vi.fn(),
@@ -59,6 +61,15 @@ const mocks = vi.hoisted(() => ({
   reserveCredits: vi.fn(),
   resolveSettlementFailure: vi.fn(),
   settleCredits: vi.fn(),
+}));
+
+vi.mock('@lobechat/model-runtime', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getModelPricing: mocks.getModelPricing,
+}));
+
+vi.mock('./adminNewapiPricing', () => ({
+  getAdminNewapiModelCard: mocks.getAdminNewapiModelCard,
 }));
 
 vi.mock('@/database/models/aiProvider', () => ({
@@ -100,6 +111,11 @@ vi.mock('@/server/globalConfig', () => ({
 vi.mock('./serverModelPricing', () => ({
   getServerModelPricingSnapshot: mocks.getServerModelPricingSnapshot,
 }));
+
+beforeEach(() => {
+  mocks.getAdminNewapiModelCard.mockResolvedValue(undefined);
+  mocks.getModelPricing.mockResolvedValue(undefined);
+});
 
 describe('isCommercialPricingQuote', () => {
   it('accepts a complete versioned pricing snapshot', () => {
@@ -225,6 +241,35 @@ describe('estimateCommercialChatCredits', () => {
     });
 
     expect(mocks.getServerGlobalConfig).toHaveBeenCalledWith(serverDB);
+  });
+
+  it('uses enabled model-bank fallback pricing for admin-managed estimates', async () => {
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelBankFallbackEnabled: true,
+      modelBankProvider: undefined,
+      modelCard: { enabled: true, id: 'gpt-test', type: 'chat' },
+    });
+    mocks.getModelPricing.mockResolvedValue({
+      units: [
+        { name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 1, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    });
+
+    await expect(
+      estimateCommercialChatCredits({
+        db: {} as any,
+        payload: {
+          max_tokens: 500,
+          messages: [{ content: 'Hello world', role: 'user' }],
+          model: 'gpt-test',
+        },
+        provider: 'instance-id',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(502);
+    expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-test', undefined);
+    expect(mocks.getAiProviderModelList).not.toHaveBeenCalled();
   });
 
   it('should return undefined when model pricing is unavailable', async () => {
@@ -783,6 +828,43 @@ describe('commercial AI reservations', () => {
       },
       payer: { scopeType: 'personal', userId: 'user-1' },
       requireNew: true,
+    });
+  });
+
+  it('prices a generic NewAPI provider from the selected gateway instance', async () => {
+    const routeMetadata = {
+      groupKey: 'pro',
+      instanceId: 'bd31d12b-3edc-480c-8fbe-e05a305f5384',
+      providerType: 'newapi',
+    };
+
+    await reserveCommercialAiUsage({
+      db: {} as any,
+      estimatedCredits: 25,
+      model: 'gpt-5.6-sol',
+      operationId: 'operation-newapi',
+      provider: 'newapi',
+      routeMetadata,
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+
+    expect(mocks.getServerModelPricingSnapshot).toHaveBeenCalledTimes(2);
+    expect(mocks.getServerModelPricingSnapshot).toHaveBeenNthCalledWith(1, {
+      db: {},
+      model: 'gpt-5.6-sol',
+      provider: 'newapi',
+      routeMetadata,
+      type: 'chat',
+      userId: 'user-1',
+    });
+    expect(mocks.getServerModelPricingSnapshot).toHaveBeenNthCalledWith(2, {
+      db: {},
+      model: 'gpt-5.6-sol',
+      provider: 'newapi',
+      routeMetadata,
+      type: 'chat',
+      userId: 'user-1',
     });
   });
 

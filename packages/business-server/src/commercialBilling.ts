@@ -7,6 +7,7 @@ import {
   type ASRPayload,
   type ASRUsage,
   type ChatStreamPayload,
+  getModelPricing,
   resolveImageSinglePrice,
   resolveVideoSinglePrice,
 } from '@lobechat/model-runtime';
@@ -36,6 +37,7 @@ import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { type ProviderConfig } from '@/types/user/settings';
 
+import { getAdminNewapiModelCard } from './adminNewapiPricing';
 import { getServerModelPricingSnapshot } from './serverModelPricing';
 
 const USER_MANAGED_CREDENTIAL_FIELDS = [
@@ -290,14 +292,34 @@ const getProviderModelCard = async ({
   model,
   modelType = 'chat',
   provider,
+  routeMetadata,
   userId,
 }: {
   db: LobeChatDatabase;
   model: string;
   modelType?: AiProviderModelListItem['type'];
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }) => {
+  const adminModelCard = await getAdminNewapiModelCard({
+    db,
+    model,
+    provider,
+    routeMetadata,
+    type: modelType,
+  });
+  if (adminModelCard) {
+    if (adminModelCard.modelCard.pricing || !adminModelCard.modelBankFallbackEnabled) {
+      return adminModelCard.modelCard;
+    }
+
+    const fallbackPricing = await getModelPricing(model, adminModelCard.modelBankProvider);
+    return fallbackPricing
+      ? { ...adminModelCard.modelCard, pricing: fallbackPricing }
+      : adminModelCard.modelCard;
+  }
+
   const { aiProvider } = await getServerGlobalConfig(db);
   const aiInfraRepos = new AiInfraRepos(db, userId, aiProvider as Record<string, ProviderConfig>);
   const models = await aiInfraRepos.getAiProviderModelList(provider, { type: modelType });
@@ -309,17 +331,20 @@ export const estimateCommercialChatCredits = async ({
   db,
   payload,
   provider,
+  routeMetadata,
   userId,
 }: {
   db: LobeChatDatabase;
   payload: ChatStreamPayload;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }) => {
   const modelCard = await getProviderModelCard({
     db,
     model: payload.model,
     provider,
+    routeMetadata,
     userId,
   });
 
@@ -339,12 +364,14 @@ export const estimateCommercialEmbeddingsCredits = async ({
   input,
   model,
   provider,
+  routeMetadata,
   userId,
 }: {
   db: LobeChatDatabase;
   input: unknown;
   model: string;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }) => {
   const modelCard = await getProviderModelCard({
@@ -352,6 +379,7 @@ export const estimateCommercialEmbeddingsCredits = async ({
     model,
     modelType: 'embedding',
     provider,
+    routeMetadata,
     userId,
   });
   const inputRate = getTextInputUnitRate(modelCard?.pricing);
@@ -408,6 +436,7 @@ const quoteCommercialAsrUsage = async ({
   model,
   payload,
   provider,
+  routeMetadata,
   usage,
   userId,
 }: {
@@ -423,6 +452,7 @@ const quoteCommercialAsrUsage = async ({
     db,
     model,
     provider,
+    routeMetadata,
     type: 'asr',
     userId,
   });
@@ -453,6 +483,7 @@ export const estimateCommercialAsrCredits = async (
     db: params.db,
     model: params.model,
     provider: params.provider,
+    routeMetadata: params.routeMetadata,
     type: 'asr',
     userId: params.userId,
   });
@@ -599,12 +630,14 @@ export const assertCommercialModelSellable = async ({
   db,
   model,
   provider,
+  routeMetadata,
   usageType,
   userId,
 }: {
   db: LobeChatDatabase;
   model: string;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   usageType: CommercialBillableUsageType;
   userId: string;
 }): Promise<boolean> => {
@@ -615,6 +648,7 @@ export const assertCommercialModelSellable = async ({
     db,
     model,
     provider,
+    routeMetadata,
     type:
       usageType === 'generate_object'
         ? 'chat'
@@ -639,11 +673,13 @@ export const assertCommercialChatBudget = async ({
   db,
   payload,
   provider,
+  routeMetadata,
   userId,
 }: {
   db: LobeChatDatabase;
   payload?: ChatStreamPayload;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }) => {
   const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
@@ -652,7 +688,7 @@ export const assertCommercialChatBudget = async ({
   const commercialModel = new CommercialModel(db, userId);
   const estimatedCredits =
     payload && payload.model
-      ? await estimateCommercialChatCredits({ db, payload, provider, userId })
+      ? await estimateCommercialChatCredits({ db, payload, provider, routeMetadata, userId })
       : undefined;
   const canStart = await commercialModel.canStartChatUsage(estimatedCredits);
   if (canStart) return;
@@ -815,7 +851,13 @@ export const recordCommercialAiUsage = async ({
   if (!shouldCharge) return null;
   if (!usage) return null;
 
-  const modelCard = await getProviderModelCard({ db, model, provider, userId });
+  const modelCard = await getProviderModelCard({
+    db,
+    model,
+    provider,
+    routeMetadata,
+    userId,
+  });
   const resolved = resolveEffectiveCost(usage, modelCard, usageType);
 
   if (!resolved) return null;
@@ -870,6 +912,7 @@ export const reserveCommercialAiUsage = async ({
     db,
     model,
     provider,
+    routeMetadata,
     usageType,
     userId,
   });
@@ -888,6 +931,7 @@ export const reserveCommercialAiUsage = async ({
       db,
       model,
       provider,
+      routeMetadata,
       type:
         usageType === 'generate_object'
           ? 'chat'
@@ -993,6 +1037,7 @@ export const settleCommercialAiUsageReservation = async ({
           modelType:
             usageType === 'embeddings' ? 'embedding' : usageType === 'asr' ? 'asr' : 'chat',
           provider,
+          routeMetadata,
           userId,
         });
     const resolved = resolveEffectiveCost(usage, modelCard, usageType);
@@ -1099,7 +1144,13 @@ export const quoteCommercialAiUsage = async ({
   const shouldCharge = forceCharge || (await shouldChargeCommercialUsage({ db, provider, userId }));
   if (!shouldCharge || !usage) return null;
 
-  const modelCard = await getProviderModelCard({ db, model, provider, userId });
+  const modelCard = await getProviderModelCard({
+    db,
+    model,
+    provider,
+    routeMetadata,
+    userId,
+  });
   const resolved = resolveEffectiveCost(usage, modelCard, usageType);
   if (!resolved) return null;
 

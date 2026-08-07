@@ -239,6 +239,44 @@ describe('adminNewapiProvidersRouter', () => {
     );
   });
 
+  it('stores instance pricing policy without exposing it as a database column', async () => {
+    const { db, writes } = createDbMock({
+      findFirstRow: {
+        apiKey: 'kv:enc:sk-test',
+        baseUrl: 'https://newapi.example.com',
+        id: instanceId,
+        metadata: { retained: true },
+        name: 'Default',
+        providerType: 'newapi',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.updateInstance({
+      data: {
+        pricingPolicy: {
+          modelBankFallbackEnabled: true,
+          upstreamSyncEnabled: false,
+        },
+      },
+      id: instanceId,
+    });
+
+    expect(writes.updateValue).toEqual(
+      expect.objectContaining({
+        metadata: {
+          pricingPolicy: {
+            modelBankFallbackEnabled: true,
+            upstreamSyncEnabled: false,
+          },
+          retained: true,
+        },
+      }),
+    );
+    expect(writes.updateValue).not.toHaveProperty('pricingPolicy');
+  });
+
   it('allows model ops admins to refresh the AI provider runtime cache', async () => {
     const { db } = createDbMock({ role: 'model_ops' });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
@@ -376,6 +414,37 @@ describe('adminNewapiProvidersRouter', () => {
       }),
     );
     expect(writes.insertRows[0]).toEqual(expect.objectContaining({ modelId: 'gpt-4o-mini' }));
+  });
+
+  it('syncs models without requesting prices when upstream pricing is disabled', async () => {
+    const { db } = createDbMock({
+      findFirstRow: {
+        apiKey: 'kv:enc:sk-test',
+        baseUrl: 'https://newapi.example.com',
+        id: instanceId,
+        metadata: {
+          pricingPolicy: {
+            modelBankFallbackEnabled: true,
+            upstreamSyncEnabled: false,
+          },
+        },
+        name: 'Default',
+        providerType: 'newapi',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    const fetchMock = vi.fn().mockResolvedValue({
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ data: [{ id: 'gpt-4o-mini', object: 'model' }] }),
+      ok: true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncInstanceModels({ id: instanceId });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.warnings).toContain('Upstream pricing sync is disabled for this instance');
   });
 
   it('returns a readable connection test failure for invalid encrypted api keys', async () => {
@@ -570,6 +639,25 @@ describe('adminNewapiProvidersRouter', () => {
           priority: 3,
           providerType: 'openai-compatible',
         },
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Fallback DeepSeek',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceMetadata: {
+            pricingPolicy: {
+              modelBankFallbackEnabled: true,
+              upstreamSyncEnabled: false,
+            },
+          },
+          instanceName: 'NewAPI Fallback',
+          metadata: { modelRatio: 1, pricingAvailable: true },
+          modelId: 'deepseek-v4-pro',
+          modelType: 'chat',
+          priority: 4,
+          providerType: 'newapi',
+        },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
@@ -600,6 +688,12 @@ describe('adminNewapiProvidersRouter', () => {
         modelId: 'deepseek-v4-pro',
         pricingSource: 'missing',
         providerType: 'openai-compatible',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
+        modelId: 'deepseek-v4-pro',
+        pricingSource: 'model-bank',
+        providerType: 'newapi',
       }),
     ]);
   });
