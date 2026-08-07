@@ -109,7 +109,14 @@ async function readDesktopRouterSources() {
 
 describe('desktopRouter config sync', () => {
   it('mounts the shared Module Center route without the removed monolith URL', () => {
-    expect(matchRoutes(desktopRoutes, '/settings/admin/modules')).not.toBeNull();
+    const adminMatches = matchRoutes(desktopRoutes, '/settings/admin');
+    const moduleMatches = matchRoutes(desktopRoutes, '/settings/admin/modules');
+
+    expect(adminMatches?.map((match) => match.route.path)).toContain('admin');
+    expect(moduleMatches?.map((match) => match.route.path)).toEqual(
+      expect.arrayContaining(['settings', 'admin', 'modules']),
+    );
+    expect(moduleMatches?.at(-1)?.route.path).toBe('modules');
 
     const legacyMatches = matchRoutes(desktopRoutes, '/settings/admin/module-apps');
     expect(legacyMatches?.at(-1)?.route.path).toBe(':tab/:sub');
@@ -329,11 +336,23 @@ describe('desktopRouter config sync', () => {
     const [asyncSource, syncSource] = await readDesktopRouterSources();
 
     for (const source of [asyncSource, syncSource]) {
-      expect(source).toContain('BusinessDesktopRoutesWithSettingsLayout');
-      expect(source.indexOf('...BusinessDesktopRoutesWithSettingsLayout')).toBeGreaterThan(-1);
-      expect(source.indexOf('...BusinessDesktopRoutesWithSettingsLayout')).toBeLessThan(
-        source.indexOf("path: ':tab'"),
+      const settingsStart = source.indexOf('// Settings routes (personal-only');
+      const settingsEnd = source.indexOf('// Workspace slug routes', settingsStart);
+      const settingsSource = source.slice(settingsStart, settingsEnd);
+      const businessRoutesIndex = settingsSource.indexOf(
+        '...BusinessDesktopRoutesWithSettingsLayout',
       );
+      const providerRoutesIndex = settingsSource.indexOf(
+        '// Provider routes with nested structure',
+      );
+      const genericTabIndex = settingsSource.indexOf("path: ':tab'");
+
+      expect(source).toContain('BusinessDesktopRoutesWithSettingsLayout');
+      expect(settingsStart).toBeGreaterThan(-1);
+      expect(settingsEnd).toBeGreaterThan(settingsStart);
+      expect(businessRoutesIndex).toBeGreaterThan(-1);
+      expect(businessRoutesIndex).toBeLessThan(providerRoutesIndex);
+      expect(providerRoutesIndex).toBeLessThan(genericTabIndex);
     }
   });
 });

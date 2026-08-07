@@ -20,8 +20,8 @@ import {
 } from '@/business/client/BusinessDesktopRoutes';
 import { agentDocumentRouteMeta } from '@/features/AgentDocumentPage/routeMeta';
 import { taskRouteMeta, tasksRouteMeta } from '@/features/AgentTasks/routeMeta';
-import { fleetRouteMeta } from '@/features/Fleet/routeMeta';
 import { agentsRouteMeta } from '@/features/AgentViewAll/routeMeta';
+import { fleetRouteMeta } from '@/features/Fleet/routeMeta';
 import { pageRouteMeta } from '@/features/Pages/routeMeta';
 import {
   acceptanceRouteMeta,
@@ -87,6 +87,7 @@ import AgentStatisticsPage from '@/routes/(main)/agent/statistics';
 import AgentTaskDetailRoute from '@/routes/(main)/agent/task/[taskId]';
 import AgentScopedTasksRoute from '@/routes/(main)/agent/tasks';
 import AgentTopicsPage from '@/routes/(main)/agent/topics';
+import AgentsViewAllRoute from '@/routes/(main)/agents';
 import ModuleAppMarketPage from '@/routes/(main)/apps';
 import ModuleAppDetailPage from '@/routes/(main)/apps/[appId]';
 import ModuleAppRuntimePage from '@/routes/(main)/apps/[appId]/app';
@@ -94,7 +95,6 @@ import ModuleAppRuntimePageRoute from '@/routes/(main)/apps/[appId]/app/[pageKey
 import ModuleAppDeveloperPage from '@/routes/(main)/apps/developer';
 import ModuleAppMyAppsPage from '@/routes/(main)/apps/my';
 import ModuleAppTeamAppsPage from '@/routes/(main)/apps/team';
-import AgentsViewAllRoute from '@/routes/(main)/agents';
 import CommunityLayout from '@/routes/(main)/community/_layout';
 import CommunityDetailLayout from '@/routes/(main)/community/(detail)/_layout';
 import CommunityDetailAgentPage from '@/routes/(main)/community/(detail)/agent';
@@ -760,6 +760,7 @@ export const createMainAreaChildren = (): RouteObject[] => [
         element: redirectElement('/settings/profile'),
         index: true,
       },
+      ...BusinessDesktopRoutesWithSettingsLayout,
       // Provider routes with nested structure
       {
         children: [
@@ -767,8 +768,6 @@ export const createMainAreaChildren = (): RouteObject[] => [
             element: redirectElement('/settings/provider/all'),
             index: true,
           },
-          ...BusinessDesktopRoutesWithSettingsLayout,
-          // Provider routes with nested structure
           {
             element: <ProviderDetailPage />,
             handle: {
