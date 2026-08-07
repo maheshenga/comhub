@@ -816,6 +816,7 @@ export default {
   'admin.providers.field.groupMultiplier': '分组倍率',
   'admin.providers.field.groupMultiplierHint': '可选，用于记录上游分组成本倍率。',
   'admin.providers.field.groupName': '分组名称',
+  'admin.providers.field.lobeHubOfficialPricing': '使用 LobeHub 官方价格',
   'admin.providers.field.modelBankFallback': '按模型名使用系统价格',
   'admin.providers.field.name': '名称',
   'admin.providers.field.nameRequired': '请填写名称',

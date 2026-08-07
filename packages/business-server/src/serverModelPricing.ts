@@ -7,7 +7,11 @@ import type { LobeChatDatabase } from '@/database/type';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import type { ProviderConfig } from '@/types/user/settings';
 
-import { getAdminNewapiModelCard } from './adminNewapiPricing';
+import {
+  type AdminNewapiModelCardResult,
+  getAdminNewapiModelCard,
+  resolveAdminNewapiModelPricing,
+} from './adminNewapiPricing';
 
 type ServerModelType = AiProviderModelListItem['type'];
 
@@ -20,7 +24,7 @@ export type ServerModelPricingParams = {
   userId?: string;
 };
 
-export type ServerModelPricingSource = 'database' | 'missing' | 'model-bank';
+export type ServerModelPricingSource = 'database' | 'lobehub-official' | 'missing' | 'model-bank';
 
 export interface ServerModelPricingSnapshot {
   modelCard?: AiProviderModelListItem;
@@ -29,9 +33,8 @@ export interface ServerModelPricingSnapshot {
 }
 
 type ResolvedServerModelCard = {
+  adminModelCard?: AdminNewapiModelCardResult;
   adminManaged: boolean;
-  modelBankFallbackEnabled?: boolean;
-  modelBankProvider?: string;
   modelCard?: AiProviderModelListItem;
 };
 
@@ -52,9 +55,8 @@ const resolveServerModelCard = async ({
   });
   if (adminModelCard) {
     return {
+      adminModelCard,
       adminManaged: true,
-      modelBankFallbackEnabled: adminModelCard.modelBankFallbackEnabled,
-      modelBankProvider: adminModelCard.modelBankProvider,
       modelCard: adminModelCard.modelCard,
     };
   }
@@ -79,32 +81,25 @@ export const getServerModelCard = async (
 export const getServerModelPricingSnapshot = async (
   params: ServerModelPricingParams,
 ): Promise<ServerModelPricingSnapshot> => {
-  const { adminManaged, modelBankFallbackEnabled, modelBankProvider, modelCard } =
-    await resolveServerModelCard(params);
+  const { adminManaged, adminModelCard, modelCard } = await resolveServerModelCard(params);
+
+  if (adminManaged && adminModelCard) {
+    const resolution = await resolveAdminNewapiModelPricing({
+      adminModelCard,
+      model: params.model,
+    });
+    return {
+      modelCard,
+      pricing: resolution.pricing,
+      source: resolution.source,
+    };
+  }
+
   if (modelCard?.pricing) {
     return {
       modelCard,
       pricing: modelCard.pricing,
       source: 'database',
-    };
-  }
-
-  if (adminManaged) {
-    if (modelBankFallbackEnabled) {
-      const staticPricing = await getModelPricing(params.model, modelBankProvider);
-      if (staticPricing) {
-        return {
-          modelCard,
-          pricing: staticPricing,
-          source: 'model-bank',
-        };
-      }
-    }
-
-    return {
-      modelCard,
-      pricing: undefined,
-      source: 'missing',
     };
   }
 

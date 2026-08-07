@@ -652,6 +652,7 @@
   "admin.platformPlugins.useCase": "使用场景",
   "admin.pricing.ordersEnabled": "在线平台支付（已关闭）",
   "admin.pricing.ordersEnabled.help": "平台在线支付保持关闭，仅兑换码充值可用；此状态不可在后台开启。",
+  "admin.providers.field.lobeHubOfficialPricing": "使用 LobeHub 官方价格",
   "admin.providers.field.modelBankFallback": "按模型名使用系统价格",
   "admin.providers.field.providerTypeSub2apiHint": "Sub2API 会从密钥计费信息和模型广场同步可确认的价格。",
   "admin.providers.field.upstreamPricing": "同步上游价格",

@@ -1,5 +1,6 @@
+import { getModelPricing } from '@lobechat/model-runtime';
 import { and, eq } from 'drizzle-orm';
-import type { AiProviderModelListItem } from 'model-bank';
+import type { AiProviderModelListItem, Pricing } from 'model-bank';
 import { normalizeAiModelType } from 'model-bank';
 
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
@@ -9,6 +10,7 @@ import {
   type NewapiModelType,
   resolveNewapiModelPricingFromMetadata,
 } from '@/server/services/newapiInstance';
+import { getLobeHubOfficialModelPricing } from '@/server/services/newapiInstance/lobeHubOfficialPricing';
 import {
   resolveAdminProviderPricingPolicy,
   resolveModelBankProviderForAdminType,
@@ -25,10 +27,43 @@ type AdminNewapiPricingParams = {
 };
 
 export interface AdminNewapiModelCardResult {
+  lobeHubOfficialPricingEnabled: boolean;
   modelBankFallbackEnabled: boolean;
   modelBankProvider?: string;
   modelCard: AiProviderModelListItem;
 }
+
+export type AdminNewapiModelPricingSource =
+  'database' | 'lobehub-official' | 'missing' | 'model-bank';
+
+export interface AdminNewapiModelPricingResolution {
+  pricing?: Pricing;
+  source: AdminNewapiModelPricingSource;
+}
+
+export const resolveAdminNewapiModelPricing = async ({
+  adminModelCard,
+  model,
+}: {
+  adminModelCard: AdminNewapiModelCardResult;
+  model: string;
+}): Promise<AdminNewapiModelPricingResolution> => {
+  if (adminModelCard.modelCard.pricing) {
+    return { pricing: adminModelCard.modelCard.pricing, source: 'database' };
+  }
+
+  if (adminModelCard.lobeHubOfficialPricingEnabled) {
+    const officialPricing = await getLobeHubOfficialModelPricing(model);
+    if (officialPricing) return { pricing: officialPricing, source: 'lobehub-official' };
+  }
+
+  if (adminModelCard.modelBankFallbackEnabled) {
+    const modelBankPricing = await getModelPricing(model, adminModelCard.modelBankProvider);
+    if (modelBankPricing) return { pricing: modelBankPricing, source: 'model-bank' };
+  }
+
+  return { source: 'missing' };
+};
 
 const resolveInstanceId = ({
   provider,
@@ -104,6 +139,7 @@ export const getAdminNewapiModelCard = async ({
     );
 
     return {
+      lobeHubOfficialPricingEnabled: pricingPolicy.lobeHubOfficialPricingEnabled,
       modelBankFallbackEnabled: pricingPolicy.modelBankFallbackEnabled,
       modelBankProvider: resolveModelBankProviderForAdminType(row.providerType),
       modelCard: {

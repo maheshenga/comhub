@@ -269,6 +269,13 @@ const InstanceFormModal = memo<{
             <Switch />
           </Form.Item>
           <Form.Item
+            label={t('admin.providers.field.lobeHubOfficialPricing', '使用 LobeHub 官方价格')}
+            name={['pricingPolicy', 'lobeHubOfficialPricingEnabled']}
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
             label={t('admin.providers.field.modelBankFallback', '按模型名使用系统价格')}
             name={['pricingPolicy', 'modelBankFallbackEnabled']}
             valuePropName="checked"
