@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getAdminNewapiModelCard: vi.fn(),
   getModelPricing: vi.fn(),
   getServerGlobalConfig: vi.fn(),
+  resolveAdminNewapiModelPricing: vi.fn(),
 }));
 
 vi.mock('@lobechat/model-runtime', () => ({
@@ -26,6 +27,7 @@ vi.mock('@/server/globalConfig', () => ({
 
 vi.mock('./adminNewapiPricing', () => ({
   getAdminNewapiModelCard: mocks.getAdminNewapiModelCard,
+  resolveAdminNewapiModelPricing: mocks.resolveAdminNewapiModelPricing,
 }));
 
 describe('getServerModelPricing', () => {
@@ -34,6 +36,11 @@ describe('getServerModelPricing', () => {
     mocks.getServerGlobalConfig.mockResolvedValue({ aiProvider: { newapi: { enabled: true } } });
     mocks.getAdminNewapiModelCard.mockResolvedValue(undefined);
     mocks.getModelPricing.mockResolvedValue(undefined);
+    mocks.resolveAdminNewapiModelPricing.mockImplementation(async ({ adminModelCard }) =>
+      adminModelCard.modelCard.pricing
+        ? { pricing: adminModelCard.modelCard.pricing, source: 'database' }
+        : { source: 'missing' },
+    );
   });
 
   it('prefers pricing from the selected admin-managed NewAPI instance', async () => {
@@ -186,7 +193,10 @@ describe('getServerModelPricing', () => {
       modelBankProvider: undefined,
       modelCard: adminModelCard,
     });
-    mocks.getModelPricing.mockResolvedValue(staticPricing);
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({
+      pricing: staticPricing,
+      source: 'model-bank',
+    });
 
     await expect(
       getServerModelPricingSnapshot({
@@ -201,8 +211,56 @@ describe('getServerModelPricing', () => {
       pricing: staticPricing,
       source: 'model-bank',
     });
-    expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-5.6-sol', undefined);
+    expect(mocks.resolveAdminNewapiModelPricing).toHaveBeenCalledWith({
+      adminModelCard: {
+        modelBankFallbackEnabled: true,
+        modelBankProvider: undefined,
+        modelCard: adminModelCard,
+      },
+      model: 'gpt-5.6-sol',
+    });
+    expect(mocks.getModelPricing).not.toHaveBeenCalled();
     expect(mocks.getAiProviderModelList).not.toHaveBeenCalled();
+  });
+
+  it('returns a distinct LobeHub official pricing source for admin-managed models', async () => {
+    const adminModelCard = {
+      enabled: true,
+      id: 'gpt-5.6-sol',
+      type: 'chat',
+    } as const;
+    const officialPricing = {
+      units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
+    } as const;
+    const resolvedAdminModelCard = {
+      lobeHubOfficialPricingEnabled: true,
+      modelBankFallbackEnabled: true,
+      modelBankProvider: undefined,
+      modelCard: adminModelCard,
+    };
+    mocks.getAdminNewapiModelCard.mockResolvedValue(resolvedAdminModelCard);
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({
+      pricing: officialPricing,
+      source: 'lobehub-official',
+    });
+
+    await expect(
+      getServerModelPricingSnapshot({
+        db: {} as any,
+        model: 'gpt-5.6-sol',
+        provider: 'a61d4caa-adcb-45cd-a9b6-0d3fd9d5535a',
+        type: 'chat',
+        userId: 'user-1',
+      }),
+    ).resolves.toMatchObject({
+      modelCard: adminModelCard,
+      pricing: officialPricing,
+      source: 'lobehub-official',
+    });
+    expect(mocks.resolveAdminNewapiModelPricing).toHaveBeenCalledWith({
+      adminModelCard: resolvedAdminModelCard,
+      model: 'gpt-5.6-sol',
+    });
   });
 
   it('falls back to static model-bank pricing when database pricing is missing', async () => {

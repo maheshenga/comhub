@@ -7,7 +7,6 @@ import {
   type ASRPayload,
   type ASRUsage,
   type ChatStreamPayload,
-  getModelPricing,
   resolveImageSinglePrice,
   resolveVideoSinglePrice,
 } from '@lobechat/model-runtime';
@@ -37,7 +36,7 @@ import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { type ProviderConfig } from '@/types/user/settings';
 
-import { getAdminNewapiModelCard } from './adminNewapiPricing';
+import { getAdminNewapiModelCard, resolveAdminNewapiModelPricing } from './adminNewapiPricing';
 import { getServerModelPricingSnapshot } from './serverModelPricing';
 
 const USER_MANAGED_CREDENTIAL_FIELDS = [
@@ -163,7 +162,7 @@ const commercialPricingQuoteSchema = z
     creditsPerDollar: z.number().finite().positive().max(MAX_PRICING_SNAPSHOT_RATE),
     matchedPricingRule: aiUsagePricingRuleSchema.nullable(),
     modelPricing: pricingSnapshotSchema.optional(),
-    modelPricingSource: z.enum(['database', 'missing', 'model-bank']),
+    modelPricingSource: z.enum(['database', 'lobehub-official', 'missing', 'model-bank']),
     pricingMultiplier: z.number().finite().positive().max(1000),
     quotedAt: z.string().datetime(),
     version: z.literal(1),
@@ -310,13 +309,9 @@ const getProviderModelCard = async ({
     type: modelType,
   });
   if (adminModelCard) {
-    if (adminModelCard.modelCard.pricing || !adminModelCard.modelBankFallbackEnabled) {
-      return adminModelCard.modelCard;
-    }
-
-    const fallbackPricing = await getModelPricing(model, adminModelCard.modelBankProvider);
-    return fallbackPricing
-      ? { ...adminModelCard.modelCard, pricing: fallbackPricing }
+    const resolution = await resolveAdminNewapiModelPricing({ adminModelCard, model });
+    return resolution.pricing
+      ? { ...adminModelCard.modelCard, pricing: resolution.pricing }
       : adminModelCard.modelCard;
   }
 
@@ -536,7 +531,7 @@ export interface CommercialPricingQuote {
   creditsPerDollar: number;
   matchedPricingRule: AiUsageCreditQuote['matchedPricingRule'];
   modelPricing?: Pricing;
-  modelPricingSource: 'database' | 'missing' | 'model-bank';
+  modelPricingSource: 'database' | 'lobehub-official' | 'missing' | 'model-bank';
   pricingMultiplier: number;
   quotedAt: string;
   version: 1;

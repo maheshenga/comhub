@@ -7,6 +7,14 @@ import { getModelDependencyImpact } from '../../adminImpact/modelDependencyImpac
 import { recordAdminAudit } from './audit';
 import { adminNewapiProvidersRouter } from './newapiProviders';
 
+const mocks = vi.hoisted(() => ({
+  getLobeHubOfficialModelPricing: vi.fn(),
+}));
+
+vi.mock('@/server/services/newapiInstance/lobeHubOfficialPricing', () => ({
+  getLobeHubOfficialModelPricing: mocks.getLobeHubOfficialModelPricing,
+}));
+
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
 }));
@@ -174,6 +182,7 @@ const createDbMock = ({
 describe('adminNewapiProvidersRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getLobeHubOfficialModelPricing.mockResolvedValue(undefined);
     vi.mocked(getModelDependencyImpact).mockResolvedValue(dependencyImpact());
   });
 
@@ -585,6 +594,13 @@ describe('adminNewapiProvidersRouter', () => {
   });
 
   it('returns pricing source metadata for enabled models', async () => {
+    mocks.getLobeHubOfficialModelPricing.mockImplementation(async (modelId: string) =>
+      modelId === 'official-chat'
+        ? {
+            units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
+          }
+        : undefined,
+    );
     const { db } = createDbMock({
       allEnabledModelRows: [
         {
@@ -609,6 +625,26 @@ describe('adminNewapiProvidersRouter', () => {
           instanceName: 'NewAPI Gateway',
           metadata: {},
           modelId: 'missing-chat',
+          modelType: 'chat',
+          priority: 1,
+          providerType: 'newapi',
+        },
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Official Chat',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceMetadata: {
+            pricingPolicy: {
+              lobeHubOfficialPricingEnabled: true,
+              modelBankFallbackEnabled: false,
+              upstreamSyncEnabled: false,
+            },
+          },
+          instanceName: 'LobeHub Pricing Gateway',
+          metadata: {},
+          modelId: 'official-chat',
           modelType: 'chat',
           priority: 1,
           providerType: 'newapi',
@@ -679,6 +715,11 @@ describe('adminNewapiProvidersRouter', () => {
       }),
       expect.objectContaining({
         hasModelPricing: false,
+        modelId: 'official-chat',
+        pricingSource: 'lobehub-official',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
         modelId: 'deepseek-v4-pro',
         pricingSource: 'model-bank',
         providerType: 'deepseek',
@@ -696,6 +737,7 @@ describe('adminNewapiProvidersRouter', () => {
         providerType: 'newapi',
       }),
     ]);
+    expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('official-chat');
   });
 
   it('warns about manual pricing when the service provider format has no pricing sync', async () => {

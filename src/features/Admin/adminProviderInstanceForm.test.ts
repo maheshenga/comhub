@@ -110,13 +110,14 @@ describe('buildProviderInstancePayload', () => {
     );
   });
 
-  it('should serialize both configurable pricing sources', () => {
+  it('should serialize all configurable pricing sources', () => {
     expect(
       buildProviderInstancePayload({
         apiKey: 'sk-test',
         baseUrl: 'https://sub2api.example.com/v1',
         name: 'Sub2API',
         pricingPolicy: {
+          lobeHubOfficialPricingEnabled: true,
           modelBankFallbackEnabled: true,
           upstreamSyncEnabled: true,
         },
@@ -125,6 +126,7 @@ describe('buildProviderInstancePayload', () => {
     ).toEqual(
       expect.objectContaining({
         pricingPolicy: {
+          lobeHubOfficialPricingEnabled: true,
           modelBankFallbackEnabled: true,
           upstreamSyncEnabled: true,
         },
@@ -135,12 +137,14 @@ describe('buildProviderInstancePayload', () => {
 
   it('keeps legacy gateways fail-closed until model-bank fallback is explicitly enabled', () => {
     expect(resolveProviderPricingPolicyForForm({ providerType: 'newapi' })).toEqual({
+      lobeHubOfficialPricingEnabled: false,
       modelBankFallbackEnabled: false,
       upstreamSyncEnabled: true,
     });
     expect(
       resolveProviderPricingPolicyForForm({ newInstance: true, providerType: 'sub2api' }),
     ).toEqual({
+      lobeHubOfficialPricingEnabled: false,
       modelBankFallbackEnabled: true,
       upstreamSyncEnabled: true,
     });
@@ -148,6 +152,7 @@ describe('buildProviderInstancePayload', () => {
       resolveProviderPricingPolicyForForm({
         metadata: {
           pricingPolicy: {
+            lobeHubOfficialPricingEnabled: true,
             modelBankFallbackEnabled: true,
             upstreamSyncEnabled: false,
           },
@@ -155,6 +160,7 @@ describe('buildProviderInstancePayload', () => {
         providerType: 'newapi',
       }),
     ).toEqual({
+      lobeHubOfficialPricingEnabled: true,
       modelBankFallbackEnabled: true,
       upstreamSyncEnabled: false,
     });

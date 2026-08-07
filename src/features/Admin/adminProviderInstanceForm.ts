@@ -18,6 +18,7 @@ export type ProviderInstanceFormValues = {
 };
 
 export interface ProviderPricingPolicy {
+  lobeHubOfficialPricingEnabled: boolean;
   modelBankFallbackEnabled: boolean;
   upstreamSyncEnabled: boolean;
 }
@@ -68,6 +69,10 @@ export const resolveProviderPricingPolicyForForm = ({
   const storedPolicy = isRecord(metadata?.pricingPolicy) ? metadata.pricingPolicy : undefined;
 
   return {
+    lobeHubOfficialPricingEnabled:
+      typeof storedPolicy?.lobeHubOfficialPricingEnabled === 'boolean'
+        ? storedPolicy.lobeHubOfficialPricingEnabled
+        : false,
     modelBankFallbackEnabled:
       typeof storedPolicy?.modelBankFallbackEnabled === 'boolean'
         ? storedPolicy.modelBankFallbackEnabled

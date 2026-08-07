@@ -1,4 +1,5 @@
 export interface AdminProviderPricingPolicy {
+  lobeHubOfficialPricingEnabled: boolean;
   modelBankFallbackEnabled: boolean;
   upstreamSyncEnabled: boolean;
 }
@@ -27,6 +28,10 @@ export const resolveAdminProviderPricingPolicy = (
   const modelBankDefault = Boolean(resolveModelBankProviderForAdminType(providerType));
 
   return {
+    lobeHubOfficialPricingEnabled:
+      typeof storedPolicy?.lobeHubOfficialPricingEnabled === 'boolean'
+        ? storedPolicy.lobeHubOfficialPricingEnabled
+        : false,
     modelBankFallbackEnabled:
       typeof storedPolicy?.modelBankFallbackEnabled === 'boolean'
         ? storedPolicy.modelBankFallbackEnabled

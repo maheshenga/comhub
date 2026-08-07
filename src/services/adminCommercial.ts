@@ -991,6 +991,7 @@ class AdminCommercialService {
     groupName?: string;
     name: string;
     pricingPolicy?: {
+      lobeHubOfficialPricingEnabled?: boolean;
       modelBankFallbackEnabled: boolean;
       upstreamSyncEnabled: boolean;
     };
@@ -1013,6 +1014,7 @@ class AdminCommercialService {
       groupName?: string;
       name?: string;
       pricingPolicy?: {
+        lobeHubOfficialPricingEnabled?: boolean;
         modelBankFallbackEnabled: boolean;
         upstreamSyncEnabled: boolean;
       };

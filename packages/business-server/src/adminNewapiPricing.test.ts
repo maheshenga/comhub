@@ -1,10 +1,20 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getAdminNewapiModelCard } from './adminNewapiPricing';
+import { getAdminNewapiModelCard, resolveAdminNewapiModelPricing } from './adminNewapiPricing';
 
 const mocks = vi.hoisted(() => ({
+  getLobeHubOfficialModelPricing: vi.fn(),
+  getModelPricing: vi.fn(),
   resolveNewapiModelPricingFromMetadata: vi.fn(),
+}));
+
+vi.mock('@lobechat/model-runtime', () => ({
+  getModelPricing: mocks.getModelPricing,
+}));
+
+vi.mock('@/server/services/newapiInstance/lobeHubOfficialPricing', () => ({
+  getLobeHubOfficialModelPricing: mocks.getLobeHubOfficialModelPricing,
 }));
 
 vi.mock('@/server/services/newapiInstance', () => ({
@@ -46,6 +56,8 @@ const createDb = (rows: any[]) => {
 describe('getAdminNewapiModelCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getLobeHubOfficialModelPricing.mockResolvedValue(undefined);
+    mocks.getModelPricing.mockResolvedValue(undefined);
   });
 
   it('reads pricing metadata for the exact selected instance', async () => {
@@ -84,6 +96,7 @@ describe('getAdminNewapiModelCard', () => {
         type: 'chat',
       }),
     ).resolves.toEqual({
+      lobeHubOfficialPricingEnabled: false,
       modelBankFallbackEnabled: false,
       modelBankProvider: undefined,
       modelCard: {
@@ -130,6 +143,7 @@ describe('getAdminNewapiModelCard', () => {
         displayName: null,
         instanceMetadata: {
           pricingPolicy: {
+            lobeHubOfficialPricingEnabled: true,
             modelBankFallbackEnabled: true,
             upstreamSyncEnabled: false,
           },
@@ -150,6 +164,7 @@ describe('getAdminNewapiModelCard', () => {
         type: 'chat',
       }),
     ).resolves.toMatchObject({
+      lobeHubOfficialPricingEnabled: true,
       modelBankFallbackEnabled: true,
       modelBankProvider: 'openai',
       modelCard: { id: 'gpt-4o', pricing: undefined },
@@ -173,5 +188,43 @@ describe('getAdminNewapiModelCard', () => {
       }),
     ).resolves.toBeUndefined();
     expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('prefers LobeHub official pricing before the generic model bank', async () => {
+    const official = {
+      units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
+    };
+    mocks.getLobeHubOfficialModelPricing.mockResolvedValue(official);
+    const adminModelCard = {
+      lobeHubOfficialPricingEnabled: true,
+      modelBankFallbackEnabled: true,
+      modelBankProvider: 'openai',
+      modelCard: { enabled: true, id: 'gpt-test', type: 'chat' },
+    } as any;
+
+    await expect(
+      resolveAdminNewapiModelPricing({ adminModelCard, model: 'gpt-test' }),
+    ).resolves.toEqual({ pricing: official, source: 'lobehub-official' });
+    expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('gpt-test');
+    expect(mocks.getModelPricing).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the generic model bank when official pricing has no exact match', async () => {
+    const modelBankPricing = {
+      units: [{ name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' }],
+    };
+    mocks.getModelPricing.mockResolvedValue(modelBankPricing);
+    const adminModelCard = {
+      lobeHubOfficialPricingEnabled: true,
+      modelBankFallbackEnabled: true,
+      modelBankProvider: 'openai',
+      modelCard: { enabled: true, id: 'gpt-test', type: 'chat' },
+    } as any;
+
+    await expect(
+      resolveAdminNewapiModelPricing({ adminModelCard, model: 'gpt-test' }),
+    ).resolves.toEqual({ pricing: modelBankPricing, source: 'model-bank' });
+    expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('gpt-test');
+    expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-test', 'openai');
   });
 });

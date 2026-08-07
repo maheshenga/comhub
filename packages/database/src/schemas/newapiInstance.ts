@@ -39,6 +39,7 @@ export type AdminNewapiProviderType =
   | 'siliconflow';
 
 export interface AdminNewapiPricingPolicy {
+  lobeHubOfficialPricingEnabled?: boolean;
   modelBankFallbackEnabled?: boolean;
   upstreamSyncEnabled?: boolean;
 }

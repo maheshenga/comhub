@@ -195,6 +195,9 @@ describe('admin Chinese copy', () => {
       'AI 服务商网关支持同步模型和价格。',
     );
     expect(subscription['admin.providers.field.upstreamPricing']).toBe('同步上游价格');
+    expect(subscription['admin.providers.field.lobeHubOfficialPricing']).toBe(
+      '使用 LobeHub 官方价格',
+    );
     expect(subscription['admin.providers.field.modelBankFallback']).toBe('按模型名使用系统价格');
     expect(subscription['admin.providers.models.bulkAddHint']).toBe(
       '可批量添加模型 ID，使用换行或逗号分隔。',

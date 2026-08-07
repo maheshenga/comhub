@@ -129,6 +129,17 @@ describe('adminModelBillingMatrix', () => {
           priority: 0,
         },
         {
+          displayName: 'Grouped Model LobeHub Official',
+          hasModelAbilities: true,
+          hasModelPricing: true,
+          instanceId: 'inst-lobehub-official',
+          instanceName: 'LobeHub Official Gateway',
+          modelId: 'priced-model',
+          modelType: 'chat',
+          pricingSource: 'lobehub-official',
+          priority: 1,
+        },
+        {
           displayName: 'Grouped Model Backup',
           hasModelAbilities: true,
           hasModelPricing: true,
@@ -137,7 +148,7 @@ describe('adminModelBillingMatrix', () => {
           modelId: 'priced-model',
           modelType: 'chat',
           pricingSource: 'model-bank',
-          priority: 1,
+          priority: 2,
         },
       ] as MatrixSourceModel[],
       plans,
@@ -148,7 +159,7 @@ describe('adminModelBillingMatrix', () => {
     expect(rows[0]).toMatchObject({
       effectivePricingSource: 'database',
       hasModelPricing: true,
-      pricingSources: ['database', 'model-bank'],
+      pricingSources: ['database', 'lobehub-official', 'model-bank'],
     });
   });
 
@@ -663,6 +674,17 @@ describe('adminModelBillingMatrix', () => {
         priority: 0,
       },
       {
+        displayName: 'Official Chat',
+        hasModelAbilities: true,
+        hasModelPricing: true,
+        instanceId: 'inst-official',
+        instanceName: 'LobeHub Official Gateway',
+        modelId: 'official-chat',
+        modelType: 'chat',
+        pricingSource: 'lobehub-official',
+        priority: 0,
+      },
+      {
         displayName: 'Database Embedding',
         hasModelAbilities: true,
         hasModelPricing: true,
@@ -711,12 +733,13 @@ describe('adminModelBillingMatrix', () => {
     expect(health.summary).toMatchObject({
       missingAbilityModelCount: 2,
       missingPricingModelCount: 1,
-      modelCount: 4,
+      modelCount: 5,
       databasePricingModelCount: 1,
+      lobeHubOfficialPricingModelCount: 1,
       modelBankPricingModelCount: 1,
-      pricingFallbackModelCount: 2,
+      pricingFallbackModelCount: 3,
       pricingOverrideCount: 1,
-      providerPricingModelCount: 3,
+      providerPricingModelCount: 4,
     });
     expect(health.checks.map((check) => check.key)).toEqual(
       expect.arrayContaining([
@@ -726,7 +749,7 @@ describe('adminModelBillingMatrix', () => {
       ]),
     );
     expect(health.checks.find((check) => check.key === 'pricing-fallbacks')).toMatchObject({
-      count: 2,
+      count: 3,
       severity: 'info',
     });
     expect(
@@ -738,11 +761,16 @@ describe('adminModelBillingMatrix', () => {
       }),
     ).toEqual({
       planKeys: [],
-      rowKeys: ['newapi:embedding:database-embedding', 'newapi:image:provider-image'],
+      rowKeys: [
+        'newapi:chat:official-chat',
+        'newapi:embedding:database-embedding',
+        'newapi:image:provider-image',
+      ],
     });
     expect(rows.map((row) => [row.modelId, row.effectivePricingSource])).toEqual(
       expect.arrayContaining([
         ['override-chat', 'manual-override'],
+        ['official-chat', 'lobehub-official'],
         ['provider-image', 'model-bank'],
         ['database-embedding', 'database'],
         ['missing-video', 'missing'],
