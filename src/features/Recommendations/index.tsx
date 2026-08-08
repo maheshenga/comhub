@@ -10,6 +10,8 @@ import {
   useDailyBriefRecommendationsUI,
 } from '@/business/client/useDailyBriefRecommendationsUI';
 import RailCard from '@/features/Home/components/RailCard';
+import { useGlobalStore } from '@/store/global';
+import { systemStatusSelectors } from '@/store/global/selectors';
 
 import { useEligibleActions } from './hooks/useEligibleActions';
 import { RecommendationCard } from './RecommendationCard';
@@ -19,9 +21,15 @@ import { styles } from './style';
 const isTaskTemplatesVisible = (state: DailyBriefRecommendationsUIState): boolean =>
   state.mode !== 'hidden';
 
+const useSuggestionsHidden = (): boolean =>
+  useGlobalStore(systemStatusSelectors.hiddenHomeWidgets).includes('suggestions');
+
 export const useRecommendationsVisible = (): boolean => {
+  const hidden = useSuggestionsHidden();
   const taskTemplatesState = useDailyBriefRecommendationsUI();
   const { actions } = useEligibleActions();
+  if (hidden) return false;
+
   return actions.length > 0 || isTaskTemplatesVisible(taskTemplatesState);
 };
 
@@ -32,6 +40,7 @@ interface RecommendationsProps {
 const Recommendations = memo<RecommendationsProps>(({ variant = 'default' }) => {
   const { t } = useTranslation('home');
   const { t: tCommon } = useTranslation('common');
+  const hidden = useSuggestionsHidden();
   const taskTemplatesState = useDailyBriefRecommendationsUI();
   const { actions } = useEligibleActions();
 
@@ -67,6 +76,7 @@ const Recommendations = memo<RecommendationsProps>(({ variant = 'default' }) => 
   }, [isRefreshing, onRefresh]);
 
   const showTaskTemplates = isTaskTemplatesVisible(taskTemplatesState);
+  if (hidden) return null;
   if (actions.length === 0 && !showTaskTemplates) return null;
 
   // Rendered through the skeleton phase, not just in 'cards': the control that
