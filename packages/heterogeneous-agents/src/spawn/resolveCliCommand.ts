@@ -53,31 +53,38 @@ interface ResolvedCommand {
 }
 
 const isWindows = () => platform() === 'win32';
+const getPlatformPath = () => (isWindows() ? path.win32 : path.posix);
 let shellPathPromise: Promise<string | undefined> | undefined;
 
 // Reject shell metacharacters before resolving custom Windows command names.
 // User-supplied custom commands flow through here via `detectHeterogeneousCliCommand`.
 const WINDOWS_SHELL_METAS = /[&|;<>^`!"]/;
 
-// Extensions we can actually execute on Windows, in preference order:
-// `.exe` runs directly via `execFile`; execa safely handles `.cmd` / `.bat` shims.
+// Extensions we can actually execute on Windows.
+// `.exe` runs directly via `execFile`, `.cmd` / `.bat` runs via `cmd.exe`.
 // `.ps1` and extensionless wrappers (npm sometimes drops a Unix shell script
 // next to the `.cmd` shim) are deliberately excluded — we can't run them.
+//
+// IMPORTANT: pick by PATH order (the order `where` returns), not by extension
+// rank. Preferring every `.exe` over every `.cmd` would skip an earlier npm
+// `claude.cmd` in favour of a later `claude.exe` from Vite+ (see #17376).
 const WINDOWS_RUNNABLE_EXTS = ['.exe', '.cmd', '.bat'] as const;
 
+const isWindowsRunnablePath = (line: string): boolean => {
+  const lower = line.toLowerCase();
+  return WINDOWS_RUNNABLE_EXTS.some((ext) => lower.endsWith(ext));
+};
+
 const pickWindowsRunnable = (lines: string[]): string | undefined => {
-  for (const ext of WINDOWS_RUNNABLE_EXTS) {
-    const match = lines.find((line) => line.toLowerCase().endsWith(ext));
-    if (match) return match;
-  }
-  return undefined;
+  return lines.find(isWindowsRunnablePath);
 };
 
 const getLoginShellPath = async (): Promise<string | undefined> => {
   if (isWindows()) return undefined;
 
+  const platformPath = getPlatformPath();
   const shell = process.env.SHELL;
-  if (!shell || !path.isAbsolute(shell)) return undefined;
+  if (!shell || !platformPath.isAbsolute(shell)) return undefined;
 
   try {
     const { stdout } = await execFilePromise(shell, ['-ilc', 'printf "%s" "$PATH"'], {
@@ -89,7 +96,7 @@ const getLoginShellPath = async (): Promise<string | undefined> => {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .reverse()
-      .find((line) => line.includes(path.delimiter));
+      .find((line) => line.includes(platformPath.delimiter));
   } catch {
     return undefined;
   }
@@ -101,9 +108,10 @@ const getCachedLoginShellPath = async (): Promise<string | undefined> => {
 };
 
 const mergePathValues = (...values: Array<string | undefined>): string | undefined => {
+  const platformPath = getPlatformPath();
   const seen = new Set<string>();
   const segments = values
-    .flatMap((value) => value?.split(path.delimiter) ?? [])
+    .flatMap((value) => value?.split(platformPath.delimiter) ?? [])
     .map((segment) => segment.trim())
     .filter((segment) => {
       if (!segment || seen.has(segment)) return false;
@@ -111,7 +119,7 @@ const mergePathValues = (...values: Array<string | undefined>): string | undefin
       return true;
     });
 
-  return segments.length > 0 ? segments.join(path.delimiter) : undefined;
+  return segments.length > 0 ? segments.join(platformPath.delimiter) : undefined;
 };
 
 const getCommandPathLines = async (
@@ -140,7 +148,8 @@ const resolveCommandPath = async (command: string): Promise<ResolvedCommand | un
   const trimmedCommand = command.trim();
   if (!trimmedCommand) return;
 
-  if (path.isAbsolute(trimmedCommand) || trimmedCommand.includes(path.sep)) {
+  const platformPath = getPlatformPath();
+  if (platformPath.isAbsolute(trimmedCommand) || trimmedCommand.includes(platformPath.sep)) {
     return { path: trimmedCommand };
   }
 
@@ -166,8 +175,8 @@ const resolveCommandPath = async (command: string): Promise<ResolvedCommand | un
 
   // Windows `where` lists every PATHEXT match (e.g. for `codex` npm ships
   // a Unix shell wrapper alongside `codex.cmd` and `codex.ps1`). Picking
-  // the first line can land us on something we can't execute, so prefer a
-  // runnable extension and bail otherwise.
+  // the first line can land us on something we can't execute, so walk the
+  // PATH-ordered list and take the first runnable extension.
   if (isWindows()) {
     const runnablePath = pickWindowsRunnable(lines);
     return runnablePath ? { path: runnablePath } : undefined;
@@ -271,26 +280,28 @@ export const DEFAULT_HETERO_COMMAND: Record<HeterogeneousCliAgentType, string> =
 // official installer can put `claude` under ~/.local/bin, while the Codex
 // desktop app bundles a functional CLI inside its app bundle without symlinking it.
 const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[] => {
+  const platformPath = getPlatformPath();
+
   switch (agentType) {
     case 'amp': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        path.join(homedir(), '.local', 'bin', 'amp'),
-        path.join(homedir(), '.amp', 'bin', 'amp'),
-        path.join(homedir(), '.bun', 'bin', 'amp'),
-        path.join(homedir(), '.npm-global', 'bin', 'amp'),
-        path.join(homedir(), 'Library', 'pnpm', 'amp'),
+        platformPath.join(homedir(), '.local', 'bin', 'amp'),
+        platformPath.join(homedir(), '.amp', 'bin', 'amp'),
+        platformPath.join(homedir(), '.bun', 'bin', 'amp'),
+        platformPath.join(homedir(), '.npm-global', 'bin', 'amp'),
+        platformPath.join(homedir(), 'Library', 'pnpm', 'amp'),
       ];
     }
     case 'claude-code': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        path.join(homedir(), '.local', 'bin', 'claude'),
-        path.join(homedir(), '.bun', 'bin', 'claude'),
-        path.join(homedir(), '.npm-global', 'bin', 'claude'),
-        path.join(homedir(), 'Library', 'pnpm', 'claude'),
+        platformPath.join(homedir(), '.local', 'bin', 'claude'),
+        platformPath.join(homedir(), '.bun', 'bin', 'claude'),
+        platformPath.join(homedir(), '.npm-global', 'bin', 'claude'),
+        platformPath.join(homedir(), 'Library', 'pnpm', 'claude'),
       ];
     }
     case 'codex': {
@@ -299,11 +310,11 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
       // Codex.app was renamed to ChatGPT.app. Prefer the current bundle name,
       // while keeping Codex.app as a fallback for older installations.
       return ['ChatGPT.app', 'Codex.app'].flatMap((appBundleName) => {
-        const bundledCli = path.join(appBundleName, 'Contents', 'Resources', 'codex');
+        const bundledCli = platformPath.join(appBundleName, 'Contents', 'Resources', 'codex');
 
         return [
-          path.join('/Applications', bundledCli),
-          path.join(homedir(), 'Applications', bundledCli),
+          platformPath.join('/Applications', bundledCli),
+          platformPath.join(homedir(), 'Applications', bundledCli),
         ];
       });
     }
@@ -311,11 +322,11 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        path.join(homedir(), '.opencode', 'bin', 'opencode'),
-        path.join(homedir(), '.local', 'bin', 'opencode'),
-        path.join(homedir(), '.bun', 'bin', 'opencode'),
-        path.join(homedir(), '.npm-global', 'bin', 'opencode'),
-        path.join(homedir(), 'Library', 'pnpm', 'opencode'),
+        platformPath.join(homedir(), '.opencode', 'bin', 'opencode'),
+        platformPath.join(homedir(), '.local', 'bin', 'opencode'),
+        platformPath.join(homedir(), '.bun', 'bin', 'opencode'),
+        platformPath.join(homedir(), '.npm-global', 'bin', 'opencode'),
+        platformPath.join(homedir(), 'Library', 'pnpm', 'opencode'),
       ];
     }
     default: {

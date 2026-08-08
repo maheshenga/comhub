@@ -6,7 +6,6 @@ import { BrainCircuit, Cloudy, Download, HardDriveDownload, LogOut, Settings2 } 
 import type { PropsWithChildren } from 'react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 
 import useBusinessMenuItems from '@/business/client/features/User/useBusinessMenuItems';
 import { useHasActiveWorkspace } from '@/business/client/hooks/useHasActiveWorkspace';
@@ -14,10 +13,8 @@ import { type MenuProps } from '@/components/Menu';
 import { DEFAULT_DESKTOP_HOTKEY_CONFIG } from '@/const/desktop';
 import { OFFICIAL_URL } from '@/const/url';
 import DataImporter from '@/features/DataImporter';
-import { usePublicDesktopDownload } from '@/features/DesktopDownload';
 import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useNavLayout } from '@/hooks/useNavLayout';
-import { usePlatform } from '@/hooks/usePlatform';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
@@ -58,13 +55,6 @@ export const useMenu = () => {
   ]);
   const { userPanel } = useNavLayout();
   const businessMenuItems = useBusinessMenuItems(isLogin);
-  const { isIOS, isAndroid } = usePlatform();
-
-  const desktopDownload = usePublicDesktopDownload({
-    fallbackLabel: t('getDesktopApp'),
-    isAndroid,
-    isIOS,
-  });
   const hasActiveWorkspace = useHasActiveWorkspace();
 
   const settings: MenuProps['items'] = [
@@ -89,22 +79,14 @@ export const useMenu = () => {
           {
             icon: <Icon icon={BrainCircuit} />,
             key: 'memory',
-            label: <Link to="/memory">{t('tab.memory')}</Link>,
+            label: (
+              <WorkspaceLink escape to="/memory">
+                {t('tab.memory')}
+              </WorkspaceLink>
+            ),
           },
         ]
       : []),
-  ];
-
-  const getDesktopApp: MenuProps['items'] = [
-    {
-      icon: <Icon icon={Download} />,
-      key: 'get-desktop-app',
-      label: (
-        <a href={desktopDownload.url} rel="noopener noreferrer" target="_blank">
-          {desktopDownload.label}
-        </a>
-      ),
-    },
   ];
 
   const helps: MenuProps['items'] = [

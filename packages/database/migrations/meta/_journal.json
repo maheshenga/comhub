@@ -1267,6 +1267,34 @@
       "when": 1787414400000,
       "tag": "0177_add_subscription_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1784716592911,
+      "tag": "0127_add_topic_comments",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1784898202325,
+      "tag": "0128_notifications_add_workspace_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1784941780510,
+      "tag": "0129_workspace_members_unique_active_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1785044468256,
+      "tag": "0130_notifications_add_context",
+      "breakpoints": true
     }
   ],
   "version": "6"

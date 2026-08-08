@@ -9,6 +9,7 @@ import SettingContainer from '@/features/Setting/SettingContainer';
 import { useSettingsAnchorScroll } from '@/features/SettingsSearch/anchor';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { SettingsTabs } from '@/store/global/initialState';
+import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 
 import { ManageMemoryButton } from '../memory/features/ManageMemoryButton';
 import { componentMap } from './componentMap';
@@ -29,7 +30,9 @@ const COMPACT_HEADER_TABS = [
   SettingsTabs.Credits,
   SettingsTabs.Devices,
   SettingsTabs.Hotkey,
+  SettingsTabs.Labs,
   SettingsTabs.Memory,
+  SettingsTabs.Messenger,
   SettingsTabs.Notification,
   SettingsTabs.Plans,
   SettingsTabs.Profile,
@@ -45,7 +48,8 @@ interface SettingsContentProps {
 }
 
 const SettingsContent = ({ mobile, activeTab }: SettingsContentProps) => {
-  const { t } = useTranslation(['auth', 'setting', 'subscription']);
+  const { t } = useTranslation(['auth', 'labs', 'setting', 'subscription']);
+  const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
   const navigate = useWorkspaceAwareNavigate();
 
   const compactHeaderTitles: Partial<Record<SettingsTabs, string>> = {
@@ -56,7 +60,10 @@ const SettingsContent = ({ mobile, activeTab }: SettingsContentProps) => {
     [SettingsTabs.Credits]: t('subscription:tab.credits'),
     [SettingsTabs.Devices]: t('setting:devices.title'),
     [SettingsTabs.Hotkey]: t('setting:tab.hotkey'),
+    // Labs has no `setting:tab.*` entry — the nav label comes from the labs namespace.
+    [SettingsTabs.Labs]: t('labs:title'),
     [SettingsTabs.Memory]: t('setting:tab.memory'),
+    [SettingsTabs.Messenger]: t('setting:tab.messenger'),
     [SettingsTabs.Notification]: t('setting:tab.notification'),
     [SettingsTabs.Plans]: t('subscription:tab.plans'),
     [SettingsTabs.Profile]: t('auth:profile.title'),
@@ -95,10 +102,9 @@ const SettingsContent = ({ mobile, activeTab }: SettingsContentProps) => {
         SettingsTabs.Usage,
         SettingsTabs.Creds,
         SettingsTabs.Security,
-        SettingsTabs.Plans,
-        SettingsTabs.Credits,
-        SettingsTabs.Billing,
-        SettingsTabs.Referral,
+        ...(enableBusinessFeatures
+          ? [SettingsTabs.Plans, SettingsTabs.Credits, SettingsTabs.Billing, SettingsTabs.Referral]
+          : []),
       ].includes(tab as any)
     ) {
       componentProps.mobile = mobile;

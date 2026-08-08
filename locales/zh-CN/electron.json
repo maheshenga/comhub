@@ -171,5 +171,12 @@
   "window.minimize": "最小化窗口",
   "window.pinToTop": "窗口置顶",
   "window.restore": "恢复窗口",
-  "window.unpinFromTop": "取消置顶"
+  "window.unpinFromTop": "取消置顶",
+  "navigation.agents": "助手",
+  "navigation.channels": "消息频道",
+  "navigation.groupProfile": "群组档案",
+  "navigation.newChat": "新建对话",
+  "navigation.permission": "成员权限",
+  "navigation.profile": "助理档案",
+  "navigation.stats": "统计"
 }

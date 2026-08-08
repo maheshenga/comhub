@@ -370,6 +370,7 @@ const showSystemRole = (s: GlobalState) => s.status.showSystemRole;
 const mobileShowTopic = (s: GlobalState) => s.status.mobileShowTopic;
 const mobileShowPortal = (s: GlobalState) => s.status.mobileShowPortal;
 const showAgentBuilderPanel = (s: GlobalState) => s.status.showAgentBuilderPanel;
+const showHomeRail = (s: GlobalState) => s.status.showHomeRail ?? true;
 const showRightPanel = (s: GlobalState) => s.status.showRightPanel;
 const showLeftPanel = (s: GlobalState) => s.status.showLeftPanel;
 const showPageAgentPanel = (s: GlobalState) => s.status.showPageAgentPanel;
@@ -401,6 +402,8 @@ const portalWidth = (s: GlobalState) => s.status.portalWidth || 400;
 const filePanelWidth = (s: GlobalState) => s.status.filePanelWidth;
 const groupAgentBuilderPanelWidth = (s: GlobalState) => s.status.groupAgentBuilderPanelWidth || 360;
 const imagePanelWidth = (s: GlobalState) => s.status.imagePanelWidth;
+const agentListViewMode = (s: GlobalState) => s.status.agentListViewMode || 'list';
+const agentListViewOptions = (s: GlobalState) => s.status.agentListViewOptions;
 const imageTopicViewMode = (s: GlobalState) => s.status.imageTopicViewMode || 'grid';
 const imageTopicPanelWidth = (s: GlobalState) => s.status.imageTopicPanelWidth;
 const verifyReportPanelWidth = (s: GlobalState) => s.status.verifyReportPanelWidth || 300;
@@ -445,6 +448,8 @@ const homeSelectedAgentId = (s: GlobalState) => s.status.homeSelectedAgentId;
 
 export const systemStatusSelectors = {
   agentBuilderPanelWidth,
+  agentListViewMode,
+  agentListViewOptions,
   agentPageSize,
   chatInputHeight,
   disabledModelProvidersSortType,
@@ -485,6 +490,7 @@ export const systemStatusSelectors = {
   sessionGroupKeys,
   showAgentBuilderPanel,
   showFilePanel,
+  showHomeRail,
   showImagePanel,
   showImageTopicPanel,
   showLeftPanel,

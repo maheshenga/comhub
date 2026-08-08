@@ -27,6 +27,7 @@ import { styles } from '../../styles';
 import { type ListItem } from '../../types';
 import { menuKey } from '../../utils';
 import ModelDetailPanel from '../ModelDetailPanel';
+import ModelPriceSummary from './ModelPriceSummary';
 import { MultipleProvidersModelItem } from './MultipleProvidersModelItem';
 import { SingleProviderModelItem } from './SingleProviderModelItem';
 
@@ -179,6 +180,13 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                   newBadgeLabel={newLabel}
                   proBadgeLabel={restricted ? proLabel : undefined}
                   showInfoTag={isDevMode}
+                  priceLabel={
+                    <ModelPriceSummary
+                      modelId={item.model.id}
+                      pricing={item.model.pricing}
+                      provider={item.provider.id}
+                    />
+                  }
                 />
               </DropdownMenuSubmenuTrigger>
               <DropdownMenuPortal>

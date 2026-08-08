@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createGitHubConnectorClient } from './client';
+import { createGitHubOAuthConnectorClient } from './client-oauth';
 import type { GitHubConnectorTransport } from './graphql/client';
 
 const profileResult = {
@@ -8,8 +9,8 @@ const profileResult = {
     bio: 'Building tools.',
     company: '@lobehub',
     location: 'Shanghai',
-    login: 'neko',
-    name: 'Neko',
+    login: 'octocat',
+    name: 'Octocat',
     pronouns: 'they/them',
     websiteUrl: `https://lobehub.com/\u0000${'x'.repeat(600)}`,
   },
@@ -18,16 +19,23 @@ const profileResult = {
 const createTransport = () => {
   const calls: Array<{ operation: string; variables: Record<string, unknown> }> = [];
   const listRepositoryContributors = vi.fn(async () => [
-    { contributions: 9, login: '  neko\u0000  ' },
+    { contributions: 9, login: '  octocat\u0000  ' },
     { contributions: 8, login: 'alice' },
     { contributions: 7, login: 'bob' },
     { contributions: 6, login: 'carol' },
     { contributions: 5, login: 'dave' },
     { contributions: 4, login: 'excluded' },
   ]);
+  const listUserOrganizations = vi.fn(async () => [
+    {
+      description: 'Making AI accessible.',
+      login: 'lobehub',
+    },
+  ]);
   const transport: GitHubConnectorTransport = {
-    getAuthenticatedUser: async () => ({ id: 98_765, login: 'neko' }),
+    getAuthenticatedUser: async () => ({ id: 98_765, login: 'octocat' }),
     listRepositoryContributors,
+    listUserOrganizations,
     request: async ({ operation, variables }) => {
       calls.push({ operation, variables });
       if (operation === 'ConnectorDataGitHubProfile') return profileResult;
@@ -62,7 +70,7 @@ const createTransport = () => {
               nodes: [
                 {
                   description: 'Recent work',
-                  nameWithOwner: 'neko/shiori',
+                  nameWithOwner: 'octocat/shiori',
                   primaryLanguage: null,
                   pushedAt: null,
                   stargazerCount: 80,
@@ -101,31 +109,14 @@ const createTransport = () => {
           },
         };
       }
-      if (operation === 'ConnectorDataGitHubOrganizations') {
-        return {
-          viewer: {
-            organizations: {
-              nodes: [
-                {
-                  description: 'Making AI accessible.',
-                  followers: { totalCount: 12 },
-                  login: 'lobehub',
-                  name: 'LobeHub',
-                  repositories: { totalCount: 42 },
-                },
-              ],
-            },
-          },
-        };
-      }
       if (operation === 'ConnectorDataGitHubProfileReadme') {
-        return { viewer: { repository: { object: { text: '# Neko\nBuild useful tools.' } } } };
+        return { viewer: { repository: { object: { text: '# Octocat\nBuild useful tools.' } } } };
       }
       throw new Error(`Unexpected operation: ${operation}`);
     },
   };
 
-  return { calls, listRepositoryContributors, transport };
+  return { calls, listRepositoryContributors, listUserOrganizations, transport };
 };
 
 describe('createGitHubConnectorClient', () => {
@@ -135,15 +126,15 @@ describe('createGitHubConnectorClient', () => {
 
   it('returns a normalized authenticated user profile', async () => {
     const { calls, transport } = createTransport();
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
 
     await expect(client.getUserProfile()).resolves.toEqual({
       bio: 'Building tools.',
       company: '@lobehub',
       externalAccountId: '98765',
       location: 'Shanghai',
-      login: 'neko',
-      name: 'Neko',
+      login: 'octocat',
+      name: 'Octocat',
       pronouns: 'they/them',
       websiteUrl: `https://lobehub.com/${'x'.repeat(480)}...`,
     });
@@ -153,14 +144,13 @@ describe('createGitHubConnectorClient', () => {
         variables: {},
       },
     ]);
-    expect(JSON.stringify(calls)).not.toContain('test-token');
   });
 
   it('lists normalized repository and contribution resources', async () => {
     vi.useFakeTimers();
     vi.setSystemTime('2026-07-17T12:34:56.789Z');
     const { calls, transport } = createTransport();
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
 
     await expect(client.listPinnedRepositories()).resolves.toEqual([
       {
@@ -177,7 +167,7 @@ describe('createGitHubConnectorClient', () => {
     await expect(client.listRecentRepositories()).resolves.toEqual([
       {
         description: 'Recent work',
-        nameWithOwner: 'neko/shiori',
+        nameWithOwner: 'octocat/shiori',
         stargazerCount: 80,
         topics: [],
       },
@@ -221,7 +211,7 @@ describe('createGitHubConnectorClient', () => {
 
   it('deduplicates concurrent repository requests', async () => {
     const { calls, transport } = createTransport();
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
 
     await Promise.all([client.listPinnedRepositories(), client.listRecentRepositories()]);
 
@@ -239,11 +229,12 @@ describe('createGitHubConnectorClient', () => {
       return profileResult;
     });
     const transport: GitHubConnectorTransport = {
-      getAuthenticatedUser: async () => ({ id: 98_765, login: 'neko' }),
+      getAuthenticatedUser: async () => ({ id: 98_765, login: 'octocat' }),
       listRepositoryContributors: async () => [],
+      listUserOrganizations: async () => [],
       request,
     };
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
     const first = client.getUserProfile();
     const firstRejection = expect(first).rejects.toMatchObject({ retryable: true });
 
@@ -251,16 +242,16 @@ describe('createGitHubConnectorClient', () => {
     await firstRejection;
     healthy = true;
 
-    await expect(client.getUserProfile()).resolves.toMatchObject({ login: 'neko' });
+    await expect(client.getUserProfile()).resolves.toMatchObject({ login: 'octocat' });
     expect(request).toHaveBeenCalledTimes(4);
   });
 
   it('normalizes and bounds repository contributors in the loader', async () => {
     const { listRepositoryContributors, transport } = createTransport();
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
 
     await expect(client.listRepositoryContributors('lobehub/lobehub')).resolves.toEqual([
-      { contributionCount: 9, login: 'neko' },
+      { contributionCount: 9, login: 'octocat' },
       { contributionCount: 8, login: 'alice' },
       { contributionCount: 7, login: 'bob' },
       { contributionCount: 6, login: 'carol' },
@@ -280,11 +271,12 @@ describe('createGitHubConnectorClient', () => {
   it('does not expose repository input in contributor errors', async () => {
     const sensitiveRepository = 'token-sensitive-owner/private-repository';
     const transport: GitHubConnectorTransport = {
-      getAuthenticatedUser: async () => ({ id: 98_765, login: 'neko' }),
+      getAuthenticatedUser: async () => ({ id: 98_765, login: 'octocat' }),
       listRepositoryContributors: vi.fn().mockRejectedValue({ status: 401 }),
+      listUserOrganizations: async () => [],
       request: vi.fn(),
     };
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
 
     const error = await client
       .listRepositoryContributors(sensitiveRepository)
@@ -298,32 +290,28 @@ describe('createGitHubConnectorClient', () => {
   });
 
   it('lists normalized organizations', async () => {
-    const { calls, transport } = createTransport();
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const { listUserOrganizations, transport } = createTransport();
+    const client = createGitHubConnectorClient({ transport });
 
     await expect(client.listUserOrganizations()).resolves.toEqual([
       {
         description: 'Making AI accessible.',
-        followerCount: 12,
         login: 'lobehub',
-        name: 'LobeHub',
-        repositoryCount: 42,
       },
     ]);
-    expect(calls).toContainEqual({
-      operation: 'ConnectorDataGitHubOrganizations',
-      variables: {},
+    expect(listUserOrganizations).toHaveBeenCalledWith({
+      perPage: 20,
     });
   });
 
   it('loads the profile README using the authenticated login', async () => {
     const { calls, transport } = createTransport();
-    const client = createGitHubConnectorClient({ accessToken: 'test-token', transport });
+    const client = createGitHubConnectorClient({ transport });
 
-    await expect(client.getUserProfileReadme()).resolves.toBe('# Neko\nBuild useful tools.');
+    await expect(client.getUserProfileReadme()).resolves.toBe('# Octocat\nBuild useful tools.');
     expect(calls).toContainEqual({
       operation: 'ConnectorDataGitHubProfileReadme',
-      variables: { name: 'neko' },
+      variables: { name: 'octocat' },
     });
   });
 
@@ -334,23 +322,67 @@ describe('createGitHubConnectorClient', () => {
       const data =
         typeof body === 'object' && body && 'query' in body
           ? { data: profileResult }
-          : { id: 1, login: 'octocat' };
+          : request.url.endsWith('/user/orgs?per_page=20')
+            ? [{ description: 'Making AI accessible.', login: 'lobehub' }]
+            : { id: 1, login: 'octocat' };
       return new Response(JSON.stringify(data), {
         headers: { 'content-type': 'application/json' },
         status: 200,
       });
     });
     vi.stubGlobal('fetch', fetch);
-    const client = createGitHubConnectorClient({ accessToken: 'production-token' });
+    const client = createGitHubOAuthConnectorClient({ accessToken: 'production-token' });
 
     await expect(client.getUserProfile()).resolves.toMatchObject({
       externalAccountId: '1',
-      login: 'neko',
+      login: 'octocat',
     });
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch.mock.calls.map(([input, init]) => new Request(input, init).url)).toEqual([
       'https://api.github.com/graphql',
       'https://api.github.com/user',
+    ]);
+
+    await expect(client.listUserOrganizations()).resolves.toEqual([
+      { description: 'Making AI accessible.', login: 'lobehub' },
+    ]);
+    expect(fetch.mock.calls.map(([input, init]) => new Request(input, init).url)).toContain(
+      'https://api.github.com/user/orgs?per_page=20',
+    );
+  });
+
+  it('falls back to public organizations when the token lacks organization scope', async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      if (request.url.endsWith('/user/orgs?per_page=20')) {
+        return new Response(
+          JSON.stringify({
+            message: 'You need at least read:org scope or user scope to list your organizations.',
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+            status: 403,
+          },
+        );
+      }
+      if (request.url.endsWith('/user')) {
+        return Response.json({ id: 1, login: 'octocat' });
+      }
+      if (request.url.endsWith('/users/octocat/orgs?per_page=20')) {
+        return Response.json([{ description: 'Making AI accessible.', login: 'lobehub' }]);
+      }
+      return new Response(null, { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const client = createGitHubOAuthConnectorClient({ accessToken: 'production-token' });
+
+    await expect(client.listUserOrganizations()).resolves.toEqual([
+      { description: 'Making AI accessible.', login: 'lobehub' },
+    ]);
+    expect(fetch.mock.calls.map(([input, init]) => new Request(input, init).url)).toEqual([
+      'https://api.github.com/user/orgs?per_page=20',
+      'https://api.github.com/user',
+      'https://api.github.com/users/octocat/orgs?per_page=20',
     ]);
   });
 });

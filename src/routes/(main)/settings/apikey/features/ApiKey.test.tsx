@@ -250,7 +250,7 @@ describe('ApiKey', () => {
     expect(screen.getByRole('button', { name: 'no-permission' })).toBeDisabled();
   });
 
-  it('allows a workspace owner to manage another member key while keeping its secret masked', async () => {
+  it('allows a workspace admin to manage another member key while keeping its secret masked', async () => {
     hoisted.state.activeWorkspaceId = 'ws-1';
     hoisted.trpc.getApiKeys.mockResolvedValue([
       makeItem(),
@@ -284,7 +284,7 @@ describe('ApiKey', () => {
     expect(screen.getByRole('button', { name: 'edit-date' })).toBeDisabled();
     expect(screen.getByRole('switch')).toBeDisabled();
     expect(
-      screen.getByRole('button', { name: 'workspace.permission.requiresOwner' }),
+      screen.getByRole('button', { name: 'workspace.permission.requiresAdmin' }),
     ).toBeDisabled();
   });
 

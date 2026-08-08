@@ -43,6 +43,7 @@ export enum GroupSettingsTabs {
 // business builds may register extra sidebar tabs, so any string key is accepted
 export type WorkingSidebarTab =
   | 'browser'
+  | 'comments'
   | 'documents'
   | 'files'
   | 'overview'
@@ -147,6 +148,19 @@ export interface SystemStatus {
    * Agent Builder panel width
    */
   agentBuilderPanelWidth?: number;
+  /**
+   * View mode of the agent view-all page (card grid vs table list)
+   */
+  agentListViewMode?: 'card' | 'list';
+  /**
+   * Display options of the agent view-all page (grouping / ordering / hidden-agent visibility)
+   */
+  agentListViewOptions?: {
+    groupBy: 'author' | 'none';
+    orderBy: 'author' | 'title' | 'updatedAt';
+    orderDirection: 'asc' | 'desc';
+    showSidebarHidden: boolean;
+  };
   /**
    * number of agents (defaultList) to display
    */
@@ -270,6 +284,11 @@ export interface SystemStatus {
   showFilePanel?: boolean;
   /** Collapse state of the nav panel while the Fleet observation board is active. */
   showFleetPanel?: boolean;
+  /**
+   * Visibility of the Home dashboard's activity and recommendations rail.
+   * Independent from `showRightPanel` so Home preferences do not affect chat pages.
+   */
+  showHomeRail?: boolean;
   showHotkeyHelper?: boolean;
   showImagePanel?: boolean;
   showImageTopicPanel?: boolean;
@@ -449,6 +468,13 @@ export interface GlobalState {
 
 export const INITIAL_STATUS = {
   agentBuilderPanelWidth: 360,
+  agentListViewMode: 'list' as const,
+  agentListViewOptions: {
+    groupBy: 'none' as const,
+    orderBy: 'updatedAt' as const,
+    orderDirection: 'desc' as const,
+    showSidebarHidden: true,
+  },
   agentPageSize: 5,
   privateAgentPageSize: 5,
   chatInputHeight: 64,
@@ -493,6 +519,7 @@ export const INITIAL_STATUS = {
   showFilePanel: true,
   showFleetPanel: true,
   showHotkeyHelper: false,
+  showHomeRail: true,
   showImagePanel: true,
   showImageTopicPanel: true,
   showAgentBuilderPanel: false,
@@ -517,12 +544,32 @@ export const INITIAL_STATUS = {
   workingSidebarWidth: 360,
 } satisfies SystemStatus;
 
+const statusStorage = new AsyncLocalStorage<SystemStatus>('LOBE_SYSTEM_STATUS');
+
+/**
+ * Restore the Home rail before React's first render. The remaining system
+ * status still follows the existing async initialization path, but this
+ * layout-affecting preference must not briefly render its default value after
+ * a page reload.
+ */
+export const createInitialSystemStatus = (): SystemStatus => {
+  const persistedStatus = statusStorage.getFromLocalStorageSync();
+
+  return {
+    ...INITIAL_STATUS,
+    showHomeRail:
+      typeof persistedStatus.showHomeRail === 'boolean'
+        ? persistedStatus.showHomeRail
+        : INITIAL_STATUS.showHomeRail,
+  };
+};
+
 export const initialState: GlobalState = {
   initClientDBStage: DatabaseLoadingState.Idle,
   isMobile: false,
   isStatusInit: false,
   navigationRef: createNavigationRef(),
   sidebarKey: SidebarTabKey.Chat,
-  status: INITIAL_STATUS,
-  statusStorage: new AsyncLocalStorage('LOBE_SYSTEM_STATUS'),
+  status: createInitialSystemStatus(),
+  statusStorage,
 };

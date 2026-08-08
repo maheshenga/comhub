@@ -32,7 +32,8 @@ export type MatrixPlan = {
   plan: string;
 };
 
-export type MatrixProviderPricingSource = 'database' | 'missing' | 'model-bank';
+export type MatrixProviderPricingSource =
+  'database' | 'lobehub-official' | 'missing' | 'model-bank';
 export type MatrixPricingSource = MatrixProviderPricingSource | 'manual-override';
 
 export type MatrixSourceModel = {
@@ -135,6 +136,7 @@ export type MatrixConfigHealth = {
     defaultModelIssueCount: number;
     defaultModelOkCount: number;
     defaultModelTotal: number;
+    lobeHubOfficialPricingModelCount: number;
     missingAbilityModelCount: number;
     missingPricingModelCount: number;
     modelBankPricingModelCount: number;
@@ -168,8 +170,9 @@ const normalizeTextKey = (value?: string | null) => value?.trim().toLowerCase();
 const PRICING_SOURCE_PRIORITY: Record<MatrixPricingSource, number> = {
   'manual-override': 0,
   'database': 1,
-  'model-bank': 2,
-  'missing': 3,
+  'lobehub-official': 2,
+  'model-bank': 3,
+  'missing': 4,
 };
 
 const hasPricingOverrideValues = ({
@@ -194,6 +197,7 @@ const resolveEffectivePricingSource = ({
 }): MatrixPricingSource => {
   if (hasPricingOverrideValues({ creditsPerDollar, pricingMultiplier })) return 'manual-override';
   if (pricingSources.includes('database')) return 'database';
+  if (pricingSources.includes('lobehub-official')) return 'lobehub-official';
   if (pricingSources.includes('model-bank')) return 'model-bank';
 
   return 'missing';
@@ -575,7 +579,9 @@ const hasProviderPricingMetadata = (row: MatrixRow) =>
   row.pricingSources.some((source) => source !== 'missing');
 
 const isProviderPricingFallbackRow = (row: MatrixRow) =>
-  row.effectivePricingSource === 'database' || row.effectivePricingSource === 'model-bank';
+  row.effectivePricingSource === 'database' ||
+  row.effectivePricingSource === 'lobehub-official' ||
+  row.effectivePricingSource === 'model-bank';
 
 export const getMatrixConfigHealth = ({
   defaultModelHealth,
@@ -602,6 +608,9 @@ export const getMatrixConfigHealth = ({
   const providerPricingRows = rows.filter(hasProviderPricingMetadata);
   const providerPricingFallbackRows = rows.filter(isProviderPricingFallbackRow);
   const databasePricingRows = rows.filter((row) => row.effectivePricingSource === 'database');
+  const lobeHubOfficialPricingRows = rows.filter(
+    (row) => row.effectivePricingSource === 'lobehub-official',
+  );
   const modelBankPricingRows = rows.filter((row) => row.effectivePricingSource === 'model-bank');
   const missingPricingRows = rows.filter((row) => row.effectivePricingSource === 'missing');
   const missingAbilityRows = rows.filter((row) => row.hasModelAbilities !== true);
@@ -705,6 +714,7 @@ export const getMatrixConfigHealth = ({
       defaultModelIssueCount: defaultModelIssues.length,
       defaultModelOkCount: defaultHealthItems.filter((item) => item.status === 'ok').length,
       defaultModelTotal: defaultHealthItems.length,
+      lobeHubOfficialPricingModelCount: lobeHubOfficialPricingRows.length,
       missingAbilityModelCount: missingAbilityRows.length,
       missingPricingModelCount: missingPricingRows.length,
       modelBankPricingModelCount: modelBankPricingRows.length,

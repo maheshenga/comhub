@@ -91,6 +91,7 @@ const CONFIG_HEALTH_CHECK_STATUS = {
 
 const PRICING_SOURCE_STATUS: Record<MatrixPricingSource, { color: string; label: string }> = {
   'database': { color: 'green', label: 'DB pricing' },
+  'lobehub-official': { color: 'cyan', label: 'LobeHub Official' },
   'manual-override': { color: 'gold', label: 'Manual pricing' },
   'missing': { color: 'red', label: 'Missing pricing' },
   'model-bank': { color: 'blue', label: 'Model Bank' },
@@ -642,6 +643,9 @@ const AdminModelBillingMatrixPage = memo(() => {
                       {configHealth.summary.providerPricingModelCount}
                     </Tag>
                     <Tag>DB pricing: {configHealth.summary.databasePricingModelCount}</Tag>
+                    <Tag>
+                      LobeHub Official: {configHealth.summary.lobeHubOfficialPricingModelCount}
+                    </Tag>
                     <Tag>Model Bank: {configHealth.summary.modelBankPricingModelCount}</Tag>
                     <Tag>
                       {t('admin.modelBillingMatrix.healthPricingMissing', 'Missing pricing')}:{' '}

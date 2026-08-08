@@ -225,6 +225,7 @@ export function getBusinessModelRuntimeHooks(
         db,
         payload,
         provider,
+        routeMetadata,
         userId,
       });
       await reserveUsage({
@@ -253,6 +254,7 @@ export function getBusinessModelRuntimeHooks(
         input: payload.input,
         model: payload.model,
         provider,
+        routeMetadata,
         userId,
       });
       await reserveUsage({
@@ -280,6 +282,7 @@ export function getBusinessModelRuntimeHooks(
         db,
         payload: payload as any,
         provider,
+        routeMetadata,
         userId,
       });
       await reserveUsage({

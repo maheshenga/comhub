@@ -990,6 +990,11 @@ class AdminCommercialService {
     groupMultiplier?: number;
     groupName?: string;
     name: string;
+    pricingPolicy?: {
+      lobeHubOfficialPricingEnabled?: boolean;
+      modelBankFallbackEnabled: boolean;
+      upstreamSyncEnabled: boolean;
+    };
     priority?: number;
     providerType?: AdminModelApiProviderType;
     usageScope?: AiProviderModelType[];
@@ -1008,6 +1013,11 @@ class AdminCommercialService {
       groupMultiplier?: number;
       groupName?: string;
       name?: string;
+      pricingPolicy?: {
+        lobeHubOfficialPricingEnabled?: boolean;
+        modelBankFallbackEnabled: boolean;
+        upstreamSyncEnabled: boolean;
+      };
       priority?: number;
       providerType?: AdminModelApiProviderType;
       usageScope?: AiProviderModelType[];

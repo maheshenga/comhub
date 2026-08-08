@@ -8,7 +8,12 @@ import {
   invalidateNewapiInstancesCache,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
+  resolveNewapiModelPricingFromMetadata,
 } from './index';
+
+const pricingMocks = vi.hoisted(() => ({
+  resolveNewapiModelPricing: vi.fn(),
+}));
 
 vi.mock('@/business/server/planModelRules', async () => {
   const actual = await vi.importActual<typeof PlanModelRulesModule>(
@@ -31,6 +36,10 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
       encrypt: vi.fn(async (value: string) => `enc:${value}`),
     }),
   },
+}));
+
+vi.mock('./pricingResolution', () => ({
+  resolveNewapiModelPricing: pricingMocks.resolveNewapiModelPricing,
 }));
 
 const createDb = (rows: any[]) => {
@@ -61,6 +70,12 @@ describe('NewAPI instance resolver', () => {
     vi.clearAllMocks();
     invalidateNewapiInstancesCache();
     vi.mocked(resolvePlanModelRules).mockResolvedValue(null);
+    pricingMocks.resolveNewapiModelPricing.mockImplementation(
+      async ({ databasePricing }: { databasePricing?: unknown }) => ({
+        pricing: databasePricing,
+        source: databasePricing ? 'database' : 'missing',
+      }),
+    );
   });
 
   it('allows free plan basic group and denies pro group for the same model', async () => {
@@ -429,6 +444,51 @@ describe('NewAPI instance resolver', () => {
     ]);
   });
 
+  it('resolves official pricing into runtime model cards when upstream sync is disabled', async () => {
+    const officialPricing = {
+      units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
+    };
+    pricingMocks.resolveNewapiModelPricing.mockResolvedValue({
+      pricing: officialPricing,
+      source: 'lobehub-official',
+    });
+    const db = createDb([
+      {
+        displayName: 'Official Model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceMetadata: {
+          pricingPolicy: {
+            lobeHubOfficialPricingEnabled: true,
+            modelBankFallbackEnabled: false,
+            upstreamSyncEnabled: false,
+          },
+        },
+        instanceName: 'Basic Gateway',
+        metadata: {
+          syncedPricing: {
+            units: [{ name: 'textInput', rate: 9, strategy: 'fixed', unit: 'millionTokens' }],
+          },
+        },
+        modelId: 'official-model',
+        modelType: 'chat',
+        providerType: 'newapi',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({ id: 'official-model', pricing: officialPricing }),
+    ]);
+    expect(pricingMocks.resolveNewapiModelPricing).toHaveBeenCalledWith({
+      databasePricing: undefined,
+      lobeHubOfficialPricingEnabled: true,
+      model: 'official-model',
+      modelBankFallbackEnabled: false,
+      modelBankProvider: undefined,
+    });
+  });
+
   it('prefers manual official cost pricing over synced NewAPI pricing metadata', async () => {
     const db = createDb([
       {
@@ -457,27 +517,62 @@ describe('NewAPI instance resolver', () => {
 
     await expect(getAllEnabledModels(db)).resolves.toEqual([
       expect.objectContaining({
-          id: 'manual-cost-model',
-          pricing: {
-            units: [
-              {
-                name: 'textInput',
-                originalRate: 1.2,
-                rate: 1.2,
-                strategy: 'fixed',
-                unit: 'millionTokens',
-              },
-              {
-                name: 'textOutput',
-                originalRate: 3.4,
-                rate: 3.4,
-                strategy: 'fixed',
-                unit: 'millionTokens',
-              },
-            ],
-          },
-        }),
+        id: 'manual-cost-model',
+        pricing: {
+          units: [
+            {
+              name: 'textInput',
+              originalRate: 1.2,
+              rate: 1.2,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+            {
+              name: 'textOutput',
+              originalRate: 3.4,
+              rate: 3.4,
+              strategy: 'fixed',
+              unit: 'millionTokens',
+            },
+          ],
+        },
+      }),
     ]);
+  });
+
+  it('uses standardized synchronized pricing and can disable upstream metadata', () => {
+    const syncedPricing = {
+      units: [{ name: 'textInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' }],
+    } as const;
+    const metadata = {
+      modelRatio: 10,
+      quotaType: 0,
+      syncedPricing,
+    };
+
+    expect(resolveNewapiModelPricingFromMetadata(metadata, 'chat')).toBe(syncedPricing);
+    expect(
+      resolveNewapiModelPricingFromMetadata(metadata, 'chat', { includeSyncedPricing: false }),
+    ).toBeUndefined();
+  });
+
+  it('keeps manual pricing active when upstream pricing is disabled', () => {
+    expect(
+      resolveNewapiModelPricingFromMetadata(
+        {
+          manualPricing: { inputRate: 1.5, outputRate: 3 },
+          modelRatio: 10,
+          quotaType: 0,
+        },
+        'chat',
+        { includeSyncedPricing: false },
+      ),
+    ).toMatchObject({
+      units: [
+        expect.objectContaining({ name: 'textInput', rate: 1.5 }),
+        expect.objectContaining({ name: 'textOutput', rate: 3 }),
+      ],
+    });
   });
 
   it('returns admin manual abilities and media pricing for frontend model cards', async () => {

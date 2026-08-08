@@ -29,6 +29,11 @@ import {
   maybeBackfillPlaintextAdminProviderApiKey,
   tryDecryptAdminProviderApiKey,
 } from '@/server/services/newapiInstance/credentials';
+import { getLobeHubOfficialModelPricing } from '@/server/services/newapiInstance/lobeHubOfficialPricing';
+import {
+  resolveAdminProviderPricingPolicy,
+  resolveModelBankProviderForAdminType,
+} from '@/server/services/newapiInstance/pricingPolicy';
 
 import { getModelDependencyImpact } from '../../adminImpact/modelDependencyImpact';
 import { createAdminCommand } from './adminCommand';
@@ -45,6 +50,7 @@ const NewapiModelTypeSchema = z.enum(NEWAPI_MODEL_TYPES);
 const ProviderTypeSchema = z
   .enum([
     'newapi',
+    'sub2api',
     'openai-compatible',
     'openai',
     'claude',
@@ -55,7 +61,11 @@ const ProviderTypeSchema = z
   ])
   .default('newapi');
 
-type AdminProviderType = z.infer<typeof ProviderTypeSchema>;
+const PricingPolicySchema = z.object({
+  lobeHubOfficialPricingEnabled: z.boolean().optional(),
+  modelBankFallbackEnabled: z.boolean(),
+  upstreamSyncEnabled: z.boolean(),
+});
 
 const InstanceInputSchema = z.object({
   apiKey: z.string().min(1),
@@ -67,6 +77,7 @@ const InstanceInputSchema = z.object({
   groupMultiplier: z.number().positive().optional(),
   groupName: z.string().max(128).optional(),
   name: z.string().min(1).max(128),
+  pricingPolicy: PricingPolicySchema.optional(),
   priority: z.number().int().min(0).default(0),
   providerType: ProviderTypeSchema,
   usageScope: z.array(NewapiModelTypeSchema).optional(),
@@ -107,10 +118,27 @@ const sharedModelReadProcedure = adminAnyCapabilityProcedure([
 ]);
 const deleteInstanceCommand = createAdminCommand('newapiProvider.deleteInstance');
 
-const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
+const normalizeInstanceInput = async <
+  T extends {
+    apiKey?: string;
+    fetchOnClient?: boolean;
+    pricingPolicy?: z.infer<typeof PricingPolicySchema>;
+  },
+>(
   input: T,
+  existingMetadata?: Record<string, unknown> | null,
 ) => {
-  const data = { ...input, fetchOnClient: false };
+  const { pricingPolicy, ...inputWithoutPricingPolicy } = input;
+  const data = {
+    ...inputWithoutPricingPolicy,
+    fetchOnClient: false,
+  } as Omit<T, 'pricingPolicy'> & {
+    fetchOnClient: boolean;
+    metadata?: Record<string, unknown>;
+  };
+  if (pricingPolicy) {
+    data.metadata = { ...existingMetadata, pricingPolicy };
+  }
   if (!data.apiKey) return data;
 
   return {
@@ -170,22 +198,25 @@ const hasPositiveNumber = (value: unknown) => {
   return Number.isFinite(number) && number > 0;
 };
 
-const resolveModelPricingCompleteness = (metadata: Record<string, unknown> | null | undefined) => {
+const resolveModelPricingCompleteness = (
+  metadata: Record<string, unknown> | null | undefined,
+  includeSyncedPricing = true,
+) => {
   if (!isPlainRecord(metadata)) return false;
+
+  const manualPricing = metadata.manualPricing;
+  if (
+    isPlainRecord(manualPricing) &&
+    MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]))
+  ) {
+    return true;
+  }
+
+  if (!includeSyncedPricing) return false;
   if (metadata.pricingAvailable === true) return true;
   if (hasPositiveNumber(metadata.modelPrice) || hasPositiveNumber(metadata.modelRatio)) return true;
 
-  const manualPricing = metadata.manualPricing;
-  if (!isPlainRecord(manualPricing)) return false;
-
-  return MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]));
-};
-
-const MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE: Partial<Record<AdminProviderType, string>> = {
-  claude: 'anthropic',
-  deepseek: 'deepseek',
-  openai: 'openai',
-  siliconflow: 'siliconcloud',
+  return false;
 };
 
 const hasExactModelBankPricing = ({
@@ -195,13 +226,13 @@ const hasExactModelBankPricing = ({
   modelId: string;
   providerType: string | null | undefined;
 }) => {
-  const modelBankProviderId =
-    MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE[providerType as AdminProviderType];
-  if (!modelBankProviderId) return false;
+  const modelBankProviderId = resolveModelBankProviderForAdminType(providerType);
 
   return LOBE_DEFAULT_MODEL_LIST.some(
     (item) =>
-      item.providerId === modelBankProviderId && item.id === modelId && Boolean(item.pricing),
+      (!modelBankProviderId || item.providerId === modelBankProviderId) &&
+      item.id === modelId &&
+      Boolean(item.pricing),
   );
 };
 
@@ -210,6 +241,7 @@ type AdminEnabledProviderModelRow = {
   groupKey: AdminNewapiInstanceItem['groupKey'];
   groupName: AdminNewapiInstanceItem['groupName'];
   instanceId: AdminNewapiInstanceItem['id'];
+  instanceMetadata: AdminNewapiInstanceItem['metadata'];
   instanceName: AdminNewapiInstanceItem['name'];
   metadata: AdminNewapiInstanceModelItem['metadata'];
   modelId: AdminNewapiInstanceModelItem['modelId'];
@@ -218,16 +250,27 @@ type AdminEnabledProviderModelRow = {
   providerType: AdminNewapiInstanceItem['providerType'];
 };
 
-const resolveModelPricingSource = ({
+const resolveModelPricingSource = async ({
   metadata,
   modelId,
   providerType,
+  instanceMetadata,
 }: {
+  instanceMetadata: Record<string, unknown> | null | undefined;
   metadata: Record<string, unknown> | null | undefined;
   modelId: string;
   providerType: string | null | undefined;
-}) => {
-  if (resolveModelPricingCompleteness(metadata)) return 'database';
+}): Promise<'database' | 'lobehub-official' | 'missing' | 'model-bank'> => {
+  const pricingPolicy = resolveAdminProviderPricingPolicy(instanceMetadata, providerType);
+  if (resolveModelPricingCompleteness(metadata, pricingPolicy.upstreamSyncEnabled))
+    return 'database';
+  if (
+    pricingPolicy.lobeHubOfficialPricingEnabled &&
+    (await getLobeHubOfficialModelPricing(modelId))
+  ) {
+    return 'lobehub-official';
+  }
+  if (!pricingPolicy.modelBankFallbackEnabled) return 'missing';
 
   return hasExactModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
 };
@@ -358,7 +401,16 @@ export const adminNewapiProvidersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const data = await normalizeInstanceInput(input.data);
+      const existingInstance = input.data.pricingPolicy
+        ? await ctx.serverDB.query.adminNewapiInstances.findFirst({
+            columns: { metadata: true },
+            where: eq(adminNewapiInstances.id, input.id),
+          })
+        : undefined;
+      if (input.data.pricingPolicy && !existingInstance) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+      }
+      const data = await normalizeInstanceInput(input.data, existingInstance?.metadata);
       await runRequiredAdminAuditMutation(ctx, {
         audit: () => ({
           action: 'newapiInstance.update',
@@ -413,6 +465,10 @@ export const adminNewapiProvidersRouter = router({
       if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
       const decryptedInstance = await decryptInstance(ctx.serverDB, instance);
       assertInstanceApiKeyReady(decryptedInstance);
+      const pricingPolicy = resolveAdminProviderPricingPolicy(
+        instance.metadata,
+        instance.providerType,
+      );
 
       const [models, pricingResult, existingRows] = await Promise.all([
         fetchNewapiModels({
@@ -420,11 +476,13 @@ export const adminNewapiProvidersRouter = router({
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         }),
-        fetchNewapiPricing({
-          apiKey: decryptedInstance.apiKey,
-          baseUrl: instance.baseUrl,
-          providerType: instance.providerType,
-        }),
+        pricingPolicy.upstreamSyncEnabled
+          ? fetchNewapiPricing({
+              apiKey: decryptedInstance.apiKey,
+              baseUrl: instance.baseUrl,
+              providerType: instance.providerType,
+            })
+          : Promise.resolve({ items: [], status: 'disabled' as const, warnings: [] }),
         ctx.serverDB
           .select({
             displayName: adminNewapiInstanceModels.displayName,
@@ -443,6 +501,7 @@ export const adminNewapiProvidersRouter = router({
         models,
         pricing: pricingResult.items,
         pricingStatus: pricingResult.status,
+        syncSource: instance.providerType === 'sub2api' ? 'sub2api' : 'newapi',
       });
       const rows = normalizedRows.map((row) => ({ ...row, instanceId: input.id }));
       const staleCount = normalizedRows.filter((row) => row.metadata.syncStatus === 'stale').length;
@@ -485,11 +544,14 @@ export const adminNewapiProvidersRouter = router({
         ok: true,
         pricingCount: pricingResult.items.length,
         staleCount,
-        warnings: buildNewapiPricingSyncWarnings(
-          instance.providerType,
-          pricingResult.items.length,
-          pricingResult.status,
-        ),
+        warnings: [
+          ...buildNewapiPricingSyncWarnings(
+            instance.providerType,
+            pricingResult.items.length,
+            pricingResult.status,
+          ),
+          ...(pricingResult.warnings ?? []),
+        ],
       };
     }),
 
@@ -513,26 +575,35 @@ export const adminNewapiProvidersRouter = router({
       }
 
       try {
+        const pricingPolicy = resolveAdminProviderPricingPolicy(
+          instance.metadata,
+          instance.providerType,
+        );
         const models = await fetchNewapiModels({
           apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         });
-        const pricingResult = await fetchNewapiPricing({
-          apiKey: decryptedInstance.apiKey,
-          baseUrl: instance.baseUrl,
-          providerType: instance.providerType,
-        });
+        const pricingResult = pricingPolicy.upstreamSyncEnabled
+          ? await fetchNewapiPricing({
+              apiKey: decryptedInstance.apiKey,
+              baseUrl: instance.baseUrl,
+              providerType: instance.providerType,
+            })
+          : { items: [], status: 'disabled' as const, warnings: [] };
 
         return {
           modelsCount: models.length,
           ok: true,
           pricingCount: pricingResult.items.length,
-          warnings: buildNewapiPricingSyncWarnings(
-            instance.providerType,
-            pricingResult.items.length,
-            pricingResult.status,
-          ),
+          warnings: [
+            ...buildNewapiPricingSyncWarnings(
+              instance.providerType,
+              pricingResult.items.length,
+              pricingResult.status,
+            ),
+            ...(pricingResult.warnings ?? []),
+          ],
         };
       } catch (error) {
         return {
@@ -826,6 +897,7 @@ export const adminNewapiProvidersRouter = router({
           groupKey: adminNewapiInstances.groupKey,
           groupName: adminNewapiInstances.groupName,
           instanceId: adminNewapiInstances.id,
+          instanceMetadata: adminNewapiInstances.metadata,
           instanceName: adminNewapiInstances.name,
           metadata: adminNewapiInstanceModels.metadata,
           modelId: adminNewapiInstanceModels.modelId,
@@ -841,39 +913,47 @@ export const adminNewapiProvidersRouter = router({
         .where(and(...conditions))
         .orderBy(asc(adminNewapiInstances.priority), asc(adminNewapiInstanceModels.sortOrder));
 
-      const items = rows.map((row: AdminEnabledProviderModelRow) => {
-        const {
-          displayName,
-          groupKey,
-          groupName,
-          instanceId,
-          instanceName,
-          metadata,
-          modelId,
-          modelType,
-          priority,
-          providerType,
-        } = row;
-
-        return {
-          displayName,
-          groupKey,
-          groupName,
-          hasModelAbilities: resolveModelAbilityCompleteness(metadata),
-          hasModelPricing: resolveModelPricingCompleteness(metadata),
-          instanceId,
-          instanceName,
-          modelId,
-          modelType,
-          pricingSource: resolveModelPricingSource({
+      const items = await Promise.all(
+        rows.map(async (row: AdminEnabledProviderModelRow) => {
+          const {
+            displayName,
+            groupKey,
+            groupName,
+            instanceId,
+            instanceMetadata,
+            instanceName,
             metadata,
             modelId,
+            modelType,
+            priority,
             providerType,
-          }),
-          priority,
-          providerType,
-        };
-      });
+          } = row;
+          const pricingPolicy = resolveAdminProviderPricingPolicy(instanceMetadata, providerType);
+
+          return {
+            displayName,
+            groupKey,
+            groupName,
+            hasModelAbilities: resolveModelAbilityCompleteness(metadata),
+            hasModelPricing: resolveModelPricingCompleteness(
+              metadata,
+              pricingPolicy.upstreamSyncEnabled,
+            ),
+            instanceId,
+            instanceName,
+            modelId,
+            modelType,
+            pricingSource: await resolveModelPricingSource({
+              instanceMetadata,
+              metadata,
+              modelId,
+              providerType,
+            }),
+            priority,
+            providerType,
+          };
+        }),
+      );
 
       return {
         items,

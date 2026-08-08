@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
+  resolveProviderPricingPolicyForForm,
 } from './adminProviderInstanceForm';
 
 describe('buildProviderInstancePayload', () => {
@@ -109,6 +110,62 @@ describe('buildProviderInstancePayload', () => {
     );
   });
 
+  it('should serialize all configurable pricing sources', () => {
+    expect(
+      buildProviderInstancePayload({
+        apiKey: 'sk-test',
+        baseUrl: 'https://sub2api.example.com/v1',
+        name: 'Sub2API',
+        pricingPolicy: {
+          lobeHubOfficialPricingEnabled: true,
+          modelBankFallbackEnabled: true,
+          upstreamSyncEnabled: true,
+        },
+        providerType: 'sub2api',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        pricingPolicy: {
+          lobeHubOfficialPricingEnabled: true,
+          modelBankFallbackEnabled: true,
+          upstreamSyncEnabled: true,
+        },
+        providerType: 'sub2api',
+      }),
+    );
+  });
+
+  it('keeps legacy gateways fail-closed until model-bank fallback is explicitly enabled', () => {
+    expect(resolveProviderPricingPolicyForForm({ providerType: 'newapi' })).toEqual({
+      lobeHubOfficialPricingEnabled: false,
+      modelBankFallbackEnabled: false,
+      upstreamSyncEnabled: true,
+    });
+    expect(
+      resolveProviderPricingPolicyForForm({ newInstance: true, providerType: 'sub2api' }),
+    ).toEqual({
+      lobeHubOfficialPricingEnabled: false,
+      modelBankFallbackEnabled: true,
+      upstreamSyncEnabled: true,
+    });
+    expect(
+      resolveProviderPricingPolicyForForm({
+        metadata: {
+          pricingPolicy: {
+            lobeHubOfficialPricingEnabled: true,
+            modelBankFallbackEnabled: true,
+            upstreamSyncEnabled: false,
+          },
+        },
+        providerType: 'newapi',
+      }),
+    ).toEqual({
+      lobeHubOfficialPricingEnabled: true,
+      modelBankFallbackEnabled: true,
+      upstreamSyncEnabled: false,
+    });
+  });
+
   it('should expose default base urls for provider presets', () => {
     expect(getDefaultBaseUrlForAdminProviderType('openai')).toBe('https://api.openai.com/v1');
     expect(getDefaultBaseUrlForAdminProviderType('claude')).toBe('https://api.anthropic.com');
@@ -123,5 +180,6 @@ describe('buildProviderInstancePayload', () => {
       'https://api.siliconflow.cn/v1',
     );
     expect(getDefaultBaseUrlForAdminProviderType('openai-compatible')).toBeUndefined();
+    expect(getDefaultBaseUrlForAdminProviderType('sub2api')).toBeUndefined();
   });
 });

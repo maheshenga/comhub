@@ -7,6 +7,14 @@ import { getModelDependencyImpact } from '../../adminImpact/modelDependencyImpac
 import { recordAdminAudit } from './audit';
 import { adminNewapiProvidersRouter } from './newapiProviders';
 
+const mocks = vi.hoisted(() => ({
+  getLobeHubOfficialModelPricing: vi.fn(),
+}));
+
+vi.mock('@/server/services/newapiInstance/lobeHubOfficialPricing', () => ({
+  getLobeHubOfficialModelPricing: mocks.getLobeHubOfficialModelPricing,
+}));
+
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
 }));
@@ -174,6 +182,7 @@ const createDbMock = ({
 describe('adminNewapiProvidersRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getLobeHubOfficialModelPricing.mockResolvedValue(undefined);
     vi.mocked(getModelDependencyImpact).mockResolvedValue(dependencyImpact());
   });
 
@@ -237,6 +246,44 @@ describe('adminNewapiProvidersRouter', () => {
         providerType: 'newapi',
       }),
     );
+  });
+
+  it('stores instance pricing policy without exposing it as a database column', async () => {
+    const { db, writes } = createDbMock({
+      findFirstRow: {
+        apiKey: 'kv:enc:sk-test',
+        baseUrl: 'https://newapi.example.com',
+        id: instanceId,
+        metadata: { retained: true },
+        name: 'Default',
+        providerType: 'newapi',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.updateInstance({
+      data: {
+        pricingPolicy: {
+          modelBankFallbackEnabled: true,
+          upstreamSyncEnabled: false,
+        },
+      },
+      id: instanceId,
+    });
+
+    expect(writes.updateValue).toEqual(
+      expect.objectContaining({
+        metadata: {
+          pricingPolicy: {
+            modelBankFallbackEnabled: true,
+            upstreamSyncEnabled: false,
+          },
+          retained: true,
+        },
+      }),
+    );
+    expect(writes.updateValue).not.toHaveProperty('pricingPolicy');
   });
 
   it('allows model ops admins to refresh the AI provider runtime cache', async () => {
@@ -378,6 +425,37 @@ describe('adminNewapiProvidersRouter', () => {
     expect(writes.insertRows[0]).toEqual(expect.objectContaining({ modelId: 'gpt-4o-mini' }));
   });
 
+  it('syncs models without requesting prices when upstream pricing is disabled', async () => {
+    const { db } = createDbMock({
+      findFirstRow: {
+        apiKey: 'kv:enc:sk-test',
+        baseUrl: 'https://newapi.example.com',
+        id: instanceId,
+        metadata: {
+          pricingPolicy: {
+            modelBankFallbackEnabled: true,
+            upstreamSyncEnabled: false,
+          },
+        },
+        name: 'Default',
+        providerType: 'newapi',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    const fetchMock = vi.fn().mockResolvedValue({
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ data: [{ id: 'gpt-4o-mini', object: 'model' }] }),
+      ok: true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncInstanceModels({ id: instanceId });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.warnings).toContain('Upstream pricing sync is disabled for this instance');
+  });
+
   it('returns a readable connection test failure for invalid encrypted api keys', async () => {
     const { db } = createDbMock({
       findFirstRow: {
@@ -516,6 +594,13 @@ describe('adminNewapiProvidersRouter', () => {
   });
 
   it('returns pricing source metadata for enabled models', async () => {
+    mocks.getLobeHubOfficialModelPricing.mockImplementation(async (modelId: string) =>
+      modelId === 'official-chat'
+        ? {
+            units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' }],
+          }
+        : undefined,
+    );
     const { db } = createDbMock({
       allEnabledModelRows: [
         {
@@ -540,6 +625,26 @@ describe('adminNewapiProvidersRouter', () => {
           instanceName: 'NewAPI Gateway',
           metadata: {},
           modelId: 'missing-chat',
+          modelType: 'chat',
+          priority: 1,
+          providerType: 'newapi',
+        },
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Official Chat',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceMetadata: {
+            pricingPolicy: {
+              lobeHubOfficialPricingEnabled: true,
+              modelBankFallbackEnabled: false,
+              upstreamSyncEnabled: false,
+            },
+          },
+          instanceName: 'LobeHub Pricing Gateway',
+          metadata: {},
+          modelId: 'official-chat',
           modelType: 'chat',
           priority: 1,
           providerType: 'newapi',
@@ -570,6 +675,25 @@ describe('adminNewapiProvidersRouter', () => {
           priority: 3,
           providerType: 'openai-compatible',
         },
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Fallback DeepSeek',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceMetadata: {
+            pricingPolicy: {
+              modelBankFallbackEnabled: true,
+              upstreamSyncEnabled: false,
+            },
+          },
+          instanceName: 'NewAPI Fallback',
+          metadata: { modelRatio: 1, pricingAvailable: true },
+          modelId: 'deepseek-v4-pro',
+          modelType: 'chat',
+          priority: 4,
+          providerType: 'newapi',
+        },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
@@ -591,6 +715,11 @@ describe('adminNewapiProvidersRouter', () => {
       }),
       expect.objectContaining({
         hasModelPricing: false,
+        modelId: 'official-chat',
+        pricingSource: 'lobehub-official',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
         modelId: 'deepseek-v4-pro',
         pricingSource: 'model-bank',
         providerType: 'deepseek',
@@ -601,7 +730,14 @@ describe('adminNewapiProvidersRouter', () => {
         pricingSource: 'missing',
         providerType: 'openai-compatible',
       }),
+      expect.objectContaining({
+        hasModelPricing: false,
+        modelId: 'deepseek-v4-pro',
+        pricingSource: 'model-bank',
+        providerType: 'newapi',
+      }),
     ]);
+    expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('official-chat');
   });
 
   it('warns about manual pricing when the service provider format has no pricing sync', async () => {

@@ -222,7 +222,7 @@ const buildTopicOrderBy = (topicActivityAt: SQL, sortBy?: TopicQuerySortBy): SQL
  * COALESCE(metadata ->> 'status', '') <> 'done'                   -- IS DISTINCT FROM
  * ```
  *
- * This has now bitten twice: `getLatestSpineMessageId` (LOBE-11376, #16693) and
+ * This has now bitten twice: `getLatestSpineMessageId` (#16693) and
  * `getDueScheduledTopics` (#17077 — the scheduled-run cron crashed on every tick
  * from the day it shipped, so rate-limit continuations never once resumed).
  */
@@ -384,7 +384,7 @@ export class TopicModel {
                 // display `updatedAt` above matches the client-side sort key to the server
                 // order (otherwise the two disagree and the list visibly jumps) while a
                 // rename/favorite edit still shows its real edit time. See rankTopics for
-                // the same activity-time pattern. (LOBE-11543)
+                // the same activity-time pattern.
                 sortUpdatedAt: topicActivityAt,
                 // Workspace sidebars filter maintenance actions client-side by
                 // ownership (own vs workspace scope) — the filter needs the row
@@ -460,7 +460,7 @@ export class TopicModel {
                 // display `updatedAt` above matches the client-side sort key to the server
                 // order (otherwise the two disagree and the list visibly jumps) while a
                 // rename/favorite edit still shows its real edit time. See rankTopics for
-                // the same activity-time pattern. (LOBE-11543)
+                // the same activity-time pattern.
                 sortUpdatedAt: topicActivityAt,
                 // Workspace sidebars filter maintenance actions client-side by
                 // ownership (own vs workspace scope) — the filter needs the row
@@ -532,7 +532,7 @@ export class TopicModel {
               // display `updatedAt` above matches the client-side sort key to the server
               // order (otherwise the two disagree and the list visibly jumps) while a
               // rename/favorite edit still shows its real edit time. See rankTopics for
-              // the same activity-time pattern. (LOBE-11543)
+              // the same activity-time pattern.
               sortUpdatedAt: topicActivityAt,
               // Workspace sidebars filter maintenance actions client-side by
               // ownership (own vs workspace scope) — the filter needs the row
@@ -1198,6 +1198,26 @@ export class TopicModel {
       .set({ ...data, updatedAt: new Date() })
       .where(and(eq(topics.id, id), this.ownership()))
       .returning();
+  };
+
+  /**
+   * Settle a topic out of `running` once its run has terminated server-side.
+   *
+   * Guarded on `status = 'running'` so it is race-tolerant with clients: an
+   * attached renderer writes 'active' (focused) or 'unread' (backgrounded) on
+   * the terminal stream event, and whichever write lands first wins — this one
+   * degrades to a no-op instead of clobbering it. Without a server-side settle,
+   * a run with no client attached (cron-dispatched scheduled resume, app closed
+   * mid-run) leaves the topic at `running` forever.
+   *
+   * Returns the settled row, or nothing when the guard didn't match.
+   */
+  settleRunningStatus = async (id: string, status: TopicItem['status'] = 'unread') => {
+    return this.db
+      .update(topics)
+      .set({ status, updatedAt: new Date() })
+      .where(and(eq(topics.id, id), eq(topics.status, 'running'), this.ownership()))
+      .returning({ id: topics.id, status: topics.status });
   };
 
   /**

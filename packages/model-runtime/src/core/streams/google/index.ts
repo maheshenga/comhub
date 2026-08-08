@@ -2,6 +2,8 @@ import type { GenerateContentResponse, Part } from '@google/genai';
 import type { GroundingSearch } from '@lobechat/types';
 
 import type { ChatStreamCallbacks } from '../../../types';
+import { AgentRuntimeErrorType } from '../../../types/error';
+import { serializeScopedSignature } from '../../../utils/signatureScope';
 import { nanoid } from '../../../utils/uuid';
 import { convertGoogleAIUsage } from '../../usageConverters/google-ai';
 import type {
@@ -42,6 +44,27 @@ const getCandidateBlockedReason = (
   return undefined;
 };
 
+const stripHtmlTags = (value: string): string => {
+  const text: string[] = [];
+  let insideTag = false;
+
+  for (const character of value) {
+    if (character === '<') {
+      insideTag = true;
+      continue;
+    }
+
+    if (character === '>') {
+      insideTag = false;
+      continue;
+    }
+
+    if (!insideTag) text.push(character);
+  }
+
+  return text.join('').trim();
+};
+
 const transformGoogleGenerativeAIStream = (
   chunk: GenerateContentResponse,
   context: StreamContext,
@@ -58,6 +81,10 @@ const transformGoogleGenerativeAIStream = (
   // Handle promptFeedback with blockReason (e.g., PROHIBITED_CONTENT)
   if ('promptFeedback' in chunk && (chunk as any).promptFeedback?.blockReason) {
     const blockReason = (chunk as any).promptFeedback.blockReason;
+    const errorType =
+      blockReason === 'IMAGE_PROHIBITED_CONTENT'
+        ? AgentRuntimeErrorType.ProviderContentPolicyViolation
+        : AgentRuntimeErrorType.ProviderBizError;
     const humanFriendlyMessage = getBlockReasonMessage(blockReason);
 
     return {
@@ -69,7 +96,7 @@ const transformGoogleGenerativeAIStream = (
           message: humanFriendlyMessage,
           provider: 'google',
         },
-        type: 'ProviderBizError',
+        type: errorType,
       },
       id: context?.id || 'error',
       type: 'error',
@@ -79,6 +106,8 @@ const transformGoogleGenerativeAIStream = (
   // maybe need another structure to add support for multiple choices
   const candidate = chunk.candidates?.[0];
   const { usageMetadata } = chunk;
+  const serializeThoughtSignature = (signature?: string) =>
+    serializeScopedSignature(signature, payload?.thoughtSignatureScope, 'thought_signature');
 
   // Handle blocked terminal candidate finishReason (e.g., PROHIBITED_CONTENT, SAFETY)
   const blockedReason = getCandidateBlockedReason(candidate);
@@ -86,6 +115,10 @@ const transformGoogleGenerativeAIStream = (
     const convertedUsage = usageMetadata
       ? convertGoogleAIUsage(usageMetadata, payload?.pricing)
       : undefined;
+    const errorType =
+      blockedReason === 'IMAGE_PROHIBITED_CONTENT'
+        ? AgentRuntimeErrorType.ProviderContentPolicyViolation
+        : AgentRuntimeErrorType.ProviderBizError;
     const humanFriendlyMessage = getBlockReasonMessage(blockedReason);
 
     return [
@@ -102,7 +135,7 @@ const transformGoogleGenerativeAIStream = (
             message: humanFriendlyMessage,
             provider: 'google',
           },
-          type: 'ProviderBizError',
+          type: errorType,
         },
         id: context?.id || 'error',
         type: 'error' as const,
@@ -136,7 +169,7 @@ const transformGoogleGenerativeAIStream = (
       ?.filter((part: any) => part.functionCall)
       .map((part: Part) => ({
         ...part.functionCall,
-        thoughtSignature: part.thoughtSignature,
+        thoughtSignature: serializeThoughtSignature(part.thoughtSignature),
       })) || [];
 
   if (functionCalls.length > 0) {
@@ -224,7 +257,7 @@ const transformGoogleGenerativeAIStream = (
               content: part.text,
               inReasoning: true,
               partType: 'text',
-              thoughtSignature: part.thoughtSignature,
+              thoughtSignature: serializeThoughtSignature(part.thoughtSignature),
             } as StreamPartChunkData,
             id: context.id,
             type: 'reasoning_part',
@@ -239,7 +272,7 @@ const transformGoogleGenerativeAIStream = (
               inReasoning: true,
               mimeType: part.inlineData.mimeType,
               partType: 'image',
-              thoughtSignature: part.thoughtSignature,
+              thoughtSignature: serializeThoughtSignature(part.thoughtSignature),
             } as StreamPartChunkData,
             id: context.id,
             type: 'reasoning_part',
@@ -252,7 +285,7 @@ const transformGoogleGenerativeAIStream = (
             data: {
               content: part.text,
               partType: 'text',
-              thoughtSignature: part.thoughtSignature,
+              thoughtSignature: serializeThoughtSignature(part.thoughtSignature),
             } as StreamPartChunkData,
             id: context.id,
             type: 'content_part',
@@ -266,7 +299,7 @@ const transformGoogleGenerativeAIStream = (
               content: part.inlineData.data,
               mimeType: part.inlineData.mimeType,
               partType: 'image',
-              thoughtSignature: part.thoughtSignature,
+              thoughtSignature: serializeThoughtSignature(part.thoughtSignature),
             } as StreamPartChunkData,
             id: context.id,
             type: 'content_part',
@@ -298,7 +331,9 @@ const transformGoogleGenerativeAIStream = (
               webChunks.length > 0
                 ? webChunks.map((chunk) => {
                     // Fall back to hostname when title is empty
-                    let displayTitle = chunk.web?.title?.replaceAll(/<[^>]*>/g, '');
+                    let displayTitle = chunk.web?.title
+                      ? stripHtmlTags(chunk.web.title)
+                      : undefined;
                     if (!displayTitle) {
                       try {
                         displayTitle = new URL(chunk.web?.uri || '').hostname.replace('www.', '');

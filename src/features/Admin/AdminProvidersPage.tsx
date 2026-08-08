@@ -1,9 +1,8 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, confirmModal, Modal, Select, Tabs } from '@lobehub/ui/base-ui';
+import { Button, confirmModal, Drawer, Modal, Select, Tabs } from '@lobehub/ui/base-ui';
 import {
-  Drawer,
   Empty,
   Form,
   Input,
@@ -33,6 +32,7 @@ import {
   type AdminModelApiProviderType,
   buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
+  resolveProviderPricingPolicyForForm,
 } from './adminProviderInstanceForm';
 import {
   type AdminModelAbilities,
@@ -71,6 +71,7 @@ interface InstanceRow {
   groupMultiplier: number | null;
   groupName: string | null;
   id: string;
+  metadata?: Record<string, unknown> | null;
   name: string;
   priority: number;
   providerType: AdminModelApiProviderType;
@@ -116,6 +117,7 @@ const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
   'claude': 'Claude / Anthropic',
   'deepseek': 'DeepSeek',
   'newapi': 'AI 服务商',
+  'sub2api': 'Sub2API',
   'openai': 'OpenAI',
   'openai-compatible': '兼容 OpenAI 格式',
   'opencode-go': 'OpenCode Go',
@@ -185,6 +187,10 @@ const InstanceFormModal = memo<{
     if (!currentBaseUrl && defaultBaseUrl) {
       form.setFieldValue('baseUrl', defaultBaseUrl);
     }
+    form.setFieldValue(
+      'pricingPolicy',
+      resolveProviderPricingPolicyForForm({ newInstance: true, providerType: nextProviderType }),
+    );
   };
 
   return (
@@ -200,6 +206,10 @@ const InstanceFormModal = memo<{
               ? {
                   ...initial,
                   apiKey: initial.apiKeyStatus === 'invalid' ? '' : initial.apiKey,
+                  pricingPolicy: resolveProviderPricingPolicyForForm({
+                    metadata: initial.metadata,
+                    providerType: initial.providerType,
+                  }),
                 }
               : {
                   apiKey: '',
@@ -211,6 +221,7 @@ const InstanceFormModal = memo<{
                   groupMultiplier: undefined,
                   groupName: '',
                   name: '',
+                  pricingPolicy: resolveProviderPricingPolicyForForm({ newInstance: true }),
                   priority: 0,
                   providerType: 'newapi',
                   usageScope: [],
@@ -236,14 +247,42 @@ const InstanceFormModal = memo<{
                   'admin.providers.field.providerTypeNewapiHint',
                   'AI 服务商网关支持同步模型和价格。',
                 )
-              : t(
-                  'admin.providers.field.providerTypeOpenaiHint',
-                  'OpenAI 兼容、Claude 和 OpenCode Go 格式支持同步模型；价格需要在计费矩阵中配置。',
-                )
+              : providerType === 'sub2api'
+                ? t(
+                    'admin.providers.field.providerTypeSub2apiHint',
+                    'Sub2API 会从密钥计费信息和模型广场同步可确认的价格。',
+                  )
+                : t(
+                    'admin.providers.field.providerTypeOpenaiHint',
+                    'OpenAI 兼容、Claude 和 OpenCode Go 格式支持同步模型；价格需要在计费矩阵中配置。',
+                  )
           }
         >
           <Select options={providerTypeOptions} onChange={handleProviderTypeChange} />
         </Form.Item>
+        <Flexbox horizontal gap={24} wrap={'wrap'}>
+          <Form.Item
+            label={t('admin.providers.field.upstreamPricing', '同步上游价格')}
+            name={['pricingPolicy', 'upstreamSyncEnabled']}
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.providers.field.lobeHubOfficialPricing', '使用 LobeHub 官方价格')}
+            name={['pricingPolicy', 'lobeHubOfficialPricingEnabled']}
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.providers.field.modelBankFallback', '按模型名使用系统价格')}
+            name={['pricingPolicy', 'modelBankFallbackEnabled']}
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+        </Flexbox>
         <Form.Item
           label={t('admin.providers.field.name', '名称')}
           name="name"
@@ -672,7 +711,6 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
 
     return (
       <Drawer
-        destroyOnClose
         open={!!instance}
         width={980}
         title={
