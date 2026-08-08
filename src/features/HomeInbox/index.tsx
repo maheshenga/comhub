@@ -90,6 +90,7 @@ interface HomeInboxProps {
 const HomeInbox = memo<HomeInboxProps>(({ hideNeedsYou, hideUnread, variant = 'default' }) => {
   const isRail = variant === 'rail';
   const isMain = variant === 'main';
+  const recommendationsVariant = isRail ? 'rail' : 'default';
   const { t } = useTranslation('home');
   const isLogin = useUserStore(authSelectors.isLogin);
   const myId = useUserStore(userProfileSelectors.userId);
@@ -158,7 +159,7 @@ const HomeInbox = memo<HomeInboxProps>(({ hideNeedsYou, hideUnread, variant = 'd
       <Flexbox gap={12}>
         <BriefCardSkeleton />
         <BriefCardSkeleton />
-        <Recommendations variant={variant} />
+        <Recommendations variant={recommendationsVariant} />
       </Flexbox>
     );
   }
@@ -377,7 +378,7 @@ const HomeInbox = memo<HomeInboxProps>(({ hideNeedsYou, hideUnread, variant = 'd
         );
       })}
 
-      {!isMain && <Recommendations variant={variant} />}
+      {!isMain && <Recommendations variant={recommendationsVariant} />}
     </Flexbox>
   );
 });
