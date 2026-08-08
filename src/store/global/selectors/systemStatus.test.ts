@@ -23,6 +23,7 @@ import {
 vi.mock('@/utils/localStorage', () => ({
   AsyncLocalStorage: class {
     getFromLocalStorage = async () => ({});
+    getFromLocalStorageSync = () => ({});
     saveToLocalStorage = async () => {};
   },
 }));
