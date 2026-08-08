@@ -173,6 +173,34 @@ describe('aiProvider action helpers', () => {
       expect(result.knowledgeCutoff).toBe('2024-06');
       expect(fallbackSpy).toHaveBeenCalledWith('gpt-4o', 'knowledgeCutoff', 'openai');
     });
+
+    it('fills abilities and context length from the system model catalog', async () => {
+      const fallbackSpy = vi
+        .mocked(runtimeModule.getModelPropertyWithFallback)
+        .mockImplementation(async (_id, key) => {
+          if (key === 'abilities') return { functionCall: true, reasoning: true, vision: true };
+          if (key === 'contextWindowTokens') return 1_000_000;
+          return undefined;
+        });
+
+      const result = await normalizeChatModel(
+        createChatModel({
+          abilities: undefined,
+          contextWindowTokens: undefined,
+          id: 'claude-sonnet-4-6',
+          providerId: 'newapi-instance',
+        }),
+      );
+
+      expect(result.abilities).toEqual({ functionCall: true, reasoning: true, vision: true });
+      expect(result.contextWindowTokens).toBe(1_000_000);
+      expect(fallbackSpy).toHaveBeenCalledWith('claude-sonnet-4-6', 'abilities', 'newapi-instance');
+      expect(fallbackSpy).toHaveBeenCalledWith(
+        'claude-sonnet-4-6',
+        'contextWindowTokens',
+        'newapi-instance',
+      );
+    });
   });
 
   describe('normalizeImageModel', () => {

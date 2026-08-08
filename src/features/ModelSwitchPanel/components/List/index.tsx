@@ -43,9 +43,14 @@ export const List: FC<ListProps> = ({
 }) => {
   const { t: tCommon } = useTranslation('common');
   const newLabel = tCommon('new');
-  const { isModelRestricted, onBeforeModelSelect, onRestrictedModelClick, sortModelLast } =
-    useBusinessModelListGuard();
-  const proLabel = isModelRestricted ? tCommon('pro') : undefined;
+  const {
+    isModelPro,
+    isModelRestricted,
+    onBeforeModelSelect,
+    onRestrictedModelClick,
+    sortModelLast,
+  } = useBusinessModelListGuard();
+  const proLabel = isModelPro || isModelRestricted ? tCommon('pro') : undefined;
 
   const chatEnabledList = useEnabledChatModels();
   const enabledList = enabledListProp ?? chatEnabledList;
@@ -136,6 +141,8 @@ export const List: FC<ListProps> = ({
           ) : (
             <ListItemRenderer
               activeKey={activeKey}
+              enabledList={enabledList}
+              isModelPro={isModelPro}
               isModelRestricted={isModelRestricted}
               item={item}
               key={key}

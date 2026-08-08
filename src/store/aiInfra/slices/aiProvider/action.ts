@@ -31,6 +31,8 @@ import {
 import { AiProviderSourceEnum } from '@/types/aiProvider';
 import { filterEnabledProvidersByModelType, filterHiddenBuiltinModels } from '@/utils/aiProvider';
 
+import type { AiInfraStore } from '../../store';
+
 export { filterEnabledProvidersByModelType, filterHiddenBuiltinModels } from '@/utils/aiProvider';
 
 interface UserScopedBuiltinModelState {
@@ -65,8 +67,6 @@ export const resolveUserScopedBuiltinModelState = (
     hiddenBuiltinModels,
   };
 };
-
-import type { AiInfraStore } from '../../store';
 
 export type ProviderModelListItem = {
   abilities: ModelAbilities;
@@ -134,15 +134,27 @@ const createProviderModelCollector = (
 };
 
 export const normalizeChatModel = async (model: EnabledAiModel): Promise<ProviderModelListItem> => {
-  const [description, knowledgeCutoff, pricing] = await Promise.all([
-    getModelProperty<string>(model, 'description'),
-    getModelProperty<string>(model, 'knowledgeCutoff'),
-    getModelProperty<Pricing>(model, 'pricing'),
-  ]);
+  const abilitiesPromise = Object.keys(model.abilities ?? {}).length
+    ? Promise.resolve(model.abilities)
+    : getModelPropertyWithFallback<ModelAbilities | undefined>(
+        model.id,
+        'abilities',
+        model.providerId,
+      );
+
+  const [abilities, contextWindowTokens, description, knowledgeCutoff, pricing] = await Promise.all(
+    [
+      abilitiesPromise,
+      getModelProperty<number>(model, 'contextWindowTokens'),
+      getModelProperty<string>(model, 'description'),
+      getModelProperty<string>(model, 'knowledgeCutoff'),
+      getModelProperty<Pricing>(model, 'pricing'),
+    ],
+  );
 
   return {
-    abilities: (model.abilities || {}) as ModelAbilities,
-    contextWindowTokens: model.contextWindowTokens,
+    abilities: abilities || {},
+    contextWindowTokens,
     displayName: model.displayName ?? '',
     id: model.id,
     releasedAt: model.releasedAt,

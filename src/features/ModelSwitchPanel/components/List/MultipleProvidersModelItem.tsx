@@ -19,6 +19,7 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ModelItemRender, ProviderItemRender } from '@/components/ModelSelect';
+import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
 import { styles } from '../../styles';
 import { type ModelWithProviders } from '../../types';
@@ -29,6 +30,8 @@ interface MultipleProvidersModelItemProps {
   activeKey: string;
   data: ModelWithProviders;
   defaultProviderId?: string;
+  enabledList: EnabledProviderWithModels[];
+  isModelPro?: (modelId: string, providerId: string) => boolean;
   isModelRestricted?: (modelId: string, providerId: string) => boolean;
   newLabel: string;
   onBeforeModelSelect?: (modelId: string, providerId: string) => boolean | Promise<boolean>;
@@ -36,13 +39,14 @@ interface MultipleProvidersModelItemProps {
   onModelChange: (modelId: string, providerId: string) => void;
   onRestrictedModelClick?: () => void;
   proLabel?: string;
-  showInfoTag?: boolean;
 }
 
 export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
   ({
     activeKey,
     data,
+    enabledList,
+    isModelPro,
     isModelRestricted,
     newLabel,
     onBeforeModelSelect,
@@ -50,7 +54,6 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
     onClose,
     onRestrictedModelClick,
     proLabel,
-    showInfoTag,
   }) => {
     const { t } = useTranslation('components');
     const [submenuOpen, setSubmenuOpen] = useState(false);
@@ -60,6 +63,10 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
     const defaultProvider = data.providers[0];
     const defaultProviderRestricted = Boolean(
       defaultProvider && isModelRestricted?.(data.model.id, defaultProvider.id),
+    );
+    const defaultProviderPro = Boolean(
+      defaultProvider &&
+      (defaultProviderRestricted || isModelPro?.(data.model.id, defaultProvider.id)),
     );
 
     const allRestricted =
@@ -103,14 +110,14 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
             {...data.model}
             {...data.model.abilities}
             newBadgeLabel={newLabel}
-            proBadgeLabel={defaultProviderRestricted ? proLabel : undefined}
-            showInfoTag={showInfoTag}
+            proBadgeLabel={defaultProviderPro ? proLabel : undefined}
           />
         </DropdownMenuSubmenuTrigger>
         <DropdownMenuPortal>
           <DropdownMenuPositioner anchor={null} placement="right" sideOffset={12}>
             <DropdownMenuPopup className={cx(styles.detailPopup, styles.dropdownMenu)}>
               <ModelDetailPanel
+                enabledList={enabledList}
                 model={data.model.id}
                 provider={(activeProvider ?? data.providers[0]).id}
               />
@@ -122,6 +129,7 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
                   const key = menuKey(p.id, data.model.id);
                   const isProviderActive = isActive ? activeKey === key : p.id === 'lobehub';
                   const providerRestricted = isModelRestricted?.(data.model.id, p.id);
+                  const providerPro = providerRestricted || isModelPro?.(data.model.id, p.id);
 
                   return (
                     <DropdownMenuItem
@@ -150,7 +158,7 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
                               type={'avatar'}
                             />
                           </Flexbox>
-                          {providerRestricted && proLabel && (
+                          {providerPro && proLabel && (
                             <Tag color="gold" size="small">
                               {proLabel}
                             </Tag>

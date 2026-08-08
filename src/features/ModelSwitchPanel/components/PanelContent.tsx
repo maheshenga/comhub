@@ -1,9 +1,12 @@
 import { Flexbox } from '@lobehub/ui';
 import { type ComponentType, type FC } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Rnd } from 'react-rnd';
 
 import { useBusinessModelPricingPrefetch } from '@/business/client/hooks/useBusinessModelPricing';
+import { useBusinessModelRatingPrefetch } from '@/business/client/hooks/useBusinessModelRating';
+import { useLobeHubModelCatalog } from '@/business/client/hooks/useLobeHubModelCatalog';
+import { mergeLobeHubModelDisplayMetadata } from '@/business/client/modelCatalog/lobeHub';
 import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
 import { useUserStore } from '@/store/user';
 import { userGeneralSettingsSelectors } from '@/store/user/selectors';
@@ -36,13 +39,19 @@ export const PanelContent: FC<PanelContentProps> = ({
   provider: providerProp,
 }) => {
   const chatEnabledList = useEnabledChatModels();
-  const enabledList = enabledListProp ?? chatEnabledList;
+  const rawEnabledList = enabledListProp ?? chatEnabledList;
+  const { data: lobeHubModelCatalog } = useLobeHubModelCatalog();
+  const enabledList = useMemo(
+    () => mergeLobeHubModelDisplayMetadata(rawEnabledList, lobeHubModelCatalog),
+    [lobeHubModelCatalog, rawEnabledList],
+  );
   const [searchKeyword, setSearchKeyword] = useState('');
   const isDevMode = useUserStore((s) => userGeneralSettingsSelectors.config(s).isDevMode);
   const { groupMode, handleGroupModeChange } = usePanelState();
   const { panelHeight, panelWidth, handlePanelWidthChange } = usePanelSize(enabledList.length);
 
   useBusinessModelPricingPrefetch();
+  useBusinessModelRatingPrefetch();
 
   const content = (
     <>
