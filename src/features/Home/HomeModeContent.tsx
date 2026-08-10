@@ -21,6 +21,8 @@ import { type RecentItem } from '@/server/routers/lambda/recent';
 import { recentService } from '@/services/recent';
 import { useBriefStore } from '@/store/brief';
 import { briefListSelectors } from '@/store/brief/selectors';
+import { useGlobalStore } from '@/store/global';
+import { systemStatusSelectors } from '@/store/global/selectors';
 import { useTaskStore } from '@/store/task';
 import { taskListSelectors } from '@/store/task/selectors';
 import { useUserStore } from '@/store/user';
@@ -91,7 +93,10 @@ const TASK_STATUSES = new Set<TaskStatus>([
   'running',
   'scheduled',
 ]);
-const HOME_TOPIC_RECENT_LIMIT = 9;
+export const HOME_TOPIC_RECENT_LIMIT = 15;
+
+export const resolveRecentsBadgeCount = (fetched: number, shown: number): number | undefined =>
+  Math.min(fetched, shown) || undefined;
 
 const normalizeTaskStatus = (status: string): TaskStatus =>
   TASK_STATUSES.has(status as TaskStatus) ? (status as TaskStatus) : 'backlog';
@@ -170,10 +175,12 @@ const TaskContent = memo(() => {
   // filter. It must always show the complete task set.
   const tasksSWR = useFetchTaskList({ allAgents: true, visibility: 'all' });
   const tasks = useTaskStore(taskListSelectors.taskList);
+  const tasksTotal = useTaskStore(taskListSelectors.taskListTotal);
   const tasksInit = useTaskStore(taskListSelectors.isTaskListInit);
+  const taskCount = useGlobalStore(systemStatusSelectors.homeTaskCount);
 
   return (
-    <GroupBlock count={tasks.length || undefined} title={t('dashboard.task.title')}>
+    <GroupBlock count={tasksTotal || undefined} title={t('dashboard.task.title')}>
       {tasksSWR.error && !tasksInit ? (
         <AsyncError error={tasksSWR.error} variant={'inline'} onRetry={tasksSWR.mutate} />
       ) : !tasksInit ? (
@@ -182,7 +189,7 @@ const TaskContent = memo(() => {
         <Text className={styles.empty}>{t('dashboard.task.empty')}</Text>
       ) : (
         <Flexbox gap={4}>
-          {tasks.slice(0, 8).map((task) => (
+          {tasks.slice(0, taskCount).map((task) => (
             <Row
               description={task.description || task.identifier}
               href={taskDetailPath(task.identifier)}
@@ -202,9 +209,13 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
   const isLogin = useUserStore(authSelectors.isLogin);
   const authLoaded = useUserStore(authSelectors.isLoaded);
   const myId = useUserStore(userProfileSelectors.userId);
+  const recentsCount = useGlobalStore(systemStatusSelectors.homeRecentsCount);
+  const hiddenWidgets = useGlobalStore(systemStatusSelectors.hiddenHomeWidgets);
+  const recentsHidden = hiddenWidgets.includes('recents');
+  const tasksHidden = hiddenWidgets.includes('tasks');
   const cacheScope = useCacheScope();
   const recentsSWR = useClientDataSWR(
-    isLogin ? recentKeys.topicList(HOME_TOPIC_RECENT_LIMIT, cacheScope) : null,
+    isLogin && !recentsHidden ? recentKeys.topicList(HOME_TOPIC_RECENT_LIMIT, cacheScope) : null,
     () => recentService.getAll(HOME_TOPIC_RECENT_LIMIT, ['topic'], true),
     { revalidateOnFocus: false },
   );
@@ -226,12 +237,15 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
   const topicRecents = recentsSWR.data ?? [];
 
   if (mode === 'chat') {
+    // With the recents section switched off nothing is fetched, so it reports as
+    // settled-and-empty rather than perpetually loading, and the remaining
+    // activity alone decides what this column is.
     const state = resolveHomeChatContentState({
       authLoaded: !!authLoaded,
-      hasError: !!recentsSWR.error,
+      hasError: !recentsHidden && !!recentsSWR.error,
       isLogin: !!isLogin,
       recentsCount: topicRecents.length,
-      recentsInit: recentsSWR.data !== undefined,
+      recentsInit: recentsHidden || recentsSWR.data !== undefined,
       activityCount: mineRunningCount + mineUnreadCount + needsYouCount,
       activityError: Boolean(inboxTopics.error || briefsSWR.error),
       activityResolved:
@@ -239,20 +253,24 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
         (briefsInit || Boolean(briefsSWR.error)),
     });
 
-    if (state === 'empty') return <EmptySuggestions onSelect={onSuggestionSelect} />;
+    if (state === 'empty')
+      return recentsHidden ? null : <EmptySuggestions onSelect={onSuggestionSelect} />;
 
     return (
       <Flexbox gap={32}>
         <HomeInbox variant={'main'} />
-        {(state !== 'ready' || topicRecents.length > 0) && (
-          <GroupBlock count={topicRecents.length || undefined} title={t('dashboard.chat.recents')}>
+        {!recentsHidden && (state !== 'ready' || topicRecents.length > 0) && (
+          <GroupBlock
+            count={resolveRecentsBadgeCount(topicRecents.length, recentsCount)}
+            title={t('dashboard.chat.recents')}
+          >
             {state === 'error' ? (
               <AsyncError error={recentsSWR.error} variant={'inline'} onRetry={recentsSWR.mutate} />
             ) : state === 'loading' ? (
               <LoadingRows />
             ) : (
               <Flexbox gap={4}>
-                {topicRecents.slice(0, 8).map((item) => (
+                {topicRecents.slice(0, recentsCount).map((item) => (
                   <RecentTopicRow key={item.id} topic={item} />
                 ))}
               </Flexbox>
@@ -266,7 +284,7 @@ const HomeModeContent = memo<HomeModeContentProps>(({ mode, onSuggestionSelect }
   if (!isLogin) return null;
 
   if (mode === 'task') {
-    return <TaskContent />;
+    return tasksHidden ? null : <TaskContent />;
   }
 
   return null;

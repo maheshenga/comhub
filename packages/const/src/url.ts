@@ -12,6 +12,7 @@ export const OG_URL = '/og/og.webp?v=1';
 export const LobeHubPath = {
   webapi: {
     modelConfig: '/webapi/lobehub-model-config',
+    modelRatings: '/webapi/lobehub-model-ratings',
   },
 } as const;
 

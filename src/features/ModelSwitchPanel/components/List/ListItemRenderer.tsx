@@ -20,8 +20,7 @@ import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspa
 import { ModelItemRender, ProviderItemRender } from '@/components/ModelSelect';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { buildWorkspaceAwarePath } from '@/features/Workspace/workspaceAwarePath';
-import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/selectors';
+import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
 import { styles } from '../../styles';
 import { type ListItem } from '../../types';
@@ -33,6 +32,8 @@ import { SingleProviderModelItem } from './SingleProviderModelItem';
 
 interface ListItemRendererProps {
   activeKey: string;
+  enabledList: EnabledProviderWithModels[];
+  isModelPro?: (modelId: string, providerId: string) => boolean;
   isModelRestricted?: (modelId: string, providerId: string) => boolean;
   item: ListItem;
   newLabel: string;
@@ -47,6 +48,8 @@ interface ListItemRendererProps {
 export const ListItemRenderer = memo<ListItemRendererProps>(
   ({
     activeKey,
+    enabledList,
+    isModelPro,
     isModelRestricted,
     item,
     newLabel,
@@ -60,7 +63,6 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
     const { t } = useTranslation('components');
     const navigate = useWorkspaceAwareNavigate();
     const activeSlug = useActiveWorkspaceSlug();
-    const isDevMode = useUserStore((s) => userGeneralSettingsSelectors.config(s).isDevMode);
     const [detailOpen, setDetailOpen] = useState(false);
 
     const selectModel = async (modelId: string, providerId: string) => {
@@ -156,6 +158,7 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
         const key = menuKey(item.provider.id, item.model.id);
         const isActive = key === activeKey;
         const restricted = isModelRestricted?.(item.model.id, item.provider.id);
+        const pro = restricted || isModelPro?.(item.model.id, item.provider.id);
 
         return (
           <Flexbox style={{ marginBlock: 1, marginInline: 4 }}>
@@ -178,8 +181,7 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                   {...item.model}
                   {...item.model.abilities}
                   newBadgeLabel={newLabel}
-                  proBadgeLabel={restricted ? proLabel : undefined}
-                  showInfoTag={isDevMode}
+                  proBadgeLabel={pro ? proLabel : undefined}
                   priceLabel={
                     <ModelPriceSummary
                       modelId={item.model.id}
@@ -192,7 +194,11 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
               <DropdownMenuPortal>
                 <DropdownMenuPositioner anchor={null} placement="right" sideOffset={12}>
                   <DropdownMenuPopup className={styles.detailPopup}>
-                    <ModelDetailPanel model={item.model.id} provider={item.provider.id} />
+                    <ModelDetailPanel
+                      enabledList={enabledList}
+                      model={item.model.id}
+                      provider={item.provider.id}
+                    />
                   </DropdownMenuPopup>
                 </DropdownMenuPositioner>
               </DropdownMenuPortal>
@@ -206,6 +212,7 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
         const key = menuKey(singleProvider.id, item.data.model.id);
         const isActive = key === activeKey;
         const restricted = isModelRestricted?.(item.data.model.id, singleProvider.id);
+        const pro = restricted || isModelPro?.(item.data.model.id, singleProvider.id);
 
         return (
           <Flexbox style={{ marginBlock: 1, marginInline: 4 }}>
@@ -227,14 +234,17 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                 <SingleProviderModelItem
                   data={item.data}
                   newLabel={newLabel}
-                  proBadgeLabel={restricted ? proLabel : undefined}
-                  showInfoTag={isDevMode}
+                  proBadgeLabel={pro ? proLabel : undefined}
                 />
               </DropdownMenuSubmenuTrigger>
               <DropdownMenuPortal>
                 <DropdownMenuPositioner anchor={null} placement="right" sideOffset={16}>
                   <DropdownMenuPopup className={styles.detailPopup}>
-                    <ModelDetailPanel model={item.data.model.id} provider={singleProvider.id} />
+                    <ModelDetailPanel
+                      enabledList={enabledList}
+                      model={item.data.model.id}
+                      provider={singleProvider.id}
+                    />
                   </DropdownMenuPopup>
                 </DropdownMenuPositioner>
               </DropdownMenuPortal>
@@ -249,10 +259,11 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
             <MultipleProvidersModelItem
               activeKey={activeKey}
               data={item.data}
+              enabledList={enabledList}
+              isModelPro={isModelPro}
               isModelRestricted={isModelRestricted}
               newLabel={newLabel}
               proLabel={proLabel}
-              showInfoTag={isDevMode}
               onBeforeModelSelect={onBeforeModelSelect}
               onClose={onClose}
               onModelChange={onModelChange}

@@ -4,6 +4,7 @@ import { LobeHub, ModelIcon, ProviderIcon } from '@lobehub/icons';
 import { type FlexboxProps } from '@lobehub/ui';
 import { Avatar, Flexbox, Icon, Tag, Text, Tooltip } from '@lobehub/ui';
 import { createStaticStyles, useResponsive } from 'antd-style';
+import { omit } from 'es-toolkit/compat';
 import {
   AudioLines,
   Infinity as InfinityIcon,
@@ -13,7 +14,7 @@ import {
   Video,
   Wrench,
 } from 'lucide-react';
-import { type ModelAbilities } from 'model-bank';
+import { type AiModelForSelect, type ModelAbilities } from 'model-bank';
 import numeral from 'numeral';
 import { type CSSProperties, type FC, type ReactNode } from 'react';
 import { memo } from 'react';
@@ -246,18 +247,51 @@ export const ModelInfoTags = memo<ModelInfoTagsProps>(
   },
 );
 
-interface ModelItemRenderProps extends ChatModelCard, Partial<Omit<FlexboxProps, 'id' | 'title'>> {
-  abilities?: ModelAbilities;
-  newBadgeLabel?: string;
-  priceLabel?: ReactNode;
-  proBadgeLabel?: string;
-  showInfoTag?: boolean;
-}
+type ModelItemRenderProps = ChatModelCard &
+  Partial<AiModelForSelect> &
+  Partial<ModelAbilities> &
+  Partial<Omit<FlexboxProps, 'id' | 'title'>> & {
+    abilities?: ModelAbilities;
+    label?: ReactNode;
+    newBadgeLabel?: string;
+    priceLabel?: ReactNode;
+    proBadgeLabel?: string;
+    provider?: string;
+    showInfoTag?: boolean;
+    value?: string;
+  };
+
+const MODEL_ONLY_PROPS = [
+  'approximatePricePerImage',
+  'approximatePricePerVideo',
+  'deploymentName',
+  'description',
+  'enabled',
+  'family',
+  'generation',
+  'isCustom',
+  'knowledgeCutoff',
+  'label',
+  'legacy',
+  'maxOutput',
+  'parameters',
+  'pricePerImage',
+  'pricePerVideo',
+  'pricing',
+  'provider',
+  'reasoning',
+  'search',
+  'settings',
+  'structuredOutput',
+  'type',
+  'value',
+] as const;
 
 export const ModelItemRender = memo<ModelItemRenderProps>(
   ({
     showInfoTag = true,
     abilities,
+    audio,
     contextWindowTokens,
     files,
     functionCall,
@@ -274,6 +308,7 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
   }) => {
     const { mobile } = useResponsive();
     const displayNameOrId = displayName || id;
+    const flexboxProps = omit(rest, MODEL_ONLY_PROPS);
 
     return (
       <Flexbox
@@ -281,12 +316,12 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
         align={'center'}
         gap={32}
         justify={'space-between'}
-        {...rest}
+        {...flexboxProps}
         style={{
           overflow: 'hidden',
           position: 'relative',
           width: '100%',
-          ...rest.style,
+          ...flexboxProps.style,
         }}
       >
         <Flexbox
@@ -321,6 +356,7 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
             {priceLabel}
             {showInfoTag && (
               <ModelInfoTags
+                audio={audio ?? abilities?.audio}
                 contextWindowTokens={contextWindowTokens}
                 files={files ?? abilities?.files}
                 functionCall={functionCall ?? abilities?.functionCall}

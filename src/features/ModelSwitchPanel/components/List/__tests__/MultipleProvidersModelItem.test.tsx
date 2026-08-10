@@ -69,12 +69,12 @@ vi.mock('../../ModelDetailPanel', () => ({
 }));
 
 describe('MultipleProvidersModelItem', () => {
-  it('renders model detail panel even when info tags are hidden', () => {
+  it('renders the model detail panel for the default provider', () => {
     render(
       <MultipleProvidersModelItem
         activeKey="lobehub/gpt-5.4"
+        enabledList={[]}
         newLabel="new"
-        showInfoTag={false}
         data={{
           displayName: 'GPT-5.4',
           model: {
@@ -104,9 +104,9 @@ describe('MultipleProvidersModelItem', () => {
     render(
       <MultipleProvidersModelItem
         activeKey="anthropic/claude-opus-4-7"
+        enabledList={[]}
         newLabel="new"
         proLabel="pro"
-        showInfoTag={false}
         data={{
           displayName: 'Claude Opus 4.7',
           model: {
@@ -143,6 +143,7 @@ describe('MultipleProvidersModelItem', () => {
     render(
       <MultipleProvidersModelItem
         activeKey=""
+        enabledList={[]}
         newLabel="new"
         data={{
           displayName: 'Claude Opus 4.8',
@@ -163,5 +164,36 @@ describe('MultipleProvidersModelItem', () => {
 
     expect(onBeforeModelSelect).toHaveBeenCalledWith('claude-opus-4-8', 'lobehub');
     await vi.waitFor(() => expect(onModelChange).not.toHaveBeenCalled());
+  });
+
+  it('renders the official Pro badge without restricting model selection', async () => {
+    const onModelChange = vi.fn();
+
+    render(
+      <MultipleProvidersModelItem
+        activeKey=""
+        enabledList={[]}
+        isModelPro={(modelId) => modelId === 'claude-sonnet-4-6'}
+        newLabel="new"
+        proLabel="Pro"
+        data={{
+          displayName: 'Claude Sonnet 4.6',
+          model: {
+            abilities: {},
+            displayName: 'Claude Sonnet 4.6',
+            id: 'claude-sonnet-4-6',
+          } as any,
+          providers: [{ id: 'newapi', name: 'NewAPI' }],
+        }}
+        onClose={vi.fn()}
+        onModelChange={onModelChange}
+      />,
+    );
+
+    expect(screen.getByTestId('model-pro-badge')).toHaveTextContent('Pro');
+    fireEvent.click(screen.getByText('Claude Sonnet 4.6'));
+    await vi.waitFor(() =>
+      expect(onModelChange).toHaveBeenCalledWith('claude-sonnet-4-6', 'newapi'),
+    );
   });
 });

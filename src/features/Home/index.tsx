@@ -12,11 +12,13 @@ import { systemStatusSelectors } from '@/store/global/selectors';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/slices/auth/selectors';
 
+import { isHomeMinimalLayout } from './CustomizeModal/config';
 import HomeHeader from './HomeHeader';
 import HomeModeContent from './HomeModeContent';
 import HomePortrait from './HomePortrait';
 import InputArea from './InputArea';
 import PortraitBubble from './PortraitBubble';
+import { RAIL_INBOX_PROPS, resolveRailVisibility } from './railVisibility';
 import type { HomeMode } from './types';
 
 /** Mirrors the row hover bleed in HomeModeContent; the viewport would clip it. */
@@ -58,6 +60,19 @@ const BUBBLE_GAP = 16;
 const GREETING_LANE = COLLAPSED_CONTENT_OFFSET * 2 + PORTRAIT_LANE + BUBBLE_MAX_WIDTH + BUBBLE_GAP;
 /** Under this the greeting, the bubble and the portrait cannot share a line. */
 const BUBBLE_INLINE_MIN = 1080;
+const MINIMAL_STACK_GAP = 24;
+/**
+ * The minimal header stacks the agent switcher (24px avatar + 2px paddings,
+ * from AgentSelect) over the greeting line (22px × 1.4, from HomeHeader) with
+ * an 8px gap. That stack's height plus the gap below it is what the block must
+ * shed under itself to land the composer, not the stack's midpoint, on the
+ * center of the lane.
+ */
+const MINIMAL_GREETING_LINE = Math.round(22 * 1.4);
+const MINIMAL_SWITCHER_ROW = 28;
+const MINIMAL_HEADER_GAP = 8;
+const MINIMAL_HEADER_HEIGHT = MINIMAL_SWITCHER_ROW + MINIMAL_HEADER_GAP + MINIMAL_GREETING_LINE;
+const MINIMAL_LIFT = MINIMAL_HEADER_HEIGHT + MINIMAL_STACK_GAP;
 
 const MAIN_CONTENT_STYLE = { ...scrollContent, paddingInline: ROW_BLEED };
 const RAIL_CONTENT_STYLE = { ...scrollContent, paddingInlineEnd: RAIL_GUTTER };
@@ -188,6 +203,20 @@ const styles = createStaticStyles(({ css }) => ({
       }
     }
   `,
+  // Nothing stacks under the composer any more, so the page stops being a
+  // dashboard: greeting and composer read as one block, on a measure of their
+  // own rather than the dashboard's full span.
+  //
+  // The route centers this block with auto margins, which would put the pair's
+  // midpoint on the center and leave the composer — the thing you actually look
+  // at — sitting low. The trailing pad is counted into the centered box, so it
+  // lifts everything by half its height and hands the composer the center.
+  minimal: css`
+    width: 100%;
+    max-inline-size: 760px;
+    margin-inline: auto;
+    padding-block-end: ${MINIMAL_LIFT}px;
+  `,
   portrait: css`
     grid-area: 1 / 2;
     transition: transform ${RAIL_TRANSITION_DURATION}ms ease-out;
@@ -278,10 +307,14 @@ const styles = createStaticStyles(({ css }) => ({
 const Home = memo(() => {
   const isLogin = useUserStore(authSelectors.isLogin);
   const showHomeRail = useGlobalStore(systemStatusSelectors.showHomeRail);
+  const showHomePortrait = useGlobalStore(systemStatusSelectors.showHomePortrait);
+  const hiddenWidgets = useGlobalStore(systemStatusSelectors.hiddenHomeWidgets);
+  const minimal = isHomeMinimalLayout({ hiddenWidgets, showPortrait: showHomePortrait });
   const [mode, setMode] = useState<HomeMode>('chat');
   const [inputValue, setInputValue] = useState('');
-  const railVisible = Boolean(isLogin && showHomeRail);
+  const railVisible = resolveRailVisibility({ hiddenWidgets, isLogin, showHomeRail });
   const railCollapsed = !railVisible;
+  const portraitVisible = Boolean(isLogin && showHomePortrait);
 
   const handleInputValueChange = useCallback((value: string) => {
     setInputValue(value);
@@ -299,19 +332,34 @@ const Home = memo(() => {
     [handleInputValueChange],
   );
 
+  if (minimal)
+    return (
+      <Flexbox className={styles.minimal} gap={MINIMAL_STACK_GAP}>
+        <HomeHeader centered />
+        <div className={styles.inputArea}>
+          <InputArea
+            inputValue={inputValue}
+            mode={mode}
+            onInputValueChange={handleInputValueChange}
+            onModeChange={setMode}
+          />
+        </div>
+      </Flexbox>
+    );
+
   return (
     <Flexbox className={styles.grid}>
       <div className={cx(styles.header, styles.content, railCollapsed && styles.contentCollapsed)}>
         <HomeHeader />
-        {/* No portrait for signed-out visitors, so no one to speak the line. */}
-        {isLogin && (
+        {/* The bubble is the portrait's line, so it goes wherever the portrait goes. */}
+        {portraitVisible && (
           <div className={cx(styles.bubbleSlot, railCollapsed && styles.bubbleSlotCollapsed)}>
             <PortraitBubble />
           </div>
         )}
       </div>
 
-      {isLogin && (
+      {portraitVisible && (
         <div className={cx(styles.portrait, railCollapsed && styles.portraitCollapsed)}>
           <HomePortrait />
         </div>
@@ -357,7 +405,7 @@ const Home = memo(() => {
             className={styles.railScroll}
             contentProps={{ style: RAIL_CONTENT_STYLE }}
           >
-            <HomeInbox hideNeedsYou hideUnread variant={'rail'} />
+            <HomeInbox {...RAIL_INBOX_PROPS} variant={'rail'} />
           </ScrollArea>
         </aside>
       )}
