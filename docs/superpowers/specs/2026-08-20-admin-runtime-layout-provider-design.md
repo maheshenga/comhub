@@ -21,9 +21,9 @@ It does not change provider credentials, provider enablement, synchronized model
 
 ### Admin shell
 
-The main desktop layout will identify `/settings/admin` and its descendant routes before rendering `NavPanelShell`. Admin routes will omit that main application panel. The dedicated admin navigation remains mounted by `AdminLayout` at desktop widths and remains available through its existing sheet at narrower widths.
+`NavPanelShell` will use the existing cross-platform active-location abstraction to identify `/settings/admin` and its descendant routes. It will return no main application panel for those routes. The dedicated admin navigation remains mounted by `AdminLayout` at desktop widths and remains available through its existing sheet at narrower widths.
 
-The route check will be a small exported predicate shared by the web and desktop layout twins so their behavior cannot drift.
+Keeping the route check in the shared shell applies the same behavior to the web router and Electron's active-tab router without duplicating logic across the main layout twins.
 
 ### Navigation search
 
@@ -36,7 +36,7 @@ The enabled model catalog returned in `sharedHealth.enabledNewapiModels` is the 
 Each runtime model row will use one model selection control and one read-only provider display:
 
 - Vector Embedding uses enabled `embedding` models.
-- Vector Reranker uses enabled `rerank` models.
+- Vector Reranker uses the complete enabled model catalog because the current model type contract has no dedicated `rerank` category. Each option retains its actual catalog type in the label.
 - Memory gatekeeper, layer extractor, and persona writer use enabled `chat` models.
 - Memory Embedding uses enabled `embedding` models.
 
