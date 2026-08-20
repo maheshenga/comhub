@@ -47,6 +47,10 @@ describe('admin settings procedure ownership', () => {
 
     expect(publicReads).toContain('getPublicBrand: publicDbProcedure');
     expect(adminReads).toContain('getSection: settingsSectionReadProcedure');
+    expect(adminReads).toContain('...(await buildAdminSettingsSectionReadModel(');
+    expect(adminReads).toContain('...(await buildAdminSettingsReadModel(');
+    expect(adminReads).not.toContain('...buildAdminSettingsSectionReadModel(');
+    expect(adminReads).not.toContain('...buildAdminSettingsReadModel(');
     expect(adminWrites).toContain('setAppSettingsBatch: settingsWriteProcedure');
     expect(runtimeWrites).toContain('testS3Storage: systemWriteProcedure');
     expect(runtimeWrites).toContain('runMaintenance: systemWriteProcedure');

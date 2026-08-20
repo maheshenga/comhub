@@ -72,10 +72,10 @@ export const adminSettingsReadProcedures = {
       ]);
 
       return {
-        ...buildAdminSettingsSectionReadModel(input.section, snapshot, {
+        ...(await buildAdminSettingsSectionReadModel(input.section, snapshot, {
           defaultAgentConfig: getServerDefaultAgentConfig(),
           enabledModels,
-        }),
+        })),
         __revision: revisionRow?.revision ?? 0,
       };
     }),
@@ -87,10 +87,10 @@ export const adminSettingsReadProcedures = {
     ]);
 
     return {
-      ...buildAdminSettingsReadModel(snapshot, {
+      ...(await buildAdminSettingsReadModel(snapshot, {
         defaultAgentConfig: getServerDefaultAgentConfig(),
         enabledModels,
-      }),
+      })),
       __revisions: revisions,
     };
   }),
