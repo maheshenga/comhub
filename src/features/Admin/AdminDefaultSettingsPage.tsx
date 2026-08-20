@@ -3,7 +3,7 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox } from '@lobehub/ui';
 import { Button, confirmModal, Select } from '@lobehub/ui/base-ui';
-import { Alert, AutoComplete, Form, Input, message, Switch } from 'antd';
+import { Alert, Form, Input, message, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -17,13 +17,10 @@ import {
 } from '@/const/adminCacheKeys';
 import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { type AvatarPreset, DEFAULT_AVATAR_PRESETS } from '@/const/avatarPresets';
-import {
-  buildModelOptions,
-  type DefaultModelOption,
-  resolveModelOptionValue,
-  resolveModelProviderLabel,
-} from '@/features/Admin/adminSettingsForm';
+import { buildRuntimeSettingUpdates } from '@/features/Admin/adminRuntimeModelSettings';
+import { buildModelOptions, resolveModelOptionValue } from '@/features/Admin/adminSettingsForm';
 import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
+import RuntimeModelFieldPair from '@/features/Admin/components/RuntimeModelFieldPair';
 import {
   type ConfiguredInterestArea,
   normalizeConfiguredInterestAreas,
@@ -117,44 +114,6 @@ const parseModelValue = (value?: string) => {
   const model = modelParts.join(':');
 
   return provider && model ? { model, provider } : null;
-};
-
-const buildProviderOptions = (options: DefaultModelOption[]) =>
-  Array.from(
-    options
-      .reduce((result, option) => {
-        if (!option.provider) return result;
-
-        result.set(option.provider, {
-          label: resolveModelProviderLabel(
-            { model: option.model, provider: option.provider },
-            options,
-          ),
-          value: option.provider,
-        });
-        return result;
-      }, new Map<string, { label: string; value: string }>())
-      .values(),
-  );
-
-const findModelOption = (options: DefaultModelOption[], value?: string) =>
-  options.find((option) => option.value === value || option.model === value);
-
-const normalizeMemoryModelFields = (
-  modelValue: string | undefined,
-  providerValue: string | undefined,
-  options: DefaultModelOption[],
-) => {
-  const model = typeof modelValue === 'string' ? modelValue.trim() : '';
-  const provider = typeof providerValue === 'string' ? providerValue.trim() : '';
-  const selected =
-    options.find((option) => option.value === model) ??
-    options.find((option) => option.model === model && (!provider || option.provider === provider));
-
-  return {
-    model: selected?.value === model ? selected.model : model,
-    provider: provider || selected?.provider || '',
-  };
 };
 
 const applyModelValue = (target: Record<string, any>, key: string, value?: string) => {
@@ -256,26 +215,13 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
       }),
     [settings?.sharedHealth?.enabledNewapiModels],
   );
-  const modelProviderOptions = useMemo(() => buildProviderOptions(modelOptions), [modelOptions]);
-  const embeddingProviderOptions = useMemo(
-    () => buildProviderOptions(embeddingModelOptions),
-    [embeddingModelOptions],
+  const rerankerModelOptions = useMemo(
+    () =>
+      buildModelOptions({
+        enabledNewapiModels: settings?.sharedHealth?.enabledNewapiModels as any,
+      }),
+    [settings?.sharedHealth?.enabledNewapiModels],
   );
-
-  const applySelectedModelProvider = (
-    modelField: keyof FormValues,
-    providerField: keyof FormValues,
-    options: DefaultModelOption[],
-    selectedValue?: string,
-  ) => {
-    const selected = findModelOption(options, selectedValue ?? form.getFieldValue(modelField));
-    if (!selected) return;
-
-    form.setFieldsValue({
-      [modelField]: selected.model,
-      [providerField]: selected.provider,
-    } as Partial<FormValues>);
-  };
 
   useEffect(() => {
     if (!settings) return;
@@ -426,50 +372,13 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
     ];
   };
 
-  const buildRuntimeUpdates = (values: FormValues): SettingUpdate[] => {
-    const gatekeeper = normalizeMemoryModelFields(
-      values.memoryGatekeeperModel,
-      values.memoryGatekeeperProvider,
-      modelOptions,
-    );
-    const layerExtractor = normalizeMemoryModelFields(
-      values.memoryLayerExtractorModel,
-      values.memoryLayerExtractorProvider,
-      modelOptions,
-    );
-    const personaWriter = normalizeMemoryModelFields(
-      values.memoryPersonaWriterModel,
-      values.memoryPersonaWriterProvider,
-      modelOptions,
-    );
-    const embedding = normalizeMemoryModelFields(
-      values.memoryEmbeddingModel,
-      values.memoryEmbeddingProvider,
-      embeddingModelOptions,
-    );
-
-    return [
-      { key: APP_SETTING_KEYS.vectorEmbeddingProvider, value: values.vectorEmbeddingProvider },
-      { key: APP_SETTING_KEYS.vectorEmbeddingModel, value: values.vectorEmbeddingModel },
-      { key: APP_SETTING_KEYS.vectorRerankerProvider, value: values.vectorRerankerProvider },
-      { key: APP_SETTING_KEYS.vectorRerankerModel, value: values.vectorRerankerModel },
-      { key: APP_SETTING_KEYS.vectorQueryMode, value: values.vectorQueryMode },
-      { key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider, value: gatekeeper.provider },
-      { key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel, value: gatekeeper.model },
-      {
-        key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
-        value: layerExtractor.provider,
-      },
-      { key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel, value: layerExtractor.model },
-      {
-        key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
-        value: personaWriter.provider,
-      },
-      { key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel, value: personaWriter.model },
-      { key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider, value: embedding.provider },
-      { key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel, value: embedding.model },
-    ];
-  };
+  const buildRuntimeUpdates = (values: FormValues): SettingUpdate[] =>
+    buildRuntimeSettingUpdates({
+      chatOptions: modelOptions,
+      embeddingOptions: embeddingModelOptions,
+      rerankerOptions: rerankerModelOptions,
+      values,
+    });
 
   const buildIntegrationUpdates = (values: FormValues): SettingUpdate[] => [
     { key: APP_SETTING_KEYS.composioEnabled, value: values.composioEnabled ?? false },
@@ -557,22 +466,25 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           style={{ marginBottom: 16 }}
           type="warning"
         />
-        <Form.Item
+        <RuntimeModelFieldPair
           extra="留空时使用服务器或系统默认值。"
-          label="Embedding 供应商"
-          name="vectorEmbeddingProvider"
-        >
-          <Input placeholder="openai / newapi / jina / cohere" />
-        </Form.Item>
-        <Form.Item label="Embedding 模型" name="vectorEmbeddingModel">
-          <Input placeholder="text-embedding-3-small" />
-        </Form.Item>
-        <Form.Item label="Reranker 供应商" name="vectorRerankerProvider">
-          <Input placeholder="cohere / jina / newapi" />
-        </Form.Item>
-        <Form.Item label="Reranker 模型" name="vectorRerankerModel">
-          <Input placeholder="rerank-english-v3.0" />
-        </Form.Item>
+          form={form}
+          modelField="vectorEmbeddingModel"
+          modelLabel="Embedding 模型"
+          options={embeddingModelOptions}
+          placeholder="选择 Embedding 模型"
+          providerField="vectorEmbeddingProvider"
+          providerLabel="Embedding 供应商"
+        />
+        <RuntimeModelFieldPair
+          form={form}
+          modelField="vectorRerankerModel"
+          modelLabel="Reranker 模型"
+          options={rerankerModelOptions}
+          placeholder="选择 Reranker 模型"
+          providerField="vectorRerankerProvider"
+          providerLabel="Reranker 供应商"
+        />
         <Form.Item extra="使用当前系统支持的 query_mode。" label="查询模式" name="vectorQueryMode">
           <Select
             allowClear
@@ -592,81 +504,46 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           style={{ marginBottom: 16 }}
           type="info"
         />
-        {[
-          [
-            'memoryGatekeeperModel',
-            'memoryGatekeeperProvider',
-            '记忆判定模型',
-            '判断聊天内容是否需要写入长期记忆。',
-          ],
-          [
-            'memoryLayerExtractorModel',
-            'memoryLayerExtractorProvider',
-            '分层提取模型',
-            '提取 activity、context、experience 等记忆层。',
-          ],
-          [
-            'memoryPersonaWriterModel',
-            'memoryPersonaWriterProvider',
-            '用户画像写入模型',
-            '根据长期记忆生成和更新用户画像。',
-          ],
-        ].map(([modelField, providerField, label, extra]) => (
-          <Flexbox horizontal gap={12} key={modelField}>
-            <Form.Item
-              extra={extra}
-              label={label}
-              name={modelField as keyof FormValues}
-              style={{ flex: 1 }}
-            >
-              <AutoComplete
-                allowClear
-                options={modelOptions}
-                placeholder="选择聊天模型"
-                onSelect={(value) =>
-                  applySelectedModelProvider(
-                    modelField as keyof FormValues,
-                    providerField as keyof FormValues,
-                    modelOptions,
-                    value,
-                  )
-                }
-              />
-            </Form.Item>
-            <Form.Item
-              label="供应商"
-              name={providerField as keyof FormValues}
-              style={{ width: 220 }}
-            >
-              <Select allowClear showSearch options={modelProviderOptions} />
-            </Form.Item>
-          </Flexbox>
-        ))}
-        <Flexbox horizontal gap={12}>
-          <Form.Item
-            extra="用于写入和搜索用户记忆向量。"
-            label="记忆 Embedding 模型"
-            name="memoryEmbeddingModel"
-            style={{ flex: 1 }}
-          >
-            <AutoComplete
-              allowClear
-              options={embeddingModelOptions}
-              placeholder="选择 Embedding 模型"
-              onSelect={(value) =>
-                applySelectedModelProvider(
-                  'memoryEmbeddingModel',
-                  'memoryEmbeddingProvider',
-                  embeddingModelOptions,
-                  value,
-                )
-              }
-            />
-          </Form.Item>
-          <Form.Item label="供应商" name="memoryEmbeddingProvider" style={{ width: 220 }}>
-            <Select allowClear showSearch options={embeddingProviderOptions} />
-          </Form.Item>
-        </Flexbox>
+        <RuntimeModelFieldPair
+          extra="判断聊天内容是否需要写入长期记忆。"
+          form={form}
+          modelField="memoryGatekeeperModel"
+          modelLabel="记忆判定模型"
+          options={modelOptions}
+          placeholder="选择聊天模型"
+          providerField="memoryGatekeeperProvider"
+          providerLabel="记忆判定供应商"
+        />
+        <RuntimeModelFieldPair
+          extra="提取 activity、context、experience 等记忆层。"
+          form={form}
+          modelField="memoryLayerExtractorModel"
+          modelLabel="分层提取模型"
+          options={modelOptions}
+          placeholder="选择聊天模型"
+          providerField="memoryLayerExtractorProvider"
+          providerLabel="分层提取供应商"
+        />
+        <RuntimeModelFieldPair
+          extra="根据长期记忆生成和更新用户画像。"
+          form={form}
+          modelField="memoryPersonaWriterModel"
+          modelLabel="用户画像写入模型"
+          options={modelOptions}
+          placeholder="选择聊天模型"
+          providerField="memoryPersonaWriterProvider"
+          providerLabel="用户画像供应商"
+        />
+        <RuntimeModelFieldPair
+          extra="用于写入和搜索用户记忆向量。"
+          form={form}
+          modelField="memoryEmbeddingModel"
+          modelLabel="记忆 Embedding 模型"
+          options={embeddingModelOptions}
+          placeholder="选择 Embedding 模型"
+          providerField="memoryEmbeddingProvider"
+          providerLabel="记忆 Embedding 供应商"
+        />
       </Card>
     </>
   );
