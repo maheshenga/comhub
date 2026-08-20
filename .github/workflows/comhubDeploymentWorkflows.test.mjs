@@ -235,6 +235,75 @@ test('closed deployment skips the optional Module Runtime rollout', () => {
   );
 });
 
+test('application deployment preflights and rolls back a failed replacement', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const remoteDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Run remote blue-green deploy',
+  );
+  const script = remoteDeploy?.run ?? '';
+  const preflightIndex = script.indexOf(
+    'verify_application "$previous_app_image" "$previous_app_tag" "preflight"',
+  );
+  const trapIndex = script.indexOf('trap rollback_deployment ERR EXIT', preflightIndex);
+  const rolloutStartIndex = script.indexOf('application_rollout_started=true', trapIndex);
+  const replaceIndex = script.indexOf(
+    'deploy_application "$IMAGE_REF" "$IMAGE_TAG"',
+    rolloutStartIndex,
+  );
+
+  assert.ok(preflightIndex >= 0, 'expected the existing application to be preflighted');
+  assert.ok(trapIndex > preflightIndex, 'application rollback must be armed after preflight');
+  assert.ok(
+    rolloutStartIndex > trapIndex,
+    'application rollout must not start before its rollback trap is installed',
+  );
+  assert.ok(replaceIndex > rolloutStartIndex, 'application replacement must follow rollout start');
+  assert.match(script, /previous_app_id="\$\(docker compose ps -q "\$app_service"\)"/u);
+  assert.match(
+    script,
+    /previous_app_image="\$\(docker inspect -f '\{\{\.Config\.Image\}\}' "\$previous_app_id"\)"/u,
+  );
+  assert.match(
+    script,
+    /previous_app_tag="\$\(docker inspect -f '\{\{range \.Config\.Env\}\}\{\{println \.\}\}\{\{end\}\}' "\$previous_app_id" \| sed -n 's\/\^COMHUB_IMAGE_TAG=\/\/p'\)"/u,
+  );
+  assert.match(
+    script,
+    /deploy_application "\$previous_app_image" "\$previous_app_tag"[\s\S]*?verify_application "\$previous_app_image" "\$previous_app_tag" "rollback"/u,
+  );
+  assert.match(script, /application_rollout_committed=true/u);
+  assert.match(script, /APPLICATION_ROLLBACK_(COMPLETED|FAILED)/u);
+
+  const rollbackFunction = script.slice(
+    script.indexOf('rollback_deployment() {'),
+    script.indexOf('verify_runtime_auth_boundary() {'),
+  );
+  const prematureExitRollback = spawnSync('bash', [], {
+    encoding: 'utf8',
+    input: `deploy_application() { printf 'deploy:%s:%s\\n' "$1" "$2"; }
+verify_application() { printf 'verify:%s:%s:%s\\n' "$1" "$2" "$3"; }
+REQUIRE_MODULE_RUNTIME=false
+application_rollout_started=true
+application_rollout_committed=false
+previous_app_image=old-image
+previous_app_tag=sha-0123456789ab
+runtime_rollout_started=false
+runtime_rollout_committed=false
+${rollbackFunction}
+trap rollback_deployment ERR EXIT
+exit 0`,
+  });
+  assert.equal(
+    prematureExitRollback.status,
+    1,
+    `premature application EXIT rollback failed:\nstdout:\n${prematureExitRollback.stdout}\nstderr:\n${prematureExitRollback.stderr}`,
+  );
+  assert.match(prematureExitRollback.stdout, /deploy:old-image:sha-0123456789ab/u);
+  assert.match(prematureExitRollback.stdout, /verify:old-image:sha-0123456789ab:rollback/u);
+  assert.match(prematureExitRollback.stdout, /APPLICATION_ROLLBACK_COMPLETED/u);
+  assert.doesNotMatch(prematureExitRollback.stderr, /APPLICATION_ROLLBACK_FAILED/u);
+});
+
 test('Module Runtime deployment preflights topology and rolls back a failed replacement', () => {
   const { workflow } = loadWorkflow('comhub-deploy.yml');
   const remoteDeploy = workflow.jobs.deploy.steps.find(
@@ -245,7 +314,7 @@ test('Module Runtime deployment preflights topology and rolls back a failed repl
     'verify_module_runtime "$previous_runtime_image" "preflight"',
   );
   const pullIndex = script.indexOf('docker pull "$RUNTIME_IMAGE_REF"');
-  const trapIndex = script.indexOf('trap rollback_module_runtime ERR EXIT', pullIndex);
+  const trapIndex = script.indexOf('trap rollback_deployment ERR EXIT', pullIndex);
   const rolloutStartIndex = script.indexOf('runtime_rollout_started=true', pullIndex);
   const replaceIndex = script.indexOf(
     'docker compose up -d --no-deps --wait module-runtime',
@@ -272,7 +341,7 @@ test('Module Runtime deployment preflights topology and rolls back a failed repl
     script,
     /\[\[ "\$previous_runtime_image" =~ \^\[\^\[:space:\]@\]\+@sha256:\[0-9a-f\]\{64\}\$ \]\] \|\| runtime_verify_failed "preflight" previous_image_not_immutable/u,
   );
-  assert.match(script, /trap rollback_module_runtime ERR EXIT/u);
+  assert.match(script, /trap rollback_deployment ERR EXIT/u);
   assert.match(
     script,
     /export COMHUB_MODULE_RUNTIME_IMAGE="\$previous_runtime_image"[\s\S]*?docker compose up -d --no-deps --wait module-runtime[\s\S]*?verify_module_runtime "\$previous_runtime_image" "rollback"/u,
@@ -283,7 +352,7 @@ test('Module Runtime deployment preflights topology and rolls back a failed repl
 
   const verifyFunction = script.slice(
     script.indexOf('verify_module_runtime() {'),
-    script.indexOf('rollback_module_runtime() {'),
+    script.indexOf('rollback_deployment() {'),
   );
   const explicitFailureReturns = [
     ...verifyFunction.matchAll(/runtime_verify_failed "\$phase" ([a-z0-9_]+)\s+return 1/gu),
@@ -309,7 +378,7 @@ test('Module Runtime deployment preflights topology and rolls back a failed repl
 
   const runtimeHelpers = script.slice(
     script.indexOf('runtime_verify_failed() {'),
-    script.indexOf('rollback_module_runtime() {'),
+    script.indexOf('rollback_deployment() {'),
   );
   const missingExpectedImage = spawnSync('bash', [], {
     encoding: 'utf8',
@@ -323,7 +392,7 @@ test('Module Runtime deployment preflights topology and rolls back a failed repl
   assert.doesNotMatch(missingExpectedImage.stdout, /MODULE_RUNTIME_VERIFY_PASSED/u);
 
   const rollbackFunction = script.slice(
-    script.indexOf('rollback_module_runtime() {'),
+    script.indexOf('rollback_deployment() {'),
     script.indexOf('verify_runtime_auth_boundary() {'),
   );
   assert.match(
@@ -335,11 +404,13 @@ test('Module Runtime deployment preflights topology and rolls back a failed repl
     input: `docker() { printf 'docker:%s\\n' "$*"; }
 verify_module_runtime() { printf 'verify:%s:%s\\n' "$1" "$2"; }
 REQUIRE_MODULE_RUNTIME=true
+application_rollout_started=false
+application_rollout_committed=false
 runtime_rollout_started=true
 runtime_rollout_committed=false
 previous_runtime_image=old-image
 ${rollbackFunction}
-trap rollback_module_runtime ERR EXIT
+trap rollback_deployment ERR EXIT
 exit 0`,
   });
   assert.equal(
