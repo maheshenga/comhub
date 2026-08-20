@@ -29,8 +29,8 @@ vi.mock('antd', async (importOriginal) => {
         {...props}
         onChange={(event) => {
           const value = event.target.value;
-          onChange?.(value);
           if (value) onSelect?.(value);
+          onChange?.(value);
         }}
       >
         <option value="">Clear</option>

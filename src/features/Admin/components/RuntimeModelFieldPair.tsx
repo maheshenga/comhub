@@ -1,7 +1,6 @@
 'use client';
 
-import { AutoComplete, Form, Input } from 'antd';
-import { type FormInstance } from 'antd/es/form';
+import { AutoComplete, Form, type FormInstance, Input } from 'antd';
 import { memo, type ReactNode } from 'react';
 
 import {
@@ -45,9 +44,13 @@ const RuntimeModelFieldPair = memo<RuntimeModelFieldPairProps>(
             options={options}
             placeholder={placeholder}
             onChange={(value) => {
-              if (!options.some((option) => option.value === value)) {
-                form.setFieldValue(providerField, '');
-              }
+              const selected = options.find((option) => option.value === value);
+              if (!selected) return form.setFieldValue(providerField, '');
+
+              form.setFieldsValue({
+                [modelField]: selected.model,
+                [providerField]: selected.provider,
+              });
             }}
             onSelect={(value) => {
               const selected = options.find((option) => option.value === value);
