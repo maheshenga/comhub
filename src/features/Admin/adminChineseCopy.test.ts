@@ -203,7 +203,7 @@ describe('admin Chinese copy', () => {
       '可批量添加模型 ID，使用换行或逗号分隔。',
     );
     expect(subscription['admin.providers.sync.success']).toBe(
-      '同步完成：导入 {{count}} 个模型，新模型默认未启用',
+      '同步完成：删除 {{deletedCount}} 个旧模型，导入 {{count}} 个新模型；同步价格 {{pricingCount}} 条，能力信息覆盖 {{abilitiesCount}} 个模型。新模型默认未启用。',
     );
     expect(subscription['admin.providers.test.failed']).toBe('连接失败：{{error}}');
     expect(subscription['admin.providers.col.providerType']).toBe('服务商');

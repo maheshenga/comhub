@@ -3,6 +3,7 @@
 import { memo } from 'react';
 
 import HomeNavPanelPortal from '@/features/HomeSidebar';
+import { useActiveLocation } from '@/hooks/useActiveLocation';
 
 import NavPanel from './index';
 
@@ -12,12 +13,21 @@ import NavPanel from './index';
 // Home layout only mounts inside a home tab — and `Activity` unmounts effects
 // for inactive tabs. Registering from the route layout leaves those tabs with
 // no `home` entry at all, so the panel is stuck on the loading skeleton.
-const NavPanelShell = memo(() => (
-  <>
-    <HomeNavPanelPortal />
-    <NavPanel />
-  </>
-));
+export const isAdminConsolePath = (pathname: string) =>
+  pathname === '/settings/admin' || pathname.startsWith('/settings/admin/');
+
+const NavPanelShell = memo(() => {
+  const { pathname } = useActiveLocation();
+
+  if (isAdminConsolePath(pathname)) return null;
+
+  return (
+    <>
+      <HomeNavPanelPortal />
+      <NavPanel />
+    </>
+  );
+});
 
 NavPanelShell.displayName = 'NavPanelShell';
 

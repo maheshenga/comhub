@@ -1,4 +1,10 @@
-import type { Pricing, PricingUnit, PricingUnitName } from 'model-bank';
+import {
+  LOBE_DEFAULT_MODEL_LIST,
+  type ModelAbilities,
+  type Pricing,
+  type PricingUnit,
+  type PricingUnitName,
+} from 'model-bank';
 import urlJoin from 'url-join';
 
 import type { NewapiModelType } from './index';
@@ -15,33 +21,36 @@ export type AdminModelApiProviderType =
   | 'siliconflow';
 
 export interface NewapiRemoteModel {
+  abilities?: Record<string, unknown>;
+  capabilities?: Record<string, unknown> | string[];
   created?: number;
   id: string;
   object?: string;
   owned_by?: string;
-  supported_endpoint_types?: string[];
+  supported_endpoint_types?: Array<number | string>;
+  tags?: string | string[];
   type?: string;
 }
 
 export interface NewapiRemotePricing {
+  abilities?: Record<string, unknown>;
+  audio_completion_ratio?: number;
+  audio_ratio?: number;
+  cache_ratio?: number;
+  capabilities?: Record<string, unknown> | string[];
   completion_ratio?: number;
+  create_cache_ratio?: number;
   description?: string;
   enable_groups?: string[];
+  function_tags?: string;
+  image_ratio?: number;
   model_name: string;
   model_price?: number;
   model_ratio?: number;
   quota_type?: number;
   resolvedPricing?: Pricing;
-  supported_endpoint_types?: string[];
-}
-
-export interface ExistingNewapiModelRow {
-  displayName?: string | null;
-  enabled: boolean;
-  metadata?: Record<string, unknown> | null;
-  modelId: string;
-  modelType: string;
-  sortOrder?: number;
+  supported_endpoint_types?: Array<number | string>;
+  tags?: string | string[];
 }
 
 export interface NormalizedNewapiSyncRow {
@@ -140,10 +149,43 @@ export const classifyNewapiModelType = (
     ...(model.supported_endpoint_types ?? []),
     ...(pricing?.supported_endpoint_types ?? []),
   ]
-    .map((item) => item.toLowerCase().trim())
+    .map((item) => String(item).toLowerCase().trim())
     .filter(Boolean);
   const explicitType = model.type?.toLowerCase().trim();
   const id = model.id.toLowerCase();
+
+  if (
+    explicitType === 'tts' ||
+    endpointIncludes(endpoints, ['audio-speech', 'audio_speech', 'text-to-speech', 'tts'])
+  ) {
+    return 'tts';
+  }
+
+  if (
+    explicitType === 'asr' ||
+    explicitType === 'stt' ||
+    endpointIncludes(endpoints, [
+      'asr',
+      'audio-transcription',
+      'audio_transcription',
+      'speech-to-text',
+      'stt',
+      'transcription',
+    ])
+  ) {
+    return 'asr';
+  }
+
+  if (explicitType === 'realtime' || endpointIncludes(endpoints, ['realtime'])) {
+    return 'realtime';
+  }
+
+  if (
+    explicitType === 'text2music' ||
+    endpointIncludes(endpoints, ['music-generation', 'music_generation', 'text-to-music'])
+  ) {
+    return 'text2music';
+  }
 
   if (
     explicitType === 'image' ||
@@ -176,17 +218,161 @@ export const classifyNewapiModelType = (
 
   if (idIncludes(id, ['embedding', 'embed'])) return 'embedding';
 
+  if (idIncludes(id, ['text-to-speech', '-tts', 'tts-']) || id.endsWith('tts')) return 'tts';
+  if (
+    idIncludes(id, ['audio-transcription', 'speech-to-text', 'transcribe', 'whisper']) ||
+    id.endsWith('-asr') ||
+    id.endsWith('-stt')
+  )
+    return 'asr';
+  if (idIncludes(id, ['realtime'])) return 'realtime';
+  if (idIncludes(id, ['suno', 'text-to-music'])) return 'text2music';
+
   return 'chat';
 };
 
+const MODEL_ABILITY_KEYS = [
+  'vision',
+  'files',
+  'imageOutput',
+  'video',
+  'audio',
+  'functionCall',
+  'reasoning',
+  'search',
+  'structuredOutput',
+] as const satisfies ReadonlyArray<keyof ModelAbilities>;
+
+const ABILITY_TAGS: Record<(typeof MODEL_ABILITY_KEYS)[number], string[]> = {
+  audio: ['audio', 'audio input'],
+  files: ['document input', 'file input', 'files'],
+  functionCall: ['function call', 'function calling', 'tool calling', 'tools'],
+  imageOutput: ['image generation', 'image output', 'text to image'],
+  reasoning: ['reasoning', 'thinking'],
+  search: ['grounding', 'search', 'web search'],
+  structuredOutput: ['json mode', 'json schema', 'structured output'],
+  video: ['video', 'video generation', 'video input'],
+  vision: ['image input', 'multimodal input', 'vision'],
+};
+
+const normalizeAbilityName = (value: string) =>
+  value
+    .trim()
+    .replaceAll(/([a-z])([A-Z])/g, '$1 $2')
+    .replaceAll(/[_-]+/g, ' ')
+    .replaceAll(/\s+/g, ' ')
+    .toLowerCase();
+
+const readAbilityTags = (...values: unknown[]) =>
+  values.flatMap((value): string[] => {
+    if (typeof value === 'string') {
+      return value.split(/[,;|]/).map(normalizeAbilityName).filter(Boolean);
+    }
+    if (Array.isArray(value)) {
+      return value
+        .filter((item): item is string => typeof item === 'string')
+        .map(normalizeAbilityName)
+        .filter(Boolean);
+    }
+    return [];
+  });
+
+const applyExplicitAbilities = (abilities: ModelAbilities, value: unknown): boolean => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+
+  const normalizedEntries = new Map(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      normalizeAbilityName(key),
+      item,
+    ]),
+  );
+  let applied = false;
+  for (const key of MODEL_ABILITY_KEYS) {
+    const aliases = [normalizeAbilityName(key), ...ABILITY_TAGS[key]];
+    const match = aliases
+      .map((alias) => normalizedEntries.get(alias))
+      .find((item) => typeof item === 'boolean');
+    if (typeof match === 'boolean') {
+      abilities[key] = match;
+      applied = true;
+    }
+  }
+  return applied;
+};
+
+const resolveSyncedModelAbilities = ({
+  model,
+  modelBankProviderId,
+  modelType,
+  pricing,
+}: {
+  model: NewapiRemoteModel;
+  modelBankProviderId?: string;
+  modelType: NewapiModelType;
+  pricing?: NewapiRemotePricing;
+}) => {
+  const abilities: ModelAbilities = {};
+  const sources: string[] = [];
+  const exactSystemMatches = LOBE_DEFAULT_MODEL_LIST.filter(
+    (item) => item.id === model.id && item.type === modelType,
+  );
+  const providerMatches = modelBankProviderId
+    ? exactSystemMatches.filter((item) => item.providerId === modelBankProviderId)
+    : [];
+  const systemMatches = providerMatches.length > 0 ? providerMatches : exactSystemMatches;
+  for (const item of systemMatches) {
+    for (const key of MODEL_ABILITY_KEYS) {
+      if (item.abilities?.[key] === true) abilities[key] = true;
+    }
+  }
+  if (Object.keys(abilities).length > 0) sources.push('system-model-bank');
+
+  const upstreamTags = readAbilityTags(
+    model.tags,
+    Array.isArray(model.capabilities) ? model.capabilities : undefined,
+    pricing?.tags,
+    Array.isArray(pricing?.capabilities) ? pricing.capabilities : undefined,
+    pricing?.function_tags,
+    model.supported_endpoint_types,
+    pricing?.supported_endpoint_types,
+  );
+  let hasUpstreamAbilities = [
+    model.abilities,
+    model.capabilities,
+    pricing?.abilities,
+    pricing?.capabilities,
+  ]
+    .map((value) => applyExplicitAbilities(abilities, value))
+    .some(Boolean);
+  for (const key of MODEL_ABILITY_KEYS) {
+    if (ABILITY_TAGS[key].some((tag) => upstreamTags.includes(tag))) {
+      abilities[key] = true;
+      hasUpstreamAbilities = true;
+    }
+  }
+  if (modelType === 'image') {
+    abilities.imageOutput = true;
+    hasUpstreamAbilities = true;
+  } else if (modelType === 'video') {
+    abilities.video = true;
+    hasUpstreamAbilities = true;
+  }
+  if (hasUpstreamAbilities) sources.push('upstream');
+
+  return {
+    abilities: Object.keys(abilities).length > 0 ? abilities : undefined,
+    sources,
+  };
+};
+
 export const normalizeNewapiSyncRows = ({
-  existingRows,
+  modelBankProviderId,
   models,
   pricing,
   pricingStatus = 'available',
   syncSource = 'newapi',
 }: {
-  existingRows: ExistingNewapiModelRow[];
+  modelBankProviderId?: string;
   models: NewapiRemoteModel[];
   pricing: NewapiRemotePricing[];
   pricingStatus?: NewapiPricingSyncStatus;
@@ -198,28 +384,19 @@ export const normalizeNewapiSyncRows = ({
     if (modelName && !pricingByModel.has(modelName)) pricingByModel.set(modelName, item);
   }
 
-  const existingByKey = new Map(
-    existingRows.map((item) => [`${item.modelId}:${item.modelType}`, item]),
-  );
   const uniqueModels = new Map<string, NewapiRemoteModel>();
   for (const model of models) {
     const modelId = model.id?.trim();
     if (modelId && !uniqueModels.has(modelId)) uniqueModels.set(modelId, { ...model, id: modelId });
   }
 
-  const activeKeys = new Set<string>();
-  const activeRows = [...uniqueModels.values()].map((model, index) => {
+  const syncedAt = new Date().toISOString();
+  return [...uniqueModels.values()].map((model, index) => {
     const pricingItem = pricingByModel.get(model.id);
     const modelType = classifyNewapiModelType(model, pricingItem);
-    const key = `${model.id}:${modelType}`;
-    const existing = existingByKey.get(key);
-    activeKeys.add(key);
-
-    const existingMetadata = { ...existing?.metadata };
-    delete existingMetadata.staleSince;
 
     const metadata: Record<string, unknown> = {
-      ...existingMetadata,
+      syncedAt,
       syncSource,
       syncStatus: 'active',
     };
@@ -235,15 +412,33 @@ export const normalizeNewapiSyncRows = ({
     const supportedEndpointTypes = [
       ...(model.supported_endpoint_types ?? []),
       ...(pricingItem?.supported_endpoint_types ?? []),
-    ].filter((item, itemIndex, items) => item && items.indexOf(item) === itemIndex);
+    ]
+      .map(String)
+      .filter((item, itemIndex, items) => item && items.indexOf(item) === itemIndex);
     if (supportedEndpointTypes.length > 0) {
       metadata.supportedEndpointTypes = supportedEndpointTypes;
     }
 
+    const syncedAbilities = resolveSyncedModelAbilities({
+      model,
+      modelBankProviderId,
+      modelType,
+      pricing: pricingItem,
+    });
+    if (syncedAbilities.abilities) metadata.syncedAbilities = syncedAbilities.abilities;
+    if (syncedAbilities.sources.length > 0) {
+      metadata.syncedAbilitySources = syncedAbilities.sources;
+    }
+
     if (pricingStatus === 'available' || pricingStatus === 'unsafe') {
       for (const key of [
+        'audioCompletionRatio',
+        'audioRatio',
+        'cacheRatio',
         'completionRatio',
+        'createCacheRatio',
         'enableGroups',
+        'imageRatio',
         'modelPrice',
         'modelRatio',
         'quotaType',
@@ -254,8 +449,17 @@ export const normalizeNewapiSyncRows = ({
 
       metadata.pricingAvailable = Boolean(pricingItem);
       metadata.pricingSyncStatus = pricingStatus;
+      if (pricingItem) {
+        metadata.pricingSource = syncSource;
+        metadata.pricingSyncedAt = syncedAt;
+      }
+      assignIfDefined('audioCompletionRatio', pricingItem?.audio_completion_ratio);
+      assignIfDefined('audioRatio', pricingItem?.audio_ratio);
+      assignIfDefined('cacheRatio', pricingItem?.cache_ratio);
       assignIfDefined('completionRatio', pricingItem?.completion_ratio);
+      assignIfDefined('createCacheRatio', pricingItem?.create_cache_ratio);
       assignIfDefined('enableGroups', pricingItem?.enable_groups);
+      assignIfDefined('imageRatio', pricingItem?.image_ratio);
       assignIfDefined('modelPrice', pricingItem?.model_price);
       assignIfDefined('modelRatio', pricingItem?.model_ratio);
       assignIfDefined('quotaType', pricingItem?.quota_type);
@@ -265,44 +469,14 @@ export const normalizeNewapiSyncRows = ({
     }
 
     return {
-      displayName: existing?.displayName?.trim() || pricingItem?.description,
-      enabled: existing?.enabled ?? false,
+      displayName: pricingItem?.description,
+      enabled: false,
       metadata,
       modelId: model.id,
       modelType,
-      sortOrder: existing?.sortOrder ?? index,
+      sortOrder: index,
     };
   });
-
-  const staleRows = existingRows.flatMap((existing) => {
-    const key = `${existing.modelId}:${existing.modelType}`;
-    if (
-      activeKeys.has(key) ||
-      !['newapi', 'sub2api'].includes(String(existing.metadata?.syncSource))
-    )
-      return [];
-
-    return [
-      {
-        displayName: existing.displayName?.trim() || undefined,
-        enabled: false,
-        metadata: {
-          ...existing.metadata,
-          staleSince:
-            typeof existing.metadata?.staleSince === 'string'
-              ? existing.metadata.staleSince
-              : new Date().toISOString(),
-          syncSource,
-          syncStatus: 'stale',
-        },
-        modelId: existing.modelId,
-        modelType: existing.modelType as NewapiModelType,
-        sortOrder: existing.sortOrder ?? activeRows.length,
-      },
-    ];
-  });
-
-  return [...activeRows, ...staleRows];
 };
 
 const fetchWithTimeout = async <T>(

@@ -327,6 +327,7 @@ const ABILITY_KEYS: Array<keyof ModelAbilities> = [
   'functionCall',
   'reasoning',
   'search',
+  'structuredOutput',
 ];
 
 const toPositiveNumber = (value: unknown) => {
@@ -427,23 +428,31 @@ const resolveManualPricing = (
   return undefined;
 };
 
-const resolveManualAbilities = (
-  metadata: Record<string, unknown> | null | undefined,
-): ModelAbilities | undefined => {
-  const manualAbilities =
-    metadata?.manualAbilities && typeof metadata.manualAbilities === 'object'
-      ? (metadata.manualAbilities as Record<string, unknown>)
+const readStoredAbilities = (value: unknown): ModelAbilities | undefined => {
+  const storedAbilities =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
       : undefined;
-  if (!manualAbilities) return undefined;
+  if (!storedAbilities) return undefined;
 
   const abilities = ABILITY_KEYS.reduce<ModelAbilities>((map, key) => {
-    if (typeof manualAbilities[key] === 'boolean') {
-      map[key] = manualAbilities[key] as boolean;
+    if (typeof storedAbilities[key] === 'boolean') {
+      map[key] = storedAbilities[key] as boolean;
     }
     return map;
   }, {});
 
   return Object.keys(abilities).length > 0 ? abilities : undefined;
+};
+
+const resolveStoredAbilities = (
+  metadata: Record<string, unknown> | null | undefined,
+): ModelAbilities | undefined => {
+  const syncedAbilities = readStoredAbilities(metadata?.syncedAbilities);
+  const manualAbilities = readStoredAbilities(metadata?.manualAbilities);
+  if (!syncedAbilities && !manualAbilities) return undefined;
+
+  return { ...syncedAbilities, ...manualAbilities };
 };
 
 export const resolveNewapiModelPricingFromMetadata = (
@@ -476,6 +485,12 @@ export const resolveNewapiModelPricingFromMetadata = (
   if (quotaType === 0) {
     const inputRate = modelPrice ? modelPrice * 2 : modelRatio ? modelRatio * 2 : undefined;
     if (!inputRate) return undefined;
+    const audioRatio = toPositiveNumber(metadata?.audioRatio);
+    const audioCompletionRatio =
+      toPositiveNumber(metadata?.audioCompletionRatio) ?? completionRatio;
+    const cacheRatio = toPositiveNumber(metadata?.cacheRatio);
+    const createCacheRatio = toPositiveNumber(metadata?.createCacheRatio);
+    const imageRatio = toPositiveNumber(metadata?.imageRatio);
 
     return {
       units: [
@@ -486,6 +501,52 @@ export const resolveNewapiModelPricingFromMetadata = (
           strategy: 'fixed',
           unit: 'millionTokens',
         },
+        ...(cacheRatio
+          ? [
+              {
+                name: 'textInput_cacheRead' as const,
+                rate: inputRate * cacheRatio,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+        ...(createCacheRatio
+          ? [
+              {
+                name: 'textInput_cacheWrite' as const,
+                rate: inputRate * createCacheRatio,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+        ...(audioRatio
+          ? [
+              {
+                name: 'audioInput' as const,
+                rate: inputRate * audioRatio,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+              {
+                name: 'audioOutput' as const,
+                rate: inputRate * audioRatio * audioCompletionRatio,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+        ...(imageRatio
+          ? [
+              {
+                name: 'imageInput' as const,
+                rate: inputRate * imageRatio,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
       ],
     };
   }
@@ -569,7 +630,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
         });
 
         return {
-          abilities: resolveManualAbilities(
+          abilities: resolveStoredAbilities(
             row.metadata as Record<string, unknown> | null | undefined,
           ),
           displayName: row.displayName,

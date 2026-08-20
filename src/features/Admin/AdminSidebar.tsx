@@ -260,7 +260,6 @@ const AdminSidebar = memo<{ onNavigate?: () => void }>(({ onNavigate }) => {
       </header>
       <label className={styles.searchWrap}>
         <Search aria-hidden className={styles.searchIcon} size={16} />
-        <span className="sr-only">{t('admin.navigation.search', '搜索管理功能')}</span>
         <input
           aria-label={t('admin.navigation.search', '搜索管理功能')}
           className={styles.search}

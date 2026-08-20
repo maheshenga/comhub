@@ -9,6 +9,18 @@ import {
   normalizeNewapiSyncRows,
 } from './catalog';
 
+vi.mock('model-bank', async (importOriginal) => ({
+  ...(await importOriginal()),
+  LOBE_DEFAULT_MODEL_LIST: [
+    {
+      abilities: { functionCall: true, reasoning: true },
+      id: 'system-capability-model',
+      providerId: 'openai',
+      type: 'chat',
+    },
+  ],
+}));
+
 describe('NewAPI catalog sync', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -38,9 +50,17 @@ describe('NewAPI catalog sync', () => {
     expect(classifyNewapiModelType({ id: 'gpt-4o-mini' })).toBe('chat');
   });
 
+  it('classifies speech, realtime, and music models from explicit types and endpoints', () => {
+    expect(classifyNewapiModelType({ id: 'custom', type: 'tts' })).toBe('tts');
+    expect(
+      classifyNewapiModelType({ id: 'custom', supported_endpoint_types: ['audio_transcription'] }),
+    ).toBe('asr');
+    expect(classifyNewapiModelType({ id: 'gpt-4o-realtime-preview' })).toBe('realtime');
+    expect(classifyNewapiModelType({ id: 'suno-v4' })).toBe('text2music');
+  });
+
   it('normalizes synchronized rows as disabled by default', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [],
       models: [{ id: 'gpt-4o-mini', object: 'model' }],
       pricing: [],
     });
@@ -54,112 +74,65 @@ describe('NewAPI catalog sync', () => {
     ]);
   });
 
-  it('preserves enabled state for existing rows', () => {
+  it('always rebuilds synchronized rows as disabled', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [
-        {
-          enabled: true,
-          modelId: 'sora-2',
-          modelType: 'video',
-        },
-      ],
       models: [{ id: 'sora-2', object: 'model' }],
       pricing: [],
     });
 
-    expect(rows[0]).toEqual(expect.objectContaining({ enabled: true, modelType: 'video' }));
+    expect(rows[0]).toEqual(expect.objectContaining({ enabled: false, modelType: 'video' }));
   });
 
-  it('preserves manual model settings and unrelated metadata during sync', () => {
+  it('builds rows only from the latest upstream payload', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [
-        {
-          displayName: 'Manual Display Name',
-          enabled: true,
-          metadata: {
-            customField: 'keep-me',
-            manualAbilities: { vision: true },
-            manualPricing: { inputRate: 2 },
-          },
-          modelId: 'gpt-4o',
-          modelType: 'chat',
-          sortOrder: 9,
-        },
-      ],
       models: [{ id: 'gpt-4o', object: 'model' }],
       pricing: [{ description: 'Remote Name', model_name: 'gpt-4o', model_ratio: 15 }],
       pricingStatus: 'available',
     });
 
     expect(rows[0]).toMatchObject({
-      displayName: 'Manual Display Name',
-      enabled: true,
+      displayName: 'Remote Name',
+      enabled: false,
       metadata: {
-        customField: 'keep-me',
-        manualAbilities: { vision: true },
-        manualPricing: { inputRate: 2 },
         modelRatio: 15,
       },
-      sortOrder: 9,
+      sortOrder: 0,
     });
+    expect(rows[0].metadata).not.toHaveProperty('customField');
+    expect(rows[0].metadata).not.toHaveProperty('manualAbilities');
+    expect(rows[0].metadata).not.toHaveProperty('manualPricing');
   });
 
-  it('preserves prior pricing metadata when pricing transport is unavailable', () => {
+  it('does not invent pricing when pricing transport is unavailable', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [
-        {
-          enabled: true,
-          metadata: { modelRatio: 12, pricingAvailable: true },
-          modelId: 'gpt-4o',
-          modelType: 'chat',
-        },
-      ],
       models: [{ id: 'gpt-4o', object: 'model' }],
       pricing: [],
       pricingStatus: 'unavailable',
     });
 
-    expect(rows[0].metadata).toMatchObject({
-      modelRatio: 12,
-      pricingAvailable: true,
-      pricingSyncStatus: 'unavailable',
-    });
+    expect(rows[0].metadata).toMatchObject({ pricingSyncStatus: 'unavailable' });
+    expect(rows[0].metadata).not.toHaveProperty('modelRatio');
+    expect(rows[0].metadata).not.toHaveProperty('pricingAvailable', true);
   });
 
-  it('clears prior synced pricing that the upstream reports as unsafe', () => {
+  it('does not retain manual or unsafe synchronized pricing', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [
-        {
-          enabled: true,
-          metadata: {
-            manualPricing: { inputRate: 7 },
-            modelRatio: 12,
-            pricingAvailable: true,
-            syncedPricing: {
-              units: [{ name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' }],
-            },
-          },
-          modelId: 'gpt-4o',
-          modelType: 'chat',
-        },
-      ],
       models: [{ id: 'gpt-4o', object: 'model' }],
       pricing: [],
       pricingStatus: 'unsafe',
     });
 
     expect(rows[0].metadata).toMatchObject({
-      manualPricing: { inputRate: 7 },
       pricingAvailable: false,
       pricingSyncStatus: 'unsafe',
     });
+    expect(rows[0].metadata).not.toHaveProperty('manualPricing');
     expect(rows[0].metadata).not.toHaveProperty('modelRatio');
     expect(rows[0].metadata).not.toHaveProperty('syncedPricing');
   });
 
   it('deduplicates repeated remote model ids', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [],
       models: [
         { id: 'gpt-4o', object: 'model' },
         { id: 'gpt-4o', object: 'model' },
@@ -171,45 +144,24 @@ describe('NewAPI catalog sync', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('disables previously synchronized models that disappear upstream', () => {
+  it('does not emit rows for models missing from the latest upstream catalog', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [
-        {
-          displayName: 'Legacy Model',
-          enabled: true,
-          metadata: { customField: 'keep-me', syncSource: 'newapi' },
-          modelId: 'legacy-model',
-          modelType: 'chat',
-          sortOrder: 4,
-        },
-      ],
       models: [],
       pricing: [],
       pricingStatus: 'available',
     });
 
-    expect(rows).toEqual([
-      expect.objectContaining({
-        displayName: 'Legacy Model',
-        enabled: false,
-        metadata: expect.objectContaining({
-          customField: 'keep-me',
-          syncSource: 'newapi',
-          syncStatus: 'stale',
-        }),
-        modelId: 'legacy-model',
-        sortOrder: 4,
-      }),
-    ]);
+    expect(rows).toEqual([]);
   });
 
   it('preserves upstream group and pricing metadata during sync', () => {
     const rows = normalizeNewapiSyncRows({
-      existingRows: [],
       models: [{ id: 'gpt-4o', object: 'model' }],
       pricing: [
         {
+          cache_ratio: 0.25,
           completion_ratio: 3,
+          create_cache_ratio: 1.25,
           description: 'GPT 4o Pro',
           enable_groups: ['pro', 'vip'],
           model_name: 'gpt-4o',
@@ -222,6 +174,8 @@ describe('NewAPI catalog sync', () => {
 
     expect(rows[0].metadata).toMatchObject({
       completionRatio: 3,
+      createCacheRatio: 1.25,
+      cacheRatio: 0.25,
       enableGroups: ['pro', 'vip'],
       modelRatio: 15,
       pricingAvailable: true,
@@ -230,12 +184,51 @@ describe('NewAPI catalog sync', () => {
     });
   });
 
+  it('combines exact system abilities with explicit upstream capability tags', () => {
+    const rows = normalizeNewapiSyncRows({
+      models: [{ id: 'system-capability-model', object: 'model' }],
+      pricing: [
+        {
+          function_tags: 'Vision, Structured Output',
+          model_name: 'system-capability-model',
+        } as any,
+      ],
+    });
+
+    expect(rows[0].metadata).toMatchObject({
+      syncedAbilities: {
+        functionCall: true,
+        reasoning: true,
+        structuredOutput: true,
+        vision: true,
+      },
+      syncedAbilitySources: ['system-model-bank', 'upstream'],
+    });
+  });
+
+  it('merges explicit abilities from both model and pricing payloads', () => {
+    const rows = normalizeNewapiSyncRows({
+      models: [{ abilities: { vision: true }, id: 'multi-source-model' }],
+      pricing: [
+        {
+          capabilities: { function_calling: true, reasoning: true },
+          model_name: 'multi-source-model',
+        },
+      ],
+    });
+
+    expect(rows[0].metadata.syncedAbilities).toEqual({
+      functionCall: true,
+      reasoning: true,
+      vision: true,
+    });
+  });
+
   it('stores standardized pricing returned by Sub2API sync', () => {
     const syncedPricing = {
       units: [{ name: 'textInput', rate: 0.25, strategy: 'fixed', unit: 'millionTokens' }],
     } satisfies Pricing;
     const rows = normalizeNewapiSyncRows({
-      existingRows: [],
       models: [{ id: 'gpt-4o' }],
       pricing: [{ model_name: 'gpt-4o', resolvedPricing: syncedPricing }],
       syncSource: 'sub2api',

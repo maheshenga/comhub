@@ -799,9 +799,16 @@ const AdminProvidersPage = memo(() => {
     try {
       const result = await adminCommercialService.syncAiProviderInstanceModels(row.id);
       message.success(
-        t('admin.providers.sync.success', '同步完成：导入 {{count}} 个模型，新模型默认未启用', {
-          count: result.importedCount,
-        }),
+        t(
+          'admin.providers.sync.success',
+          '同步完成：删除 {{deletedCount}} 个旧模型，导入 {{count}} 个新模型；同步价格 {{pricingCount}} 条，能力信息覆盖 {{abilitiesCount}} 个模型。新模型默认未启用。',
+          {
+            abilitiesCount: result.abilitiesCount,
+            count: result.importedCount,
+            deletedCount: result.deletedCount,
+            pricingCount: result.pricingCount,
+          },
+        ),
       );
       await Promise.all(MODEL_TYPES.map((type) => mutate(modelsKey(row.id, type))));
       await refreshAiProviderRuntimeState();
@@ -948,7 +955,10 @@ const AdminProvidersPage = memo(() => {
           </Button>
           <Popconfirm
             okText={t('admin.providers.action.sync', '同步')}
-            title={t('admin.providers.sync.confirm', '同步到本地模型库？新模型默认不会启用。')}
+            title={t(
+              'admin.providers.sync.confirm',
+              '同步将删除该实例的全部现有模型、启用状态及手工价格/能力设置，并用最新上游模型、价格和能力重新创建。是否继续？',
+            )}
             onConfirm={() => handleSyncModels(row)}
           >
             <Button loading={syncingId === row.id} size="small">

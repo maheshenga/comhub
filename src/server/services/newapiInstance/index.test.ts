@@ -575,6 +575,70 @@ describe('NewAPI instance resolver', () => {
     });
   });
 
+  it('resolves synchronized cache and multimodal pricing ratios', () => {
+    expect(
+      resolveNewapiModelPricingFromMetadata(
+        {
+          audioCompletionRatio: 2,
+          audioRatio: 4,
+          cacheRatio: 0.25,
+          completionRatio: 3,
+          createCacheRatio: 1.25,
+          imageRatio: 5,
+          modelRatio: 2,
+          quotaType: 0,
+        },
+        'chat',
+      ),
+    ).toMatchObject({
+      units: [
+        { name: 'textInput', rate: 4 },
+        { name: 'textOutput', rate: 12 },
+        { name: 'textInput_cacheRead', rate: 1 },
+        { name: 'textInput_cacheWrite', rate: 5 },
+        { name: 'audioInput', rate: 16 },
+        { name: 'audioOutput', rate: 32 },
+        { name: 'imageInput', rate: 20 },
+      ],
+    });
+  });
+
+  it('returns synchronized abilities while preserving explicit admin overrides', async () => {
+    const db = createDb([
+      {
+        displayName: 'Synced Model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        metadata: {
+          manualAbilities: { vision: false },
+          syncedAbilities: {
+            functionCall: true,
+            reasoning: true,
+            structuredOutput: true,
+            vision: true,
+          },
+        },
+        modelId: 'synced-model',
+        modelType: 'chat',
+        providerType: 'newapi',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({
+        abilities: {
+          functionCall: true,
+          reasoning: true,
+          structuredOutput: true,
+          vision: false,
+        },
+        id: 'synced-model',
+      }),
+    ]);
+  });
+
   it('returns admin manual abilities and media pricing for frontend model cards', async () => {
     const db = createDb([
       {

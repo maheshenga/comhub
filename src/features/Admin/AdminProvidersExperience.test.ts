@@ -28,4 +28,13 @@ describe('admin provider management experience', () => {
     expect(page).toContain('getAiProviderInstanceDeleteImpact');
     expect(page).toContain('ModelsDrawer');
   });
+
+  it('makes authoritative model replacement explicit and reports synchronized metadata', () => {
+    const page = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+
+    expect(page).toContain('同步将删除该实例的全部现有模型');
+    expect(page).toContain('result.deletedCount');
+    expect(page).toContain('result.pricingCount');
+    expect(page).toContain('result.abilitiesCount');
+  });
 });

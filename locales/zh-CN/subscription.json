@@ -656,6 +656,8 @@
   "admin.providers.field.modelBankFallback": "按模型名使用系统价格",
   "admin.providers.field.providerTypeSub2apiHint": "Sub2API 会从密钥计费信息和模型广场同步可确认的价格。",
   "admin.providers.field.upstreamPricing": "同步上游价格",
+  "admin.providers.sync.confirm": "同步将删除该实例的全部现有模型、启用状态及手工价格/能力设置，并用最新上游模型、价格和能力重新创建。是否继续？",
+  "admin.providers.sync.success": "同步完成：删除 {{deletedCount}} 个旧模型，导入 {{count}} 个新模型；同步价格 {{pricingCount}} 条，能力信息覆盖 {{abilitiesCount}} 个模型。新模型默认未启用。",
   "admin.redemption.bulkDeleteProgress": "正在删除选中的未兑换兑换码，请勿关闭页面。",
   "admin.redemption.bulkDisableProgress": "正在停用选中的兑换码，请勿关闭页面。",
   "admin.roles.admin": "超级管理员",
