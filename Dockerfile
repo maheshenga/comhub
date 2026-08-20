@@ -98,6 +98,17 @@ RUN KEY_VAULTS_SECRET="dXNlLWZvci1idWlsZC1rZXktMzItYnl0ZXMtMDAwMDA=" \
     AUTH_SECRET="use-for-build-auth-secret-32-chars" \
     pnpm run build:docker
 
+# Next standalone tracing can retain only the CommonJS helper files even when Next itself loads
+# an ESM helper at startup. Materialize the complete helper packages and fail the build if the
+# exact runtime import still cannot be resolved through Next's pnpm link.
+RUN set -e && \
+    standalone_store="/app/.next/standalone/node_modules/.pnpm" && \
+    mkdir -p "$standalone_store" && \
+    cp -a /app/node_modules/.pnpm/@swc+helpers@* "$standalone_store"/ && \
+    test -n "$(find -L "$standalone_store" \
+      -path '*/next@*/node_modules/@swc/helpers/esm/_interop_require_default.js' \
+      -print -quit)"
+
 ## Application image, copy all the files for production
 FROM busybox:latest AS app
 
@@ -118,6 +129,11 @@ COPY --from=builder /app/scripts/migrateServerDB/errorHint.js /app/errorHint.js
 COPY --from=builder /deps/node_modules/.pnpm /app/node_modules/.pnpm
 COPY --from=builder /deps/node_modules/pg /app/node_modules/pg
 COPY --from=builder /deps/node_modules/drizzle-orm /app/node_modules/drizzle-orm
+
+# Guard the final merged runtime tree as the dependency copy above may share pnpm package paths.
+RUN test -n "$(find -L /app/node_modules/.pnpm \
+      -path '*/next@*/node_modules/@swc/helpers/esm/_interop_require_default.js' \
+      -print -quit)"
 
 # Copy server launcher and shared scripts
 COPY --from=builder /app/scripts/serverLauncher/startServer.js /app/startServer.js

@@ -251,10 +251,67 @@ jobs:
           cd "$DEPLOY_DIR"
           export COMHUB_MODULE_RUNTIME_IMAGE="$RUNTIME_IMAGE_REF"
 
+          application_rollout_started=false
+          application_rollout_committed=false
+          previous_app_id=""
+          previous_app_image=""
+          previous_app_tag=""
           runtime_rollout_started=false
           runtime_rollout_committed=false
           previous_runtime_id=""
           previous_runtime_image=""
+
+          application_verify_failed() {
+            local phase="$1"
+            local check="$2"
+            printf 'APPLICATION_VERIFY_FAILED: phase=%s check=%s\n' "$phase" "$check" >&2
+            return 1
+          }
+
+          deploy_application() {
+            local image="$1"
+            local image_tag="$2"
+            COMHUB_IMAGE="$image" COMHUB_IMAGE_TAG="$image_tag" ./deploy.sh "$image"
+          }
+
+          verify_application() {
+            local expected_image="${1:-}"
+            local expected_tag="${2:-}"
+            local phase="${3:-application}"
+            local actual_image actual_tag app_id health_status
+
+            test -n "$expected_image" || {
+              application_verify_failed "$phase" expected_image_missing
+              return 1
+            }
+            test -n "$expected_tag" || {
+              application_verify_failed "$phase" expected_tag_missing
+              return 1
+            }
+
+            app_id="$(docker compose ps -q "$app_service")"
+            test -n "$app_id" || {
+              application_verify_failed "$phase" container_missing
+              return 1
+            }
+            actual_image="$(docker inspect -f '{{.Config.Image}}' "$app_id")"
+            test "$actual_image" = "$expected_image" || {
+              application_verify_failed "$phase" image_mismatch
+              return 1
+            }
+            actual_tag="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$app_id" | sed -n 's/^COMHUB_IMAGE_TAG=//p')"
+            test "$actual_tag" = "$expected_tag" || {
+              application_verify_failed "$phase" image_tag_mismatch
+              return 1
+            }
+            health_status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$app_id")"
+            test "$health_status" = "healthy" || {
+              application_verify_failed "$phase" health_status_invalid
+              return 1
+            }
+
+            printf 'APPLICATION_VERIFY_PASSED: phase=%s\n' "$phase"
+          }
 
           runtime_verify_failed() {
             local phase="$1"
@@ -346,11 +403,28 @@ jobs:
             printf 'MODULE_RUNTIME_VERIFY_PASSED: phase=%s\n' "$phase"
           }
 
-          rollback_module_runtime() {
+          rollback_deployment() {
             local failure_status=$?
-            local rollback_status=0
+            local application_rollback_status=0
+            local runtime_rollback_status=0
             trap - ERR EXIT
             set +e
+
+            if [ "$application_rollout_started" = "true" ] && [ "$application_rollout_committed" != "true" ]; then
+              if [ "$failure_status" -eq 0 ]; then
+                failure_status=1
+              fi
+              echo 'APPLICATION_ROLLBACK_STARTED'
+              deploy_application "$previous_app_image" "$previous_app_tag" || application_rollback_status=$?
+              if [ "$application_rollback_status" -eq 0 ]; then
+                verify_application "$previous_app_image" "$previous_app_tag" "rollback" || application_rollback_status=$?
+              fi
+              if [ "$application_rollback_status" -eq 0 ]; then
+                echo 'APPLICATION_ROLLBACK_COMPLETED'
+              else
+                printf 'APPLICATION_ROLLBACK_FAILED: status=%s\n' "$application_rollback_status" >&2
+              fi
+            fi
 
             if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && [ "$runtime_rollout_started" = "true" ] && [ "$runtime_rollout_committed" != "true" ]; then
               if [ "$failure_status" -eq 0 ]; then
@@ -358,14 +432,14 @@ jobs:
               fi
               echo 'MODULE_RUNTIME_ROLLBACK_STARTED'
               export COMHUB_MODULE_RUNTIME_IMAGE="$previous_runtime_image"
-              docker compose up -d --no-deps --wait module-runtime || rollback_status=$?
-              if [ "$rollback_status" -eq 0 ]; then
-                verify_module_runtime "$previous_runtime_image" "rollback" || rollback_status=$?
+              docker compose up -d --no-deps --wait module-runtime || runtime_rollback_status=$?
+              if [ "$runtime_rollback_status" -eq 0 ]; then
+                verify_module_runtime "$previous_runtime_image" "rollback" || runtime_rollback_status=$?
               fi
-              if [ "$rollback_status" -eq 0 ]; then
+              if [ "$runtime_rollback_status" -eq 0 ]; then
                 echo 'MODULE_RUNTIME_ROLLBACK_COMPLETED'
               else
-                printf 'MODULE_RUNTIME_ROLLBACK_FAILED: status=%s\n' "$rollback_status" >&2
+                printf 'MODULE_RUNTIME_ROLLBACK_FAILED: status=%s\n' "$runtime_rollback_status" >&2
               fi
             fi
 
@@ -446,6 +520,14 @@ jobs:
             exit 1
           fi
 
+          previous_app_id="$(docker compose ps -q "$app_service")"
+          test -n "$previous_app_id" || application_verify_failed "preflight" container_missing
+          previous_app_image="$(docker inspect -f '{{.Config.Image}}' "$previous_app_id")"
+          previous_app_tag="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$previous_app_id" | sed -n 's/^COMHUB_IMAGE_TAG=//p')"
+          [[ "$previous_app_image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || application_verify_failed "preflight" previous_image_not_immutable
+          [[ "$previous_app_tag" =~ ^sha-[0-9a-f]{12}$ ]] || application_verify_failed "preflight" previous_image_tag_invalid
+          verify_application "$previous_app_image" "$previous_app_tag" "preflight"
+
           if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
             previous_runtime_id="$(docker compose ps -q module-runtime)"
             test -n "$previous_runtime_id" || runtime_verify_failed "preflight" container_missing
@@ -455,8 +537,12 @@ jobs:
             verify_module_runtime "$previous_runtime_image" "preflight"
 
             docker pull "$RUNTIME_IMAGE_REF"
-            # EXIT covers shell termination before the rollout reaches its commit point.
-            trap rollback_module_runtime ERR EXIT
+          fi
+
+          # EXIT covers shell termination before either rollout reaches its commit point.
+          trap rollback_deployment ERR EXIT
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
             runtime_rollout_started=true
             docker compose up -d --no-deps --wait module-runtime
             verify_module_runtime "$RUNTIME_IMAGE_REF" "rollout"
@@ -465,12 +551,9 @@ jobs:
             echo "module-runtime rollout skipped; production mutation flags remain disabled"
           fi
 
-          COMHUB_IMAGE="$IMAGE_REF" COMHUB_IMAGE_TAG="$IMAGE_TAG" ./deploy.sh "$IMAGE_REF"
-
-          app_id="$(docker compose ps -q "$app_service")"
-          test -n "$app_id"
-          test "$(docker inspect -f '{{.Config.Image}}' "$app_id")" = "$IMAGE_REF"
-          test "$(docker compose exec -T "$app_service" printenv COMHUB_IMAGE_TAG < /dev/null)" = "$IMAGE_TAG"
+          application_rollout_started=true
+          deploy_application "$IMAGE_REF" "$IMAGE_TAG"
+          verify_application "$IMAGE_REF" "$IMAGE_TAG" "rollout"
 
           echo "Running post-deploy runtime smoke checks..."
           for path in / /api/auth/get-session /api/version; do
@@ -511,10 +594,11 @@ jobs:
           if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
             verify_module_runtime "$RUNTIME_IMAGE_REF" "post-deploy"
             runtime_rollout_committed=true
-            trap - ERR EXIT
           else
             echo "module-runtime verification skipped; production mutation flags remain disabled"
           fi
+          application_rollout_committed=true
+          trap - ERR EXIT
 
           echo "Pruning unused Docker images after deploy..."
           docker image prune -af || true

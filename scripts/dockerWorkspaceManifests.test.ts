@@ -91,6 +91,29 @@ describe('Docker workspace manifests', () => {
     expect(wslBuildScript).not.toMatch(/^npm run build:docker$/m);
   });
 
+  it('materializes complete SWC helpers in the standalone runtime', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const applicationBuildIndex = dockerfile.indexOf('pnpm run build:docker');
+    const copyHelpersIndex = dockerfile.indexOf(
+      'cp -a /app/node_modules/.pnpm/@swc+helpers@* "$standalone_store"/',
+    );
+    const helperChecks = [
+      ...dockerfile.matchAll(
+        /\*\/next@\*\/node_modules\/@swc\/helpers\/esm\/_interop_require_default\.js/gu,
+      ),
+    ].map((match) => match.index);
+    const applicationStageIndex = dockerfile.indexOf('FROM busybox:latest AS app');
+    const dependencyMergeIndex = dockerfile.indexOf(
+      'COPY --from=builder /deps/node_modules/.pnpm /app/node_modules/.pnpm',
+    );
+
+    expect(copyHelpersIndex).toBeGreaterThan(applicationBuildIndex);
+    expect(helperChecks).toHaveLength(2);
+    expect(helperChecks[0]).toBeGreaterThan(copyHelpersIndex);
+    expect(applicationStageIndex).toBeGreaterThan(helperChecks[0]);
+    expect(helperChecks[1]).toBeGreaterThan(dependencyMergeIndex);
+  });
+
   it('keeps sensitive values out of Docker ARG and ENV instructions', () => {
     const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
     const instructions = dockerfile.replaceAll(/\\\r?\n\s*/g, ' ').split(/\r?\n/);
