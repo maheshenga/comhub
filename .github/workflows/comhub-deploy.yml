@@ -304,7 +304,13 @@ jobs:
               application_verify_failed "$phase" image_tag_mismatch
               return 1
             }
-            health_status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$app_id")"
+            health_status="missing"
+            for attempt in $(seq 1 60); do
+              health_status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$app_id")"
+              [ "$health_status" = "healthy" ] && break
+              [ "$health_status" = "unhealthy" ] && break
+              sleep 1
+            done
             test "$health_status" = "healthy" || {
               application_verify_failed "$phase" health_status_invalid
               return 1
