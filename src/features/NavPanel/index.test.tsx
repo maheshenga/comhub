@@ -173,4 +173,26 @@ describe('NavPanelShell', () => {
     });
     expect(screen.queryByText('Home sidebar')).not.toBeInTheDocument();
   });
+
+  it.each(['/settings/admin', '/settings/admin/ai-runtime-defaults'])(
+    'does not mount the main application panel on %s',
+    (adminPath) => {
+      pathname = adminPath;
+
+      render(<NavPanelShell />);
+
+      expect(screen.queryByTestId('nav-panel')).not.toBeInTheDocument();
+      expect(screen.queryByText('Home sidebar')).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps the main application panel on ordinary settings routes', async () => {
+    pathname = '/settings/profile';
+
+    render(<NavPanelShell />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-panel')).toBeInTheDocument();
+    });
+  });
 });
