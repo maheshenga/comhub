@@ -302,6 +302,49 @@ exit 0`,
   assert.match(prematureExitRollback.stdout, /verify:old-image:sha-0123456789ab:rollback/u);
   assert.match(prematureExitRollback.stdout, /APPLICATION_ROLLBACK_COMPLETED/u);
   assert.doesNotMatch(prematureExitRollback.stderr, /APPLICATION_ROLLBACK_FAILED/u);
+
+  const applicationHelpers = script.slice(
+    script.indexOf('application_verify_failed() {'),
+    script.indexOf('runtime_verify_failed() {'),
+  );
+  const delayedHealthyApplication = spawnSync('bash', [], {
+    encoding: 'utf8',
+    input: `set -euo pipefail
+health_attempt_file="$(mktemp)"
+trap 'rm -f "$health_attempt_file"' EXIT
+printf '0' > "$health_attempt_file"
+docker() {
+  if [ "$1" = compose ] && [ "$2" = ps ]; then
+    printf 'app-id\\n'
+    return
+  fi
+  if [ "$1" = inspect ] && [ "$2" = -f ]; then
+    case "$3" in
+      *Config.Image*) printf 'new-image\\n' ;;
+      *Config.Env*) printf 'COMHUB_IMAGE_TAG=sha-0123456789ab\\n' ;;
+      *State.Health*)
+        attempt="$(cat "$health_attempt_file")"
+        attempt=$((attempt + 1))
+        printf '%s' "$attempt" > "$health_attempt_file"
+        if [ "$attempt" -lt 3 ]; then printf 'starting\\n'; else printf 'healthy\\n'; fi
+        ;;
+    esac
+    return
+  fi
+  return 1
+}
+sleep() { :; }
+app_service=comhub
+${applicationHelpers}
+verify_application new-image sha-0123456789ab rollout
+test "$(cat "$health_attempt_file")" -eq 3`,
+  });
+  assert.equal(
+    delayedHealthyApplication.status,
+    0,
+    `application health wait failed:\nstdout:\n${delayedHealthyApplication.stdout}\nstderr:\n${delayedHealthyApplication.stderr}`,
+  );
+  assert.match(delayedHealthyApplication.stdout, /APPLICATION_VERIFY_PASSED: phase=rollout/u);
 });
 
 test('Module Runtime deployment preflights topology and rolls back a failed replacement', () => {
