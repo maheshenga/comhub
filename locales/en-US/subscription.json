@@ -656,6 +656,8 @@
   "admin.providers.field.modelBankFallback": "Use system pricing by model name",
   "admin.providers.field.providerTypeSub2apiHint": "Sub2API syncs prices that can be verified from key billing metadata and the model plaza.",
   "admin.providers.field.upstreamPricing": "Sync upstream pricing",
+  "admin.providers.sync.confirm": "Sync will delete all existing models, enablement states, and manual pricing/capability settings for this instance, then recreate them from the latest upstream models, prices, and capabilities. Continue?",
+  "admin.providers.sync.success": "Sync complete: deleted {{deletedCount}} old models and imported {{count}} new models; synchronized {{pricingCount}} prices and capability data for {{abilitiesCount}} models. New models are disabled.",
   "admin.redemption.bulkDeleteProgress": "Deleting selected unredeemed codes. Keep this page open.",
   "admin.redemption.bulkDisableProgress": "Disabling selected redemption codes. Keep this page open.",
   "admin.roles.admin": "Super admin",

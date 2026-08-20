@@ -88,7 +88,7 @@ const createDbMock = ({
   role = 'admin',
 }: {
   allEnabledModelRows?: Array<Record<string, any>>;
-  existingRows?: Array<{ enabled: boolean; modelId: string; modelType: string }>;
+  existingRows?: Array<Record<string, any>>;
   findFirstRow?: Record<string, any>;
   findManyRows?: Array<Record<string, any>>;
   providerType?: string;
@@ -96,8 +96,10 @@ const createDbMock = ({
 } = {}) => {
   const writes = {
     conflictConfig: undefined as any,
+    deletedRows: [] as any[],
     insertRows: [] as any[],
     insertValue: undefined as any,
+    mutationOrder: [] as string[],
     updateValue: undefined as any,
   };
   const updateWhere = vi.fn(() => ({
@@ -111,9 +113,10 @@ const createDbMock = ({
     };
   });
 
-  const db = {
+  const db: any = {
     insert: vi.fn(() => ({
       values: vi.fn((rows: any[] | Record<string, any>) => {
+        writes.mutationOrder.push('insert');
         writes.insertValue = rows;
         writes.insertRows = Array.isArray(rows) ? rows : [rows];
 
@@ -125,6 +128,15 @@ const createDbMock = ({
           returning: vi.fn().mockResolvedValue([{ id: instanceId }]),
         };
       }),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(() => ({
+        returning: vi.fn().mockImplementation(async () => {
+          writes.mutationOrder.push('delete');
+          writes.deletedRows = existingRows;
+          return existingRows;
+        }),
+      })),
     })),
     query: {
       adminNewapiInstances: {
@@ -175,6 +187,7 @@ const createDbMock = ({
       set: updateSet,
     })),
   };
+  db.transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db));
 
   return { db, updateSet, updateWhere, writes };
 };
@@ -425,8 +438,8 @@ describe('adminNewapiProvidersRouter', () => {
     expect(writes.insertRows[0]).toEqual(expect.objectContaining({ modelId: 'gpt-4o-mini' }));
   });
 
-  it('syncs models without requesting prices when upstream pricing is disabled', async () => {
-    const { db } = createDbMock({
+  it('fetches latest upstream prices during manual sync even when runtime use is disabled', async () => {
+    const { db, writes } = createDbMock({
       findFirstRow: {
         apiKey: 'kv:enc:sk-test',
         baseUrl: 'https://newapi.example.com',
@@ -442,18 +455,31 @@ describe('adminNewapiProvidersRouter', () => {
       },
     });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
-    const fetchMock = vi.fn().mockResolvedValue({
-      headers: new Headers({ 'content-type': 'application/json' }),
-      json: async () => ({ data: [{ id: 'gpt-4o-mini', object: 'model' }] }),
-      ok: true,
-    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ data: [{ id: 'gpt-4o-mini', object: 'model' }] }),
+        ok: true,
+      })
+      .mockResolvedValueOnce({
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          data: [{ model_name: 'gpt-4o-mini', model_ratio: 2 }],
+          success: true,
+        }),
+        ok: true,
+      });
     vi.stubGlobal('fetch', fetchMock);
 
     const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
     const result = await caller.syncInstanceModels({ id: instanceId });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result.warnings).toContain('Upstream pricing sync is disabled for this instance');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(expect.objectContaining({ pricingCount: 1 }));
+    expect(writes.insertRows[0].metadata).toEqual(
+      expect.objectContaining({ modelRatio: 2, pricingAvailable: true }),
+    );
   });
 
   it('returns a readable connection test failure for invalid encrypted api keys', async () => {
@@ -515,9 +541,16 @@ describe('adminNewapiProvidersRouter', () => {
     ]);
   });
 
-  it('preserves enabled state when synced model already exists', async () => {
+  it('atomically replaces existing models and discards prior manual state', async () => {
     const { db, writes } = createDbMock({
-      existingRows: [{ enabled: true, modelId: 'flux-pro', modelType: 'image' }],
+      existingRows: [
+        {
+          enabled: true,
+          metadata: { manualAbilities: { vision: true }, manualPricing: { imageRate: 9 } },
+          modelId: 'flux-pro',
+          modelType: 'image',
+        },
+      ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
     vi.stubGlobal(
@@ -535,18 +568,22 @@ describe('adminNewapiProvidersRouter', () => {
     );
 
     const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.syncInstanceModels({ id: instanceId });
+    const result = await caller.syncInstanceModels({ id: instanceId });
 
+    expect(result).toEqual(expect.objectContaining({ deletedCount: 1, importedCount: 1 }));
+    expect(writes.mutationOrder).toEqual(['delete', 'insert']);
     expect(writes.insertRows[0]).toEqual(
       expect.objectContaining({
-        enabled: true,
+        enabled: false,
         modelId: 'flux-pro',
         modelType: 'image',
       }),
     );
+    expect(writes.insertRows[0].metadata).not.toHaveProperty('manualAbilities');
+    expect(writes.insertRows[0].metadata).not.toHaveProperty('manualPricing');
   });
 
-  it('disables stale synchronized models while retaining manual metadata', async () => {
+  it('removes models missing from the latest non-empty upstream catalog', async () => {
     const { db, writes } = createDbMock({
       existingRows: [
         {
@@ -566,7 +603,7 @@ describe('adminNewapiProvidersRouter', () => {
         .fn()
         .mockResolvedValueOnce({
           headers: new Headers({ 'content-type': 'application/json' }),
-          json: async () => ({ data: [] }),
+          json: async () => ({ data: [{ id: 'new-model', object: 'model' }] }),
           ok: true,
         })
         .mockResolvedValueOnce({
@@ -579,18 +616,70 @@ describe('adminNewapiProvidersRouter', () => {
     const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
     const result = await caller.syncInstanceModels({ id: instanceId });
 
-    expect(result).toEqual(expect.objectContaining({ importedCount: 0, staleCount: 1 }));
-    expect(writes.insertRows[0]).toEqual(
-      expect.objectContaining({
-        enabled: false,
-        metadata: expect.objectContaining({
-          manualAbilities: { vision: true },
-          syncStatus: 'stale',
-        }),
-        modelId: 'legacy-model',
-      }),
+    expect(result).toEqual(
+      expect.objectContaining({ deletedCount: 1, importedCount: 1, staleCount: 0 }),
     );
-    expect(writes.conflictConfig.set).toHaveProperty('enabled');
+    expect(writes.insertRows).toHaveLength(1);
+    expect(writes.insertRows[0]).toEqual(expect.objectContaining({ modelId: 'new-model' }));
+    expect(writes.insertRows[0].metadata).not.toHaveProperty('syncStatus', 'stale');
+  });
+
+  it('keeps existing models when the upstream model catalog is empty', async () => {
+    const { db, writes } = createDbMock({
+      existingRows: [{ enabled: true, modelId: 'existing-model', modelType: 'chat' }],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [], success: true }),
+          ok: true,
+        }),
+    );
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(caller.syncInstanceModels({ id: instanceId })).rejects.toThrow(
+      'Upstream model catalog is empty; existing models were preserved',
+    );
+    expect(writes.mutationOrder).toEqual([]);
+  });
+
+  it('keeps existing models when supported upstream pricing is unavailable', async () => {
+    const { db, writes } = createDbMock({
+      existingRows: [{ enabled: true, modelId: 'existing-model', modelType: 'chat' }],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [{ id: 'new-model', object: 'model' }] }),
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          headers: new Headers({ 'content-type': 'application/json' }),
+          ok: false,
+          status: 503,
+        }),
+    );
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(caller.syncInstanceModels({ id: instanceId })).rejects.toThrow(
+      'Upstream pricing is unavailable; existing models were preserved',
+    );
+    expect(writes.mutationOrder).toEqual([]);
   });
 
   it('returns pricing source metadata for enabled models', async () => {

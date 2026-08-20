@@ -546,6 +546,8 @@ describe('adminCommercialService NewAPI helpers', () => {
 
   it('calls the AI provider model sync endpoint', async () => {
     vi.mocked(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).mockResolvedValue({
+      abilitiesCount: 1,
+      deletedCount: 1,
       importedCount: 1,
       modelsCount: 1,
       ok: true,

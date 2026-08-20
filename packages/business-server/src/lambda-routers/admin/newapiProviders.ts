@@ -23,6 +23,7 @@ import {
   fetchNewapiModels,
   fetchNewapiPricing,
   normalizeNewapiSyncRows,
+  supportsNewapiPricingSync,
 } from '@/server/services/newapiInstance/catalog';
 import {
   encryptAdminProviderApiKey,
@@ -465,89 +466,97 @@ export const adminNewapiProvidersRouter = router({
       if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
       const decryptedInstance = await decryptInstance(ctx.serverDB, instance);
       assertInstanceApiKeyReady(decryptedInstance);
-      const pricingPolicy = resolveAdminProviderPricingPolicy(
-        instance.metadata,
-        instance.providerType,
-      );
-
-      const [models, pricingResult, existingRows] = await Promise.all([
+      const [models, pricingResult] = await Promise.all([
         fetchNewapiModels({
           apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         }),
-        pricingPolicy.upstreamSyncEnabled
-          ? fetchNewapiPricing({
-              apiKey: decryptedInstance.apiKey,
-              baseUrl: instance.baseUrl,
-              providerType: instance.providerType,
-            })
-          : Promise.resolve({ items: [], status: 'disabled' as const, warnings: [] }),
-        ctx.serverDB
-          .select({
-            displayName: adminNewapiInstanceModels.displayName,
-            enabled: adminNewapiInstanceModels.enabled,
-            metadata: adminNewapiInstanceModels.metadata,
-            modelId: adminNewapiInstanceModels.modelId,
-            modelType: adminNewapiInstanceModels.modelType,
-            sortOrder: adminNewapiInstanceModels.sortOrder,
-          })
-          .from(adminNewapiInstanceModels)
-          .where(eq(adminNewapiInstanceModels.instanceId, input.id)),
+        fetchNewapiPricing({
+          apiKey: decryptedInstance.apiKey,
+          baseUrl: instance.baseUrl,
+          providerType: instance.providerType,
+        }),
       ]);
 
+      if (models.length === 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Upstream model catalog is empty; existing models were preserved',
+        });
+      }
+      if (
+        supportsNewapiPricingSync(instance.providerType) &&
+        pricingResult.status !== 'available'
+      ) {
+        throw new TRPCError({
+          code: 'BAD_GATEWAY',
+          message:
+            pricingResult.status === 'unsafe'
+              ? 'Upstream pricing could not be represented safely; existing models were preserved'
+              : 'Upstream pricing is unavailable; existing models were preserved',
+        });
+      }
+
       const normalizedRows = normalizeNewapiSyncRows({
-        existingRows,
+        modelBankProviderId: resolveModelBankProviderForAdminType(instance.providerType),
         models,
         pricing: pricingResult.items,
         pricingStatus: pricingResult.status,
         syncSource: instance.providerType === 'sub2api' ? 'sub2api' : 'newapi',
       });
       const rows = normalizedRows.map((row) => ({ ...row, instanceId: input.id }));
-      const staleCount = normalizedRows.filter((row) => row.metadata.syncStatus === 'stale').length;
-      const importedCount = normalizedRows.length - staleCount;
+      if (rows.length === 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message:
+            'Upstream model catalog contains no valid model IDs; existing models were preserved',
+        });
+      }
+      const abilitiesCount = normalizedRows.filter(
+        (row) =>
+          row.metadata.syncedAbilities &&
+          typeof row.metadata.syncedAbilities === 'object' &&
+          Object.keys(row.metadata.syncedAbilities).length > 0,
+      ).length;
+      const pricingCount = normalizedRows.filter(
+        (row) => row.metadata.pricingAvailable === true,
+      ).length;
 
-      await runRequiredAdminAuditMutation(ctx, {
-        audit: () => ({
+      const replacement = await runRequiredAdminAuditMutation<{
+        deletedCount: number;
+        importedCount: number;
+      }>(ctx, {
+        audit: (result) => ({
           action: 'newapiInstanceModels.sync',
-          payload: { count: importedCount, staleCount },
+          payload: { ...result, abilitiesCount, pricingCount },
           resourceId: input.id,
           resourceType: 'admin_newapi_instance_models',
         }),
         mutation: async (tx) => {
-          if (rows.length === 0) return;
+          const deletedRows = await tx
+            .delete(adminNewapiInstanceModels)
+            .where(eq(adminNewapiInstanceModels.instanceId, input.id))
+            .returning({ modelId: adminNewapiInstanceModels.modelId });
+          await tx.insert(adminNewapiInstanceModels).values(rows);
 
-          await tx
-            .insert(adminNewapiInstanceModels)
-            .values(rows)
-            .onConflictDoUpdate({
-              set: {
-                displayName: sql`excluded.display_name`,
-                enabled: sql`excluded.enabled`,
-                metadata: sql`excluded.metadata`,
-                sortOrder: sql`excluded.sort_order`,
-                updatedAt: new Date(),
-              },
-              target: [
-                adminNewapiInstanceModels.instanceId,
-                adminNewapiInstanceModels.modelId,
-                adminNewapiInstanceModels.modelType,
-              ],
-            });
+          return { deletedCount: deletedRows.length, importedCount: rows.length };
         },
       });
       invalidateNewapiInstancesCache();
 
       return {
-        importedCount,
-        modelsCount: importedCount,
+        abilitiesCount,
+        deletedCount: replacement.deletedCount,
+        importedCount: replacement.importedCount,
+        modelsCount: replacement.importedCount,
         ok: true,
-        pricingCount: pricingResult.items.length,
-        staleCount,
+        pricingCount,
+        staleCount: 0,
         warnings: [
           ...buildNewapiPricingSyncWarnings(
             instance.providerType,
-            pricingResult.items.length,
+            pricingCount,
             pricingResult.status,
           ),
           ...(pricingResult.warnings ?? []),
