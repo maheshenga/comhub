@@ -1,3 +1,5 @@
+import { serverConfigKeys, userKeys } from '@/libs/swr/keys';
+
 import { type AppSettingsSection } from './appSettingsRegistry';
 
 export const ADMIN_SETTINGS_SWR_KEY = ['admin-settings'] as const;
@@ -23,5 +25,5 @@ export const PUBLIC_ABOUT_LINKS_SWR_KEY = 'about-links';
 export const PUBLIC_ABOUT_PAGE_SWR_KEY = 'public-about-page';
 export const PUBLIC_HELP_MENU_SWR_KEY = 'public-help-menu';
 export const PUBLIC_PLAN_FAQ_SWR_KEY = 'business-plan-faq';
-export const RUNTIME_CONFIG_SWR_KEY = 'FETCH_SERVER_CONFIG';
-export const USER_STATE_SWR_KEY = 'initUserState';
+export const RUNTIME_CONFIG_SWR_KEY = serverConfigKeys.get;
+export const USER_STATE_SWR_KEY = userKeys.initState();

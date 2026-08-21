@@ -7,8 +7,8 @@ import {
   ADMIN_SETTINGS_FORM_SETTING_KEYS,
   ADMIN_SETTINGS_NON_FORM_SETTING_KEYS,
   buildFormValues,
-  buildSettingMaterializationUpdates,
   buildModelOptions,
+  buildSettingMaterializationUpdates,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
   resolveModelOptionValue,
@@ -426,7 +426,7 @@ describe('adminSettingsForm', () => {
           value: '在聊天平台中，与 {{brandName}} 畅聊',
         },
       ]),
-    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState', 'brand-config']);
+    ).toEqual(['serverConfig:get', ['user:initState'], 'brand-config']);
   });
 
   it('includes sidebar member and generation labels in brand setting updates', () => {
@@ -484,13 +484,13 @@ describe('adminSettingsForm', () => {
       getAdminSettingsRefreshKeys([
         { key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
       ]),
-    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+    ).toEqual(['serverConfig:get', ['user:initState']]);
 
     expect(
       getAdminSettingsRefreshKeys([
         { key: SETTING_KEYS.defaultAgentName, value: DEFAULT_COMHUB_AGENT_NAME },
       ]),
-    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+    ).toEqual(['serverConfig:get', ['user:initState']]);
 
     expect(
       getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '玄果 AI' }]),
@@ -502,13 +502,13 @@ describe('adminSettingsForm', () => {
       getAdminSettingsRefreshKeys([
         { key: SETTING_KEYS.memoryUserMemoryGatekeeperModel, value: 'gpt-5.5' },
       ]),
-    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+    ).toEqual(['serverConfig:get', ['user:initState']]);
 
     expect(
       getAdminSettingsRefreshKeys([
         { key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider, value: 'siliconflow' },
       ]),
-    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+    ).toEqual(['serverConfig:get', ['user:initState']]);
   });
 
   it('shares the pricing model rules setting key with matrix-style admin pages', () => {
@@ -700,7 +700,13 @@ describe('adminSettingsForm', () => {
           ...initial,
           helpMenuItems: [
             ...initial.helpMenuItems,
-            { action: 'changelog', enabled: true, icon: 'file-clock', key: 'updates', label: 'Updates' },
+            {
+              action: 'changelog',
+              enabled: true,
+              icon: 'file-clock',
+              key: 'updates',
+              label: 'Updates',
+            },
           ],
         },
         initial,
@@ -710,7 +716,13 @@ describe('adminSettingsForm', () => {
         key: SETTING_KEYS.helpMenuItems,
         value: [
           ...initial.helpMenuItems,
-          { action: 'changelog', enabled: true, icon: 'file-clock', key: 'updates', label: 'Updates' },
+          {
+            action: 'changelog',
+            enabled: true,
+            icon: 'file-clock',
+            key: 'updates',
+            label: 'Updates',
+          },
         ],
       },
     ]);

@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import * as m from 'motion/react-m';
 import { describe, expect, it, vi } from 'vitest';
 
+import { mutate } from '@/libs/swr';
+import { serverConfigKeys } from '@/libs/swr/keys';
 import {
   adminCommercialService,
   AdminSettingsRevisionConflictError,
@@ -161,5 +163,19 @@ describe('AdminDefaultSettingsPage runtime models', () => {
     await waitFor(() =>
       expect(screen.getByText(/APP_SETTINGS_REVISION_CONFLICT/)).toBeInTheDocument(),
     );
+  });
+
+  it('refreshes the canonical server config cache after saving runtime defaults', async () => {
+    vi.mocked(mutate).mockClear();
+
+    render(
+      <ConfigProvider motion={m}>
+        <AdminDefaultSettingsPage scope="ai-runtime-defaults" />
+      </ConfigProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '保存设置' }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith(serverConfigKeys.get));
   });
 });

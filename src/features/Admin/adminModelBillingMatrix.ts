@@ -541,6 +541,34 @@ export const buildPlanModelRulesFromRows = (rows: MatrixRow[], plans: MatrixPlan
   return result;
 };
 
+export const getPlanModelRulesSaveErrorMessage = (error: unknown) => {
+  const candidate = error as {
+    code?: string;
+    data?: { code?: string };
+    message?: string;
+  } | null;
+  const code = candidate?.data?.code ?? candidate?.code;
+  const message = candidate?.message;
+
+  if (message === 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN') {
+    return '默认模型未被免费套餐允许，系统已阻止保存。请先开启免费套餐权限或更换默认模型。';
+  }
+
+  if (code === 'FORBIDDEN') {
+    return '当前账号没有保存套餐模型权限所需的 finance.write 权限。';
+  }
+
+  if (code === 'NOT_FOUND') {
+    return '部分套餐已不存在，请刷新套餐列表后重试。';
+  }
+
+  if (code === 'BAD_REQUEST') {
+    return '套餐模型权限数据无效，请刷新页面后重试。';
+  }
+
+  return '保存套餐模型权限失败，请刷新页面后重试。';
+};
+
 export const buildPricingRulesFromRows = (rows: MatrixRow[]): MatrixPricingRule[] =>
   rows.flatMap((row) => {
     const hasMultiplier =

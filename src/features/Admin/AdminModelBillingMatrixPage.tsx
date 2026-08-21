@@ -38,6 +38,7 @@ import {
   getDefaultModelHealth,
   getMatrixConfigHealth,
   getMatrixConfigHealthFocus,
+  getPlanModelRulesSaveErrorMessage,
   type MatrixConfigHealthCheck,
   type MatrixModelType,
   type MatrixPlan,
@@ -438,8 +439,10 @@ const AdminModelBillingMatrixPage = memo(() => {
       );
       await mutate(PLANS_KEY);
       message.success(t('admin.modelBillingMatrix.accessSaved', '套餐模型权限已保存'));
-    } catch {
-      message.error(t('admin.modelBillingMatrix.accessSaveFailed', '保存套餐模型权限失败'));
+    } catch (error) {
+      message.error(
+        t('admin.modelBillingMatrix.accessSaveFailed', getPlanModelRulesSaveErrorMessage(error)),
+      );
     } finally {
       setSaving(false);
     }

@@ -502,6 +502,41 @@ describe('adminPlansRouter', () => {
     expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
+  it('preserves a configured default model that is temporarily absent from the enabled catalog', async () => {
+    const db = createDb({
+      appSettingsRows: [
+        { key: APP_SETTING_KEYS.defaultAgentModel, value: 'gpt-5.4' },
+        { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'newapi' },
+      ],
+      planCatalogRow: {
+        displayName: 'Free',
+        modelRules: null,
+        plan: Plans.Free,
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    vi.mocked(getAllEnabledModels).mockResolvedValue([]);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).setModelRulesBatch({
+        updates: [
+          {
+            modelRules: { chat: { allowlist: ['currently-enabled'], mode: 'allowlist' } },
+            plan: Plans.Free,
+          },
+        ],
+      }),
+    ).resolves.toEqual({ count: 1, ok: true });
+
+    expect(db.__mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelRules: {
+          chat: { allowlist: ['currently-enabled', 'gpt-5.4'], mode: 'allowlist' },
+        },
+      }),
+    );
+  });
+
   it('enforces the free-plan default model invariant through plan upserts', async () => {
     const db = createDb({
       appSettingsRows: [

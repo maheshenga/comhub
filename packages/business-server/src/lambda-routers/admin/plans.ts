@@ -149,10 +149,10 @@ const DEFAULT_MODEL_SETTING_KEYS = [
 const normalizeSettingString = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
-const assertFreePlanKeepsDefaultModels = async (
+const normalizeFreePlanModelRules = async (
   db: Transaction,
   modelRules: PlanModelRules | null | undefined,
-) => {
+): Promise<PlanModelRules | null | undefined> => {
   const [settingRows, enabledModels] = await Promise.all([
     db.query.appSettings.findMany({
       columns: { key: true, value: true },
@@ -188,6 +188,19 @@ const assertFreePlanKeepsDefaultModels = async (
     },
   ];
 
+  let normalizedRules: PlanModelRules | null | undefined = modelRules
+    ? Object.fromEntries(
+        Object.entries(modelRules).map(([modelType, rule]) => [
+          modelType,
+          {
+            ...rule,
+            ...(rule.allowlist ? { allowlist: [...rule.allowlist] } : {}),
+            ...(rule.blocklist ? { blocklist: [...rule.blocklist] } : {}),
+          },
+        ]),
+      )
+    : modelRules;
+
   for (const { model, modelType, provider } of defaults) {
     if (!model) continue;
 
@@ -201,12 +214,31 @@ const assertFreePlanKeepsDefaultModels = async (
           item.providerType === provider ||
           (provider === 'newapi' && !item.providerId)),
     );
+    // A stale default may temporarily disappear while the provider catalog is
+    // being synchronized. Keep it in an allowlist generated from the visible
+    // rows so saving the matrix does not make the configured default invalid.
+    if (matchingRoutes.length === 0) {
+      const rule = normalizedRules?.[modelType];
+      if (
+        rule?.mode === 'allowlist' &&
+        !isModelAllowedByPlanRules(normalizedRules, model, modelType)
+      ) {
+        normalizedRules = {
+          ...normalizedRules,
+          [modelType]: {
+            ...rule,
+            allowlist: [...(rule.allowlist ?? []), model],
+          },
+        };
+      }
+    }
+
     const allowed =
       matchingRoutes.length > 0
         ? matchingRoutes.some((item) =>
-            isModelAllowedByPlanRules(modelRules, model, modelType, item.groupKey),
+            isModelAllowedByPlanRules(normalizedRules, model, modelType, item.groupKey),
           )
-        : isModelAllowedByPlanRules(modelRules, model, modelType);
+        : isModelAllowedByPlanRules(normalizedRules, model, modelType);
 
     if (!allowed) {
       throw new TRPCError({
@@ -215,6 +247,8 @@ const assertFreePlanKeepsDefaultModels = async (
       });
     }
   }
+
+  return normalizedRules;
 };
 
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
@@ -251,14 +285,15 @@ const updatePlanModelRules = async (
   });
   if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
 
-  if (input.plan === Plans.Free) {
-    await assertFreePlanKeepsDefaultModels(tx, input.modelRules as PlanModelRules | null);
-  }
+  const modelRules =
+    input.plan === Plans.Free
+      ? await normalizeFreePlanModelRules(tx, input.modelRules as PlanModelRules | null)
+      : (input.modelRules as PlanModelRules | null | undefined);
 
-  const nextPlanCatalog = { ...existing, modelRules: input.modelRules ?? null };
+  const nextPlanCatalog = { ...existing, modelRules: modelRules ?? null };
   const result = await tx
     .update(planCatalog)
-    .set({ modelRules: input.modelRules ?? null, updatedAt: new Date() })
+    .set({ modelRules: modelRules ?? null, updatedAt: new Date() })
     .where(eq(planCatalog.plan, input.plan))
     .returning({ plan: planCatalog.plan });
   if (result.length === 0) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
@@ -322,7 +357,7 @@ export const adminPlansRouter = router({
           payload: {
             after: toPlanCatalogAuditSnapshot(nextPlanCatalog),
             before: toPlanCatalogAuditSnapshot(existing),
-            modelRules: input.modelRules,
+            modelRules: nextPlanCatalog.modelRules,
           },
           resourceId: input.plan,
           resourceType: 'plan_catalog',
@@ -404,12 +439,13 @@ export const adminPlansRouter = router({
           where: eq(planCatalog.plan, planInput.plan),
         });
 
-        if (planInput.plan === Plans.Free) {
-          await assertFreePlanKeepsDefaultModels(
-            tx,
-            (planInput.modelRules ?? existing?.modelRules) as PlanModelRules | null | undefined,
-          );
-        }
+        const modelRules =
+          planInput.plan === Plans.Free
+            ? await normalizeFreePlanModelRules(
+                tx,
+                (planInput.modelRules ?? existing?.modelRules) as PlanModelRules | null | undefined,
+              )
+            : (planInput.modelRules as PlanModelRules | null | undefined);
 
         const normalizedPurchaseUrl = normalizePurchaseUrl(purchaseUrl);
         const previousMetadata =
@@ -438,7 +474,7 @@ export const adminPlansRouter = router({
         };
         if (!normalizedPurchaseUrl) delete metadata.purchaseUrl;
 
-        const nextPlanCatalog = { ...planInput, metadata };
+        const nextPlanCatalog = { ...planInput, metadata, modelRules };
         if (existing) {
           await tx
             .update(planCatalog)

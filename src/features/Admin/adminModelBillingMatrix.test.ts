@@ -10,6 +10,7 @@ import {
   getDefaultModelHealth,
   getMatrixConfigHealth,
   getMatrixConfigHealthFocus,
+  getPlanModelRulesSaveErrorMessage,
   type MatrixSourceModel,
   togglePlanAccess,
 } from './adminModelBillingMatrix';
@@ -249,6 +250,18 @@ describe('adminModelBillingMatrix', () => {
         image: { allowlist: [], mode: 'allowlist' },
       },
     });
+  });
+
+  it('explains protected-default and permission failures when saving plan access', () => {
+    expect(
+      getPlanModelRulesSaveErrorMessage({ message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN' }),
+    ).toContain('默认模型');
+    expect(
+      getPlanModelRulesSaveErrorMessage({ data: { code: 'FORBIDDEN' }, message: 'forbidden' }),
+    ).toContain('finance.write');
+    expect(getPlanModelRulesSaveErrorMessage({ data: { code: 'NOT_FOUND' } })).toContain(
+      '套餐已不存在',
+    );
   });
 
   it('keeps newapi groups as separate matrix rows and serializes group-qualified access rules', () => {
