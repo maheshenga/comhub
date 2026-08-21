@@ -123,6 +123,26 @@ describe('Moonshot models', () => {
   });
 });
 
+describe('SiliconCloud embedding models', () => {
+  it('publishes the official Qwen3 0.6B embedding capability and price', () => {
+    const model = LOBE_DEFAULT_MODEL_LIST.find(
+      (item) =>
+        item.providerId === ModelProvider.SiliconCloud && item.id === 'Qwen/Qwen3-Embedding-0.6B',
+    );
+
+    expect(model).toMatchObject({
+      contextWindowTokens: 32_768,
+      maxDimension: 1024,
+      pricing: {
+        currency: 'CNY',
+        units: [{ name: 'textInput', rate: 0.07, strategy: 'fixed', unit: 'millionTokens' }],
+      },
+      releasedAt: '2025-06-24',
+      type: 'embedding',
+    });
+  });
+});
+
 describe('Google rolling model aliases', () => {
   it('tracks the current Flash and Flash-Lite model versions', () => {
     const googleModels = LOBE_DEFAULT_MODEL_LIST.filter((model) => model.providerId === 'google');

@@ -1,5 +1,6 @@
 import {
   type AIChatModelCard,
+  type AIEmbeddingModelCard,
   type AIImageModelCard,
   type AIVideoModelCard,
 } from '../types/aiModel';
@@ -1637,6 +1638,24 @@ const siliconcloudChatModels: AIChatModelCard[] = [
   },
 ];
 
+const siliconcloudEmbeddingModels: AIEmbeddingModelCard[] = [
+  {
+    contextWindowTokens: 32_768,
+    displayName: 'Qwen3 Embedding 0.6B',
+    family: 'qwen',
+    generation: 'qwen3',
+    id: 'Qwen/Qwen3-Embedding-0.6B',
+    maxDimension: 1024,
+    organization: 'Qwen',
+    pricing: {
+      currency: 'CNY',
+      units: [{ name: 'textInput', rate: 0.07, strategy: 'fixed', unit: 'millionTokens' }],
+    },
+    releasedAt: '2025-06-24',
+    type: 'embedding',
+  },
+];
+
 const siliconcloudImageModels: AIImageModelCard[] = [
   {
     description:
@@ -1748,6 +1767,7 @@ const siliconcloudVideoModels: AIVideoModelCard[] = [
 
 export const allModels = [
   ...siliconcloudChatModels,
+  ...siliconcloudEmbeddingModels,
   ...siliconcloudImageModels,
   ...siliconcloudVideoModels,
 ];
