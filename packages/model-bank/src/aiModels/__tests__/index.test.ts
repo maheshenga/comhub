@@ -141,6 +141,65 @@ describe('SiliconCloud embedding models', () => {
       type: 'embedding',
     });
   });
+
+  it('publishes the remaining SiliconFlow vector and ASR catalog prices', () => {
+    const siliconCloudModel = (id: string) =>
+      LOBE_DEFAULT_MODEL_LIST.find(
+        (item) => item.providerId === ModelProvider.SiliconCloud && item.id === id,
+      );
+
+    expect(siliconCloudModel('BAAI/bge-m3')).toMatchObject({
+      contextWindowTokens: 8192,
+      maxDimension: 1024,
+      pricing: {
+        currency: 'CNY',
+        units: [{ name: 'textInput', rate: 0, strategy: 'fixed', unit: 'millionTokens' }],
+      },
+      type: 'embedding',
+    });
+    expect(siliconCloudModel('Qwen/Qwen3-Embedding-4B')).toMatchObject({
+      contextWindowTokens: 32_768,
+      maxDimension: 2560,
+      pricing: {
+        currency: 'CNY',
+        units: [{ name: 'textInput', rate: 0.14, strategy: 'fixed', unit: 'millionTokens' }],
+      },
+      type: 'embedding',
+    });
+    expect(siliconCloudModel('Qwen/Qwen3-Embedding-8B')).toMatchObject({
+      contextWindowTokens: 32_768,
+      maxDimension: 4096,
+      pricing: {
+        currency: 'CNY',
+        units: [{ name: 'textInput', rate: 0.28, strategy: 'fixed', unit: 'millionTokens' }],
+      },
+      type: 'embedding',
+    });
+
+    for (const [id, rate] of [
+      ['Qwen/Qwen3-Reranker-0.6B', 0.07],
+      ['Qwen/Qwen3-Reranker-4B', 0.14],
+      ['Qwen/Qwen3-Reranker-8B', 0.28],
+    ] as const) {
+      expect(siliconCloudModel(id)).toMatchObject({
+        pricing: {
+          currency: 'CNY',
+          units: [{ name: 'textInput', rate, strategy: 'fixed', unit: 'millionTokens' }],
+        },
+        type: 'embedding',
+      });
+    }
+
+    for (const id of ['FunAudioLLM/SenseVoiceSmall', 'TeleAI/TeleSpeechASR']) {
+      expect(siliconCloudModel(id)).toMatchObject({
+        pricing: {
+          currency: 'CNY',
+          units: [{ name: 'audioInput', rate: 0, strategy: 'fixed', unit: 'second' }],
+        },
+        type: 'asr',
+      });
+    }
+  });
 });
 
 describe('Google rolling model aliases', () => {

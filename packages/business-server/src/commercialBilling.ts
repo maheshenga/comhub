@@ -37,7 +37,7 @@ import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { type ProviderConfig } from '@/types/user/settings';
 
 import { getAdminNewapiModelCard, resolveAdminNewapiModelPricing } from './adminNewapiPricing';
-import { getServerModelPricingSnapshot } from './serverModelPricing';
+import { getServerModelPricingSnapshot, type ServerModelPricingSource } from './serverModelPricing';
 
 const USER_MANAGED_CREDENTIAL_FIELDS = [
   'accessKeyId',
@@ -62,6 +62,10 @@ const ASR_ESTIMATED_MIN_BYTES_PER_SECOND = 1000;
 const ASR_ESTIMATED_OUTPUT_TOKENS = 2000;
 const ASR_MISSING_USAGE_MAX_USD = 0.01;
 const EXTERNAL_SUBSCRIPTION_PROVIDERS = new Set(['supergrok']);
+const TRUSTED_FREE_PRICING_SOURCES = new Set<ServerModelPricingSource>([
+  'lobehub-official',
+  'model-bank',
+]);
 const MAX_PRICING_SNAPSHOT_RATE = 1_000_000_000_000;
 const MAX_PRICING_SNAPSHOT_UNITS = 100;
 const MAX_PRICING_SNAPSHOT_TIERS = 10_000;
@@ -311,8 +315,12 @@ const getProviderModelCard = async ({
   if (adminModelCard) {
     const resolution = await resolveAdminNewapiModelPricing({ adminModelCard, model });
     return resolution.pricing
-      ? { ...adminModelCard.modelCard, pricing: resolution.pricing }
-      : adminModelCard.modelCard;
+      ? {
+          ...adminModelCard.modelCard,
+          pricing: resolution.pricing,
+          pricingSource: resolution.source,
+        }
+      : { ...adminModelCard.modelCard, pricingSource: resolution.source };
   }
 
   const { aiProvider } = await getServerGlobalConfig(db);
@@ -579,11 +587,48 @@ export const isCommercialUsageReservationHandle = (
 const isPositiveFinite = (value: number | undefined) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 
+const getPricingUnitRates = (unit: Pricing['units'][number]): number[] => {
+  if (unit.strategy === 'fixed') return [unit.rate];
+  if (unit.strategy === 'tiered') return unit.tiers.map((tier) => tier.rate);
+
+  return Object.values(unit.lookup.prices);
+};
+
+const isExplicitlyFreePricing = (pricing: Pricing, usageType: CommercialBillableUsageType) => {
+  if (usageType === 'image' || usageType === 'video') return false;
+
+  const unitNames =
+    usageType === 'chat' || usageType === 'generate_object'
+      ? new Set(['textInput', 'textOutput'])
+      : usageType === 'embeddings'
+        ? new Set(['textInput'])
+        : new Set(['audioInput', 'textInput', 'textOutput']);
+  const rates = pricing.units
+    .filter((unit) => unitNames.has(unit.name))
+    .flatMap(getPricingUnitRates);
+
+  return rates.length > 0 && rates.every((rate) => Number.isFinite(rate) && rate === 0);
+};
+
+const hasTrustedFreePricing = (
+  pricing: Pricing | undefined,
+  source: ServerModelPricingSource | undefined,
+  usageType: CommercialBillableUsageType,
+) =>
+  Boolean(
+    pricing &&
+    source &&
+    TRUSTED_FREE_PRICING_SOURCES.has(source) &&
+    isExplicitlyFreePricing(pricing, usageType),
+  );
+
 const hasReliablePricing = (
   pricing: AiProviderModelListItem['pricing'],
   usageType: CommercialBillableUsageType,
+  source?: ServerModelPricingSource,
 ) => {
   if (!pricing) return false;
+  if (hasTrustedFreePricing(pricing, source, usageType)) return true;
 
   if (usageType === 'chat' || usageType === 'generate_object') {
     return (
@@ -652,7 +697,7 @@ export const assertCommercialModelSellable = async ({
           : usageType,
     userId,
   });
-  if (hasReliablePricing(snapshot.pricing, usageType)) return true;
+  if (hasReliablePricing(snapshot.pricing, usageType, snapshot.source)) return true;
 
   throw AgentRuntimeError.createError(ChatErrorType.Forbidden, {
     message: 'COMMERCIAL_MODEL_PRICING_MISSING',
@@ -734,12 +779,18 @@ export type CommercialUsagePayload = {
  */
 const resolveEffectiveCost = (
   usage: CommercialUsagePayload,
-  modelCard?: Pick<AiProviderModelListItem, 'pricing'>,
+  modelCard?: Pick<AiProviderModelListItem, 'pricing'> & {
+    pricingSource?: ServerModelPricingSource;
+  },
   usageType: CommercialAiUsageType = 'chat',
 ): { costSource: CostSource; usdCost: number } | null => {
   // Tier 1: gateway cost is valid
   if (usage.cost && usage.cost > 0) {
     return { costSource: 'gateway', usdCost: usage.cost };
+  }
+
+  if (hasTrustedFreePricing(modelCard?.pricing, modelCard?.pricingSource, usageType)) {
+    return { costSource: 'local-pricing', usdCost: 0 };
   }
 
   // Tiers 2 & 3 require at least some token counts
@@ -849,6 +900,7 @@ export const recordCommercialAiUsage = async ({
   const modelCard = await getProviderModelCard({
     db,
     model,
+    modelType: usageType === 'embeddings' ? 'embedding' : usageType === 'asr' ? 'asr' : 'chat',
     provider,
     routeMetadata,
     userId,
@@ -1025,7 +1077,10 @@ export const settleCommercialAiUsageReservation = async ({
 
   if (usage && usageType !== 'image' && usageType !== 'video') {
     const modelCard = pricingQuote?.modelPricing
-      ? { pricing: pricingQuote.modelPricing }
+      ? {
+          pricing: pricingQuote.modelPricing,
+          pricingSource: pricingQuote.modelPricingSource,
+        }
       : await getProviderModelCard({
           db,
           model,
@@ -1142,6 +1197,7 @@ export const quoteCommercialAiUsage = async ({
   const modelCard = await getProviderModelCard({
     db,
     model,
+    modelType: usageType === 'embeddings' ? 'embedding' : usageType === 'asr' ? 'asr' : 'chat',
     provider,
     routeMetadata,
     userId,

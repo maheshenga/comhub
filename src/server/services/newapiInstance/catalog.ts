@@ -153,6 +153,9 @@ export const classifyNewapiModelType = (
     .filter(Boolean);
   const explicitType = model.type?.toLowerCase().trim();
   const id = model.id.toLowerCase();
+  const isKnownAsrModel = idIncludes(id, ['sensevoice', 'telespeechasr']);
+
+  if (isKnownAsrModel) return 'asr';
 
   if (
     explicitType === 'tts' ||
@@ -216,7 +219,7 @@ export const classifyNewapiModelType = (
     return 'video';
   }
 
-  if (idIncludes(id, ['embedding', 'embed'])) return 'embedding';
+  if (idIncludes(id, ['embedding', 'embed', 'reranker', 'rerank'])) return 'embedding';
 
   if (idIncludes(id, ['text-to-speech', '-tts', 'tts-']) || id.endsWith('tts')) return 'tts';
   if (

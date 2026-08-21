@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { LOBE_DEFAULT_MODEL_LIST } from 'model-bank';
+import { LOBE_DEFAULT_MODEL_LIST, normalizeAiModelType } from 'model-bank';
 import { z } from 'zod';
 
 import {
@@ -279,13 +279,18 @@ const resolveModelPricingSource = async ({
   return hasModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
 };
 
-const resolveModelAbilityCompleteness = (metadata: Record<string, unknown> | null | undefined) => {
+const resolveModelAbilityCompleteness = (
+  metadata: Record<string, unknown> | null | undefined,
+  modelType: string,
+) => {
+  if (normalizeAiModelType(modelType) !== 'chat') return true;
   if (!isPlainRecord(metadata)) return false;
 
-  const manualAbilities = metadata.manualAbilities;
-  if (!isPlainRecord(manualAbilities)) return false;
-
-  return Object.values(manualAbilities).some((value) => typeof value === 'boolean');
+  return [metadata.manualAbilities, metadata.syncedAbilities].some(
+    (abilities) =>
+      isPlainRecord(abilities) &&
+      Object.values(abilities).some((value) => typeof value === 'boolean'),
+  );
 };
 
 export const adminNewapiProvidersRouter = router({
@@ -946,7 +951,7 @@ export const adminNewapiProvidersRouter = router({
             displayName,
             groupKey,
             groupName,
-            hasModelAbilities: resolveModelAbilityCompleteness(metadata),
+            hasModelAbilities: resolveModelAbilityCompleteness(metadata, modelType),
             hasModelPricing: resolveModelPricingCompleteness(
               metadata,
               pricingPolicy.upstreamSyncEnabled,
