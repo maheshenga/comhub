@@ -31,6 +31,7 @@ import {
   tryDecryptAdminProviderApiKey,
 } from '@/server/services/newapiInstance/credentials';
 import { getLobeHubOfficialModelPricing } from '@/server/services/newapiInstance/lobeHubOfficialPricing';
+import { getModelPricingCandidates } from '@/server/services/newapiInstance/modelPricingCandidates';
 import {
   resolveAdminProviderPricingPolicy,
   resolveModelBankProviderForAdminType,
@@ -220,7 +221,7 @@ const resolveModelPricingCompleteness = (
   return false;
 };
 
-const hasExactModelBankPricing = ({
+const hasModelBankPricing = ({
   modelId,
   providerType,
 }: {
@@ -229,11 +230,13 @@ const hasExactModelBankPricing = ({
 }) => {
   const modelBankProviderId = resolveModelBankProviderForAdminType(providerType);
 
-  return LOBE_DEFAULT_MODEL_LIST.some(
-    (item) =>
-      (!modelBankProviderId || item.providerId === modelBankProviderId) &&
-      item.id === modelId &&
-      Boolean(item.pricing),
+  return getModelPricingCandidates(modelId).some((candidate) =>
+    LOBE_DEFAULT_MODEL_LIST.some(
+      (item) =>
+        (!modelBankProviderId || item.providerId === modelBankProviderId) &&
+        item.id === candidate &&
+        Boolean(item.pricing),
+    ),
   );
 };
 
@@ -273,7 +276,7 @@ const resolveModelPricingSource = async ({
   }
   if (!pricingPolicy.modelBankFallbackEnabled) return 'missing';
 
-  return hasExactModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
+  return hasModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
 };
 
 const resolveModelAbilityCompleteness = (metadata: Record<string, unknown> | null | undefined) => {

@@ -2,6 +2,7 @@ import { getModelPricing } from '@lobechat/model-runtime';
 import type { Pricing } from 'model-bank';
 
 import { getLobeHubOfficialModelPricing } from './lobeHubOfficialPricing';
+import { getModelPricingCandidates } from './modelPricingCandidates';
 
 export type NewapiModelPricingSource = 'database' | 'lobehub-official' | 'missing' | 'model-bank';
 
@@ -43,8 +44,10 @@ export const resolveNewapiModelPricing = async ({
 
   if (modelBankFallbackEnabled) {
     try {
-      const modelBankPricing = await getModelPricing(model, modelBankProvider);
-      if (modelBankPricing) return { pricing: modelBankPricing, source: 'model-bank' };
+      for (const candidate of getModelPricingCandidates(model)) {
+        const modelBankPricing = await getModelPricing(candidate, modelBankProvider);
+        if (modelBankPricing) return { pricing: modelBankPricing, source: 'model-bank' };
+      }
     } catch {
       // Keep the model visible even when the local fallback lookup fails.
     }

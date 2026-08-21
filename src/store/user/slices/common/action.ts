@@ -21,12 +21,25 @@ import { userGeneralSettingsSelectors } from '../settings/selectors';
 
 const n = setNamespace('common');
 
+const getServerManagedDefaultAgent = (
+  serverConfig: GlobalServerConfig,
+): PartialDeep<UserSettings['defaultAgent']> | undefined => {
+  const legacyDefaultAgent = serverConfig.defaultAgent;
+  const managedDefaultAgent = serverConfig.userDefaults?.defaultAgent;
+  const mergedDefaultAgent = merge(legacyDefaultAgent || {}, managedDefaultAgent || {});
+
+  if (!mergedDefaultAgent.config && !mergedDefaultAgent.meta) return undefined;
+
+  return mergedDefaultAgent as PartialDeep<UserSettings['defaultAgent']>;
+};
+
 const mergeServerManagedDefaultAgent = (
   settings: PartialDeep<UserSettings> | undefined,
   serverConfig: GlobalServerConfig,
 ): PartialDeep<UserSettings> => {
-  const serverDefaultAgentConfig = serverConfig.defaultAgent?.config;
-  const serverDefaultAgentMeta = serverConfig.defaultAgent?.meta;
+  const serverDefaultAgent = getServerManagedDefaultAgent(serverConfig);
+  const serverDefaultAgentConfig = serverDefaultAgent?.config;
+  const serverDefaultAgentMeta = serverDefaultAgent?.meta;
   const serverDefaultAgentAvatar =
     serverDefaultAgentMeta?.avatar ?? serverDefaultAgentConfig?.avatar;
   const serverDefaultAgentModel = serverDefaultAgentConfig?.model;
@@ -150,8 +163,11 @@ export class CommonActionImpl {
 
           if (data) {
             // merge settings
+            const serverManagedDefaultAgent = getServerManagedDefaultAgent(serverConfig);
             const serverSettings: PartialDeep<UserSettings> = merge(serverConfig.userDefaults, {
-              defaultAgent: serverConfig.defaultAgent,
+              ...(serverManagedDefaultAgent
+                ? { defaultAgent: serverManagedDefaultAgent }
+                : undefined),
               image: serverConfig.image,
               systemAgent: serverConfig.systemAgent,
             });

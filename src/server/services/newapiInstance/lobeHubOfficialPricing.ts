@@ -2,6 +2,8 @@ import { LobeHubPath, OFFICIAL_URL } from '@lobechat/const/url';
 import type { Pricing } from 'model-bank';
 import { z } from 'zod';
 
+import { getModelPricingCandidates } from './modelPricingCandidates';
+
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_STALE_AGE_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 5000;
@@ -147,7 +149,15 @@ export const getLobeHubOfficialModelPricing = async (
   const modelId = model.trim();
   if (!modelId) return undefined;
 
-  return (await loadOfficialPricingCatalog())?.pricingByModel.get(modelId);
+  const pricingByModel = (await loadOfficialPricingCatalog())?.pricingByModel;
+  if (!pricingByModel) return undefined;
+
+  for (const candidate of getModelPricingCandidates(modelId)) {
+    const pricing = pricingByModel.get(candidate);
+    if (pricing) return pricing;
+  }
+
+  return undefined;
 };
 
 export const invalidateLobeHubOfficialPricingCache = () => {

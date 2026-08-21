@@ -94,6 +94,13 @@ type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
 type UserSettingsSyncOptions = {
   forceDefaultAgentMeta?: boolean;
 };
+type RuntimeMemoryModelSetting = { model?: string; provider?: string };
+type RuntimeMemoryModelSettings = {
+  embedding?: RuntimeMemoryModelSetting;
+  gatekeeper?: RuntimeMemoryModelSetting;
+  layerExtractor?: RuntimeMemoryModelSetting;
+  personaWriter?: RuntimeMemoryModelSetting;
+};
 const appSettingUpdateInputSchema = z.object({
   key: z.enum(GENERIC_WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
   value: z.unknown(),
@@ -129,6 +136,39 @@ export const buildUserGlobalSettingsSyncValues = (defaults: unknown): UserSettin
   }
 
   return values;
+};
+const normalizeRuntimeMemoryModelSetting = (setting?: RuntimeMemoryModelSetting) => {
+  const model = setting?.model?.trim();
+  const provider = setting?.provider?.trim();
+
+  return model && provider ? { model, provider } : undefined;
+};
+export const buildRuntimeMemorySystemAgentSyncValue = (settings: RuntimeMemoryModelSettings) => {
+  const systemAgent: Record<string, { model: string; provider: string }> = {};
+  const skippedFields: string[] = [];
+  const gatekeeper = normalizeRuntimeMemoryModelSetting(settings.gatekeeper);
+  const layerExtractor = normalizeRuntimeMemoryModelSetting(settings.layerExtractor);
+  const embedding = normalizeRuntimeMemoryModelSetting(settings.embedding);
+  const personaWriter = normalizeRuntimeMemoryModelSetting(settings.personaWriter);
+
+  if (
+    gatekeeper &&
+    layerExtractor &&
+    gatekeeper.model === layerExtractor.model &&
+    gatekeeper.provider === layerExtractor.provider
+  ) {
+    systemAgent.memoryAnalysisAgentConfig = gatekeeper;
+  } else if (settings.gatekeeper || settings.layerExtractor) {
+    skippedFields.push('memoryAnalysisAgentConfig');
+  }
+
+  if (embedding) systemAgent.userMemoryEmbedding = embedding;
+  else if (settings.embedding) skippedFields.push('userMemoryEmbedding');
+
+  if (personaWriter) systemAgent.userMemoryPersonaWriter = personaWriter;
+  else if (settings.personaWriter) skippedFields.push('userMemoryPersonaWriter');
+
+  return { skippedFields, systemAgent };
 };
 const mergeDefaultAgentSyncValue = (
   existing: unknown,
@@ -451,6 +491,82 @@ export const syncUserGlobalSettingsDefaultsToUserSettings = async (
 
   return { syncedFields, syncedUsers };
 };
+
+export const syncRuntimeMemoryModelsToUserSettings = async (
+  db: LobeChatDatabase,
+  settings: RuntimeMemoryModelSettings,
+) => {
+  const { skippedFields, systemAgent } = buildRuntimeMemorySystemAgentSyncValue(settings);
+  const syncedFields = Object.keys(systemAgent);
+
+  if (syncedFields.length === 0) {
+    return { skippedFields, syncedFields, syncedUsers: 0 };
+  }
+
+  const userRows = await db.select({ id: users.id }).from(users);
+  let syncedUsers = 0;
+
+  for (let index = 0; index < userRows.length; index += USER_SETTINGS_SYNC_BATCH_SIZE) {
+    const batch = userRows.slice(index, index + USER_SETTINGS_SYNC_BATCH_SIZE);
+    if (batch.length === 0) continue;
+
+    const rows = batch.map((user) => ({
+      id: user.id,
+      systemAgent,
+    }));
+
+    await db
+      .insert(userSettings)
+      .values(rows)
+      .onConflictDoUpdate({
+        set: {
+          systemAgent:
+            sql`coalesce(${userSettings.systemAgent}, '{}'::jsonb) || excluded.system_agent` as never,
+        },
+        target: userSettings.id,
+      });
+    syncedUsers += batch.length;
+  }
+
+  return { skippedFields, syncedFields, syncedUsers };
+};
+
+const readRuntimeMemoryModelSettings = async (
+  db: LobeChatDatabase,
+): Promise<RuntimeMemoryModelSettings> => {
+  const [
+    gatekeeperModel,
+    gatekeeperProvider,
+    layerExtractorModel,
+    layerExtractorProvider,
+    personaWriterModel,
+    personaWriterProvider,
+    embeddingModel,
+    embeddingProvider,
+  ] = await Promise.all([
+    readSetting(db, SETTING_KEYS.memoryUserMemoryGatekeeperModel),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryGatekeeperProvider),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryLayerExtractorModel),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryLayerExtractorProvider),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryPersonaWriterModel),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryPersonaWriterProvider),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryEmbeddingModel),
+    readSetting(db, SETTING_KEYS.memoryUserMemoryEmbeddingProvider),
+  ]);
+
+  return {
+    embedding: { model: toString(embeddingModel), provider: toString(embeddingProvider) },
+    gatekeeper: { model: toString(gatekeeperModel), provider: toString(gatekeeperProvider) },
+    layerExtractor: {
+      model: toString(layerExtractorModel),
+      provider: toString(layerExtractorProvider),
+    },
+    personaWriter: {
+      model: toString(personaWriterModel),
+      provider: toString(personaWriterProvider),
+    },
+  };
+};
 const validateDefaultModelUpdates = async (
   db: LobeChatDatabase,
   updates: NormalizedSettingUpdate[],
@@ -679,6 +795,24 @@ export const adminSettingsWriteProcedures = {
 
       return { count: input.updates.length, ok: true, revisions };
     }),
+  syncRuntimeMemoryModelsToUsers: systemWriteProcedure.mutation(async ({ ctx }) => {
+    const settings = await readRuntimeMemoryModelSettings(ctx.serverDB);
+    const result = await runRequiredAdminAuditMutation<any>(ctx, {
+      audit: (result) => ({
+        action: 'settings.syncRuntimeMemoryModels',
+        payload: {
+          operation: 'syncRuntimeMemoryModelsToUsers',
+          scope: { target: 'all-users' },
+          status: 'success',
+          ...result,
+        },
+        resourceType: 'user_settings',
+      }),
+      mutation: (tx) => syncRuntimeMemoryModelsToUserSettings(tx, settings),
+    });
+
+    return { ok: true, ...result };
+  }),
   syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure
     .input(syncUserGlobalSettingsDefaultsInputSchema)
     .mutation(async ({ ctx, input }) => {

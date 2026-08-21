@@ -1,7 +1,8 @@
 import { ConfigProvider } from '@lobehub/ui';
+import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mutate } from '@/libs/swr';
 import { serverConfigKeys } from '@/libs/swr/keys';
@@ -11,6 +12,15 @@ import {
 } from '@/services/adminCommercial';
 
 import AdminDefaultSettingsPage from './AdminDefaultSettingsPage';
+
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof LobeUIBaseModule>();
+
+  return {
+    ...actual,
+    confirmModal: vi.fn(({ onOk }: { onOk: () => void }) => onOk()),
+  };
+});
 
 const runtimeSettings = vi.hoisted(() => ({
   memoryExtractionConfig: {
@@ -54,7 +64,10 @@ const runtimeSettings = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, fallback?: string) =>
+      key === 'admin.defaultSettings.aiRuntime.saveAndSync'
+        ? '保存并同步记忆模型'
+        : (fallback ?? key),
   }),
 }));
 
@@ -85,6 +98,7 @@ vi.mock('@/services/adminCommercial', () => {
       getSettingsSection: vi.fn(),
       refreshRuntimeCaches: vi.fn(),
       setAppSettingsBatch: vi.fn(),
+      syncRuntimeMemoryModelsToUsers: vi.fn(),
     },
   };
 });
@@ -123,6 +137,10 @@ const runtimePairs = [
 ];
 
 describe('AdminDefaultSettingsPage runtime models', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('renders six catalog-backed pairs with resolved read-only providers', async () => {
     render(
       <ConfigProvider motion={m}>
@@ -177,5 +195,37 @@ describe('AdminDefaultSettingsPage runtime models', () => {
     fireEvent.click(await screen.findByRole('button', { name: '保存设置' }));
 
     await waitFor(() => expect(mutate).toHaveBeenCalledWith(serverConfigKeys.get));
+  });
+
+  it('saves and synchronizes runtime memory models after admin confirmation', async () => {
+    vi.mocked(adminCommercialService.setAppSettingsBatch).mockResolvedValueOnce({} as any);
+    vi.mocked(adminCommercialService.syncRuntimeMemoryModelsToUsers).mockResolvedValueOnce({
+      ok: true,
+      skippedFields: [],
+      syncedFields: ['memoryAnalysisAgentConfig', 'userMemoryEmbedding', 'userMemoryPersonaWriter'],
+      syncedUsers: 39,
+    });
+
+    render(
+      <ConfigProvider motion={m}>
+        <AdminDefaultSettingsPage scope="ai-runtime-defaults" />
+      </ConfigProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: /Save and sync memory models|保存并同步记忆模型/,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(adminCommercialService.syncRuntimeMemoryModelsToUsers).toHaveBeenCalledTimes(1),
+    );
+    expect(adminCommercialService.setAppSettingsBatch).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(adminCommercialService.setAppSettingsBatch).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(adminCommercialService.syncRuntimeMemoryModelsToUsers).mock.invocationCallOrder[0],
+    );
   });
 });

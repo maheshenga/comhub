@@ -783,6 +783,25 @@ describe('adminNewapiProvidersRouter', () => {
           priority: 4,
           providerType: 'newapi',
         },
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Dated Fallback DeepSeek',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceMetadata: {
+            pricingPolicy: {
+              modelBankFallbackEnabled: true,
+              upstreamSyncEnabled: false,
+            },
+          },
+          instanceName: 'NewAPI Dated Fallback',
+          metadata: {},
+          modelId: 'deepseek-v4-pro-0731',
+          modelType: 'chat',
+          priority: 5,
+          providerType: 'newapi',
+        },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
@@ -822,6 +841,12 @@ describe('adminNewapiProvidersRouter', () => {
       expect.objectContaining({
         hasModelPricing: false,
         modelId: 'deepseek-v4-pro',
+        pricingSource: 'model-bank',
+        providerType: 'newapi',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
+        modelId: 'deepseek-v4-pro-0731',
         pricingSource: 'model-bank',
         providerType: 'newapi',
       }),

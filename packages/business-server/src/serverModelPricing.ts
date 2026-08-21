@@ -5,6 +5,7 @@ import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import type { LobeChatDatabase } from '@/database/type';
 import { getServerGlobalConfig } from '@/server/globalConfig';
+import { getModelPricingCandidates } from '@/server/services/newapiInstance/modelPricingCandidates';
 import type { ProviderConfig } from '@/types/user/settings';
 
 import {
@@ -103,13 +104,15 @@ export const getServerModelPricingSnapshot = async (
     };
   }
 
-  const staticPricing = await getModelPricing(params.model, params.provider);
-  if (staticPricing) {
-    return {
-      modelCard,
-      pricing: staticPricing,
-      source: 'model-bank',
-    };
+  for (const candidate of getModelPricingCandidates(params.model)) {
+    const staticPricing = await getModelPricing(candidate, params.provider);
+    if (staticPricing) {
+      return {
+        modelCard,
+        pricing: staticPricing,
+        source: 'model-bank',
+      };
+    }
   }
 
   return {

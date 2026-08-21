@@ -282,6 +282,30 @@ describe('getServerModelPricing', () => {
     expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-image-2', 'newapi');
   });
 
+  it('falls back to canonical model-bank pricing for a dated provider snapshot', async () => {
+    const staticPricing = {
+      units: [{ name: 'textInput', rate: 3, strategy: 'fixed', unit: 'millionTokens' }],
+    };
+    mocks.getAiProviderModelList.mockResolvedValue([
+      { id: 'deepseek-v4-flash-0731', type: 'chat' },
+    ]);
+    mocks.getModelPricing.mockImplementation(async (model: string) =>
+      model === 'deepseek-v4-flash' ? staticPricing : undefined,
+    );
+
+    await expect(
+      getServerModelPricingSnapshot({
+        db: {} as any,
+        model: 'deepseek-v4-flash-0731',
+        provider: 'newapi',
+        type: 'chat',
+        userId: 'user-1',
+      }),
+    ).resolves.toMatchObject({ pricing: staticPricing, source: 'model-bank' });
+    expect(mocks.getModelPricing).toHaveBeenNthCalledWith(1, 'deepseek-v4-flash-0731', 'newapi');
+    expect(mocks.getModelPricing).toHaveBeenNthCalledWith(2, 'deepseek-v4-flash', 'newapi');
+  });
+
   it('returns a model-bank pricing snapshot when database pricing is unavailable', async () => {
     const staticPricing = {
       units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],

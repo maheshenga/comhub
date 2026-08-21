@@ -244,6 +244,52 @@ describe('createCommonSlice', () => {
       });
     });
 
+    it('should prefer the managed user default agent over the legacy server default agent', async () => {
+      const mockUserState: UserInitializationState = {
+        userId: 'user-id',
+        isOnboard: true,
+        onboarding: { finishedAt: '2024-01-01T00:00:00Z', version: 1 },
+        preference: {},
+        settings: {
+          defaultAgent: {
+            config: { model: 'old-user-model', provider: 'openai' },
+            meta: { avatar: 'old-avatar', title: 'Old Assistant' },
+          },
+        } as any,
+      };
+      const serverConfig = {
+        ...mockServerConfig,
+        defaultAgent: {
+          config: { model: 'legacy-model', provider: 'legacy-provider' },
+          meta: { avatar: '/legacy-avatar.svg', title: 'Legacy Assistant' },
+        },
+        userDefaults: {
+          defaultAgent: {
+            config: { model: 'managed-model', provider: 'managed-provider' },
+            meta: { avatar: '/managed-avatar.svg', title: 'Managed Assistant' },
+          },
+        },
+      } as GlobalServerConfig;
+
+      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
+
+      renderHook(() => useUserStore().useInitUserState(true, serverConfig), {
+        wrapper: withSWR,
+      });
+
+      await waitFor(() => {
+        const state = useUserStore.getState() as any;
+        expect(settingsSelectors.defaultAgentConfig(state)).toMatchObject({
+          model: 'managed-model',
+          provider: 'managed-provider',
+        });
+        expect(settingsSelectors.defaultAgentMeta(state)).toMatchObject({
+          avatar: '/managed-avatar.svg',
+          title: 'Managed Assistant',
+        });
+      });
+    });
+
     it('should call switch language when language is auto', async () => {
       const mockUserState: UserInitializationState = {
         userId: 'user-id',

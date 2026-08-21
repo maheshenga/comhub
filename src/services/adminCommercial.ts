@@ -379,6 +379,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate(params);
   };
 
+  syncRuntimeMemoryModelsToUsers = async () => {
+    return lambdaClient.admin.settings.syncRuntimeMemoryModelsToUsers.mutate();
+  };
+
   refreshRuntimeCaches = async () => {
     return lambdaClient.admin.settings.refreshRuntimeCaches.mutate();
   };

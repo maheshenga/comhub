@@ -1695,8 +1695,20 @@ export default {
   'plansModal.modelAccess.title': 'Unlock all models',
   'admin.defaultSettings.aiRuntime.title': 'AI runtime defaults',
   'admin.defaultSettings.aiRuntime.description':
-    'Configure runtime models for vector retrieval and memory extraction. Saving does not change user defaults or integrations.',
+    'Configure runtime models for vector retrieval and memory extraction. Save them only, or sync compatible memory models to all user settings.',
+  'admin.defaultSettings.aiRuntime.saveAndSync': 'Save and sync memory models',
   'admin.defaultSettings.aiRuntime.saved': 'AI runtime defaults saved',
+  'admin.defaultSettings.aiRuntime.savedAndSynced':
+    'AI runtime defaults saved and {{fields}} memory model fields synced to {{users}} users',
+  'admin.defaultSettings.aiRuntime.savedAndSyncedWithSkipped':
+    'AI runtime defaults saved and {{fields}} memory model fields synced to {{users}} users; {{skipped}} fields were skipped because they do not map one-to-one',
+  'admin.defaultSettings.aiRuntime.savedSyncFailed':
+    'AI runtime defaults were saved, but existing user settings could not be synchronized. Retry the synchronization later.',
+  'admin.defaultSettings.aiRuntime.syncCancel': 'Cancel',
+  'admin.defaultSettings.aiRuntime.syncConfirm': 'Save and sync',
+  'admin.defaultSettings.aiRuntime.syncDescription':
+    'This saves the current runtime settings, then merges compatible memory analysis, persona writer, and memory embedding models into every user setting. Other service models are preserved, and vector retrieval models are not copied.',
+  'admin.defaultSettings.aiRuntime.syncTitle': 'Sync memory models to all users?',
   'admin.defaultSettings.invalidJson': 'The JSON is invalid',
   'admin.defaultSettings.saveFailed': 'Save failed. Check the form values.',
   'admin.defaultSettings.userDefaults.title': 'User defaults',

@@ -171,7 +171,8 @@ const scopeCopy: Record<
   { description: string; descriptionKey: string; title: string; titleKey: string }
 > = {
   'ai-runtime-defaults': {
-    description: '配置向量检索和记忆抽取的运行时模型。保存不会修改用户默认设置或外部集成。',
+    description:
+      '配置向量检索和记忆抽取的运行时模型。可单独保存，或将可映射的记忆模型同步到所有用户设置。',
     descriptionKey: 'admin.defaultSettings.aiRuntime.description',
     title: 'AI 运行时默认值',
     titleKey: 'admin.defaultSettings.aiRuntime.title',
@@ -404,11 +405,11 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
       : []),
   ];
 
-  const handleSave = async (syncUserDefaults = false) => {
+  const handleSave = async (syncMode?: 'runtime-memory' | 'user-defaults') => {
     if (!data) return;
 
     setSubmitting(true);
-    if (syncUserDefaults) setSyncing(true);
+    if (syncMode) setSyncing(true);
     setSaveError(undefined);
 
     try {
@@ -425,6 +426,32 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
 
       if (scope === 'ai-runtime-defaults') {
         await mutate(RUNTIME_CONFIG_SWR_KEY);
+        if (syncMode === 'runtime-memory') {
+          try {
+            const result = await adminCommercialService.syncRuntimeMemoryModelsToUsers();
+            await mutate(USER_STATE_SWR_KEY);
+            const skipped = result.skippedFields.length;
+            if (skipped > 0) {
+              message.warning(
+                t('admin.defaultSettings.aiRuntime.savedAndSyncedWithSkipped', {
+                  fields: result.syncedFields.length,
+                  skipped,
+                  users: result.syncedUsers,
+                }),
+              );
+            } else {
+              message.success(
+                t('admin.defaultSettings.aiRuntime.savedAndSynced', {
+                  fields: result.syncedFields.length,
+                  users: result.syncedUsers,
+                }),
+              );
+            }
+          } catch {
+            message.warning(t('admin.defaultSettings.aiRuntime.savedSyncFailed'));
+          }
+          return;
+        }
         message.success(t('admin.defaultSettings.aiRuntime.saved'));
         return;
       }
@@ -439,7 +466,7 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
         mutate(PROFILE_OPTIONS_SWR_KEY),
         mutate(RUNTIME_CONFIG_SWR_KEY),
       ]);
-      if (syncUserDefaults) {
+      if (syncMode === 'user-defaults') {
         try {
           const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers({
             forceDefaultAgentMeta: true,
@@ -821,12 +848,30 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                     cancelText: t('admin.defaultSettings.userDefaults.syncCancel'),
                     content: t('admin.defaultSettings.userDefaults.syncDescription'),
                     okText: t('admin.defaultSettings.userDefaults.syncConfirm'),
-                    onOk: () => handleSave(true),
+                    onOk: () => handleSave('user-defaults'),
                     title: t('admin.defaultSettings.userDefaults.syncTitle'),
                   });
                 }}
               >
                 {t('admin.defaultSettings.userDefaults.saveAndSync')}
+              </Button>
+            ) : null}
+            {scope === 'ai-runtime-defaults' ? (
+              <Button
+                danger
+                disabled={isLoading || !data || submitting}
+                loading={syncing}
+                onClick={() => {
+                  confirmModal({
+                    cancelText: t('admin.defaultSettings.aiRuntime.syncCancel'),
+                    content: t('admin.defaultSettings.aiRuntime.syncDescription'),
+                    okText: t('admin.defaultSettings.aiRuntime.syncConfirm'),
+                    onOk: () => handleSave('runtime-memory'),
+                    title: t('admin.defaultSettings.aiRuntime.syncTitle'),
+                  });
+                }}
+              >
+                {t('admin.defaultSettings.aiRuntime.saveAndSync')}
               </Button>
             ) : null}
             <Button

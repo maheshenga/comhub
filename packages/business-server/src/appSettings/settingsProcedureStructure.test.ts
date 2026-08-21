@@ -92,6 +92,7 @@ describe('admin settings procedure ownership', () => {
         'saveMobileConfigDraft',
         'setAppSetting',
         'setAppSettingsBatch',
+        'syncRuntimeMemoryModelsToUsers',
         'syncUserGlobalSettingsDefaultsToUsers',
         'testS3Storage',
         'validateDefaultAgentSettings',

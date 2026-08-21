@@ -35,6 +35,10 @@ import {
 } from '@/server/services/newapiInstance';
 
 import { APP_SETTINGS_CATALOG, APP_SETTINGS_SECTION_KEYS } from '../../appSettings/catalog';
+import {
+  buildRuntimeMemorySystemAgentSyncValue,
+  syncRuntimeMemoryModelsToUserSettings,
+} from '../../appSettings/writers/adminProcedures';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import {
   recordAdminAudit,
@@ -2076,6 +2080,146 @@ describe('admin settings default model validation', () => {
         },
       },
     });
+  });
+
+  it('maps compatible runtime memory models to the three user service model fields', () => {
+    expect(
+      buildRuntimeMemorySystemAgentSyncValue({
+        embedding: { model: 'embedding-model', provider: 'embedding-provider' },
+        gatekeeper: { model: 'chat-model', provider: 'chat-provider' },
+        layerExtractor: { model: 'chat-model', provider: 'chat-provider' },
+        personaWriter: { model: 'persona-model', provider: 'persona-provider' },
+      }),
+    ).toEqual({
+      skippedFields: [],
+      systemAgent: {
+        memoryAnalysisAgentConfig: { model: 'chat-model', provider: 'chat-provider' },
+        userMemoryEmbedding: { model: 'embedding-model', provider: 'embedding-provider' },
+        userMemoryPersonaWriter: { model: 'persona-model', provider: 'persona-provider' },
+      },
+    });
+  });
+
+  it('does not collapse different gatekeeper and layer extractor models into one user field', () => {
+    expect(
+      buildRuntimeMemorySystemAgentSyncValue({
+        gatekeeper: { model: 'gate-model', provider: 'chat-provider' },
+        layerExtractor: { model: 'layer-model', provider: 'chat-provider' },
+      }),
+    ).toEqual({
+      skippedFields: ['memoryAnalysisAgentConfig'],
+      systemAgent: {},
+    });
+  });
+
+  it('merges runtime memory models into all users without replacing other service models', async () => {
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]);
+    const select = vi.fn().mockReturnValue({ from: selectUsersFrom });
+    const db = { insert, select } as any;
+
+    await expect(
+      syncRuntimeMemoryModelsToUserSettings(db, {
+        embedding: { model: 'embedding-model', provider: 'embedding-provider' },
+        gatekeeper: { model: 'chat-model', provider: 'chat-provider' },
+        layerExtractor: { model: 'chat-model', provider: 'chat-provider' },
+        personaWriter: { model: 'persona-model', provider: 'persona-provider' },
+      }),
+    ).resolves.toEqual({
+      skippedFields: [],
+      syncedFields: ['memoryAnalysisAgentConfig', 'userMemoryEmbedding', 'userMemoryPersonaWriter'],
+      syncedUsers: 2,
+    });
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        id: 'user-1',
+        systemAgent: {
+          memoryAnalysisAgentConfig: { model: 'chat-model', provider: 'chat-provider' },
+          userMemoryEmbedding: { model: 'embedding-model', provider: 'embedding-provider' },
+          userMemoryPersonaWriter: { model: 'persona-model', provider: 'persona-provider' },
+        },
+      },
+      {
+        id: 'user-2',
+        systemAgent: {
+          memoryAnalysisAgentConfig: { model: 'chat-model', provider: 'chat-provider' },
+          userMemoryEmbedding: { model: 'embedding-model', provider: 'embedding-provider' },
+          userMemoryPersonaWriter: { model: 'persona-model', provider: 'persona-provider' },
+        },
+      },
+    ]);
+    expect(onConflictDoUpdate).toHaveBeenCalledWith({
+      set: { systemAgent: expect.anything() },
+      target: expect.anything(),
+    });
+    const conflictSystemAgent = onConflictDoUpdate.mock.calls[0]?.[0].set.systemAgent;
+    expect(new PgDialect().sqlToQuery(conflictSystemAgent).sql).toContain(
+      'coalesce("user_settings"."system_agent", \'{}\'::jsonb) || excluded.system_agent',
+    );
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  it('syncs saved runtime memory models through the audited admin procedure', async () => {
+    const settingValues = [
+      'chat-model',
+      'chat-provider',
+      'chat-model',
+      'chat-provider',
+      'persona-model',
+      'persona-provider',
+      'embedding-model',
+      'embedding-provider',
+    ];
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const db = {
+      insert: vi.fn(() => ({ values })),
+      query: {
+        appSettings: {
+          findFirst: vi.fn().mockImplementation(async () => ({ value: settingValues.shift() })),
+        },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]),
+      })),
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .syncRuntimeMemoryModelsToUsers();
+
+    expect(result).toEqual({
+      ok: true,
+      skippedFields: [],
+      syncedFields: ['memoryAnalysisAgentConfig', 'userMemoryEmbedding', 'userMemoryPersonaWriter'],
+      syncedUsers: 2,
+    });
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.syncRuntimeMemoryModels',
+        payload: {
+          operation: 'syncRuntimeMemoryModelsToUsers',
+          scope: { target: 'all-users' },
+          skippedFields: [],
+          status: 'success',
+          syncedFields: [
+            'memoryAnalysisAgentConfig',
+            'userMemoryEmbedding',
+            'userMemoryPersonaWriter',
+          ],
+          syncedUsers: 2,
+        },
+        resourceType: 'user_settings',
+      }),
+    );
   });
 
   it('rejects enabled input completion defaults when the model is not enabled for its provider', async () => {

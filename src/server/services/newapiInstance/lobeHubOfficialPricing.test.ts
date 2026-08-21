@@ -46,6 +46,24 @@ describe('getLobeHubOfficialModelPricing', () => {
     );
   });
 
+  it('matches a dated provider snapshot to its canonical official model price', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            models: [{ id: 'deepseek-v4-flash', pricing: officialPricing }],
+          }),
+          { headers: { 'content-type': 'application/json' }, status: 200 },
+        ),
+      ),
+    );
+
+    await expect(getLobeHubOfficialModelPricing('deepseek-v4-flash-0731')).resolves.toEqual(
+      officialPricing,
+    );
+  });
+
   it('rejects malformed official pricing instead of trusting it for billing', async () => {
     vi.stubGlobal(
       'fetch',
