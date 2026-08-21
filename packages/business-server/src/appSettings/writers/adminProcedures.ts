@@ -455,16 +455,21 @@ const validateDefaultModelUpdates = async (
   db: LobeChatDatabase,
   updates: NormalizedSettingUpdate[],
 ) => {
-  const targets = new Map<string, ModelValidationTarget>();
+  const targets = new Map<string, { enforcePlanRules: boolean; target: ModelValidationTarget }>();
 
   for (const update of updates) {
-    const target =
-      getDefaultModelValidationTarget(update.key) ??
-      getMemoryExtractionModelValidationTarget(update.key);
-    if (target) targets.set(`${target.providerKey}:${target.modelKey}`, target);
+    const memoryTarget = getMemoryExtractionModelValidationTarget(update.key);
+    const target = getDefaultModelValidationTarget(update.key) ?? memoryTarget;
+    if (target) {
+      targets.set(`${target.providerKey}:${target.modelKey}`, {
+        // Platform-owned memory/vector jobs are not end-user Free-plan choices.
+        enforcePlanRules: !memoryTarget,
+        target,
+      });
+    }
   }
 
-  for (const target of targets.values()) {
+  for (const { enforcePlanRules, target } of targets.values()) {
     const [currentModel, currentProvider] = await Promise.all([
       readSetting(db, target.modelKey),
       readSetting(db, target.providerKey),
@@ -480,7 +485,10 @@ const validateDefaultModelUpdates = async (
       }
     }
 
-    await validateDefaultAgentModelUsability(db, draft, target);
+    await validateDefaultAgentModelUsability(db, draft, {
+      ...target,
+      enforcePlanRules,
+    });
   }
 
   const userGlobalSettingsUpdate = updates.find(

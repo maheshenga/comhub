@@ -26,9 +26,13 @@ import {
   normalizeConfiguredInterestAreas,
 } from '@/features/ProfileInterests/interestAreas';
 import { mutate, useClientDataSWR } from '@/libs/swr';
-import { adminCommercialService } from '@/services/adminCommercial';
+import {
+  adminCommercialService,
+  AdminSettingsRevisionConflictError,
+} from '@/services/adminCommercial';
 
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
+import AdminSettingsConflictAlert from './shared/AdminSettingsConflictAlert';
 
 export type AdminDefaultSettingsScope = 'ai-runtime-defaults' | 'integrations' | 'user-defaults';
 
@@ -88,6 +92,12 @@ type DefaultSettingsData = {
 type SettingUpdate = { key: string; value: unknown };
 
 const jsonStringify = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
+
+const RUNTIME_SAVE_ERROR_MESSAGES: Record<string, string> = {
+  DEFAULT_MODEL_DENIED_BY_FREE_PLAN: '该模型不在免费套餐允许范围内，请更换模型。',
+  DEFAULT_MODEL_NOT_ENABLED: '该模型当前未启用，请先在模型目录中启用。',
+  DEFAULT_MODEL_TYPE_MISMATCH: '所选模型类型与此运行时用途不匹配。',
+};
 
 const splitTextList = (value?: string) =>
   Array.from(
@@ -183,6 +193,7 @@ const scopeCopy: Record<
 const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ scope }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
+  const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const {
@@ -398,6 +409,7 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
 
     setSubmitting(true);
     if (syncUserDefaults) setSyncing(true);
+    setSaveError(undefined);
 
     try {
       const values = await form.validateFields();
@@ -446,11 +458,16 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
       }
       message.success(t('admin.defaultSettings.userDefaults.saved'));
     } catch (error) {
-      message.error(
-        error instanceof SyntaxError
-          ? t('admin.defaultSettings.invalidJson')
-          : t('admin.defaultSettings.saveFailed'),
-      );
+      if (error instanceof AdminSettingsRevisionConflictError) {
+        setSaveError(error);
+      } else if (error instanceof SyntaxError) {
+        message.error(t('admin.defaultSettings.invalidJson'));
+      } else {
+        const errorMessage = error instanceof Error ? error.message : '';
+        message.error(
+          RUNTIME_SAVE_ERROR_MESSAGES[errorMessage] ?? t('admin.defaultSettings.saveFailed'),
+        );
+      }
     } finally {
       setSubmitting(false);
       setSyncing(false);
@@ -765,6 +782,13 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           onRetry={refresh}
         />
       ) : null}
+      <AdminSettingsConflictAlert
+        error={saveError}
+        onReload={async () => {
+          await refresh();
+          setSaveError(undefined);
+        }}
+      />
       <Form
         disabled={isLoading || !data}
         form={form}

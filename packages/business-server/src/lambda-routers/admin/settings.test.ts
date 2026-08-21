@@ -2004,6 +2004,51 @@ describe('admin settings default model validation', () => {
     expect(recordAdminAudit).toHaveBeenCalledTimes(1);
   });
 
+  it('allows an enabled platform runtime model outside the Free plan allowlist', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        displayName: 'Qwen Runtime',
+        id: 'qwen3.8-max',
+        providerType: 'openai-compatible',
+        type: 'chat',
+      } as any,
+    ]);
+    const tx = createDb();
+    const db = {
+      ...createDb({
+        modelRules: {
+          chat: {
+            allowlist: ['gpt-*'],
+            mode: 'allowlist',
+          },
+        },
+      }),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'admin-user' } as any).setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [
+            {
+              key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+              value: 'openai-compatible',
+            },
+            {
+              key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+              value: 'qwen3.8-max',
+            },
+          ],
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+  });
+
   it('builds a safe user settings sync payload from global defaults', () => {
     expect(
       buildUserGlobalSettingsSyncValues({

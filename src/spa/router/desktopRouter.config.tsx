@@ -932,6 +932,10 @@ export const createMainAreaChildren = (): RouteObject[] => [
         element: redirectElement('/settings/credential'),
         path: 'creds',
       },
+      {
+        element: redirectElement('/settings/service-model'),
+        path: 'agent',
+      },
       // Other settings tabs
       {
         element: dynamicElement(
