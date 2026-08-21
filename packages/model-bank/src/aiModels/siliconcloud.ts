@@ -1,6 +1,7 @@
 import {
+  type AIASRModelCard,
   type AIChatModelCard,
-  type AIEmbeddingModelCard,
+  type AiFullModelCard,
   type AIImageModelCard,
   type AIVideoModelCard,
 } from '../types/aiModel';
@@ -1638,7 +1639,26 @@ const siliconcloudChatModels: AIChatModelCard[] = [
   },
 ];
 
-const siliconcloudEmbeddingModels: AIEmbeddingModelCard[] = [
+const qwen3RerankerSpecs = [
+  ['Qwen/Qwen3-Reranker-0.6B', 'Qwen3 Reranker 0.6B', 0.07],
+  ['Qwen/Qwen3-Reranker-4B', 'Qwen3 Reranker 4B', 0.14],
+  ['Qwen/Qwen3-Reranker-8B', 'Qwen3 Reranker 8B', 0.28],
+] as const;
+
+const siliconcloudEmbeddingModels: AiFullModelCard[] = [
+  {
+    contextWindowTokens: 8192,
+    displayName: 'bge-m3',
+    family: 'bge',
+    id: 'BAAI/bge-m3',
+    maxDimension: 1024,
+    organization: 'BAAI',
+    pricing: {
+      currency: 'CNY',
+      units: [{ name: 'textInput', rate: 0, strategy: 'fixed', unit: 'millionTokens' }],
+    },
+    type: 'embedding',
+  },
   {
     contextWindowTokens: 32_768,
     displayName: 'Qwen3 Embedding 0.6B',
@@ -1653,6 +1673,80 @@ const siliconcloudEmbeddingModels: AIEmbeddingModelCard[] = [
     },
     releasedAt: '2025-06-24',
     type: 'embedding',
+  },
+  {
+    contextWindowTokens: 32_768,
+    displayName: 'Qwen3 Embedding 4B',
+    family: 'qwen',
+    generation: 'qwen3',
+    id: 'Qwen/Qwen3-Embedding-4B',
+    maxDimension: 2560,
+    organization: 'Qwen',
+    pricing: {
+      currency: 'CNY',
+      units: [{ name: 'textInput', rate: 0.14, strategy: 'fixed', unit: 'millionTokens' }],
+    },
+    releasedAt: '2025-06-24',
+    type: 'embedding',
+  },
+  {
+    contextWindowTokens: 32_768,
+    displayName: 'Qwen3 Embedding 8B',
+    family: 'qwen',
+    generation: 'qwen3',
+    id: 'Qwen/Qwen3-Embedding-8B',
+    maxDimension: 4096,
+    organization: 'Qwen',
+    pricing: {
+      currency: 'CNY',
+      units: [{ name: 'textInput', rate: 0.28, strategy: 'fixed', unit: 'millionTokens' }],
+    },
+    releasedAt: '2025-06-24',
+    type: 'embedding',
+  },
+  // The shared catalog currently groups rerankers with vector models.
+  ...qwen3RerankerSpecs.map(([id, displayName, rate]): AiFullModelCard => ({
+    displayName,
+    family: 'qwen',
+    generation: 'qwen3',
+    id,
+    organization: 'Qwen',
+    pricing: {
+      currency: 'CNY',
+      units: [
+        {
+          name: 'textInput',
+          rate,
+          strategy: 'fixed',
+          unit: 'millionTokens',
+        },
+      ],
+    },
+    releasedAt: '2025-06-24',
+    type: 'embedding',
+  })),
+];
+
+const siliconcloudASRModels: AIASRModelCard[] = [
+  {
+    displayName: 'SenseVoiceSmall',
+    id: 'FunAudioLLM/SenseVoiceSmall',
+    organization: 'FunAudioLLM',
+    pricing: {
+      currency: 'CNY',
+      units: [{ name: 'audioInput', rate: 0, strategy: 'fixed', unit: 'second' }],
+    },
+    type: 'asr',
+  },
+  {
+    displayName: 'TeleSpeechASR',
+    id: 'TeleAI/TeleSpeechASR',
+    organization: 'TeleAI',
+    pricing: {
+      currency: 'CNY',
+      units: [{ name: 'audioInput', rate: 0, strategy: 'fixed', unit: 'second' }],
+    },
+    type: 'asr',
   },
 ];
 
@@ -1768,6 +1862,7 @@ const siliconcloudVideoModels: AIVideoModelCard[] = [
 export const allModels = [
   ...siliconcloudChatModels,
   ...siliconcloudEmbeddingModels,
+  ...siliconcloudASRModels,
   ...siliconcloudImageModels,
   ...siliconcloudVideoModels,
 ];

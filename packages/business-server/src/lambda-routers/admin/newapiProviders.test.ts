@@ -854,6 +854,58 @@ describe('adminNewapiProvidersRouter', () => {
     expect(mocks.getLobeHubOfficialModelPricing).toHaveBeenCalledWith('official-chat');
   });
 
+  it('treats synchronized chat abilities and non-chat modalities as complete metadata', async () => {
+    const { db } = createDbMock({
+      allEnabledModelRows: [
+        {
+          displayName: 'Reasoning Chat',
+          groupKey: 'default',
+          instanceId,
+          instanceName: 'NewAPI Gateway',
+          metadata: { syncedAbilities: { reasoning: true } },
+          modelId: 'reasoning-chat',
+          modelType: 'chat',
+          priority: 0,
+          providerType: 'newapi',
+        },
+        {
+          displayName: 'Embedding Model',
+          groupKey: 'default',
+          instanceId,
+          instanceName: 'NewAPI Gateway',
+          metadata: {},
+          modelId: 'embedding-model',
+          modelType: 'embedding',
+          priority: 1,
+          providerType: 'newapi',
+        },
+        {
+          displayName: 'Unknown Chat',
+          groupKey: 'default',
+          instanceId,
+          instanceName: 'NewAPI Gateway',
+          metadata: {},
+          modelId: 'unknown-chat',
+          modelType: 'chat',
+          priority: 2,
+          providerType: 'newapi',
+        },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.getAllEnabledModels();
+
+    expect(
+      result.items.map(({ hasModelAbilities, modelId }) => [modelId, hasModelAbilities]),
+    ).toEqual([
+      ['reasoning-chat', true],
+      ['embedding-model', true],
+      ['unknown-chat', false],
+    ]);
+  });
+
   it('warns about manual pricing when the service provider format has no pricing sync', async () => {
     const { db } = createDbMock({ providerType: 'siliconflow' });
     vi.mocked(getServerDB).mockResolvedValue(db as any);

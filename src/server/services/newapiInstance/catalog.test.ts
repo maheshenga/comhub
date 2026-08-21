@@ -47,6 +47,7 @@ describe('NewAPI catalog sync', () => {
     expect(classifyNewapiModelType({ id: 'flux-pro-1.1' })).toBe('image');
     expect(classifyNewapiModelType({ id: 'sora-2' })).toBe('video');
     expect(classifyNewapiModelType({ id: 'text-embedding-3-large' })).toBe('embedding');
+    expect(classifyNewapiModelType({ id: 'Qwen/Qwen3-Reranker-8B' })).toBe('embedding');
     expect(classifyNewapiModelType({ id: 'gpt-4o-mini' })).toBe('chat');
   });
 
@@ -55,6 +56,8 @@ describe('NewAPI catalog sync', () => {
     expect(
       classifyNewapiModelType({ id: 'custom', supported_endpoint_types: ['audio_transcription'] }),
     ).toBe('asr');
+    expect(classifyNewapiModelType({ id: 'FunAudioLLM/SenseVoiceSmall', type: 'tts' })).toBe('asr');
+    expect(classifyNewapiModelType({ id: 'TeleAI/TeleSpeechASR', type: 'tts' })).toBe('asr');
     expect(classifyNewapiModelType({ id: 'gpt-4o-realtime-preview' })).toBe('realtime');
     expect(classifyNewapiModelType({ id: 'suno-v4' })).toBe('text2music');
   });

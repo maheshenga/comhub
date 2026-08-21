@@ -448,6 +448,42 @@ describe('recordCommercialChatUsage', () => {
     });
   });
 
+  it('resolves ASR quotes against the ASR model catalog', async () => {
+    const freePricing = {
+      units: [
+        {
+          name: 'audioInput' as const,
+          rate: 0,
+          strategy: 'fixed' as const,
+          unit: 'second' as const,
+        },
+      ],
+    };
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelCard: { id: 'free-asr', pricing: freePricing, type: 'asr' },
+    });
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({
+      pricing: freePricing,
+      source: 'model-bank',
+    });
+
+    await quoteCommercialAiUsage({
+      db: {} as any,
+      model: 'free-asr',
+      provider: 'newapi',
+      usage: { cost: 0 },
+      usageType: 'asr',
+      userId: 'user-1',
+    });
+
+    expect(mocks.getAdminNewapiModelCard).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'asr' }),
+    );
+    expect(mocks.quoteCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ usage: { cost: 0 } }),
+    );
+  });
+
   it('quotes managed module usage when forceCharge overrides a user BYOK credential', async () => {
     mocks.getAiProviderById.mockResolvedValue({ keyVaults: { apiKey: 'user-key' } });
 
@@ -606,6 +642,83 @@ describe('recordCommercialChatUsage', () => {
           cost: 18,
           costSource: 'fallback-rate',
         }),
+      }),
+    );
+  });
+
+  it('keeps a trusted catalog free price at zero instead of using fallback pricing', async () => {
+    const freePricing = {
+      currency: 'CNY' as const,
+      units: [
+        {
+          name: 'textInput' as const,
+          rate: 0,
+          strategy: 'fixed' as const,
+          unit: 'millionTokens' as const,
+        },
+      ],
+    };
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelCard: { id: 'free-model', pricing: freePricing, type: 'chat' },
+    });
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({
+      pricing: freePricing,
+      source: 'model-bank',
+    });
+
+    await recordCommercialChatUsage({
+      db: {} as any,
+      messageId: 'assistant-message-free',
+      model: 'free-model',
+      provider: 'newapi',
+      usage: { totalInputTokens: 1_000_000 },
+      userId: 'user-1',
+    });
+
+    expect(mocks.consumeCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: expect.objectContaining({ cost: 0, costSource: 'local-pricing' }),
+      }),
+    );
+  });
+
+  it('keeps trusted free ASR pricing at zero when the provider reports no usage cost', async () => {
+    const freePricing = {
+      currency: 'CNY' as const,
+      units: [
+        {
+          name: 'audioInput' as const,
+          rate: 0,
+          strategy: 'fixed' as const,
+          unit: 'second' as const,
+        },
+      ],
+    };
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelCard: { id: 'free-asr', pricing: freePricing, type: 'asr' },
+    });
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({
+      pricing: freePricing,
+      source: 'model-bank',
+    });
+
+    await recordCommercialAiUsage({
+      db: {} as any,
+      model: 'free-asr',
+      provider: 'newapi',
+      referenceId: 'asr-free',
+      referenceType: 'asr',
+      usage: { cost: 0 },
+      usageType: 'asr',
+      userId: 'user-1',
+    });
+
+    expect(mocks.getAdminNewapiModelCard).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'asr' }),
+    );
+    expect(mocks.consumeCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: expect.objectContaining({ cost: 0, costSource: 'local-pricing' }),
       }),
     );
   });
@@ -907,6 +1020,37 @@ describe('commercial AI reservations', () => {
         message: 'COMMERCIAL_MODEL_PRICING_MISSING',
         reason: 'COMMERCIAL_MODEL_NOT_SELLABLE',
       },
+      errorType: ChatErrorType.Forbidden,
+    });
+  });
+
+  it('accepts explicit zero pricing only from a trusted server catalog', async () => {
+    const pricing = {
+      units: [{ name: 'textInput', rate: 0, strategy: 'fixed', unit: 'millionTokens' }],
+    } as const;
+
+    mocks.getServerModelPricingSnapshot.mockResolvedValue({ pricing, source: 'model-bank' });
+    await expect(
+      assertCommercialModelSellable({
+        db: {} as any,
+        model: 'free-embedding',
+        provider: 'newapi',
+        usageType: 'embeddings',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(true);
+
+    mocks.getServerModelPricingSnapshot.mockResolvedValue({ pricing, source: 'database' });
+    await expect(
+      assertCommercialModelSellable({
+        db: {} as any,
+        model: 'untrusted-free-embedding',
+        provider: 'newapi',
+        usageType: 'embeddings',
+        userId: 'user-1',
+      }),
+    ).rejects.toMatchObject({
+      error: { message: 'COMMERCIAL_MODEL_PRICING_MISSING' },
       errorType: ChatErrorType.Forbidden,
     });
   });
