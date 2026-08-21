@@ -26,6 +26,7 @@ export const validateDefaultAgentModelUsability = async (
   db: LobeChatDatabase,
   settings: AppSettingDraft,
   options: {
+    enforcePlanRules?: boolean;
     missingMessage?: string;
     modelKey?: string;
     modelType?: DefaultModelType;
@@ -36,6 +37,7 @@ export const validateDefaultAgentModelUsability = async (
   const modelKey = options.modelKey ?? SETTING_KEYS.defaultAgentModel;
   const providerKey = options.providerKey ?? SETTING_KEYS.defaultAgentProvider;
   const modelType = options.modelType ?? 'chat';
+  const enforcePlanRules = options.enforcePlanRules ?? true;
   const missingMessage = options.missingMessage ?? 'DEFAULT_MODEL_NOT_ENABLED';
   const typeMismatchMessage = options.typeMismatchMessage ?? 'DEFAULT_MODEL_TYPE_MISMATCH';
   const provider = settingDraftString(settings, providerKey);
@@ -71,26 +73,30 @@ export const validateDefaultAgentModelUsability = async (
       });
     }
 
-    const freePlan = await db.query.planCatalog.findFirst({
-      where: eq(planCatalog.plan, Plans.Free),
-    });
-    const modelRules = freePlan?.modelRules;
-
-    if (!modelRules) return;
-
-    const isAllowedByAnyEnabledRoute = typeMatchedRoutes.some((item) =>
-      isModelAllowedByPlanRules(modelRules, model, modelType, item.groupKey),
-    );
-
-    if (!isAllowedByAnyEnabledRoute) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+    if (enforcePlanRules) {
+      const freePlan = await db.query.planCatalog.findFirst({
+        where: eq(planCatalog.plan, Plans.Free),
       });
+      const modelRules = freePlan?.modelRules;
+
+      if (!modelRules) return;
+
+      const isAllowedByAnyEnabledRoute = typeMatchedRoutes.some((item) =>
+        isModelAllowedByPlanRules(modelRules, model, modelType, item.groupKey),
+      );
+
+      if (!isAllowedByAnyEnabledRoute) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+        });
+      }
     }
 
     return;
   }
+
+  if (!enforcePlanRules) return;
 
   const freePlan = await db.query.planCatalog.findFirst({
     where: eq(planCatalog.plan, Plans.Free),

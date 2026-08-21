@@ -170,6 +170,13 @@ describe('desktopRouter config sync', () => {
     expect(matches?.at(-1)?.route.handle).toMatchObject({ settingsTab: 'memory' });
   });
 
+  it('redirects the legacy agent settings path before the generic settings tab route', () => {
+    const matches = matchRoutes(desktopRoutes, '/settings/agent');
+    const legacyRoute = matches?.at(-1)?.route;
+
+    expect(legacyRoute?.path).toBe('agent');
+  });
+
   it('desktop (sync) route paths must match web (async) route paths', async () => {
     const [asyncSource, syncSource] = await readDesktopRouterSources();
 

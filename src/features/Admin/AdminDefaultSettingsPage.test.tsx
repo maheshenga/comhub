@@ -1,7 +1,12 @@
 import { ConfigProvider } from '@lobehub/ui';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { describe, expect, it, vi } from 'vitest';
+
+import {
+  adminCommercialService,
+  AdminSettingsRevisionConflictError,
+} from '@/services/adminCommercial';
 
 import AdminDefaultSettingsPage from './AdminDefaultSettingsPage';
 
@@ -61,13 +66,26 @@ vi.mock('@/libs/swr', () => ({
   })),
 }));
 
-vi.mock('@/services/adminCommercial', () => ({
-  adminCommercialService: {
-    getSettingsSection: vi.fn(),
-    refreshRuntimeCaches: vi.fn(),
-    setAppSettingsBatch: vi.fn(),
-  },
-}));
+vi.mock('@/services/adminCommercial', () => {
+  class MockAdminSettingsRevisionConflictError extends Error {
+    details: { isConflict: true; sections: string[] };
+
+    constructor() {
+      super('APP_SETTINGS_REVISION_CONFLICT');
+      this.name = 'AdminSettingsRevisionConflictError';
+      this.details = { isConflict: true, sections: ['ai-runtime-defaults'] };
+    }
+  }
+
+  return {
+    AdminSettingsRevisionConflictError: MockAdminSettingsRevisionConflictError,
+    adminCommercialService: {
+      getSettingsSection: vi.fn(),
+      refreshRuntimeCaches: vi.fn(),
+      setAppSettingsBatch: vi.fn(),
+    },
+  };
+});
 
 const runtimePairs = [
   {
@@ -119,5 +137,29 @@ describe('AdminDefaultSettingsPage runtime models', () => {
       expect(provider).toHaveAttribute('readonly');
       await waitFor(() => expect(provider).toHaveValue(pair.value));
     }
+  });
+
+  it('renders a revision conflict alert instead of hiding the save cause', async () => {
+    vi.mocked(adminCommercialService.setAppSettingsBatch).mockRejectedValueOnce(
+      new AdminSettingsRevisionConflictError({
+        isConflict: true,
+        sections: ['ai-runtime-defaults'],
+      }),
+    );
+
+    render(
+      <ConfigProvider motion={m}>
+        <AdminDefaultSettingsPage scope="ai-runtime-defaults" />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '保存设置' })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/APP_SETTINGS_REVISION_CONFLICT/)).toBeInTheDocument(),
+    );
   });
 });

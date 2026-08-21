@@ -28,6 +28,10 @@ export default defineConfig({
         __dirname,
         '../../apps/server/src/services/desktopRelease',
       ),
+      '@/server/services/moduleAppRuntime': path.resolve(
+        __dirname,
+        '../../apps/server/src/services/moduleAppRuntime',
+      ),
       '@/server/routers': path.resolve(__dirname, '../../apps/server/src/routers'),
       '@/server': path.resolve(__dirname, '../../src/server'),
       '@/types': path.resolve(__dirname, '../../packages/types/src'),
