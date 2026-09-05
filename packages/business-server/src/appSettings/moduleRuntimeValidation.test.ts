@@ -76,6 +76,12 @@ describe('validateModuleAppRuntimeSettingUpdates', () => {
   });
 
   it('rejects activation while the configured runtime is unavailable', async () => {
+    vi.stubEnv('MODULE_APP_EXECUTION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_PUBLIC_EXECUTION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INVOCATION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', 'runtime-token');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_URL', 'http://module-runtime:3210');
+    vi.stubEnv('MODULE_APP_RUNTIME_PUBLIC_ORIGIN', 'https://runtime.example.com');
     healthCheck.mockResolvedValue({
       code: 'MODULE_APP_RUNTIME_UNREACHABLE',
       status: 'unavailable',
@@ -90,6 +96,11 @@ describe('validateModuleAppRuntimeSettingUpdates', () => {
   });
 
   it('reports an actionable error when the Runtime rejects the configured token', async () => {
+    vi.stubEnv('MODULE_APP_EXECUTION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INVOCATION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', 'runtime-token');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_URL', 'http://module-runtime:3210');
+    vi.stubEnv('MODULE_APP_RUNTIME_PUBLIC_ORIGIN', 'https://runtime.example.com');
     healthCheck.mockResolvedValue({
       code: 'MODULE_APP_RUNTIME_AUTH_FAILED',
       status: 'unavailable',
@@ -104,6 +115,8 @@ describe('validateModuleAppRuntimeSettingUpdates', () => {
   });
 
   it('uses legacy connection credentials when no database override exists', async () => {
+    vi.stubEnv('MODULE_APP_EXECUTION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INVOCATION_ENABLED', 'true');
     vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', 'legacy-runtime-token');
     vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_URL', 'http://legacy-runtime:3210');
     healthCheck.mockResolvedValue({ status: 'ready' });
@@ -118,6 +131,12 @@ describe('validateModuleAppRuntimeSettingUpdates', () => {
   });
 
   it('accepts activation after the runtime readiness probe succeeds', async () => {
+    vi.stubEnv('MODULE_APP_EXECUTION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_PUBLIC_EXECUTION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INVOCATION_ENABLED', 'true');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', 'runtime-token');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_URL', 'http://module-runtime:3210');
+    vi.stubEnv('MODULE_APP_RUNTIME_PUBLIC_ORIGIN', 'https://runtime.example.com');
     healthCheck.mockResolvedValue({ status: 'ready' });
 
     await expect(
@@ -128,5 +147,15 @@ describe('validateModuleAppRuntimeSettingUpdates', () => {
       ]),
     ).resolves.toBeUndefined();
     expect(healthCheck).toHaveBeenCalledOnce();
+  });
+
+  it('rejects database-only runtime activation until the worker environment is updated', async () => {
+    await expect(
+      validateModuleAppRuntimeSettingUpdates(createDb(), [
+        ...completeRuntimeUpdates,
+        { key: APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled, value: true },
+      ]),
+    ).rejects.toMatchObject({ message: 'MODULE_APP_RUNTIME_CONFIG_SOURCE_MISMATCH' });
+    expect(healthCheck).not.toHaveBeenCalled();
   });
 });

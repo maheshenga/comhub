@@ -63,4 +63,30 @@ describe('aboutLinks', () => {
       DEFAULT_ABOUT_PAGE_CONFIG,
     );
   });
+
+  it('rejects executable link protocols while preserving relative and https links', () => {
+    const links = normalizeAboutLinksConfig({
+      contact: [
+        { id: 'officialSite', label: 'Relative', url: '/docs' },
+        { id: 'support', label: 'Unsafe', url: 'javascript:alert(1)' },
+      ],
+      information: [{ id: 'github', label: 'HTTPS', url: 'https://example.com/repo' }],
+    });
+
+    expect(links.contact.find((item) => item.id === 'officialSite')?.url).toBe('/docs');
+    expect(links.contact.find((item) => item.id === 'support')?.url).toBe(
+      DEFAULT_ABOUT_LINKS.contact.find((item) => item.id === 'support')?.url,
+    );
+    expect(links.information.find((item) => item.id === 'github')?.url).toBe(
+      'https://example.com/repo',
+    );
+
+    expect(
+      normalizeAboutPageConfig({ changelogUrl: 'javascript:alert(1)', logoLinkUrl: './about' }),
+    ).toEqual({
+      changelogLabel: '',
+      changelogUrl: DEFAULT_ABOUT_PAGE_CONFIG.changelogUrl,
+      logoLinkUrl: './about',
+    });
+  });
 });

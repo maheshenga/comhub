@@ -562,15 +562,23 @@ jobs:
           verify_application "$IMAGE_REF" "$IMAGE_TAG" "rollout"
 
           echo "Running post-deploy runtime smoke checks..."
-          for path in / /api/auth/get-session /api/version; do
+          while IFS=' ' read -r path expected; do
+            [ -n "$path" ] || continue
             code="$(curl -sS -o /tmp/comhub-smoke.out -w '%{http_code}' "http://127.0.0.1:${COMHUB_PORT:-3213}${path}")"
-            echo "Smoke ${path}: HTTP ${code}"
-            if [ "$code" = "000" ] || [ "$code" -ge 500 ]; then
+            echo "Smoke ${path}: HTTP ${code} (expected ${expected})"
+            if [ "$code" != "$expected" ]; then
               echo "Smoke check failed for ${path}; response preview:"
               head -c 500 /tmp/comhub-smoke.out || true
               exit 1
             fi
-          done
+          done <<'SMOKE_CHECKS'
+          / 302
+          /api/auth/get-session 200
+          /api/version 200
+          /favicon.ico 200
+          /images/brand/xuanguo-loading.svg 200
+          /signin 200
+          SMOKE_CHECKS
 
           version_json="$(curl -fsS "http://127.0.0.1:${COMHUB_PORT:-3213}/api/version")"
           echo "Version evidence: ${version_json}"

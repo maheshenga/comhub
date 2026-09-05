@@ -1,4 +1,5 @@
 import type { LobeAgentConfig } from '@lobechat/types';
+import { sanitizeLinkUrl } from '@lobechat/utils';
 import { eq, inArray } from 'drizzle-orm';
 import { type PartialDeep } from 'type-fest';
 
@@ -165,7 +166,7 @@ const normalizePublicHelpMenuItems = (
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
     .map((item) => {
       const label = normalizeString(item.label);
-      const url = normalizeString(item.url);
+      const url = sanitizeLinkUrl(item.url);
 
       if (!label) return undefined;
 
@@ -294,7 +295,8 @@ const readCachedSettings = async (db?: LobeChatDatabase): Promise<Record<string,
     if (
       explicitCache &&
       now - explicitCache.at < TTL_MS &&
-      (sharedVersion === null || explicitCache.version === sharedVersion)
+      sharedVersion !== null &&
+      explicitCache.version === sharedVersion
     ) {
       return explicitCache.data;
     }

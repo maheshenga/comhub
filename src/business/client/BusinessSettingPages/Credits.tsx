@@ -7,13 +7,13 @@ import { Empty, Tag } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import useSWRInfinite from 'swr/infinite';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
 import { useBrand } from '@/features/Brand/BrandProvider';
 import PlanIcon from '@/features/PlanIcon';
 import { TopUpPurchase } from '@/features/TopUp/TopUpPurchase';
-import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 import { type CreditLedgerEntryItem } from '@/types/business';
 
@@ -21,7 +21,7 @@ import AutoTopUpSettings from './AutoTopUpSettings';
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import CostEstimateAlert from './CostEstimateAlert';
 import CreditPackageList from './CreditPackageList';
-import { formatLedgerAllocationText } from './creditsDisplay';
+import { formatLedgerAllocationText, getNextCreditLedgerCursor } from './creditsDisplay';
 import { formatCreditLedgerDescription } from './ledgerDisplay';
 import BusinessMobileRecordList from './mobile/BusinessMobileRecordList';
 import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
@@ -88,13 +88,29 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
   const brand = useBrand();
   const { accountSummary, currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
   const {
-    data: ledgerResult,
+    data: ledgerPages,
     error: ledgerError,
     isLoading: isLedgerLoading,
+    isValidating: isLedgerValidating,
     mutate: refreshLedger,
-  } = useClientDataSWR(['business-credit-ledger'], () =>
-    commercialService.listCreditLedger({ limit: 20 }),
+    setSize: setLedgerSize,
+    size: ledgerPageCount,
+  } = useSWRInfinite(
+    (pageIndex, previousPage) => {
+      if (previousPage && getNextCreditLedgerCursor(previousPage) === null) return null;
+      return [
+        'business-credit-ledger',
+        pageIndex === 0 ? undefined : getNextCreditLedgerCursor(previousPage),
+      ];
+    },
+    ([, cursor]) => commercialService.listCreditLedger({ cursor: cursor ?? undefined, limit: 20 }),
+    { revalidateFirstPage: false },
   );
+  const ledgerItems = useMemo(
+    () => ledgerPages?.flatMap((page) => page.items) ?? [],
+    [ledgerPages],
+  );
+  const hasMoreLedger = getNextCreditLedgerCursor(ledgerPages?.at(-1)) !== null;
   const accountBreakdown = accountSummary?.breakdown;
 
   const getLedgerAllocationText = useCallback(
@@ -277,20 +293,28 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
       <div id="credit-ledger">
         <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'积分使用详情'}>
           {mobile ? (
-            <BusinessMobileRecordList
-              emptyDescription={t('credits.ledger.empty')}
-              error={ledgerError ? t('mobile.error.title') : undefined}
-              isLoading={isLedgerLoading}
-              sheetTitle={t('credits.ledger.details')}
-              records={(ledgerResult?.items || []).map((item) =>
-                buildCreditLedgerRecord(item, recordFormatters),
-              )}
-              onRetry={() => void refreshLedger()}
-            />
+            <Flexbox gap={8}>
+              <BusinessMobileRecordList
+                emptyDescription={t('credits.ledger.empty')}
+                error={ledgerError ? t('mobile.error.title') : undefined}
+                isLoading={isLedgerLoading}
+                records={ledgerItems.map((item) => buildCreditLedgerRecord(item, recordFormatters))}
+                sheetTitle={t('credits.ledger.details')}
+                onRetry={() => void refreshLedger()}
+              />
+              {hasMoreLedger ? (
+                <Button
+                  loading={isLedgerValidating}
+                  onClick={() => void setLedgerSize(ledgerPageCount + 1)}
+                >
+                  加载更多
+                </Button>
+              ) : null}
+            </Flexbox>
           ) : (
             <InlineTable
               columns={ledgerColumns as any}
-              dataSource={ledgerResult?.items || []}
+              dataSource={ledgerItems}
               loading={isLedgerLoading}
               locale={{ emptyText: <Empty description={'暂无积分明细'} /> }}
               rowKey={(record) => record.id}

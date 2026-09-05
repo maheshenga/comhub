@@ -1,5 +1,33 @@
 import mime from 'mime';
 
+const URL_BASE = 'https://relative.invalid';
+
+/**
+ * Normalize a user-configured link while rejecting executable/custom schemes.
+ * Relative paths, HTTP(S), and mailto links are valid navigation targets.
+ */
+export const sanitizeLinkUrl = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    const parsed = new URL(trimmed, URL_BASE);
+    if (
+      parsed.protocol === 'http:' ||
+      parsed.protocol === 'https:' ||
+      parsed.protocol === 'mailto:'
+    ) {
+      return trimmed;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+};
+
 /**
  * Build a path string from a path and a hash/search object
  *

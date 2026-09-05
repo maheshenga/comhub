@@ -1,4 +1,5 @@
 import { BRANDING_EMAIL, SOCIAL_URL } from '@lobechat/business-const';
+import { sanitizeLinkUrl } from '@lobechat/utils';
 
 import { BLOG, CHANGELOG_URL, mailTo, OFFICIAL_SITE, PRIVACY_URL, TERMS_URL } from '@/const/url';
 
@@ -67,7 +68,7 @@ const normalizeGroup = (value: unknown, defaults: AboutLinkItem[]): AboutLinkIte
       (item) => item && typeof item === 'object' && item.id === fallback.id,
     );
     const label = normalizeText((matched as Partial<AboutLinkItem> | undefined)?.label);
-    const url = normalizeText((matched as Partial<AboutLinkItem> | undefined)?.url);
+    const url = sanitizeLinkUrl((matched as Partial<AboutLinkItem> | undefined)?.url);
 
     return {
       id: fallback.id,
@@ -93,8 +94,8 @@ export const normalizeAboutPageConfig = (value: unknown): AboutPageConfig => {
       ? (value as Partial<Record<keyof AboutPageConfig, unknown>>)
       : {};
   const changelogLabel = normalizeText(config.changelogLabel);
-  const changelogUrl = normalizeText(config.changelogUrl);
-  const logoLinkUrl = normalizeText(config.logoLinkUrl);
+  const changelogUrl = sanitizeLinkUrl(config.changelogUrl);
+  const logoLinkUrl = sanitizeLinkUrl(config.logoLinkUrl);
 
   return {
     changelogLabel,

@@ -1,7 +1,9 @@
-import type { AiProviderRuntimeState } from '@/types/aiProvider';
-
-import { isModelAllowedByPlanRules, type PlanModelRuleType } from '@/business/server/planModelRules';
+import {
+  isModelAllowedByPlanRules,
+  type PlanModelRuleType,
+} from '@/business/server/planModelRules';
 import type { PlanModelRules } from '@/database/schemas';
+import type { AiProviderRuntimeState } from '@/types/aiProvider';
 
 type RuntimeModel = AiProviderRuntimeState['enabledAiModels'][number] & {
   displayName?: string | null;
@@ -26,8 +28,21 @@ export interface ModelCatalogEntry {
   instanceName?: string | null;
   model: RuntimeModel;
   providerType?: string | null;
-  visible: boolean;
   visibilityReason: ModelVisibilityReason;
+  visible: boolean;
+}
+
+export interface ModelCatalogView {
+  abilities: unknown;
+  displayName: string;
+  enabled: boolean;
+  modelId: string;
+  pricing: unknown;
+  providerId: string;
+  providerName: string;
+  restricted: boolean;
+  source: unknown;
+  type: string;
 }
 
 export interface ModelCatalogDuplicateModelGroup {
@@ -74,6 +89,28 @@ export const resolveModelCatalogProviderDisplayName = (entry: ModelCatalogEntry)
 
 export const resolveModelCatalogModelDisplayName = (entry: ModelCatalogEntry) =>
   pickString(entry.model.displayName, entry.model.name, entry.model.id) || 'Untitled model';
+
+export const buildModelCatalogViews = (catalog: ModelCatalogEntry[]): ModelCatalogView[] =>
+  catalog.map((entry) => {
+    const model = entry.model as RuntimeModel & {
+      abilities?: unknown;
+      pricing?: unknown;
+      source?: unknown;
+    };
+
+    return {
+      abilities: model.abilities ?? null,
+      displayName: resolveModelCatalogModelDisplayName(entry),
+      enabled: model.enabled !== false,
+      modelId: model.id,
+      pricing: model.pricing ?? null,
+      providerId: model.providerId,
+      providerName: resolveModelCatalogProviderDisplayName(entry),
+      restricted: !entry.visible,
+      source: model.source ?? model.providerType ?? null,
+      type: String(model.type || 'unknown'),
+    };
+  });
 
 const resolveVisibilityReason = (
   model: RuntimeModel,

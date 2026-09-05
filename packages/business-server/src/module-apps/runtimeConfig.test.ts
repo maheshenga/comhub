@@ -126,4 +126,28 @@ describe('resolveModuleAppRuntimeConfig', () => {
       workflowPrivilegedExecutorsEnabled: true,
     });
   });
+
+  it('fails closed when database runtime settings are not published to the worker environment', () => {
+    const config = resolveModuleAppRuntimeConfig({
+      requireEnvironmentParity: true,
+      environment: readModuleAppRuntimeEnvironment({}),
+      values: {
+        [APP_SETTING_KEYS.moduleAppExecutionEnabled]: true,
+        [APP_SETTING_KEYS.moduleAppRuntimeInternalToken]: 'runtime-token',
+        [APP_SETTING_KEYS.moduleAppRuntimeInternalUrl]: 'http://module-runtime:3210',
+        [APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled]: true,
+      },
+    });
+
+    expect(config.configurationMismatch).toEqual([
+      APP_SETTING_KEYS.moduleAppExecutionEnabled,
+      APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+      APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+    ]);
+    expect(config.switches).toMatchObject({
+      executionEnabled: false,
+      invocationEnabled: false,
+    });
+    expect(config.blockers.invocation).toContain('configuration-source-mismatch');
+  });
 });

@@ -102,6 +102,27 @@ describe('getServerBrand', () => {
     });
   });
 
+  it('treats whitespace-only names as unset and trims configured names', async () => {
+    findFirstMock.mockImplementation(async (args: any) => {
+      const key = args.where.b;
+      if (key === 'brand.name') return { value: '  Runtime Brand  ' };
+      return null;
+    });
+
+    const configured = await getServerBrand();
+    expect(configured.name).toBe('Runtime Brand');
+
+    invalidateServerBrand();
+    findFirstMock.mockImplementation(async (args: any) => {
+      const key = args.where.b;
+      if (key === 'brand.name') return { value: '   ' };
+      return null;
+    });
+
+    const blank = await getServerBrand();
+    expect(blank.name).toBe('Default Brand');
+  });
+
   it('preserves an empty configured logo as unset instead of restoring the legacy default logo', async () => {
     findFirstMock.mockImplementation(async (args: any) => {
       const k = args.where.b;

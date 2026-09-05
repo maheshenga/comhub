@@ -31,6 +31,7 @@ export const validateDefaultAgentModelUsability = async (
     modelKey?: string;
     modelType?: DefaultModelType;
     providerKey?: string;
+    requireEnabledRoute?: boolean;
     typeMismatchMessage?: string;
   } = {},
 ): Promise<void> => {
@@ -38,12 +39,21 @@ export const validateDefaultAgentModelUsability = async (
   const providerKey = options.providerKey ?? SETTING_KEYS.defaultAgentProvider;
   const modelType = options.modelType ?? 'chat';
   const enforcePlanRules = options.enforcePlanRules ?? true;
+  const requireEnabledRoute = options.requireEnabledRoute ?? false;
   const missingMessage = options.missingMessage ?? 'DEFAULT_MODEL_NOT_ENABLED';
   const typeMismatchMessage = options.typeMismatchMessage ?? 'DEFAULT_MODEL_TYPE_MISMATCH';
   const provider = settingDraftString(settings, providerKey);
   const model = settingDraftString(settings, modelKey);
 
-  if (!provider || !model) return;
+  if (!provider || !model) {
+    if (requireEnabledRoute && (provider || model)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: missingMessage,
+      });
+    }
+    return;
+  }
 
   const enabledModels = await getAllEnabledModels(db);
   const providerMatchedRoutes = enabledModels.filter(
@@ -94,6 +104,13 @@ export const validateDefaultAgentModelUsability = async (
     }
 
     return;
+  }
+
+  if (requireEnabledRoute) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: missingMessage,
+    });
   }
 
   if (!enforcePlanRules) return;

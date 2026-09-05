@@ -38,6 +38,7 @@ import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
 import { resolvePlanPurchaseAction } from './planPurchase';
 import {
   getAvailableBillingCycles,
+  getConfiguredVisiblePaidPlans,
   getDefaultMobilePlanTarget,
   getPlanYearlyDiscountLabel,
   getVisiblePaidPlans,
@@ -480,13 +481,8 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
     const configuredPlans = (planCatalog || [])
       .map((item) => getPlanKey(item.plan))
       .filter(Boolean) as SubscriptionPlan[];
-    const orderedConfiguredPlans = subscriptionPlanOrder.filter((plan) =>
-      configuredPlans.includes(plan),
-    );
 
-    return getVisiblePaidPlans(
-      orderedConfiguredPlans.length > 0 ? orderedConfiguredPlans : [...subscriptionPlanOrder],
-    );
+    return getConfiguredVisiblePaidPlans(subscriptionPlanOrder, configuredPlans);
   }, [planCatalog]);
 
   const yearlyCycleDiscountLabel = useMemo(() => {
@@ -848,12 +844,18 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
           ) : null}
           {isPlanCatalogLoading ? (
             <div className={cx(styles.grid, mobile && styles.mobileGrid)}>
-              {visiblePlans.slice(0, 3).map((plan) => (
-                <Card className={styles.card} key={plan}>
-                  <Skeleton active paragraph={{ rows: 12 }} />
-                </Card>
-              ))}
+              {(visiblePlans.length > 0 ? visiblePlans : getVisiblePaidPlans(subscriptionPlanOrder))
+                .slice(0, 3)
+                .map((plan) => (
+                  <Card className={styles.card} key={plan}>
+                    <Skeleton active paragraph={{ rows: 12 }} />
+                  </Card>
+                ))}
             </div>
+          ) : visiblePlans.length === 0 ? (
+            <Empty
+              description={planCatalogError ? '套餐目录加载失败，请稍后重试。' : '暂无可用套餐'}
+            />
           ) : (
             <div className={cx(styles.grid, mobile && styles.mobileGrid)}>
               {visiblePlans.map((plan) => {

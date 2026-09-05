@@ -334,6 +334,30 @@ describe('Browser', () => {
       expect(webPreferences).not.toHaveProperty('preload');
     });
 
+    it('should allow subscription webviews in their dedicated persistent partition', () => {
+      const handler = mockBrowserWindow.webContents.on.mock.calls.find(
+        ([eventName]) => eventName === 'will-attach-webview',
+      )?.[1];
+      const event = { preventDefault: vi.fn() };
+      const webPreferences: Record<string, unknown> = {
+        nodeIntegration: true,
+        preload: '/tmp/evil.js',
+      };
+
+      handler(event, webPreferences, {
+        partition: 'persist:subscription',
+        src: 'https://chat.qingyouai.com/embed/subscription/plans',
+      });
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(webPreferences).toMatchObject({
+        contextIsolation: true,
+        nodeIntegration: false,
+        partition: 'persist:subscription',
+      });
+      expect(webPreferences).not.toHaveProperty('preload');
+    });
+
     it('should create BrowserWindow on construction', () => {
       expect(MockBrowserWindow).toHaveBeenCalled();
     });

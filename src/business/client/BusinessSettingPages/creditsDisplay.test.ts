@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatLedgerAllocationText, normalizeLedgerAllocations } from './creditsDisplay';
+import {
+  formatLedgerAllocationText,
+  getNextCreditLedgerCursor,
+  normalizeLedgerAllocations,
+} from './creditsDisplay';
 
 const labelSource = (source: string) => `source:${source}`;
 const formatAmount = (amount: number) => `${amount} credits`;
@@ -73,5 +77,10 @@ describe('credits display helpers', () => {
         formatAmount,
       ),
     ).toBeNull();
+  });
+
+  it('preserves the server cursor for loading the next ledger page', () => {
+    expect(getNextCreditLedgerCursor({ nextCursor: 'ledger-page-2' })).toBe('ledger-page-2');
+    expect(getNextCreditLedgerCursor({ nextCursor: undefined })).toBeNull();
   });
 });

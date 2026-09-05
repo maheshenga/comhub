@@ -2602,6 +2602,34 @@ describe('admin settings default model validation', () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it('rejects syncing saved user defaults with a malformed input completion flag', async () => {
+    const db = createDb({
+      appSettings: [
+        {
+          value: {
+            systemAgent: {
+              inputCompletion: {
+                enabled: 'true',
+                model: 'missing-model',
+                provider: 'newapi',
+              },
+            },
+          },
+        },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(caller.syncUserGlobalSettingsDefaultsToUsers()).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'INVALID_USER_GLOBAL_SETTINGS_DEFAULTS',
+    } satisfies Partial<TRPCError>);
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it('rejects a NewAPI memory embedding model when the enabled route is not embedding type', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([
       { displayName: 'GPT Chat', id: 'gpt-5.5', type: 'chat' },
@@ -2634,6 +2662,136 @@ describe('admin settings default model validation', () => {
     } satisfies Partial<TRPCError>);
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      enabledModels: [{ id: 'text-embedding-3-small', providerId: 'newapi', type: 'embedding' }],
+      message: 'DEFAULT_MODEL_NOT_ENABLED',
+      model: 'missing-embedding',
+      provider: 'newapi',
+      reason: 'the model is unavailable',
+    },
+    {
+      enabledModels: [{ id: 'gpt-5.5', providerId: 'newapi', type: 'chat' }],
+      message: 'DEFAULT_MODEL_TYPE_MISMATCH',
+      model: 'gpt-5.5',
+      provider: 'newapi',
+      reason: 'the model is not an embedding model',
+    },
+    {
+      enabledModels: [{ id: 'text-embedding-3-small', providerId: 'newapi', type: 'embedding' }],
+      message: 'DEFAULT_MODEL_NOT_ENABLED',
+      model: 'text-embedding-3-small',
+      provider: 'missing-provider',
+      reason: 'the provider has no enabled routes',
+    },
+    {
+      enabledModels: [],
+      message: 'DEFAULT_MODEL_NOT_ENABLED',
+      model: 'text-embedding-3-small',
+      provider: '',
+      reason: 'the provider is missing',
+    },
+  ])(
+    'rejects vector embedding settings when $reason',
+    async ({ enabledModels, message, model, provider }) => {
+      vi.mocked(getAllEnabledModels).mockResolvedValue(enabledModels as any);
+      const db = createDb({ appSettings: [null, null] });
+      vi.mocked(getServerDB).mockResolvedValue(db);
+
+      const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+      await expect(
+        caller.setAppSettingsBatch(
+          withExpectedRevisions({
+            updates: [
+              { key: APP_SETTING_KEYS.vectorEmbeddingProvider, value: provider },
+              { key: APP_SETTING_KEYS.vectorEmbeddingModel, value: model },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST', message } satisfies Partial<TRPCError>);
+
+      expect(db.insert).not.toHaveBeenCalled();
+    },
+  );
+
+  it('validates a vector embedding model change against the saved provider', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { id: 'gpt-5.5', providerId: 'managed-provider', type: 'chat' } as any,
+    ]);
+    const db = createDb({
+      appSettings: [{ value: 'text-embedding-3-small' }, { value: 'managed-provider' }],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSetting(
+        withExpectedRevisions({ key: APP_SETTING_KEYS.vectorEmbeddingModel, value: 'gpt-5.5' }),
+      ),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'DEFAULT_MODEL_TYPE_MISMATCH',
+    } satisfies Partial<TRPCError>);
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('allows an enabled vector embedding route outside the Free plan', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { id: 'text-embedding-3-small', providerId: 'managed-provider', type: 'embedding' } as any,
+    ]);
+    const db = createDb({
+      appSettings: [null, null],
+      modelRules: { mode: 'allowlist', models: [] },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [
+            { key: APP_SETTING_KEYS.vectorEmbeddingProvider, value: 'managed-provider' },
+            { key: APP_SETTING_KEYS.vectorEmbeddingModel, value: 'text-embedding-3-small' },
+          ],
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.vectorEmbeddingModel,
+      value: 'text-embedding-3-small',
+    });
+    expect(db.query.planCatalog.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('allows clearing both vector embedding settings to use runtime defaults', async () => {
+    const db = createDb({
+      appSettings: [{ value: 'text-embedding-3-small' }, { value: 'managed-provider' }],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
+          updates: [
+            { key: APP_SETTING_KEYS.vectorEmbeddingProvider, value: '' },
+            { key: APP_SETTING_KEYS.vectorEmbeddingModel, value: '' },
+          ],
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.vectorEmbeddingModel,
+      value: '',
+    });
   });
 
   it('rejects invalid S3 endpoint URLs before saving', async () => {

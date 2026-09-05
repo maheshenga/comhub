@@ -31,6 +31,7 @@ export const getServerModuleAppRuntimeConfig = async (
 
   return resolveModuleAppRuntimeConfig({
     environment: readModuleAppRuntimeEnvironment(),
+    requireEnvironmentParity: true,
     values,
   });
 };

@@ -759,6 +759,9 @@ export const assertCommercialChatBudget = async ({
 const FALLBACK_INPUT_RATE_USD_PER_M = 3;
 const FALLBACK_OUTPUT_RATE_USD_PER_M = 15;
 
+const normalizeUsageTokenCount = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+
 export type CostSource = 'fallback-rate' | 'gateway' | 'local-pricing';
 export type CommercialAiUsageType = 'asr' | 'chat' | 'embeddings' | 'generate_object';
 export type CommercialUsagePayload = {
@@ -772,7 +775,7 @@ export type CommercialUsagePayload = {
  * Resolve the effective USD cost and audit source for a chat usage event.
  *
  * Priority:
- *   1. gateway  — usage.cost > 0 (trust upstream)
+ *   1. gateway  — positive finite usage.cost (trust upstream)
  *   2. local-pricing — compute from modelCard.pricing rates × token counts
  *   3. fallback-rate — conservative fixed rate when modelCard has no pricing
  *   4. null — no cost signal and no tokens; cannot bill, caller logs a warning
@@ -785,7 +788,7 @@ const resolveEffectiveCost = (
   usageType: CommercialAiUsageType = 'chat',
 ): { costSource: CostSource; usdCost: number } | null => {
   // Tier 1: gateway cost is valid
-  if (usage.cost && usage.cost > 0) {
+  if (isPositiveFinite(usage.cost)) {
     return { costSource: 'gateway', usdCost: usage.cost };
   }
 
@@ -794,10 +797,12 @@ const resolveEffectiveCost = (
   }
 
   // Tiers 2 & 3 require at least some token counts
-  const inputTokens =
-    usage.totalInputTokens ?? (usageType === 'embeddings' ? (usage.totalTokens ?? 0) : 0);
-  const outputTokens =
-    usage.totalOutputTokens ?? (usageType === 'embeddings' ? 0 : (usage.totalTokens ?? 0));
+  const inputTokens = normalizeUsageTokenCount(
+    usage.totalInputTokens ?? (usageType === 'embeddings' ? usage.totalTokens : 0),
+  );
+  const outputTokens = normalizeUsageTokenCount(
+    usage.totalOutputTokens ?? (usageType === 'embeddings' ? 0 : usage.totalTokens),
+  );
 
   if (inputTokens <= 0 && outputTokens <= 0) {
     console.warn('[billing] cost=0 and no token counts for usage record — skipping charge', {
@@ -814,7 +819,7 @@ const resolveEffectiveCost = (
     const cost = (inputTokens * (inputRate ?? 0) + outputTokens * (outputRate ?? 0)) / 1_000_000;
     const usdCost = modelCard?.pricing?.currency === 'CNY' ? cost / USD_TO_CNY : cost;
 
-    if (usdCost > 0) {
+    if (Number.isFinite(usdCost) && usdCost > 0) {
       return { costSource: 'local-pricing', usdCost };
     }
   }
@@ -830,7 +835,7 @@ const resolveEffectiveCost = (
     { model: modelCard, usdCost, usage },
   );
 
-  return { costSource: 'fallback-rate', usdCost };
+  return Number.isFinite(usdCost) && usdCost > 0 ? { costSource: 'fallback-rate', usdCost } : null;
 };
 
 export const assertCommercialMinimumBudget = async ({

@@ -5,9 +5,12 @@ import type { App } from '@/core/App';
 
 import RemoteServerConfigCtr from '../RemoteServerConfigCtr';
 
-const { ipcMainHandleMock, mockFetch } = vi.hoisted(() => ({
+const { ipcMainHandleMock, mockFetch, mockSession } = vi.hoisted(() => ({
   ipcMainHandleMock: vi.fn(),
   mockFetch: vi.fn(),
+  mockSession: {
+    webRequest: { onBeforeSendHeaders: vi.fn() },
+  },
 }));
 
 vi.mock('@/utils/net-fetch', () => ({
@@ -36,6 +39,9 @@ vi.mock('electron', () => ({
     decryptString: vi.fn((buffer: Buffer) => buffer.toString()),
     encryptString: vi.fn((str: string) => Buffer.from(str)),
     isEncryptionAvailable: vi.fn(() => true),
+  },
+  session: {
+    fromPartition: vi.fn(() => mockSession),
   },
 }));
 
@@ -76,7 +82,24 @@ describe('RemoteServerConfigCtr', () => {
       active: false,
       storageMode: 'cloud',
     });
+    mockSession.webRequest.onBeforeSendHeaders.mockClear();
     controller = new RemoteServerConfigCtr(mockApp);
+  });
+
+  describe('setupSubscriptionWebviewSession', () => {
+    it('scopes auth injection to the configured cloud server origin', async () => {
+      mockStoreManager.get.mockReturnValue({ active: true, storageMode: 'cloud' });
+
+      const result = await controller.setupSubscriptionWebviewSession({
+        partition: 'persist:subscription',
+      });
+
+      expect(result).toEqual({ remoteServerUrl: 'https://cloud.lobehub.com', success: true });
+      expect(mockSession.webRequest.onBeforeSendHeaders).toHaveBeenCalledWith(
+        { urls: ['https://cloud.lobehub.com/*'] },
+        expect.any(Function),
+      );
+    });
   });
 
   describe('getRemoteServerConfig', () => {
