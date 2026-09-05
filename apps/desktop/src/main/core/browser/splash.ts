@@ -25,6 +25,20 @@ const normalizeText = (value: unknown) => {
   return trimmed || undefined;
 };
 
+const resolveLoadingSvgUrl = (value: string) => {
+  const baseUrl = normalizeText(getDesktopEnv().OFFICIAL_CLOUD_SERVER);
+  if (!baseUrl) return undefined;
+
+  try {
+    const resolvedUrl = new URL(value, baseUrl);
+    if (!['http:', 'https:'].includes(resolvedUrl.protocol)) return undefined;
+
+    return resolvedUrl.toString();
+  } catch {
+    return undefined;
+  }
+};
+
 const getPublicBrandUrl = () => {
   const baseUrl = getDesktopEnv().OFFICIAL_CLOUD_SERVER || '';
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -60,10 +74,11 @@ export const buildSplashHtml = (brand: PublicBrandPayload) => {
   const brandName = normalizeText(brand.name) ?? FALLBACK_BRAND_NAME;
   const loadingText = normalizeText(brand.loadingText);
   const loadingSvgUrl = normalizeText(brand.loadingSvgUrl);
+  const resolvedLoadingSvgUrl = loadingSvgUrl ? resolveLoadingSvgUrl(loadingSvgUrl) : undefined;
   const safeBrandName = escapeHtml(brandName);
   const safeLoadingText = loadingText ? escapeHtml(loadingText) : '';
-  const loadingBrandHtml = loadingSvgUrl
-    ? `<img alt="${safeBrandName}" class="brand-loading-svg" src="${escapeHtml(loadingSvgUrl)}" />`
+  const loadingBrandHtml = resolvedLoadingSvgUrl
+    ? `<img alt="${safeBrandName}" class="brand-loading-svg" src="${escapeHtml(resolvedLoadingSvgUrl)}" />`
     : `<div class="brand-name">${safeBrandName}</div>`;
 
   return `<!doctype html>

@@ -195,6 +195,7 @@ export interface CreditPackageHistoryItem {
 
 export interface SubscriptionSummary {
   currency: string;
+  currentCyclePrice: number;
   cycle: SubscriptionCycleType;
   endsAt?: Date | null;
   externalSubscriptionId?: string | null;

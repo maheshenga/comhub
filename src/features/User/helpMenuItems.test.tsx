@@ -30,4 +30,27 @@ describe('buildCustomHelpMenuItems', () => {
     expect(docs).toHaveAttribute('target', '_blank');
     expect(screen.getByText('Support')).toBeInTheDocument();
   });
+
+  it('does not render unsafe URL schemes as links while preserving safe URLs', () => {
+    const items = buildCustomHelpMenuItems([
+      { label: 'Unsafe', url: 'javascript:alert(1)' },
+      { label: 'Relative', url: '/docs' },
+      { label: 'HTTPS', url: 'https://docs.example.com' },
+    ]);
+
+    render(
+      <>
+        {items.map((item) => (
+          <span key={item.key}>{item.label}</span>
+        ))}
+      </>,
+    );
+
+    expect(screen.getByText('Unsafe').closest('a')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Relative' })).toHaveAttribute('href', '/docs');
+    expect(screen.getByRole('link', { name: 'HTTPS' })).toHaveAttribute(
+      'href',
+      'https://docs.example.com',
+    );
+  });
 });

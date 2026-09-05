@@ -568,6 +568,7 @@ describe('adminCommercialService NewAPI helpers', () => {
       lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query,
     ).mockResolvedValue({
       catalog: [],
+      views: [],
       health: { hiddenByPlanCount: 0, modelTypeCount: 0, totalCount: 0, visibleCount: 0 },
       hiddenByReason: {},
       risks: [],

@@ -1590,6 +1590,27 @@ describe('CommercialModel', () => {
       expect(Number(snapshot?.monthlyPrice)).toBe(79);
     });
 
+    it('exposes the purchased cycle amount separately from the monthly catalog price', async () => {
+      await serverDB.insert(userPlanSnapshots).values({
+        currency: 'CNY',
+        cycle: 'yearly',
+        metadata: { pricingSnapshot: { amount: '790.00' } },
+        monthlyCredits: 600 * CREDITS_PER_DOLLAR,
+        monthlyPrice: 79,
+        plan: Plans.Starter,
+        provider: 'alipay',
+        startedAt: new Date(),
+        status: 'active',
+        userId,
+      });
+
+      await expect(commercialModel.getSubscriptionSummary()).resolves.toMatchObject({
+        cycle: 'yearly',
+        currentCyclePrice: 790,
+        monthlyPrice: 79,
+      });
+    });
+
     it('uses configured one-time plan price from plan metadata when activating', async () => {
       await seedPlanCatalogEntry(Plans.Premium, {
         metadata: { oneTimePrice: 499 },

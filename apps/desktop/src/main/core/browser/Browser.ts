@@ -20,6 +20,11 @@ import { WindowThemeManager } from './WindowThemeManager';
 
 const logger = createLogger('core:Browser');
 const BROWSER_WEBVIEW_PARTITION = 'persist:lobe-browser-app';
+const SUBSCRIPTION_WEBVIEW_PARTITION = 'persist:subscription';
+const ALLOWED_WEBVIEW_PARTITIONS = new Set([
+  BROWSER_WEBVIEW_PARTITION,
+  SUBSCRIPTION_WEBVIEW_PARTITION,
+]);
 
 const getExternalNavigationHosts = () =>
   DESKTOP_EXTERNAL_NAVIGATION_HOSTS.split(',')
@@ -221,7 +226,7 @@ export default class Browser {
 
   private setupWebviewSecurity(browserWindow: BrowserWindow): void {
     browserWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
-      if (params.partition !== BROWSER_WEBVIEW_PARTITION) {
+      if (!ALLOWED_WEBVIEW_PARTITIONS.has(params.partition)) {
         event.preventDefault();
         return;
       }
@@ -242,7 +247,7 @@ export default class Browser {
       delete webPreferences.preload;
       webPreferences.contextIsolation = true;
       webPreferences.nodeIntegration = false;
-      webPreferences.partition = BROWSER_WEBVIEW_PARTITION;
+      webPreferences.partition = params.partition;
       webPreferences.sandbox = true;
     });
   }

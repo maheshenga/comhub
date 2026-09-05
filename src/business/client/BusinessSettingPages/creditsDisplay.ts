@@ -10,6 +10,9 @@ export type LedgerAllocationDisplayItem = {
   source: string;
 };
 
+export const getNextCreditLedgerCursor = (page?: { nextCursor?: string | null }) =>
+  page?.nextCursor ?? null;
+
 export const normalizeLedgerAllocations = (
   record: LedgerAllocationDisplayRecord,
 ): LedgerAllocationDisplayItem[] => {

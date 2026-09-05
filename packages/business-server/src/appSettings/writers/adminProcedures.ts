@@ -280,6 +280,15 @@ const getMemoryExtractionModelValidationTarget = (
     };
   }
 };
+const getVectorModelValidationTarget = (key: string): ModelValidationTarget | undefined => {
+  if (key === SETTING_KEYS.vectorEmbeddingModel || key === SETTING_KEYS.vectorEmbeddingProvider) {
+    return {
+      modelKey: SETTING_KEYS.vectorEmbeddingModel,
+      modelType: 'embedding' as const,
+      providerKey: SETTING_KEYS.vectorEmbeddingProvider,
+    };
+  }
+};
 const readInputCompletionDefault = (
   defaults: unknown,
 ): { enabled: boolean; model: string; provider: string } | undefined => {
@@ -571,21 +580,26 @@ const validateDefaultModelUpdates = async (
   db: LobeChatDatabase,
   updates: NormalizedSettingUpdate[],
 ) => {
-  const targets = new Map<string, { enforcePlanRules: boolean; target: ModelValidationTarget }>();
+  const targets = new Map<
+    string,
+    { enforcePlanRules: boolean; requireEnabledRoute: boolean; target: ModelValidationTarget }
+  >();
 
   for (const update of updates) {
     const memoryTarget = getMemoryExtractionModelValidationTarget(update.key);
-    const target = getDefaultModelValidationTarget(update.key) ?? memoryTarget;
+    const vectorTarget = getVectorModelValidationTarget(update.key);
+    const target = getDefaultModelValidationTarget(update.key) ?? memoryTarget ?? vectorTarget;
     if (target) {
       targets.set(`${target.providerKey}:${target.modelKey}`, {
         // Platform-owned memory/vector jobs are not end-user Free-plan choices.
-        enforcePlanRules: !memoryTarget,
+        enforcePlanRules: !memoryTarget && !vectorTarget,
+        requireEnabledRoute: Boolean(vectorTarget),
         target,
       });
     }
   }
 
-  for (const { enforcePlanRules, target } of targets.values()) {
+  for (const { enforcePlanRules, requireEnabledRoute, target } of targets.values()) {
     const [currentModel, currentProvider] = await Promise.all([
       readSetting(db, target.modelKey),
       readSetting(db, target.providerKey),
@@ -604,6 +618,7 @@ const validateDefaultModelUpdates = async (
     await validateDefaultAgentModelUsability(db, draft, {
       ...target,
       enforcePlanRules,
+      requireEnabledRoute,
     });
   }
 
@@ -615,6 +630,19 @@ const validateDefaultModelUpdates = async (
   }
 };
 const validateUserGlobalSettingsDefaults = async (db: LobeChatDatabase, defaults: unknown) => {
+  try {
+    normalizeAppSettingValue(
+      SETTING_KEYS.userGlobalSettingsDefaults,
+      defaults,
+      APP_SETTING_WRITE_SURFACES.genericAdmin,
+    );
+  } catch {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'INVALID_USER_GLOBAL_SETTINGS_DEFAULTS',
+    });
+  }
+
   const inputCompletion = readInputCompletionDefault(defaults);
   if (!inputCompletion?.enabled) return;
 

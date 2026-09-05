@@ -62,6 +62,7 @@ export type ResolvedModuleAppRuntimeConfig = {
     internalUrlConfigured: boolean;
     publicOriginConfigured: boolean;
   };
+  configurationMismatch: string[];
   connections: {
     internalToken?: string;
     internalUrl?: string;
@@ -181,6 +182,7 @@ const normalizePublicOrigin = (value?: string) => {
 
 export const resolveModuleAppRuntimeConfig = (input: {
   environment?: ModuleAppRuntimeEnvironment;
+  requireEnvironmentParity?: boolean;
   values?: Partial<Record<AppSettingKey, unknown>>;
 }): ResolvedModuleAppRuntimeConfig => {
   const environment = input.environment ?? {};
@@ -241,7 +243,40 @@ export const resolveModuleAppRuntimeConfig = (input: {
   const internalTokenConfigured = Boolean(internalToken.value?.trim());
   const internalUrlConfigured = Boolean(normalizedInternalUrl);
   const publicOriginConfigured = Boolean(normalizedPublicOrigin);
-  const executionBlocker = executionEnabled.value ? [] : ['execution-disabled'];
+  const environmentOnlyConfig = input.requireEnvironmentParity
+    ? resolveModuleAppRuntimeConfig({ environment })
+    : undefined;
+  const parityValues = [
+    [
+      APP_SETTING_KEYS.moduleAppExecutionEnabled,
+      executionEnabled.value,
+      environmentOnlyConfig?.requestedSwitches.executionEnabled,
+    ],
+    [
+      APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
+      internalToken.value,
+      environmentOnlyConfig?.connections.internalToken,
+    ],
+    [
+      APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
+      invocationEnabled.value,
+      environmentOnlyConfig?.requestedSwitches.invocationEnabled,
+    ],
+  ] as const;
+  const configurationMismatch = input.requireEnvironmentParity
+    ? parityValues
+        .filter(
+          ([key, value, environmentValue]) =>
+            Object.hasOwn(values, key) && !Object.is(value, environmentValue),
+        )
+        .map(([key]) => key)
+    : [];
+  const configurationSourceBlocker = configurationMismatch.length
+    ? ['configuration-source-mismatch']
+    : [];
+  const executionBlocker = executionEnabled.value
+    ? configurationSourceBlocker
+    : ['execution-disabled'];
   const runtimeConnectionBlockers = [
     ...(!internalUrlConfigured ? ['internal-url-missing'] : []),
     ...(!internalTokenConfigured ? ['internal-token-missing'] : []),
@@ -276,6 +311,7 @@ export const resolveModuleAppRuntimeConfig = (input: {
       internalUrlConfigured,
       publicOriginConfigured,
     },
+    configurationMismatch,
     connections: {
       ...(internalToken.value ? { internalToken: internalToken.value } : {}),
       ...(normalizedInternalUrl ? { internalUrl: normalizedInternalUrl } : {}),
@@ -308,7 +344,7 @@ export const resolveModuleAppRuntimeConfig = (input: {
       workflowPrivilegedExecutorsEnabled: workflowPrivilegedExecutorsEnabled.source,
     },
     switches: {
-      executionEnabled: executionEnabled.value,
+      executionEnabled: executionEnabled.value && configurationMismatch.length === 0,
       invocationEnabled: invocationEnabled.value && invocationBlockers.length === 0,
       publicExecutionEnabled: publicExecutionEnabled.value && publicExecutionBlockers.length === 0,
       scheduleDispatchEnabled: scheduleDispatchEnabled.value && executionBlocker.length === 0,

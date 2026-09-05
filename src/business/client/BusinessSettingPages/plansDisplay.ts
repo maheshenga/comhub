@@ -25,8 +25,13 @@ export type PlanCyclePrice = {
   unit: string;
 };
 
-export const getVisiblePaidPlans = <T extends string>(plans: T[]) =>
+export const getVisiblePaidPlans = <T extends string>(plans: readonly T[]) =>
   plans.filter((plan) => plan !== Plans.Free);
+
+export const getConfiguredVisiblePaidPlans = <T extends string>(
+  planOrder: readonly T[],
+  configuredPlans: readonly T[] | null | undefined,
+) => getVisiblePaidPlans(planOrder.filter((plan) => configuredPlans?.includes(plan) ?? false));
 
 export const getDefaultMobilePlanTarget = (
   visiblePlans: Plans[],

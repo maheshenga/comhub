@@ -53,9 +53,16 @@ export const validateModuleAppRuntimeSettingUpdates = async (
 
   const config = resolveModuleAppRuntimeConfig({
     environment: readModuleAppRuntimeEnvironment(),
+    requireEnvironmentParity: true,
     values,
   });
   const requested = config.requestedSwitches;
+  const invocationBlockers = config.blockers.invocation.filter(
+    (blocker) => blocker !== 'configuration-source-mismatch',
+  );
+  const publicExecutionBlockers = config.blockers.publicExecution.filter(
+    (blocker) => blocker !== 'configuration-source-mismatch',
+  );
   const explicitlyDisablesExecution = runtimeUpdates.some(
     (update) => update.key === APP_SETTING_KEYS.moduleAppExecutionEnabled && update.value === false,
   );
@@ -89,18 +96,26 @@ export const validateModuleAppRuntimeSettingUpdates = async (
       message: 'MODULE_APP_WORKFLOW_EXECUTORS_REQUIRE_EXECUTION',
     });
   }
-  if (requested.publicExecutionEnabled && config.blockers.publicExecution.length > 0) {
+  if (requested.publicExecutionEnabled && publicExecutionBlockers.length > 0) {
     throw new TRPCError({
-      cause: { blockers: config.blockers.publicExecution },
+      cause: { blockers: publicExecutionBlockers },
       code: 'BAD_REQUEST',
       message: 'MODULE_APP_PUBLIC_EXECUTION_CONFIG_REQUIRED',
     });
   }
-  if (requested.invocationEnabled && config.blockers.invocation.length > 0) {
+  if (requested.invocationEnabled && invocationBlockers.length > 0) {
     throw new TRPCError({
-      cause: { blockers: config.blockers.invocation },
+      cause: { blockers: invocationBlockers },
       code: 'BAD_REQUEST',
       message: 'MODULE_APP_RUNTIME_INVOCATION_CONFIG_REQUIRED',
+    });
+  }
+
+  if (config.configurationMismatch.length > 0) {
+    throw new TRPCError({
+      cause: { keys: config.configurationMismatch },
+      code: 'BAD_REQUEST',
+      message: 'MODULE_APP_RUNTIME_CONFIG_SOURCE_MISMATCH',
     });
   }
 

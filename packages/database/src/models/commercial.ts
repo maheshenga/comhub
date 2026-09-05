@@ -66,6 +66,7 @@ import { FileModel } from './file';
 const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
   currency: 'USD',
   cycle: 'monthly',
+  currentCyclePrice: 0,
   endsAt: null,
   externalSubscriptionId: null,
   isFreePlan: true,
@@ -1624,9 +1625,25 @@ export class CommercialModel {
 
     if (!snapshot) return FREE_SUBSCRIPTION_SUMMARY;
 
+    const pricingSnapshot =
+      snapshot.metadata &&
+      typeof snapshot.metadata === 'object' &&
+      !Array.isArray(snapshot.metadata)
+        ? (snapshot.metadata as Record<string, unknown>).pricingSnapshot
+        : undefined;
+    const rawCyclePrice =
+      pricingSnapshot && typeof pricingSnapshot === 'object' && !Array.isArray(pricingSnapshot)
+        ? (pricingSnapshot as Record<string, unknown>).amount
+        : undefined;
+    const currentCyclePrice = Number(rawCyclePrice);
+
     return {
       currency: snapshot.currency,
       cycle: snapshot.cycle,
+      currentCyclePrice:
+        Number.isFinite(currentCyclePrice) && currentCyclePrice >= 0
+          ? currentCyclePrice
+          : (snapshot.monthlyPrice ?? 0),
       endsAt: snapshot.endsAt,
       externalSubscriptionId: snapshot.externalSubscriptionId,
       isFreePlan: snapshot.plan === Plans.Free,

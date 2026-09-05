@@ -1621,7 +1621,7 @@ export default {
   'moduleApps.admin.runtime.records': 'Records',
   'moduleApps.admin.runtime.runs': 'Runs',
   'moduleApps.admin.runtime.settings.description':
-    'Database values take precedence. Environment variables remain available only as migration fallbacks.',
+    'Worker-owned runtime settings must match the worker environment. Environment variables remain available as migration fallbacks.',
   'moduleApps.admin.runtime.settings.environmentFallback':
     '{{count}} settings still use legacy environment variables. Save this panel to move them under backend management.',
   'moduleApps.admin.runtime.settings.errors.MODULE_APP_PUBLIC_EXECUTION_CONFIG_REQUIRED':
@@ -1632,6 +1632,8 @@ export default {
     'The internal token does not match the Runtime service. Update both sides before enabling access.',
   'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_INVOCATION_CONFIG_REQUIRED':
     'Sandbox invocation requires the internal endpoint and internal token.',
+  'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_CONFIG_SOURCE_MISMATCH':
+    'Runtime settings are managed by the worker environment. Update the worker environment before enabling database overrides.',
   'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_INVOCATION_REQUIRES_EXECUTION':
     'Enable module execution before enabling sandbox invocation.',
   'moduleApps.admin.runtime.settings.errors.MODULE_APP_RUNTIME_NOT_READY':

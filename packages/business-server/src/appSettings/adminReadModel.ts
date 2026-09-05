@@ -459,6 +459,7 @@ export const buildModuleRuntimeSettings = async (snapshot: AppSettingsSnapshot) 
   }
   const config = resolveModuleAppRuntimeConfig({
     environment: readModuleAppRuntimeEnvironment(),
+    requireEnvironmentParity: true,
     values,
   });
 

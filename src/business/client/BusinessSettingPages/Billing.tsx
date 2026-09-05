@@ -207,7 +207,9 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
                 </div>
                 <div className={subscriptionPageStyles.tileValue}>
                   {formatCurrencyAmount(
-                    subscriptionSummary?.monthlyPrice ?? 0,
+                    subscriptionSummary?.currentCyclePrice ??
+                      subscriptionSummary?.monthlyPrice ??
+                      0,
                     subscriptionSummary?.currency,
                   )}
                 </div>
@@ -263,7 +265,9 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
                 <div>当前周期金额（{cycleLabel}）</div>
                 <div className={subscriptionPageStyles.tileValue}>
                   {formatCurrencyAmount(
-                    subscriptionSummary?.monthlyPrice ?? 0,
+                    subscriptionSummary?.currentCyclePrice ??
+                      subscriptionSummary?.monthlyPrice ??
+                      0,
                     subscriptionSummary?.currency,
                   )}
                 </div>

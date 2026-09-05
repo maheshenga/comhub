@@ -584,6 +584,30 @@ describe('recordCommercialChatUsage', () => {
     );
   });
 
+  it.each([
+    ['non-finite', Number.POSITIVE_INFINITY],
+    ['NaN', Number.NaN],
+    ['negative', -1],
+  ])('should ignore %s gateway costs and use local pricing', async (_label, cost) => {
+    await recordCommercialChatUsage({
+      db: {} as any,
+      messageId: `assistant-message-invalid-gateway-cost-${_label}`,
+      model: 'gpt-test',
+      provider: 'openai',
+      usage: { cost, totalInputTokens: 1_000_000, totalOutputTokens: 2_000_000 },
+      userId: 'user-1',
+    });
+
+    expect(mocks.consumeCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: expect.objectContaining({
+          cost: 2.5,
+          costSource: 'local-pricing',
+        }),
+      }),
+    );
+  });
+
   it('converts CNY local token pricing before recording USD cost', async () => {
     mocks.getAiProviderModelList.mockResolvedValue([
       {

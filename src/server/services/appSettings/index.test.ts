@@ -19,11 +19,23 @@ import {
 } from './index';
 import { APP_SETTING_SECRET_PREFIX, encryptAppSettingSecret } from './secrets';
 
+const { mockBumpAppSettingsCacheVersion, mockGetAppSettingsCacheVersion } = vi.hoisted(() => ({
+  mockBumpAppSettingsCacheVersion: vi.fn(),
+  mockGetAppSettingsCacheVersion: vi.fn(),
+}));
+
+vi.mock('./cacheVersion', () => ({
+  bumpAppSettingsCacheVersion: mockBumpAppSettingsCacheVersion,
+  getAppSettingsCacheVersion: mockGetAppSettingsCacheVersion,
+}));
+
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 13).toString('base64');
 
 describe('appSettings model helpers', () => {
   beforeEach(async () => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
+    mockGetAppSettingsCacheVersion.mockReset().mockResolvedValue('test-version');
+    mockBumpAppSettingsCacheVersion.mockReset().mockResolvedValue(undefined);
     await invalidateServerAppSettings();
   });
 
@@ -280,5 +292,29 @@ describe('appSettings model helpers', () => {
     } finally {
       nowSpy.mockRestore();
     }
+  });
+
+  it('reloads settings when the shared cache version is unavailable', async () => {
+    let model = 'first-model';
+    const findMany = vi
+      .fn()
+      .mockImplementation(async () => [{ key: APP_SETTING_KEYS.defaultAgentModel, value: model }]);
+    const db = { query: { appSettings: { findMany } } } as any;
+
+    mockGetAppSettingsCacheVersion
+      .mockReset()
+      .mockResolvedValueOnce('1')
+      .mockResolvedValueOnce(null);
+
+    await expect(getServerDefaultAgentSettingOverrides(db)).resolves.toEqual({
+      model: 'first-model',
+    });
+
+    model = 'second-model';
+
+    await expect(getServerDefaultAgentSettingOverrides(db)).resolves.toEqual({
+      model: 'second-model',
+    });
+    expect(findMany).toHaveBeenCalledTimes(2);
   });
 });

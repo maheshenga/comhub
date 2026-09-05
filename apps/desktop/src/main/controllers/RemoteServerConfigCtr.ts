@@ -528,7 +528,7 @@ export default class RemoteServerConfigCtr extends ControllerModule {
   /**
    * Setup subscription webview session with OIDC token injection
    * This configures a webRequest interceptor on the given partition session
-   * to automatically inject the Oidc-Auth token header for official domain requests.
+   * to automatically inject the Oidc-Auth token header for the configured server.
    * @param params.partition The partition name for the webview session
    */
   @IpcMethod()
@@ -538,9 +538,11 @@ export default class RemoteServerConfigCtr extends ControllerModule {
     logger.info(`Setting up subscription webview session for partition: ${partition}`);
 
     const session = electronSession.fromPartition(partition);
+    const remoteServerUrl = await this.getRemoteServerUrl();
+    const requestOrigin = remoteServerUrl ? new URL(remoteServerUrl).origin : null;
 
     session.webRequest.onBeforeSendHeaders(
-      { urls: [`https://*.lobehub.com/*`] },
+      { urls: [requestOrigin ? `${requestOrigin}/*` : 'https://*.lobehub.com/*'] },
       async (details, callback) => {
         const requestHeaders = { ...details.requestHeaders };
 
@@ -558,6 +560,6 @@ export default class RemoteServerConfigCtr extends ControllerModule {
 
     logger.debug(`Subscription webview session setup completed for partition: ${partition}`);
 
-    return { success: true };
+    return { remoteServerUrl, success: true };
   }
 }

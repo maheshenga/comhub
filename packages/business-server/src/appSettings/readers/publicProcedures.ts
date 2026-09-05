@@ -17,6 +17,7 @@ import {
 import { loadAppSettingsSectionSnapshot, loadAppSettingsSnapshot } from '../loader';
 import { SETTING_KEYS, toString } from '../procedureShared';
 import { loadMobileConfigPublication } from './mobilePublicationProcedures';
+import { normalizePublicBrandName } from './publicBrand';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
 const toBoolean = (value: unknown, fallback = false) =>
@@ -77,7 +78,7 @@ export const publicSettingsProcedures = {
       SETTING_KEYS.sidebarGenerationLabel,
     ]);
     const name = snapshot.get(SETTING_KEYS.brandName);
-    const brandName = typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name;
+    const brandName = normalizePublicBrandName(name);
     const favicon = snapshot.get(SETTING_KEYS.brandFaviconUrl);
     const logo = snapshot.get(SETTING_KEYS.brandLogoUrl);
     const primary = snapshot.get(SETTING_KEYS.brandPrimaryColor);
