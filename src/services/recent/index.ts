@@ -1,12 +1,12 @@
+import type { RecentItem } from '@lobechat/types';
+
 import { lambdaClient } from '@/libs/trpc/client';
-import {
-  type MobileWorkspaceRecentResponse,
-  type RecentItem,
-} from '@/server/routers/lambda/recent';
+import type { MobileWorkspaceRecentResponse } from '@/server/routers/lambda/recent';
 
 export interface RecentQueryOptions {
   limit?: number;
-  types?: RecentItem['type'][];
+  mineOnly?: boolean;
+  types?: readonly RecentItem['type'][];
   withTopicPreview?: boolean;
 }
 
@@ -16,17 +16,29 @@ export interface MobileWorkspaceRecentQuery {
   query?: string;
 }
 
+export const RECENT_SIDEBAR_TYPES = [
+  'document',
+  'task',
+] as const satisfies readonly RecentItem['type'][];
+
 class RecentService {
   getAll = (
     input?: number | RecentQueryOptions,
-    types?: RecentItem['type'][],
+    types?: readonly RecentItem['type'][],
     withTopicPreview?: boolean,
+    mineOnly?: boolean,
   ): Promise<RecentItem[]> => {
     const query =
       typeof input === 'number' || input === undefined
-        ? { limit: input, types, withTopicPreview }
+        ? { limit: input, mineOnly, types, withTopicPreview }
         : input;
-    return lambdaClient.recent.getAll.query(query);
+    const request = {
+      ...query,
+      types: query.types ? [...query.types] : undefined,
+    };
+    return lambdaClient.recent.getAll.query(
+      Object.fromEntries(Object.entries(request).filter(([, value]) => value !== undefined)) as any,
+    );
   };
 
   getMobileWorkspace = (

@@ -13,6 +13,8 @@ import { parseBrowserLanguage } from '@/utils/locale';
 import { DEFAULT_LANG, locales, RouteVariants } from '@/utils/server/routeVariants';
 
 import { nextjsOnlyRoutes } from '../nextjsOnlyRoutes';
+import { isShareSpaRoute } from '../shareRoutes';
+import { isAlwaysWorkbenchSpaRoute, isWorkbenchSpaRoute } from '../workbenchRoutes';
 import { createRouteMatcher } from './createRouteMatcher';
 
 // Create debug logger instances
@@ -92,8 +94,8 @@ export function defineConfig() {
       locale,
     });
 
-    // These pages are responsive on their own; always serve the desktop bundle
-    // so mobile UA does not land on mobile-specific routes.
+    // Routes outside the dedicated Share/Workbench shells still use the
+    // responsive desktop pages, including the acceptance decision page.
     const desktopOnlyPaths = ['/share', '/verify', '/acceptance'];
     const isDesktopOnlyPath = desktopOnlyPaths.some(
       (path) => url.pathname === path || url.pathname.startsWith(`${path}/`),
@@ -133,9 +135,39 @@ export function defineConfig() {
       return NextResponse.next();
     }
 
+    // Share pages are responsive on their own, so they get one bundle for every
+    // device rather than a mobile variant.
+    if (isShareSpaRoute(url.pathname)) {
+      const sharePath = `/spa-share/${safeLocale}${url.pathname}`;
+      logDefault('Share SPA route, rewriting to: %s', sharePath);
+      url.pathname = sharePath;
+
+      const response = NextResponse.rewrite(url);
+      persistLocaleCookie(response, request, explicitlyLocale);
+
+      return response;
+    }
+
+    if (
+      isAlwaysWorkbenchSpaRoute(url.pathname) ||
+      (isHandheld && isWorkbenchSpaRoute(url.pathname))
+    ) {
+      const workbenchPath = `/spa-workbench/${safeLocale}${url.pathname}`;
+      logDefault('Workbench SPA route, rewriting to: %s', workbenchPath);
+      url.pathname = workbenchPath;
+
+      const response = NextResponse.rewrite(url);
+      persistLocaleCookie(response, request, explicitlyLocale);
+
+      return response;
+    }
+
     const isMobileDiscoverRoute = isHandheld && url.pathname === '/discover';
     const isNextjsRoute =
-      !isMobileDiscoverRoute && nextjsOnlyRoutes.some((r) => url.pathname.startsWith(r));
+      !isMobileDiscoverRoute &&
+      nextjsOnlyRoutes.some((route) =>
+        url.pathname === route || url.pathname.startsWith(`${route}/`),
+      );
 
     // SPA routes: rewrite to /spa/[variants]/[...path] catch-all
     if (!isNextjsRoute) {

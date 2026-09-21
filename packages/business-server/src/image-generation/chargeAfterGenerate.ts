@@ -1,4 +1,5 @@
 import { type ModelPricingContext } from '@lobechat/model-runtime';
+import { type SpendOrigin } from '@lobechat/types';
 
 import {
   applyCommercialPricingQuoteToCredits,
@@ -20,7 +21,7 @@ import { type ModelPerformance, type ModelUsage } from '@/types/index';
 interface ChargeParams {
   db?: LobeChatDatabase;
   isError?: boolean;
-  metadata: {
+  metadata: SpendOrigin & {
     asyncTaskId: string;
     generationBatchId: string;
     modelId: string;

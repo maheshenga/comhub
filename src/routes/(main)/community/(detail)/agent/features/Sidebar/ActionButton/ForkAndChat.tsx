@@ -2,8 +2,7 @@
 
 import { AGENT_CHAT_URL } from '@lobechat/const';
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { App } from 'antd';
+import { Button, Select, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { customAlphabet } from 'nanoid/non-secure';
 import { memo, useState } from 'react';
@@ -80,7 +79,7 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
   const [isLoading, setIsLoading] = useState(false);
   const createAgent = useAgentStore((s) => s.createAgent);
   const refreshAgentList = useHomeStore((s) => s.refreshAgentList);
-  const { message } = App.useApp();
+
   const navigate = useWorkspaceAwareNavigate();
   const { t } = useTranslation('discover');
   const brand = useBrand();
@@ -112,7 +111,7 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
 
       if (existingAgentId) {
         // User has already forked this agent, navigate to existing fork
-        message.info(t('fork.alreadyForked'));
+        toast.info(t('fork.alreadyForked'));
         navigate(AGENT_CHAT_URL(existingAgentId, mobile));
         return;
       }
@@ -155,13 +154,13 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
         source: location.pathname,
       });
 
-      message.success(t('fork.success'));
+      toast.success(t('fork.success'));
 
       // Step 5: Navigate to chat
       navigate(AGENT_CHAT_URL(result!.agentId, mobile));
     } catch (error: any) {
       console.error('Fork failed:', error);
-      message.error(t('fork.failed'));
+      toast.error(t('fork.failed'));
     } finally {
       setIsLoading(false);
     }

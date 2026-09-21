@@ -4,6 +4,7 @@ import { getBuiltinInspector } from '@lobechat/builtin-tools/inspectors';
 import type { ToolIntervention } from '@lobechat/types';
 import { safeParseJSON, safeParsePartialJSON } from '@lobechat/utils';
 import { Flexbox } from '@lobehub/ui';
+import { MessageCircleQuestion } from 'lucide-react';
 import { memo } from 'react';
 
 import SafeBoundary from '@/components/ErrorBoundary';
@@ -22,6 +23,13 @@ interface InspectorProps {
    */
   isArgumentsStreaming?: boolean;
   /**
+   * Whether the tool detail is expanded. Collapsed rows show the plain
+   * "<action> <keyword>" title; an expanded row restores the tool's own rich
+   * inspector (full command, per-tool chips) since expanding means "show me
+   * the details".
+   */
+  isExpanded?: boolean;
+  /**
    * Whether the tool is currently executing (from operation state)
    */
   isToolCalling?: boolean;
@@ -38,6 +46,7 @@ const Inspectors = memo<InspectorProps>(
     result,
     intervention,
     isArgumentsStreaming,
+    isExpanded,
     isToolCalling,
     toolCallId,
     toolCallStartTime,
@@ -71,20 +80,29 @@ const Inspectors = memo<InspectorProps>(
       }
     }
 
-    // Check for custom inspector renderer
-    const CustomInspector = getBuiltinInspector(identifier, apiName);
+    // askUserQuestion (Claude Code and the builtin user-interaction tool share
+    // the apiName) completes as "a question was asked", not "a task succeeded"
+    // — keep the question-mark glyph instead of the generic tick.
+    const statusSuccessIcon = apiName === 'askUserQuestion' ? MessageCircleQuestion : undefined;
 
-    if (CustomInspector) {
-      const args = safeParseJSON(argsStr);
-      const partialJson = safeParsePartialJSON(argsStr);
-      return (
-        <Flexbox allowShrink horizontal align={'center'} gap={6}>
-          <StatusIndicator
-            intervention={intervention}
-            isToolExecuting={isToolCalling}
-            result={result}
-            successVariant={statusSuccessVariant}
-          />
+    const args = safeParseJSON(argsStr);
+    const partialJson = safeParsePartialJSON(argsStr);
+
+    // Collapsed rows read as one plain sentence ("<action> <keyword>") so a
+    // finished run scans as prose; expanding a row is an explicit ask for the
+    // details, so it restores the tool's own rich inspector when one exists.
+    const CustomInspector = isExpanded ? getBuiltinInspector(identifier, apiName) : undefined;
+
+    return (
+      <Flexbox allowShrink horizontal align={'center'} gap={6}>
+        <StatusIndicator
+          intervention={intervention}
+          isToolExecuting={isToolCalling}
+          result={result}
+          successIcon={statusSuccessIcon}
+          successVariant={statusSuccessVariant}
+        />
+        {CustomInspector ? (
           <SafeBoundary minHeight={22} resetKeys={[argsStr, result]}>
             <CustomInspector
               apiName={apiName}
@@ -98,34 +116,16 @@ const Inspectors = memo<InspectorProps>(
               toolCallId={toolCallId}
             />
           </SafeBoundary>
-          <ExecutionTime
-            isExecuting={showExecutionTimer}
-            startTime={toolCallStartTime}
-            timerKey={toolCallId}
+        ) : (
+          <ToolTitle
+            apiName={apiName}
+            args={args || undefined}
+            identifier={identifier}
+            isAborted={isAborted}
+            isLoading={isTitleLoading}
+            partialArgs={partialJson || undefined}
           />
-        </Flexbox>
-      );
-    }
-
-    const args = safeParseJSON(argsStr);
-    const partialJson = safeParsePartialJSON(argsStr);
-
-    return (
-      <Flexbox horizontal align={'center'} gap={6}>
-        <StatusIndicator
-          intervention={intervention}
-          isToolExecuting={isToolCalling}
-          result={result}
-          successVariant={statusSuccessVariant}
-        />
-        <ToolTitle
-          apiName={apiName}
-          args={args || undefined}
-          identifier={identifier}
-          isAborted={isAborted}
-          isLoading={isTitleLoading}
-          partialArgs={partialJson || undefined}
-        />
+        )}
         <ExecutionTime
           isExecuting={showExecutionTimer}
           startTime={toolCallStartTime}

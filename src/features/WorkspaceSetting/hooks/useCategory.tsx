@@ -14,6 +14,7 @@ import {
   Map,
   MonitorSmartphoneIcon,
   Sparkles,
+  TagIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -49,6 +50,11 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
   const { t: tSubscription } = useTranslation('subscription');
   const { allowed: canManageWorkspace } = usePermission('manage_settings');
   const { allowed: canViewBilling } = usePermission('view_billing');
+  // API keys act as the member who issued them, so the tab follows the same
+  // member-level gate the server enforces: `API_KEY_*` is granted from Member
+  // up, never to Viewer. Without this the tab leads to a list request that
+  // immediately 403s.
+  const { allowed: canCreateContent } = usePermission('create_content');
   const enableOAuthApps = useUserStore(labPreferSelectors.enableOAuthApps);
 
   return useMemo(
@@ -132,6 +138,13 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
               key: WorkspaceSettingsTabs.Skill,
               label: t('workspaceSetting.tab.skill'),
             },
+            // Label registry is readable by everyone; the page itself keeps
+            // management actions behind the admin gate (disabled, not hidden).
+            {
+              icon: TagIcon,
+              key: WorkspaceSettingsTabs.Labels,
+              label: t('workspaceSetting.tab.labels'),
+            },
             {
               icon: Blocks,
               key: WorkspaceSettingsTabs.Connector,
@@ -151,14 +164,19 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
           key: WorkspaceSettingsGroupKey.Agent,
           title: t('workspaceSetting.group.agent'),
         },
-        enableOAuthApps && {
+        (canCreateContent || enableOAuthApps) && {
           items: [
-            {
+            canCreateContent && {
+              icon: KeyIcon,
+              key: WorkspaceSettingsTabs.APIKey,
+              label: tAuth('tab.apikey'),
+            },
+            enableOAuthApps && {
               icon: AppWindowIcon,
               key: WorkspaceSettingsTabs.OAuthApps,
               label: tAuth('tab.oauthApps'),
             },
-          ],
+          ].filter(Boolean) as WorkspaceSettingCategoryItem[],
           key: WorkspaceSettingsGroupKey.Developer,
           title: t('group.developer'),
         },
@@ -170,16 +188,19 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
               key: WorkspaceSettingsTabs.Storage,
               label: t('tab.storage'),
             },
-            {
-              icon: KeyIcon,
-              key: WorkspaceSettingsTabs.APIKey,
-              label: tAuth('tab.apikey'),
-            },
           ].filter(Boolean) as WorkspaceSettingCategoryItem[],
           key: WorkspaceSettingsGroupKey.Admin,
           title: t('workspaceSetting.group.admin'),
         },
       ].filter(Boolean) as WorkspaceSettingCategoryGroup[],
-    [t, tAuth, tSubscription, enableOAuthApps, canManageWorkspace, canViewBilling],
+    [
+      t,
+      tAuth,
+      tSubscription,
+      enableOAuthApps,
+      canManageWorkspace,
+      canViewBilling,
+      canCreateContent,
+    ],
   );
 };

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGetServerBrand = vi.hoisted(() => vi.fn());
 
 vi.mock('@lobechat/business-const', () => ({
+  APPLE_APP_STORE_ID: '123456789',
   BRANDING_NAME: 'LobeHub',
   ORG_NAME: 'lobehub',
 }));
@@ -94,6 +95,7 @@ describe('SPA route brand boot config', () => {
     expect(html).toContain('<title>玄果AI chat.title</title>');
     expect(html).toContain('<meta property="og:site_name" content="玄果AI" />');
     expect(html).not.toContain('<meta property="og:site_name" content="LobeHub" />');
+    expect(html).not.toContain('apple-itunes-app');
     expect(html).not.toContain('<svg><title>LobeHub</title></svg>');
 
     const loadingBrandHtml = html.match(/<div id="loading-brand"[\s\S]*?<\/div>/)?.[0] ?? '';
@@ -102,6 +104,18 @@ describe('SPA route brand boot config', () => {
     expect(loadingBrandHtml).toContain('data-loading-svg="true"');
     expect(loadingBrandHtml).not.toContain('品牌口号不作为加载文案');
     expect(loadingBrandHtml).not.toContain('登录页文案不作为加载文案');
+  });
+
+  it('includes the mobile app banner while keeping the configured brand metadata', async () => {
+    const { GET } = await import('./route');
+    const response = await GET(new Request('https://chat.example.com/'), {
+      params: Promise.resolve({ variants: 'zh-CN__1' }),
+    });
+    const html = await response.text();
+
+    expect(html).toContain('<meta name="apple-itunes-app" content="app-id=123456789" />');
+    expect(html).toContain('<title>玄果AI chat.title</title>');
+    expect(html).toContain('<meta property="og:site_name" content="玄果AI" />');
   });
 
   it('keeps the upstream loading SVG when no admin loading SVG URL is configured', async () => {

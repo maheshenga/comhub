@@ -65,7 +65,11 @@ import { TopicModel } from '@/database/models/topic';
 import { type ListUsersForMemoryExtractorCursor } from '@/database/models/user';
 import { UserModel } from '@/database/models/user';
 import type { UserMemoryHybridSearchAggregatedResult } from '@/database/models/userMemory';
-import { UserMemoryModel } from '@/database/models/userMemory';
+import {
+  normalizeUserMemorySearchQueries,
+  shouldRunUserMemoryLexicalSearch,
+  UserMemoryModel,
+} from '@/database/models/userMemory';
 import { UserMemorySourceBenchmarkLoCoMoModel } from '@/database/models/userMemory/sources/benchmarkLoCoMo';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { asyncTasks } from '@/database/schemas';
@@ -82,6 +86,8 @@ import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { S3 } from '@/server/modules/S3';
 import { getUserScopedAiProviderRuntimeState } from '@/server/services/aiProviderAccess';
+import { createFtsSearchRepo } from '@/server/services/ftsSearch';
+import { recordUserMemoryLexicalSearchDecision } from '@/server/services/ftsSearch/observability';
 import {
   AsyncTaskError,
   type AsyncTaskErrorBody,
@@ -1422,7 +1428,8 @@ export class MemoryExtractionExecutor {
     tokenLimit?: number,
   ): Promise<UserMemoryHybridSearchAggregatedResult> {
     const db = await this.db;
-    const userMemoryModel = new UserMemoryModel(db, userId);
+    const ftsSearchRepo = await createFtsSearchRepo({ db, userId, usage: 'memory_extraction' });
+    const userMemoryModel = new UserMemoryModel(db, userId, ftsSearchRepo);
     // TODO: make topK configurable
     const topK = 10;
     const aggregatedContent = await this.trimTextToTokenLimit(
@@ -1441,9 +1448,17 @@ export class MemoryExtractionExecutor {
 
     const vector = embeddings?.[0];
     if (vector) {
+      const queries = normalizeUserMemorySearchQueries([aggregatedContent]);
+      recordUserMemoryLexicalSearchDecision({
+        decision: shouldRunUserMemoryLexicalSearch(queries, [vector])
+          ? 'executed'
+          : 'skipped_long_context',
+        queryCharacters: Array.from(aggregatedContent).length,
+        source: 'memory_extraction',
+      });
       const retrieved = await userMemoryModel.searchMemory(
         {
-          queries: [aggregatedContent],
+          queries,
           topK: {
             activities: topK,
             contexts: topK,

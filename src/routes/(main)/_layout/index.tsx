@@ -10,11 +10,13 @@ import { HotkeysProvider } from 'react-hotkeys-hook';
 import { Outlet } from 'react-router';
 
 import WorkspaceContextSlot from '@/business/client/WorkspaceContextSlot';
-import Loading from '@/components/Loading/BrandTextLoading';
+import RouteSegmentSkeleton from '@/components/Skeleton/RouteSegment';
 import { isDesktop } from '@/const/version';
+import { useIsAgentShareVisitorRoute } from '@/features/AgentRoute/useAgentShareVisitorRoute';
 import { BANNER_HEIGHT } from '@/features/AlertBanner/CloudBanner';
 import DesktopBrowserGatewayBridge from '@/features/DesktopBrowserGatewayBridge';
 import DesktopFileMenuBridge from '@/features/DesktopFileMenuBridge';
+import DesktopLayoutContainer from '@/features/DesktopLayoutContainer';
 import DesktopNavigationBridge from '@/features/DesktopNavigationBridge';
 import AuthRequiredModal from '@/features/Electron/AuthRequiredModal';
 import OverlayCaptureUploader from '@/features/Electron/ScreenCapture/OverlayCaptureUploader';
@@ -25,17 +27,16 @@ import TabCacheBridges from '@/features/Electron/titlebar/TabBar/TabCacheBridges
 import TitleBar from '@/features/Electron/titlebar/TitleBar';
 import HotkeyHelperPanel from '@/features/HotkeyHelperPanel';
 import NavPanelShell from '@/features/NavPanel/Shell';
+import { DndContextWrapper } from '@/features/ResourceManager/DndContextWrapper';
 import { RouteMetaBridge } from '@/features/RouteMeta';
 import { usePlatform } from '@/hooks/usePlatform';
 import CmdkLazy from '@/layout/GlobalProvider/CmdkLazy';
 import dynamic from '@/libs/next/dynamic';
-import { DndContextWrapper } from '@/routes/(main)/resource/features/DndContextWrapper';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 
 import DesktopHome from '../home';
 import DesktopHomeLayout from '../home/_layout';
 import DesktopAutoOidcOnFirstOpen from './DesktopAutoOidcOnFirstOpen';
-import DesktopLayoutContainer from './DesktopLayoutContainer';
 import RegisterHotkeys from './RegisterHotkeys';
 import { styles } from './style';
 
@@ -45,6 +46,9 @@ const GlobalApprovalNotification = dynamic(() => import('@/features/GlobalApprov
 const Layout: FC = () => {
   const { isPWA } = usePlatform();
   const { showCloudPromotion } = useServerConfigStore(featureFlagsSelectors);
+  // An agent-share visitor has no access to the nav's data, so the panel would
+  // stay a grey skeleton — unmount it for that branch of `/agent/:aid`.
+  const isShareVisitor = useIsAgentShareVisitorRoute();
 
   return (
     <HotkeysProvider initiallyActiveScopes={[HotkeyScopeEnum.Global]}>
@@ -78,12 +82,12 @@ const Layout: FC = () => {
                   : '100%'
             }
           >
-            <NavPanelShell />
+            {!isShareVisitor && <NavPanelShell />}
             <DesktopLayoutContainer>
               <DesktopHomeLayout>
                 <DesktopHome />
               </DesktopHomeLayout>
-              <Suspense fallback={<Loading debugId="DesktopMainLayout > Outlet" />}>
+              <Suspense fallback={<RouteSegmentSkeleton />}>
                 <Outlet />
               </Suspense>
             </DesktopLayoutContainer>

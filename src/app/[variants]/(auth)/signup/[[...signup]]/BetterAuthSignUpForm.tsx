@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Icon, Text } from '@lobehub/ui';
+import { Icon } from '@lobehub/ui';
+import { Button, Text } from '@lobehub/ui/base-ui';
 import { Form, Input, type InputRef } from 'antd';
 import { Lock, Mail } from 'lucide-react';
 import Link from 'next/link';

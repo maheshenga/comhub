@@ -1,12 +1,22 @@
 // @vitest-environment node
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
-import { agents, briefs, documents, tasks, topics, users, workspaces } from '../../schemas';
+import {
+  acceptances,
+  agents,
+  briefs,
+  documents,
+  tasks,
+  topics,
+  users,
+  workspaces,
+} from '../../schemas';
 import { taskTopics } from '../../schemas/task';
 import { works } from '../../schemas/work';
 import type { LobeChatDatabase } from '../../type';
+import { ProjectModel } from '../project';
 import { TaskModel } from '../task';
 import { WorkModel } from '../work';
 
@@ -332,9 +342,329 @@ describe('TaskModel', () => {
       expect(total).toBe(5);
       expect(tasks).toHaveLength(2);
     });
+
+    // The tick services refuse these three shapes, so a roll-up that lists them
+    // as schedules is listing things that will never fire — and in a bounded
+    // list they push out the ones that will.
+    it('should leave out automation the runtime would refuse to fire', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const live = await model.create({
+        automationMode: 'schedule',
+        instruction: 'Nightly digest',
+        schedulePattern: '0 9 * * *',
+      });
+      const noPattern = await model.create({
+        automationMode: 'schedule',
+        instruction: 'Schedule with its pattern cleared',
+      });
+      const noInterval = await model.create({
+        automationMode: 'heartbeat',
+        heartbeatInterval: 0,
+        instruction: 'Heartbeat with its interval cleared',
+      });
+      const done = await model.create({
+        automationMode: 'schedule',
+        instruction: 'Completed but still carries its cron',
+        schedulePattern: '0 9 * * *',
+      });
+      await model.updateStatus(done.id, 'completed');
+
+      const automated = await model.list({ automated: true });
+      expect(automated.tasks.map((t) => t.id)).toEqual([live.id]);
+
+      // Complementary, so nothing falls into neither bucket.
+      const manual = await model.list({ automated: false });
+      expect(manual.tasks.map((t) => t.id).sort()).toEqual(
+        [noPattern.id, noInterval.id, done.id].sort(),
+      );
+    });
+
+    it('should order by last activity when asked, not by creation', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const older = await model.create({ instruction: 'Created first, touched last' });
+      const newer = await model.create({ instruction: 'Created second, never touched' });
+
+      // Stamp `updated_at` rather than letting `update()` do it. Inserts take
+      // their timestamp from Postgres `now()` while `update()` writes a Node
+      // `new Date()`, so asserting on a real edit races the database clock
+      // against the host's — which is stable enough to pass alone and flips
+      // under a loaded full-suite run. The column under test is the ORDER BY,
+      // not who wrote the value.
+      const stamp = async (id: string, iso: string) => {
+        await serverDB.execute(sql`update tasks set updated_at = ${iso} where id = ${id}`);
+      };
+      await stamp(newer.id, '2026-01-01T00:00:00Z');
+      await stamp(older.id, '2026-06-01T00:00:00Z');
+
+      const order = async (params: Parameters<TaskModel['list']>[0]) => {
+        const { tasks: rows } = await model.list(params);
+        // Only these two rows: the assertion is about their relative order.
+        return rows.map((t) => t.id).filter((id) => id === older.id || id === newer.id);
+      };
+
+      expect(await order({})).toEqual([newer.id, older.id]);
+      expect(await order({ orderBy: 'updatedAt' })).toEqual([older.id, newer.id]);
+    });
+
+    // The Tasks page assembles its full list from consecutive offset pages.
+    // Rows that share a timestamp (bulk imports, agent-created batches) need a
+    // deterministic tiebreak, or a page boundary can repeat one row and skip
+    // another between requests.
+    it('should page stably through rows that share a timestamp', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const created = [];
+      for (let i = 0; i < 5; i += 1) {
+        created.push(await model.create({ instruction: `Batch task ${i}` }));
+      }
+      const ids = created.map((t) => t.id);
+      await serverDB.execute(
+        sql`update tasks set created_at = '2026-03-01T00:00:00Z', updated_at = '2026-03-01T00:00:00Z' where id in ${ids}`,
+      );
+
+      const page = async (offset: number, orderBy?: 'createdAt' | 'updatedAt') =>
+        (await model.list({ limit: 2, offset, orderBy })).tasks.map((t) => t.id);
+
+      for (const orderBy of ['createdAt', 'updatedAt'] as const) {
+        const paged = [
+          ...(await page(0, orderBy)),
+          ...(await page(2, orderBy)),
+          ...(await page(4, orderBy)),
+        ];
+        expect(paged).toHaveLength(5);
+        expect(new Set(paged).size).toBe(5);
+        // Newest sequence first, so the tiebreak agrees with the creation order.
+        expect(paged).toEqual([...ids].reverse());
+      }
+    });
+
+    // The Tasks page walks the list with a keyset cursor (`after`) rather than
+    // offsets: a row deleted between two page reads must not shift the next
+    // page onto a row the client already holds, dropping the last live one.
+    it('should continue after a cursor without skipping rows deleted mid-walk', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const created = [];
+      for (let i = 0; i < 5; i += 1) {
+        created.push(await model.create({ instruction: `Cursor task ${i}` }));
+      }
+      const ids = created.map((t) => t.id);
+      await serverDB.execute(
+        sql`update tasks set created_at = '2026-03-01T00:00:00Z' where id in ${ids}`,
+      );
+
+      const page1 = (await model.list({ limit: 2 })).tasks;
+      expect(page1.map((t) => t.id)).toEqual([ids[4], ids[3]]);
+
+      // A row from page one disappears before page two is read.
+      await model.delete(ids[4]);
+
+      const cursor = { at: page1[1].createdAt, seq: page1[1].seq };
+      const page2 = (await model.list({ after: cursor, limit: 2 })).tasks;
+      expect(page2.map((t) => t.id)).toEqual([ids[2], ids[1]]);
+      const page3 = (
+        await model.list({ after: { at: page2[1].createdAt, seq: page2[1].seq }, limit: 2 })
+      ).tasks;
+      expect(page3.map((t) => t.id)).toEqual([ids[0]]);
+
+      // An offset walk would have re-read ids[2] at offset 2 and never reached ids[0].
+      expect((await model.list({ limit: 2, offset: 2 })).tasks.map((t) => t.id)).toEqual([
+        ids[1],
+        ids[0],
+      ]);
+    });
+
+    it('should order a cursor by the requested timestamp column', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const a = await model.create({ instruction: 'A' });
+      const b = await model.create({ instruction: 'B' });
+      const c = await model.create({ instruction: 'C' });
+      const stamp = async (id: string, iso: string) => {
+        await serverDB.execute(sql`update tasks set updated_at = ${iso} where id = ${id}`);
+      };
+      await stamp(a.id, '2026-06-01T00:00:00Z');
+      await stamp(b.id, '2026-01-01T00:00:00Z');
+      await stamp(c.id, '2026-03-01T00:00:00Z');
+
+      const [first] = (await model.list({ limit: 1, orderBy: 'updatedAt' })).tasks;
+      expect(first.id).toBe(a.id);
+      const rest = (
+        await model.list({
+          after: { at: first.updatedAt, seq: first.seq },
+          limit: 10,
+          orderBy: 'updatedAt',
+        })
+      ).tasks;
+      expect(rest.map((t) => t.id)).toEqual([c.id, b.id]);
+    });
+
+    it('should split automated tasks from manual ones', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const cron = await model.create({
+        automationMode: 'schedule',
+        instruction: 'Nightly digest',
+        schedulePattern: '0 9 * * *',
+      });
+      const heartbeat = await model.create({
+        automationMode: 'heartbeat',
+        heartbeatInterval: 3600,
+        instruction: 'Keep watching',
+      });
+      const manual = await model.create({ instruction: 'One-off' });
+
+      const automated = await model.list({ automated: true });
+      expect(automated.total).toBe(2);
+      expect(automated.tasks.map((t) => t.id).sort()).toEqual([cron.id, heartbeat.id].sort());
+
+      const notAutomated = await model.list({ automated: false });
+      expect(notAutomated.total).toBe(1);
+      expect(notAutomated.tasks[0].id).toBe(manual.id);
+
+      // Omitting the flag must not narrow anything.
+      expect((await model.list()).total).toBe(3);
+    });
+
+    it('should filter by projectId', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const project = await new ProjectModel(serverDB, userId).create({
+        identifier: 'TLIST',
+        name: 'Scoped project',
+      });
+      await model.create({ instruction: 'Project task', projectId: project.id });
+      await model.create({ instruction: 'Unrelated task' });
+
+      const result = await model.list({ projectId: project.id });
+
+      expect(result.total).toBe(1);
+      expect(result.tasks[0].instruction).toBe('Project task');
+    });
+
+    it('should aggregate recursive subtask progress for the returned page', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const root = await model.create({ instruction: 'Root task' });
+      const child = await model.create({ instruction: 'Completed child', parentTaskId: root.id });
+      await model.updateStatus(child.id, 'completed', { completedAt: new Date() });
+      await model.create({ instruction: 'Nested child', parentTaskId: child.id });
+
+      const result = await model.list({ parentTaskId: null });
+      const listedRoot = result.tasks.find(({ id }) => id === root.id);
+
+      expect(listedRoot?.subtaskProgress).toEqual({ completed: 1, total: 2 });
+    });
   });
 
   describe('groupList', () => {
+    it('should keep legacy assignee grouping while supporting agent and member boards', async () => {
+      const firstAgentId = await createAgent('group-assignee-first');
+      const secondAgentId = await createAgent('group-assignee-second');
+      const model = new TaskModel(serverDB, userId);
+
+      await model.create({ assigneeAgentId: firstAgentId, instruction: 'First assigned task' });
+      await model.create({ assigneeAgentId: secondAgentId, instruction: 'Second assigned task' });
+      await model.create({ assigneeUserId: userId2, instruction: 'Member assigned task' });
+      await model.create({
+        assigneeAgentId: firstAgentId,
+        assigneeUserId: userId2,
+        instruction: 'Legacy dual-assigned task',
+      });
+      await model.create({ instruction: 'Unassigned task' });
+      const completed = await model.create({
+        assigneeAgentId: firstAgentId,
+        instruction: 'Completed task',
+      });
+      await model.updateStatus(completed.id, 'completed', { completedAt: new Date() });
+
+      const result = await model.groupList({
+        excludeStatuses: ['completed', 'canceled'],
+        groupBy: 'agent',
+      });
+
+      expect(result).toHaveLength(3);
+      const firstAgent = result.find((group) => group.key === `assignee:${firstAgentId}`);
+      expect(firstAgent?.total).toBe(2);
+      expect(firstAgent?.tasks.map((task) => task.instruction).sort()).toEqual([
+        'First assigned task',
+        'Legacy dual-assigned task',
+      ]);
+      expect(result.find((group) => group.key === `assignee:${secondAgentId}`)?.total).toBe(1);
+      const unassigned = result.find((group) => group.key === 'assignee:unassigned');
+      expect(unassigned?.assigneeAgentId).toBeNull();
+      expect(unassigned?.tasks.map((task) => task.instruction).sort()).toEqual([
+        'Member assigned task',
+        'Unassigned task',
+      ]);
+
+      const memberResult = await model.groupList({
+        excludeStatuses: ['completed', 'canceled'],
+        groupBy: 'member',
+      });
+      const member = memberResult.find((group) => group.key === `member:${userId2}`);
+      expect(member?.assigneeUserId).toBe(userId2);
+      expect(member?.total).toBe(2);
+      expect(member?.tasks.map((task) => task.instruction).sort()).toEqual([
+        'Legacy dual-assigned task',
+        'Member assigned task',
+      ]);
+      const memberUnassigned = memberResult.find((group) => group.key === 'member:unassigned');
+      expect(memberUnassigned?.assigneeUserId).toBeNull();
+      expect(memberUnassigned?.tasks.map((task) => task.instruction).sort()).toEqual([
+        'First assigned task',
+        'Second assigned task',
+        'Unassigned task',
+      ]);
+
+      const legacyResult = await model.groupList({
+        excludeStatuses: ['completed', 'canceled'],
+        groupBy: 'assignee',
+      });
+      expect(legacyResult.find((group) => group.key === `assignee:${firstAgentId}`)?.total).toBe(2);
+      expect(legacyResult.find((group) => group.key === `assignee:${secondAgentId}`)?.total).toBe(
+        1,
+      );
+      const legacyMember = legacyResult.find((group) => group.key === `assignee:user:${userId2}`);
+      expect(legacyMember?.assigneeUserId).toBe(userId2);
+      expect(legacyMember?.tasks.map((task) => task.instruction)).toEqual(['Member assigned task']);
+      const legacyUnassigned = legacyResult.find((group) => group.key === 'assignee:unassigned');
+      expect(legacyUnassigned?.tasks.map((task) => task.instruction)).toEqual(['Unassigned task']);
+
+      const agentScopedResult = await model.groupList({
+        assigneeAgentId: firstAgentId,
+        groupBy: 'agent',
+      });
+      expect(agentScopedResult.map((group) => group.key)).toEqual([`assignee:${firstAgentId}`]);
+    });
+
+    it('should expose every priority as a kanban drop target', async () => {
+      const model = new TaskModel(serverDB, userId);
+      await model.create({ instruction: 'High priority', priority: 2 });
+
+      const result = await model.groupList({ groupBy: 'priority' });
+
+      expect(result.map((group) => group.key)).toEqual([
+        'priority:1',
+        'priority:2',
+        'priority:3',
+        'priority:4',
+        'priority:0',
+      ]);
+      expect(result.find((group) => group.key === 'priority:2')?.total).toBe(1);
+      expect(result.find((group) => group.key === 'priority:1')?.total).toBe(0);
+    });
+
+    it('should combine null and zero values in the no-priority group total', async () => {
+      const model = new TaskModel(serverDB, userId);
+      await model.create({ instruction: 'Explicit no priority', priority: 0 });
+      const nullablePriority = await model.create({ instruction: 'Nullable priority' });
+      await serverDB.update(tasks).set({ priority: null }).where(eq(tasks.id, nullablePriority.id));
+
+      const result = await model.groupList({ groupBy: 'priority' });
+      const noPriority = result.find((group) => group.key === 'priority:0');
+
+      expect(noPriority?.total).toBe(2);
+      expect(noPriority?.tasks.map((task) => task.instruction).sort()).toEqual([
+        'Explicit no priority',
+        'Nullable priority',
+      ]);
+    });
+
     it('should return grouped tasks by status', async () => {
       const model = new TaskModel(serverDB, userId);
 
@@ -408,6 +738,19 @@ describe('TaskModel', () => {
       expect(backlogP2.offset).toBe(2);
     });
 
+    it('should not double-count duplicate statuses in a group', async () => {
+      const model = new TaskModel(serverDB, userId);
+      await model.create({ instruction: 'Backlog task' });
+
+      const [group] = await model.groupList({
+        groups: [{ key: 'backlog', statuses: ['backlog', 'backlog'] }],
+      });
+
+      expect(group.total).toBe(1);
+      expect(group.tasks).toHaveLength(1);
+      expect(group.hasMore).toBe(false);
+    });
+
     it('should filter root tasks only (parentTaskId null)', async () => {
       const model = new TaskModel(serverDB, userId);
       const parent = await model.create({ instruction: 'Parent' });
@@ -450,6 +793,144 @@ describe('TaskModel', () => {
       expect(result[0].total).toBe(1);
       expect(result[0].tasks).toHaveLength(1);
     });
+
+    it('should exclude runnable automation from ordinary kanban groups', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const manual = await model.create({ instruction: 'Manual task' });
+      await model.create({
+        automationMode: 'schedule',
+        instruction: 'Scheduled task',
+        schedulePattern: '0 9 * * *',
+      });
+
+      const [group] = await model.groupList({
+        automated: false,
+        groups: [{ key: 'backlog', statuses: ['backlog'] }],
+      });
+
+      expect(group.tasks.map((task) => task.id)).toEqual([manual.id]);
+      expect(group.total).toBe(1);
+    });
+
+    it('should group only tasks from the requested project', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const project = await new ProjectModel(serverDB, userId).create({
+        identifier: 'TGRP',
+        name: 'Scoped project',
+      });
+      await model.create({ instruction: 'Project task', projectId: project.id });
+      await model.create({ instruction: 'Unrelated task' });
+
+      const [group] = await model.groupList({
+        groups: [{ key: 'backlog', statuses: ['backlog'] }],
+        projectId: project.id,
+      });
+
+      expect(group.total).toBe(1);
+      expect(group.tasks[0].instruction).toBe('Project task');
+    });
+
+    it('should aggregate run cost and duration for the returned task batch', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const task = await model.create({ instruction: 'Measured goal' });
+      const startedAt = new Date('2026-08-06T10:00:00.000Z');
+
+      await serverDB.insert(topics).values([
+        {
+          completedAt: new Date('2026-08-06T10:01:00.000Z'),
+          id: 'group-list-run-1',
+          totalCost: 0.015,
+          userId,
+        },
+        {
+          completedAt: new Date('2026-08-06T10:03:00.000Z'),
+          id: 'group-list-run-2',
+          totalCost: 0.025,
+          userId,
+        },
+      ]);
+      await serverDB.insert(taskTopics).values([
+        { createdAt: startedAt, seq: 1, taskId: task.id, topicId: 'group-list-run-1', userId },
+        { createdAt: startedAt, seq: 2, taskId: task.id, topicId: 'group-list-run-2', userId },
+      ]);
+
+      const [group] = await model.groupList({
+        groups: [{ key: 'goals', statuses: ['backlog'] }],
+      });
+      const measuredTask = group.tasks.find(({ id }) => id === task.id);
+
+      expect(measuredTask?.totalRunCost).toBeCloseTo(0.04);
+      expect(measuredTask?.totalRunDuration).toBe(240_000);
+    });
+
+    it('should aggregate descendant run metrics into the root goal', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const root = await model.create({ instruction: 'Root goal' });
+      const child = await model.create({ instruction: 'Delegated work', parentTaskId: root.id });
+      const startedAt = new Date('2026-08-06T10:00:00.000Z');
+
+      await serverDB.insert(topics).values({
+        completedAt: new Date('2026-08-06T10:02:00.000Z'),
+        id: 'descendant-goal-run',
+        totalCost: 0.05,
+        userId,
+      });
+      await serverDB.insert(taskTopics).values({
+        createdAt: startedAt,
+        seq: 1,
+        taskId: child.id,
+        topicId: 'descendant-goal-run',
+        userId,
+      });
+
+      const [group] = await model.groupList({
+        groups: [{ key: 'goals', statuses: ['backlog'] }],
+        parentTaskId: null,
+      });
+      const measuredRoot = group.tasks.find(({ id }) => id === root.id);
+
+      expect(measuredRoot?.totalRunCost).toBeCloseTo(0.05);
+      expect(measuredRoot?.totalRunDuration).toBe(120_000);
+    });
+
+    it('should aggregate recursive subtask progress for grouped tasks', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const root = await model.create({ instruction: 'Root task' });
+      const child = await model.create({ instruction: 'Completed child', parentTaskId: root.id });
+      await model.updateStatus(child.id, 'completed', { completedAt: new Date() });
+      await model.create({ instruction: 'Nested child', parentTaskId: child.id });
+
+      const [group] = await model.groupList({
+        groups: [{ key: 'backlog', statuses: ['backlog'] }],
+        parentTaskId: null,
+      });
+      const listedRoot = group.tasks.find(({ id }) => id === root.id);
+
+      expect(listedRoot?.subtaskProgress).toEqual({ completed: 1, total: 2 });
+    });
+  });
+
+  describe('deleteSubtree', () => {
+    it('should delete the root and all descendants without leaving orphan tasks', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const root = await model.create({ instruction: 'Root goal' });
+      const child = await model.create({ instruction: 'Child', parentTaskId: root.id });
+      const grandchild = await model.create({ instruction: 'Grandchild', parentTaskId: child.id });
+      await serverDB.insert(acceptances).values({
+        subjectId: grandchild.id,
+        subjectType: 'task',
+        userId,
+      });
+
+      await expect(model.deleteSubtree(root.id)).resolves.toBe(3);
+      await expect(model.findAllDescendants(root.id)).resolves.toEqual([]);
+      await expect(model.findById(root.id)).resolves.toBeNull();
+      const remainingAcceptances = await serverDB
+        .select()
+        .from(acceptances)
+        .where(eq(acceptances.subjectId, grandchild.id));
+      expect(remainingAcceptances).toEqual([]);
+    });
   });
 
   describe('findSubtasks', () => {
@@ -485,6 +966,21 @@ describe('TaskModel', () => {
       const updated = await model.updateStatus(task.id, 'running', { startedAt });
       expect(updated!.status).toBe('running');
       expect(updated!.startedAt).toBeDefined();
+    });
+
+    it('should update status only when the current status matches', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const task = await model.create({ instruction: 'Test' });
+      await model.updateStatus(task.id, 'running');
+
+      const completed = await model.updateStatusIfCurrent(task.id, 'running', 'completed', {
+        completedAt: new Date(),
+      });
+      const staleUpdate = await model.updateStatusIfCurrent(task.id, 'running', 'failed');
+
+      expect(completed?.status).toBe('completed');
+      expect(staleUpdate).toBeNull();
+      expect((await model.findById(task.id))?.status).toBe('completed');
     });
   });
 
@@ -2340,6 +2836,61 @@ describe('TaskModel', () => {
       // private task, the seq allocator must still observe it and produce T-4.
       const bobT4 = await bob.create({ instruction: 'Bob next', visibility: 'public' });
       expect(bobT4.identifier).toBe('T-4');
+    });
+  });
+
+  describe('my tasks filters', () => {
+    const wsId = 'task-my-tasks-ws';
+
+    beforeEach(async () => {
+      await serverDB
+        .insert(workspaces)
+        .values({ id: wsId, name: 'My Tasks WS', primaryOwnerId: userId, slug: wsId })
+        .onConflictDoNothing();
+    });
+
+    it('should narrow list to tasks assigned to a member', async () => {
+      const me = new TaskModel(serverDB, userId, wsId);
+      const other = new TaskModel(serverDB, userId2, wsId);
+
+      await me.create({ assigneeUserId: userId2, instruction: 'Mine, assigned to other' });
+      const assignedToMe = await other.create({
+        assigneeUserId: userId,
+        instruction: 'Other, assigned to me',
+      });
+      await other.create({ instruction: 'Other, unassigned' });
+
+      const { tasks, total } = await me.list({ assigneeUserId: userId });
+      expect(total).toBe(1);
+      expect(tasks.map((t) => t.id)).toEqual([assignedToMe.id]);
+    });
+
+    it('should narrow list to tasks created by a member', async () => {
+      const me = new TaskModel(serverDB, userId, wsId);
+      const other = new TaskModel(serverDB, userId2, wsId);
+
+      const created = await me.create({ assigneeUserId: userId2, instruction: 'Mine' });
+      await other.create({ assigneeUserId: userId, instruction: 'Other, assigned to me' });
+
+      const { tasks, total } = await me.list({ createdByUserId: userId });
+      expect(total).toBe(1);
+      expect(tasks.map((t) => t.id)).toEqual([created.id]);
+    });
+
+    it('should keep ownership visibility when filtering by assignee', async () => {
+      const me = new TaskModel(serverDB, userId, wsId);
+      const other = new TaskModel(serverDB, userId2, wsId);
+
+      // A private task another member points at me stays invisible — the
+      // assignee filter narrows within `ownership()`, it never widens it.
+      await other.create({
+        assigneeUserId: userId,
+        instruction: 'Private, assigned to me',
+        visibility: 'private',
+      });
+
+      const { total } = await me.list({ assigneeUserId: userId });
+      expect(total).toBe(0);
     });
   });
 });

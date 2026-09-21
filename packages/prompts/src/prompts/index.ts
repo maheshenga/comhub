@@ -1,3 +1,4 @@
+export * from './agentArtwork';
 export * from './agentBuilder';
 export * from './agentDocuments';
 export * from './agentGroup';
@@ -9,6 +10,7 @@ export * from './compressContext';
 export * from './discordContext';
 export * from './files';
 export * from './fileSystem';
+export * from './goal';
 export * from './groupChat';
 export * from './knowledgeBaseQA';
 export * from './messagesToText';

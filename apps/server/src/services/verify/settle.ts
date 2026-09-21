@@ -1,11 +1,11 @@
-import { DEFAULT_BRIEF_ACTIONS } from '@lobechat/types';
 import debug from 'debug';
 
 import { AgentOperationModel } from '@/database/models/agentOperation';
-import { BriefModel } from '@/database/models/brief';
+import { GoalModel } from '@/database/models/goal';
 import { TaskModel } from '@/database/models/task';
 import { VerifyRunModel } from '@/database/models/verifyRun';
 import type { LobeChatDatabase } from '@/database/type';
+import { scheduleGoalAdvance } from '@/server/services/goal/scheduler';
 import { TaskService } from '@/server/services/task';
 import { TaskResultBridgeService } from '@/server/services/taskResultBridge';
 
@@ -69,7 +69,7 @@ interface ReportContext {
  * (`submitVerifyResult`) — so the task is driven from exactly one place.
  *
  * Once a task-bound run reaches a terminal verdict: `passed` → complete the task
- * (with cascade); `failed` → raise an urgent brief + pause it for the user.
+ * (with cascade); `failed` / `errored` → pause it with the reason on the task.
  * Idempotent via a run-metadata marker; best-effort (never throws into verify).
  */
 export const driveTaskFromVerify = async (
@@ -84,6 +84,10 @@ export const driveTaskFromVerify = async (
     // Only act on a terminally settled run (skip pending / verifying / repairing).
     if (run?.status !== 'passed' && run?.status !== 'failed' && run?.status !== 'errored') return;
     if ((run.metadata as { taskDrivenAt?: string } | null)?.taskDrivenAt) return; // already drove
+    // Cheap read above, authoritative claim here: concurrent verifier
+    // callbacks would otherwise both pass the read and both act — spawning two
+    // rounds, or one spawning while the other pauses the task it just started.
+    if (!(await runModel.claimTaskDrive(run.id))) return;
 
     const operationModel = new AgentOperationModel(db, userId, workspaceId);
     const op = await operationModel.findById(operationId);
@@ -95,14 +99,23 @@ export const driveTaskFromVerify = async (
     if (!task || TERMINAL_TASK_STATUS.has(task.status)) return; // task already settled
 
     if (run.status === 'passed') {
-      // Complete + cascade (checkpoint / sibling rollup / unlock downstream).
-      // The verify → TaskService → aiAgent → agentRuntime completion → verify
-      // cycle is safe statically since every use is call-time (inside this fn).
-      await new TaskService(db, userId, workspaceId).updateStatus({
-        id: taskOperation.taskId,
-        status: 'completed',
-      });
-      log('verify passed → task %s completed', taskOperation.taskId);
+      // Verify passing completes the task and cascades (checkpoint / sibling
+      // rollup / downstream unlock). A Goal Graph Task is an ordinary task
+      // here — the coordinator reads its completed status on the next tick and
+      // synthesizes the finding from it.
+      if (task.automationMode) {
+        // Recurring tasks are parked back at `scheduled` and re-armed by the
+        // task lifecycle. Verify accepts this run, not the lifetime schedule.
+        log('verify passed → recurring task %s remains scheduled', taskOperation.taskId);
+      } else {
+        // The verify → TaskService → aiAgent → agentRuntime completion → verify
+        // cycle is safe statically since every use is call-time (inside this fn).
+        await new TaskService(db, userId, workspaceId).updateStatus({
+          id: taskOperation.taskId,
+          status: 'completed',
+        });
+        log('verify passed → task %s completed', taskOperation.taskId);
+      }
     } else {
       // Two non-pass outcomes, kept distinct so an infra error never reads as a
       // rejected delivery:
@@ -110,25 +123,18 @@ export const driveTaskFromVerify = async (
       // - errored: the verifier could not run (infra) — the delivery was NOT
       //   evaluated, so we must not claim it "did not pass".
       const isErrored = run.status === 'errored';
-      await new BriefModel(db, userId, workspaceId).create({
-        actions: DEFAULT_BRIEF_ACTIONS['error'],
-        agentId: task.assigneeAgentId || undefined,
-        priority: 'urgent',
-        summary: isErrored
-          ? 'Verification could not run (internal error); the delivery was not evaluated.'
-          : 'Delivery did not pass verification.',
-        taskId: taskOperation.taskId,
-        title: isErrored
-          ? `${task.identifier} verification errored`
-          : `${task.identifier} failed verification`,
-        trigger: 'task',
-        type: 'error',
-      });
-      await taskModel.updateStatus(taskOperation.taskId, 'paused', { error: null });
+
+      // `Delivery did not pass verification.` is a contract string, not just
+      // copy: the Goal coordinator matches on it to decide whether a paused
+      // Goal Task should start another attempt or open a decision gate.
+      const pauseSummary = isErrored
+        ? 'Verification could not run (internal error); the delivery was not evaluated.'
+        : 'Delivery did not pass verification.';
+      // Verification outcomes belong to the task itself. Do not create an inbox
+      // brief here: a verifier rejection/error is not a separate user todo.
+      await taskModel.updateStatus(taskOperation.taskId, 'paused', { error: pauseSummary });
       log(
-        isErrored
-          ? 'verify errored → task %s paused + brief'
-          : 'verify failed → task %s paused + brief',
+        isErrored ? 'verify errored → task %s paused' : 'verify failed → task %s paused',
         taskOperation.taskId,
       );
     }
@@ -161,7 +167,24 @@ export const driveTaskFromVerify = async (
       );
     }
 
-    await runModel.setMetadata(run.id, { taskDrivenAt: new Date().toISOString() });
+    // A Goal Task settling is the event the coordinator waits on: it
+    // decides whether to synthesize a finding, start another attempt, or open a
+    // decision gate. Queue the advance so the goal keeps moving on its own —
+    // this is the server-side driver for long-horizon goals, and without it a
+    // goal only progresses while some client keeps ticking it.
+    try {
+      const goal = await new GoalModel(db, userId, workspaceId).findByGraphTask(
+        taskOperation.taskId,
+      );
+      if (goal) {
+        await scheduleGoalAdvance({ goalId: goal.id, trigger: 'settle', userId, workspaceId });
+        log('verify-settle → queued goal advance for %s', goal.id);
+      }
+    } catch (error) {
+      log('verify-settle goal advance dispatch failed (non-fatal): %O', error);
+    }
+
+    // The drive marker was stamped by the claim at the top of this function.
   } catch (error) {
     log('driveTaskFromVerify failed for op %s (non-fatal): %O', operationId, error);
   }

@@ -1,4 +1,4 @@
-import type { FileResult, SearchOptions } from '@lobechat/local-file-shell';
+import type { FileResult, SearchOptions } from '@lobechat/local-file-shell/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { App } from '@/core/App';
@@ -6,7 +6,7 @@ import type { App } from '@/core/App';
 import FileSearchService from '../fileSearchSrv';
 
 // Mock the fileSearch module
-vi.mock('@lobechat/local-file-shell', () => {
+vi.mock('@lobechat/local-file-shell/file-search', () => {
   const MockFileSearchImpl = vi.fn().mockImplementation(() => ({
     search: vi.fn(),
     checkSearchServiceStatus: vi.fn(),
@@ -18,16 +18,6 @@ vi.mock('@lobechat/local-file-shell', () => {
     createFileSearchModule: vi.fn(() => new MockFileSearchImpl()),
   };
 });
-
-// Mock logger
-vi.mock('@/utils/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
 
 describe('FileSearchService', () => {
   let fileSearchService: FileSearchService;
@@ -47,7 +37,7 @@ describe('FileSearchService', () => {
     fileSearchService = new FileSearchService(mockApp);
 
     // Get the mock implementation instance
-    mockImpl = (fileSearchService as any).impl;
+    mockImpl = await (fileSearchService as any).getImpl();
   });
 
   describe('search', () => {

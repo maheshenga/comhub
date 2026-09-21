@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { type SpendOrigin } from '@lobechat/types';
 import debug from 'debug';
 
 import {
@@ -48,6 +49,11 @@ interface ChargeParams {
   model: string;
   provider: string;
   routeMetadata?: AiUsageRouteMetadata;
+  /**
+   * Origin of the request, so an implementation that defers the charge to a
+   * later async step can persist it and still attribute the final spend.
+   */
+  spendOrigin?: SpendOrigin;
   userId: string;
   workspaceId?: string;
 }

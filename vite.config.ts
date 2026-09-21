@@ -7,6 +7,7 @@ import type { PluginOption, ViteDevServer } from 'vite';
 import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import { customBrandingLoadingScreen } from './plugins/vite/customBrandingLoadingScreen';
 import { viteEnvRestartKeys } from './plugins/vite/envRestartKeys';
 import { mobileHtmlFallback } from './plugins/vite/mobileHtmlFallback';
 import {
@@ -15,6 +16,7 @@ import {
   sharedOptimizeDeps,
   sharedPwaGlobIgnores,
   sharedPwaRuntimeCaching,
+  sharedRendererDedupe,
   sharedRendererDefine,
   sharedRendererPlugins,
 } from './plugins/vite/sharedRendererConfig';
@@ -106,18 +108,23 @@ const openExternalBrowser = async (
 };
 
 export default defineConfig({
-  base: isDev ? '/' : process.env.VITE_CDN_BASE || '/_spa/',
+  base: isDev ? '/' : process.env.VITE_CDN_BASE || (isAuth ? '/_spa-auth/' : '/_spa/'),
   build: {
     modulePreload: sharedModulePreload,
-    outDir: isMobile ? 'dist/mobile' : 'dist/desktop',
+    outDir: isAuth ? 'dist/auth' : isMobile ? 'dist/mobile' : 'dist/desktop',
     reportCompressedSize: false,
     rolldownOptions: {
       ...(enableViteDevTools && { devtools: {} }),
-      input: path.resolve(__dirname, isMobile ? 'index.mobile.html' : 'index.html'),
+      input: path.resolve(
+        __dirname,
+        isAuth ? 'index.auth.html' : isMobile ? 'index.mobile.html' : 'index.html',
+      ),
       output: createSharedRolldownOutput({ strictExecutionOrder: true }),
     },
   },
-  define: sharedRendererDefine({ isMobile, isElectron: false }),
+  define: {
+    ...sharedRendererDefine({ isMobile, isElectron: false }),
+  },
   experimental: {
     bundledDev: false,
   },
@@ -195,8 +202,7 @@ export default defineConfig({
       },
     ],
     dedupe: [
-      'react',
-      'react-dom',
+      ...sharedRendererDedupe,
       '@ant-design/icons',
       'antd',
       '@emotion/react',
@@ -213,6 +219,7 @@ export default defineConfig({
   plugins: [
     isMobile && mobileHtmlFallback(),
     vercelSkewProtection(),
+    customBrandingLoadingScreen(),
     viteEnvRestartKeys(['APP_URL']),
     enableViteDevTools &&
       DevTools({

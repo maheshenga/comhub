@@ -759,6 +759,7 @@ export class DiscoverService {
       sort = AssistantSorts.Recommended,
       ownerId,
       includeAgentGroup,
+      includeCategoryCounts,
     } = rest;
     const shouldOmitCategory = [AssistantCategory.All, AssistantCategory.Discover].includes(
       category as AssistantCategory,
@@ -799,6 +800,7 @@ export class DiscoverService {
         haveSkills,
         // includeAgentGroup may not be in SDK type definition yet, using 'as any'
         includeAgentGroup,
+        includeCategoryCounts,
         locale: normalizedLocale,
         order,
         ownerId,
@@ -837,6 +839,7 @@ export class DiscoverService {
       });
 
       const result: AssistantListResponse = {
+        ...((data as any).categoryCounts ? { categoryCounts: (data as any).categoryCounts } : {}),
         currentPage: data.currentPage || page,
         items: transformedItems,
         pageSize: data.pageSize || pageSize,

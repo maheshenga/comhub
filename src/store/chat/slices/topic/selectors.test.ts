@@ -165,6 +165,17 @@ describe('topicSelectors', () => {
       expect(topic).toBeUndefined();
     });
 
+    it('should tolerate a partial store state without the detail cache', () => {
+      const state = {
+        activeAgentId: 'test',
+        activeTopicId: 'missing-topic',
+        topicDataMap: {},
+      } as ChatStore;
+
+      expect(topicSelectors.currentActiveTopic(state)).toBeUndefined();
+      expect(topicSelectors.getTopicById('missing-topic')(state)).toBeUndefined();
+    });
+
     it('should return the current active topic', () => {
       const state = merge(initialStore, {
         topicDataMap,
@@ -173,6 +184,42 @@ describe('topicSelectors', () => {
       });
       const topic = topicSelectors.currentActiveTopic(state);
       expect(topic).toEqual(topicItems[0]);
+    });
+
+    it('should fall back to the detail cache when the topic is missing from the list bucket', () => {
+      // An archived (completed) topic is excluded from the sidebar list fetch,
+      // so it never lands in topicDataMap — only in the by-id detail cache.
+      const archived = { id: 'archived1', title: 'Archived topic', status: 'completed' };
+      const state = merge(initialStore, {
+        topicDataMap,
+        topicDetailMap: { archived1: archived },
+        activeAgentId: 'test',
+        activeTopicId: 'archived1',
+      });
+      expect(topicSelectors.currentActiveTopic(state)).toEqual(archived);
+    });
+
+    it('should prefer the list bucket row over the detail cache', () => {
+      const state = merge(initialStore, {
+        topicDataMap,
+        topicDetailMap: { topic1: { id: 'topic1', title: 'stale detail' } },
+        activeAgentId: 'test',
+        activeTopicId: 'topic1',
+      });
+      expect(topicSelectors.currentActiveTopic(state)).toEqual(topicItems[0]);
+    });
+  });
+
+  describe('getTopicById', () => {
+    it('should fall back to the detail cache when the topic is missing from the list bucket', () => {
+      const archived = { id: 'archived1', title: 'Archived topic', status: 'completed' };
+      const state = merge(initialStore, {
+        topicDataMap,
+        topicDetailMap: { archived1: archived },
+        activeAgentId: 'test',
+      });
+      expect(topicSelectors.getTopicById('archived1')(state)).toEqual(archived);
+      expect(topicSelectors.getTopicById('topic1')(state)).toEqual(topicItems[0]);
     });
   });
 
@@ -213,6 +260,25 @@ describe('topicSelectors', () => {
       const topic = topicSelectors.getTopicById('topic1')(state);
       expect(topic).toEqual(topicItems[0]);
     });
+
+    it('should find a topic loaded under another agent for split desktop panes', () => {
+      const backgroundTopic = { id: 'background-topic', name: 'Background topic' };
+      const state = merge(initialStore, {
+        activeAgentId: 'focused-agent',
+        topicDataMap: {
+          ...createTopicDataMap('focused-agent'),
+          [topicMapKey({ agentId: 'background-agent' })]: {
+            currentPage: 0,
+            hasMore: false,
+            items: [backgroundTopic],
+            pageSize: 20,
+            total: 1,
+          },
+        },
+      });
+
+      expect(topicSelectors.getTopicById('background-topic')(state)).toEqual(backgroundTopic);
+    });
   });
 
   describe('getTopicWorkingDirectory', () => {
@@ -245,7 +311,10 @@ describe('topicSelectors', () => {
 
     it('falls back to the active topic when no id is given', () => {
       expect(topicSelectors.getTopicWorkingDirectory()(wdState)).toBe('/project-a');
-      expect(topicSelectors.getTopicWorkingDirectory(null)(wdState)).toBe('/project-a');
+    });
+
+    it('treats an explicit null as a new-topic route without a directory', () => {
+      expect(topicSelectors.getTopicWorkingDirectory(null)(wdState)).toBeUndefined();
     });
 
     it('returns undefined for an unknown topic id', () => {
@@ -481,6 +550,120 @@ describe('topicSelectors', () => {
         expect.objectContaining({ id: 'active' }),
       ]);
       expect(topicSelectors.displayTopicsForSidebar(20, 'updatedAt', true)(state)).toHaveLength(2);
+    });
+
+    it('keeps the active topic visible when it falls outside the configured page', () => {
+      const state = merge(initialStore, {
+        activeAgentId: 'agent-1',
+        activeTopicId: 'older-active',
+        topicDataMap: {
+          [topicMapKey({ agentId: 'agent-1' })]: {
+            currentPage: 0,
+            hasMore: true,
+            items: [
+              { id: 'newest', updatedAt: 3 },
+              { id: 'newer', updatedAt: 2 },
+              { id: 'older-active', updatedAt: 1 },
+            ],
+            pageSize: 2,
+            total: 3,
+          },
+        },
+      });
+
+      expect(
+        topicSelectors
+          .displayTopicsForSidebar(
+            2,
+            'updatedAt',
+            false,
+          )(state)
+          ?.map(({ id }) => id),
+      ).toEqual(['newest', 'newer', 'older-active']);
+    });
+
+    it('keeps an active completed topic from the detail cache visible', () => {
+      const state = merge(initialStore, {
+        activeAgentId: 'agent-1',
+        activeTopicId: 'archived-active',
+        topicDataMap: {
+          [topicMapKey({ agentId: 'agent-1' })]: {
+            currentPage: 0,
+            hasMore: true,
+            items: [{ id: 'visible', status: 'active', updatedAt: 2 }],
+            pageSize: 20,
+            total: 2,
+          },
+        },
+        topicDetailMap: {
+          'archived-active': { id: 'archived-active', status: 'completed', updatedAt: 1 },
+        },
+      });
+
+      expect(
+        topicSelectors
+          .displayTopicsForSidebar(
+            20,
+            'updatedAt',
+            false,
+          )(state)
+          ?.map(({ id }) => id),
+      ).toEqual(['visible', 'archived-active']);
+    });
+
+    it('keeps an injected active favorite before regular topics', () => {
+      const state = merge(initialStore, {
+        activeAgentId: 'agent-1',
+        activeTopicId: 'archived-favorite',
+        topicDataMap: {
+          [topicMapKey({ agentId: 'agent-1' })]: {
+            currentPage: 0,
+            hasMore: true,
+            items: [
+              { favorite: true, id: 'visible-favorite', updatedAt: 3 },
+              { id: 'regular', updatedAt: 2 },
+            ],
+            pageSize: 20,
+            total: 3,
+          },
+        },
+        topicDetailMap: {
+          'archived-favorite': {
+            favorite: true,
+            id: 'archived-favorite',
+            status: 'completed',
+            updatedAt: 1,
+          },
+        },
+      });
+
+      expect(
+        topicSelectors
+          .displayTopicsForSidebar(
+            20,
+            'updatedAt',
+            false,
+          )(state)
+          ?.map(({ id }) => id),
+      ).toEqual(['visible-favorite', 'archived-favorite', 'regular']);
+    });
+
+    it('does not duplicate an active topic already in the visible page', () => {
+      const state = merge(initialStore, {
+        activeAgentId: 'agent-1',
+        activeTopicId: 'active',
+        topicDataMap: {
+          [topicMapKey({ agentId: 'agent-1' })]: {
+            currentPage: 0,
+            hasMore: false,
+            items: [{ id: 'active', updatedAt: 1 }],
+            pageSize: 20,
+            total: 1,
+          },
+        },
+      });
+
+      expect(topicSelectors.displayTopicsForSidebar(20)(state)).toHaveLength(1);
     });
   });
 

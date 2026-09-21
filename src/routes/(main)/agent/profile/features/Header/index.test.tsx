@@ -35,11 +35,36 @@ const mocks = vi.hoisted(() => ({
   homeState: {
     removeAgent: vi.fn(),
   },
+  hasActiveWorkspace: true,
+  /** What the share-entry hook's live-share lookup resolves to. */
+  shareStatus: null as { visibility: 'link' | 'private' } | null,
+  serverConfigState: {
+    featureFlags: { enableAgentShare: undefined as boolean | undefined },
+    // Business features on by default in these tests — the Cloud-only
+    // structural half of the share gate is exercised by its own describe
+    // block below; everywhere else it stays open so the pre-existing
+    // rollout-flag behavior remains isolated to that one variable.
+    serverConfig: { enableBusinessFeatures: true },
+  },
   navigate: vi.fn(),
+  // The two independent halves of "may configure this agent": the workspace
+  // role permission and this agent's General Access level.
+  permission: { allowed: true },
+  resourceAccess: { canEditResource: true, canManageResource: true },
   profileState: {
     editor: undefined as { getDocument: (format: string) => string | undefined } | undefined,
     lockState: { holderId: null as string | null, lockedByOther: false, pending: false },
   },
+}));
+
+// `useAgentShareSupported` looks the live share up (via SWR) only for an
+// account that may not publish; resolve it synchronously here.
+vi.mock('swr', () => ({
+  default: (key: unknown, fetcher: () => unknown) => ({ data: key ? fetcher() : undefined }),
+}));
+
+vi.mock('@/services/agentShare', () => ({
+  agentShareService: { getShareStatus: () => mocks.shareStatus },
 }));
 
 vi.mock('@lobechat/const', async (importOriginal) => ({
@@ -49,18 +74,22 @@ vi.mock('@lobechat/const', async (importOriginal) => ({
 
 interface MockDropdownItem {
   children?: MockDropdownItem[];
+  disabled?: boolean;
   key?: string;
   label?: ReactNode;
   onClick?: () => void;
   type?: string;
 }
 
+// `disabled` is forwarded rather than dropped: the permission entries below are
+// deliberately rendered-but-disabled, so a harness that ignores the flag would
+// report them as available and pass no matter what the component decides.
 const renderMenuItems = (items: MockDropdownItem[]) =>
   items
     .filter((item) => item.type !== 'divider')
     .map((item) => (
       <div key={item.key}>
-        <button type="button" onClick={item.onClick}>
+        <button disabled={item.disabled} type="button" onClick={item.onClick}>
           {item.label}
         </button>
         {item.children && <div>{renderMenuItems(item.children)}</div>}
@@ -69,8 +98,8 @@ const renderMenuItems = (items: MockDropdownItem[]) =>
 
 const getLatestExportedBlob = () => vi.mocked(URL.createObjectURL).mock.calls.at(-1)?.[0] as Blob;
 
-vi.mock('@lobehub/ui', () => ({
-  ActionIcon: () => <button aria-label="more" type="button" />,
+vi.mock('@lobehub/ui', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   DropdownMenu: ({
     children,
     items = [],
@@ -82,12 +111,6 @@ vi.mock('@lobehub/ui', () => ({
       <div data-testid="agent-profile-menu">{renderMenuItems(items)}</div>
     </div>
   ),
-  Flexbox: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  Icon: () => <span />,
-}));
-
-vi.mock('@lobehub/ui/base-ui', () => ({
-  confirmModal: vi.fn(),
 }));
 
 vi.mock('antd', async (importOriginal) => {
@@ -120,13 +143,8 @@ vi.mock('lucide-react', async (importOriginal) => ({
   Download: () => null,
   MoreHorizontal: () => null,
   Settings2Icon: () => null,
+  Share2Icon: () => <span data-testid="share-entry-icon" />,
   Trash: () => null,
-}));
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
 }));
 
 vi.mock('react-router', () => ({
@@ -150,7 +168,7 @@ vi.mock('@/features/AgentBreadcrumb', () => ({
 }));
 
 vi.mock('@/business/client/hooks/useHasActiveWorkspace', () => ({
-  useHasActiveWorkspace: () => true,
+  useHasActiveWorkspace: () => mocks.hasActiveWorkspace,
 }));
 
 vi.mock('@/features/ResourcePermission/AccessLevelTag', () => ({
@@ -159,8 +177,12 @@ vi.mock('@/features/ResourcePermission/AccessLevelTag', () => ({
   ),
 }));
 
+vi.mock('@/hooks/usePermission', () => ({
+  usePermission: () => mocks.permission,
+}));
+
 vi.mock('@/features/ResourcePermission/useResourceAccess', () => ({
-  useResourceAccess: () => ({ canEditResource: true, canManageResource: true }),
+  useResourceAccess: () => mocks.resourceAccess,
 }));
 
 vi.mock('@/features/NavHeader', () => ({
@@ -225,6 +247,19 @@ vi.mock('@/store/home', () => ({
   useHomeStore: (selector: (state: typeof mocks.homeState) => unknown) => selector(mocks.homeState),
 }));
 
+vi.mock('@/store/serverConfig', () => ({
+  useServerConfigStore: (selector: (state: typeof mocks.serverConfigState) => unknown) =>
+    selector(mocks.serverConfigState),
+}));
+
+vi.mock('@/store/serverConfig/selectors', () => ({
+  featureFlagsSelectors: (state: typeof mocks.serverConfigState) => state.featureFlags,
+  serverConfigSelectors: {
+    enableBusinessFeatures: (state: typeof mocks.serverConfigState) =>
+      state.serverConfig.enableBusinessFeatures,
+  },
+}));
+
 vi.mock('../store', () => ({
   selectors: {
     lockHolderId: (s: typeof mocks.profileState) => s.lockState.holderId,
@@ -258,6 +293,116 @@ describe('Agent profile Header', () => {
     mocks.agentState.visibility = 'public';
     mocks.globalState.showAgentBuilderPanel = false;
     mocks.profileState.editor = undefined;
+    mocks.permission.allowed = true;
+    mocks.resourceAccess.canEditResource = true;
+    mocks.resourceAccess.canManageResource = true;
+    mocks.hasActiveWorkspace = true;
+    mocks.serverConfigState.featureFlags.enableAgentShare = undefined;
+    mocks.serverConfigState.serverConfig.enableBusinessFeatures = true;
+  });
+
+  describe('share entry', () => {
+    // Agent sharing is personal-only, so the entry needs a personal agent;
+    // the rollout flag is on unless a case says otherwise.
+    beforeEach(() => {
+      mocks.hasActiveWorkspace = false;
+      mocks.serverConfigState.featureFlags.enableAgentShare = true;
+      mocks.shareStatus = null;
+    });
+
+    it('offers the share entry to a personal agent owner', () => {
+      render(<Header />);
+
+      expect(screen.getByTestId('share-entry-icon')).toBeInTheDocument();
+    });
+
+    // Outside the rollout allowlist the entry is hidden entirely …
+    it('hides the share entry when the account may not publish and has no live share', () => {
+      mocks.serverConfigState.featureFlags.enableAgentShare = false;
+      mocks.shareStatus = null;
+
+      render(<Header />);
+
+      expect(screen.queryByTestId('share-entry-icon')).toBeNull();
+    });
+
+    // … unless a share is already live: an owner rolled back out of the
+    // allowlist still needs the entry to reach (and revoke) it.
+    it('keeps the share entry for a live share when the account may not publish', () => {
+      mocks.serverConfigState.featureFlags.enableAgentShare = false;
+      mocks.shareStatus = { visibility: 'link' };
+
+      render(<Header />);
+
+      expect(screen.getByTestId('share-entry-icon')).toBeInTheDocument();
+    });
+
+    it('hides the share entry while the capability is still unresolved', () => {
+      mocks.serverConfigState.featureFlags.enableAgentShare = undefined;
+      mocks.shareStatus = null;
+
+      render(<Header />);
+
+      expect(screen.queryByTestId('share-entry-icon')).toBeNull();
+    });
+
+    // Unlike the rollout flag above, `enableBusinessFeatures` is structural:
+    // an OSS deployment has no Agent Share surface at all, server-enforced by
+    // `ENABLE_BUSINESS_FEATURES` — there is no live share to revoke there, so
+    // hiding the entry entirely (not just disabling publish) is correct.
+    it('hides the share entry on a deployment without business features', () => {
+      mocks.serverConfigState.serverConfig.enableBusinessFeatures = false;
+
+      render(<Header />);
+
+      expect(screen.queryByTestId('share-entry-icon')).toBeNull();
+    });
+
+    it('hides the share entry for a workspace agent', () => {
+      mocks.hasActiveWorkspace = true;
+
+      render(<Header />);
+
+      expect(screen.queryByTestId('share-entry-icon')).toBeNull();
+    });
+
+    // Share settings are a sibling tab of the profile group now, so the entry
+    // navigates instead of opening a modal.
+    it('navigates to the share tab', () => {
+      render(<Header />);
+
+      fireEvent.click(screen.getByTestId('share-entry-icon'));
+
+      expect(mocks.navigate).toHaveBeenCalledWith('/agent/agent-1/share');
+    });
+  });
+
+  // `ResourceConfigAccessGate` requires the role permission AND resource-level
+  // edit access. A member whose role cannot edit content but who holds `edit`
+  // General Access on this agent satisfies only the second half — offering them
+  // an enabled entry sends them to a page that immediately bounces them back.
+  it.each([
+    ['the role cannot edit content', { canEditResource: true, permission: false }],
+    ['General Access is view-only', { canEditResource: false, permission: true }],
+  ])('disables the config entries when %s', (_label, { canEditResource, permission }) => {
+    mocks.permission.allowed = permission;
+    mocks.resourceAccess.canEditResource = canEditResource;
+    // No global mock reset in this file, so the shared spy carries calls in
+    // from earlier cases; a "never navigated" assertion has to start clean.
+    mocks.navigate.mockClear();
+
+    render(<Header />);
+
+    const settings = screen.getByRole('button', { name: 'advancedSettings' });
+    const permissionEntry = screen.getByRole('button', { name: 'permission.page.entry' });
+
+    expect(settings).toBeDisabled();
+    expect(permissionEntry).toBeDisabled();
+
+    // The handler guards independently of the `disabled` prop, since the real
+    // menu renders through a component that may still deliver the click.
+    fireEvent.click(permissionEntry);
+    expect(mocks.navigate).not.toHaveBeenCalledWith('/agent/agent-1/permission');
   });
 
   it.each([false, true])(

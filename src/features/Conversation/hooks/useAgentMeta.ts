@@ -46,6 +46,9 @@ export const useAgentMeta = (messageAgentId?: string | null): MetaData => {
       };
     }
 
+    // `name` and `title` both stay intact — resolving them into a single label is
+    // the renderer's job (see `agentDisplayName`), not this hook's. Collapsing here
+    // would leave a consumer that wants the role holding the personal name.
     return agentMeta;
   }, [agentId, agentMeta, builtinAgentIdMap, defaultAgentMeta]);
 };

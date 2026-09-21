@@ -94,7 +94,7 @@ vi.mock('chat', () => ({
     onNewMessage: mockOnNewMessage,
     onSlashCommand: mockOnSlashCommand,
     onSubscribedMessage: mockOnSubscribedMessage,
-    webhooks: {},
+    webhooks: mockChatWebhooks,
   })),
   ConsoleLogger: vi.fn(),
 }));
@@ -124,6 +124,11 @@ vi.mock('../AgentBridgeService', () => ({
 // Mock platform entries
 const mockCreateAdapter = vi.hoisted(() =>
   vi.fn().mockReturnValue({ testplatform: { type: 'mock-adapter' } }),
+);
+const mockReconcileWebhook = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+/** Per-platform webhook handlers exposed by the mocked Chat instance (`chat.webhooks`). */
+const mockChatWebhooks = vi.hoisted(
+  () => ({}) as Record<string, (req: Request) => Promise<Response>>,
 );
 const mockMergeWithDefaults = vi.hoisted(() =>
   vi.fn((_: unknown, settings?: Record<string, unknown>) => settings ?? {}),
@@ -161,6 +166,7 @@ const mockGetPlatform = vi.hoisted(() =>
         createClient: vi.fn().mockReturnValue({
           applicationId: 'mock-app',
           createAdapter: mockCreateAdapter,
+          reconcileWebhook: mockReconcileWebhook,
           extractAuthorLocale: (msg: any) => msg?.raw?.from?.language_code,
           // Match the per-platform contract: return the most-specific raw
           // ID (last segment of the composite). Telegram `telegram:chat-1`
@@ -556,6 +562,147 @@ describe('BotMessageRouter', () => {
       const resp = await handler(req);
 
       expect(resp.status).toBe(400);
+    });
+
+    describe('unverified webhook self-heal', () => {
+      const post = (headers?: Record<string, string>) =>
+        new Request('https://example.com/webhook', { body: '{}', headers, method: 'POST' });
+
+      beforeEach(() => {
+        for (const key of Object.keys(mockChatWebhooks)) delete mockChatWebhooks[key];
+        mockGetAgentRuntimeRedisClient.mockReturnValue(null);
+        vi.useRealTimers();
+      });
+
+      it('asks the client to re-register its webhook when the adapter rejects an update with 401', async () => {
+        mockFindEnabledByPlatform.mockResolvedValue([
+          makeProvider({ applicationId: 'tg-bot-123' }),
+        ]);
+        mockChatWebhooks.telegram = vi
+          .fn()
+          .mockResolvedValue(new Response('Invalid secret token', { status: 401 }));
+
+        const router = new BotMessageRouter();
+        const handler = router.getWebhookHandler('telegram', 'tg-bot-123');
+        const resp = await handler(post());
+
+        // The 401 is still returned so Telegram retries the update…
+        expect(resp.status).toBe(401);
+        // …and by then the webhook carries the current secret.
+        expect(mockReconcileWebhook).toHaveBeenCalledTimes(1);
+      });
+
+      it('re-registers at most once per cooldown window even under a flood of 401s', async () => {
+        vi.useFakeTimers();
+        mockFindEnabledByPlatform.mockResolvedValue([
+          makeProvider({ applicationId: 'tg-bot-123' }),
+        ]);
+        mockChatWebhooks.telegram = vi
+          .fn()
+          .mockResolvedValue(new Response('Invalid secret token', { status: 401 }));
+
+        const router = new BotMessageRouter();
+        const handler = router.getWebhookHandler('telegram', 'tg-bot-123');
+        await handler(post());
+        await handler(post());
+        await handler(post());
+        expect(mockReconcileWebhook).toHaveBeenCalledTimes(1);
+
+        vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+        await handler(post());
+        expect(mockReconcileWebhook).toHaveBeenCalledTimes(2);
+      });
+
+      it('shares the cooldown across instances through Redis SET NX when a client is available', async () => {
+        const redisSet = vi.fn().mockResolvedValueOnce('OK').mockResolvedValue(null);
+        mockGetAgentRuntimeRedisClient.mockReturnValue({ set: redisSet } as any);
+        mockFindEnabledByPlatform.mockResolvedValue([
+          makeProvider({ applicationId: 'tg-bot-123' }),
+        ]);
+        mockChatWebhooks.telegram = vi
+          .fn()
+          .mockResolvedValue(new Response('Invalid secret token', { status: 401 }));
+
+        // Two routers stand in for two serverless instances with independent memory.
+        const a = new BotMessageRouter().getWebhookHandler('telegram', 'tg-bot-123');
+        const b = new BotMessageRouter().getWebhookHandler('telegram', 'tg-bot-123');
+        await a(post());
+        await b(post());
+
+        expect(redisSet).toHaveBeenCalledTimes(2);
+        expect(redisSet).toHaveBeenCalledWith(
+          'bot:webhook-reconcile:telegram:tg-bot-123',
+          '1',
+          'EX',
+          300,
+          'NX',
+        );
+        // Only the instance that won the NX slot re-registers.
+        expect(mockReconcileWebhook).toHaveBeenCalledTimes(1);
+      });
+
+      it('falls back to the in-memory cooldown when Redis errors', async () => {
+        mockGetAgentRuntimeRedisClient.mockReturnValue({
+          set: vi.fn().mockRejectedValue(new Error('redis down')),
+        } as any);
+        mockFindEnabledByPlatform.mockResolvedValue([
+          makeProvider({ applicationId: 'tg-bot-123' }),
+        ]);
+        mockChatWebhooks.telegram = vi
+          .fn()
+          .mockResolvedValue(new Response('Invalid secret token', { status: 401 }));
+
+        const handler = new BotMessageRouter().getWebhookHandler('telegram', 'tg-bot-123');
+        await handler(post());
+        await handler(post());
+
+        expect(mockReconcileWebhook).toHaveBeenCalledTimes(1);
+      });
+
+      it('awaits the re-registration before answering, so a serverless host cannot cancel it', async () => {
+        let resolveReconcile!: () => void;
+        mockReconcileWebhook.mockImplementationOnce(
+          () =>
+            new Promise<void>((r) => {
+              resolveReconcile = r;
+            }),
+        );
+        mockFindEnabledByPlatform.mockResolvedValue([
+          makeProvider({ applicationId: 'tg-bot-123' }),
+        ]);
+        mockChatWebhooks.telegram = vi
+          .fn()
+          .mockResolvedValue(new Response('Invalid secret token', { status: 401 }));
+
+        const handler = new BotMessageRouter().getWebhookHandler('telegram', 'tg-bot-123');
+        let settled = false;
+        const pending = handler(post()).then((r) => {
+          settled = true;
+          return r;
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(mockReconcileWebhook).toHaveBeenCalledTimes(1);
+        expect(settled).toBe(false);
+
+        resolveReconcile();
+        expect((await pending).status).toBe(401);
+      });
+
+      it('does not touch the webhook registration when the adapter accepts the update', async () => {
+        mockFindEnabledByPlatform.mockResolvedValue([
+          makeProvider({ applicationId: 'tg-bot-123' }),
+        ]);
+        mockChatWebhooks.telegram = vi.fn().mockResolvedValue(new Response('OK', { status: 200 }));
+
+        const router = new BotMessageRouter();
+        const handler = router.getWebhookHandler('telegram', 'tg-bot-123');
+        const resp = await handler(post({ 'x-telegram-bot-api-secret-token': 's' }));
+
+        expect(resp.status).toBe(200);
+        expect(mockReconcileWebhook).not.toHaveBeenCalled();
+      });
     });
 
     it('should handle DB errors gracefully', async () => {
@@ -2793,6 +2940,134 @@ describe('BotMessageRouter', () => {
       expect(mockProviderUpdate).not.toHaveBeenCalled();
       expect(mockDeletePairingRequest).toHaveBeenCalledTimes(1);
       expect(event.channel.post.mock.calls[0][0]).toMatch(/Approved Lin/i);
+    });
+  });
+
+  describe('/mode command (per-conversation agent/chat switch)', () => {
+    async function loadModeHandlers() {
+      mockFindEnabledByPlatform.mockResolvedValue([
+        makeProvider({ applicationId: 'app-1', settings: { allowFrom: 'alice-id' } }),
+      ]);
+      const router = new BotMessageRouter();
+      const webhookHandler = router.getWebhookHandler('telegram', 'app-1');
+      const req = new Request('https://example.com/webhook', { body: '{}', method: 'POST' });
+      await webhookHandler(req);
+
+      const cmdHandlerCall = mockOnNewMessage.mock.calls.find(
+        (call) => call[0] instanceof RegExp && call[0].source.includes('mode'),
+      );
+      const slashModeCall = mockOnSlashCommand.mock.calls.find((c) => c[0] === '/mode');
+      if (!cmdHandlerCall || !slashModeCall) throw new Error('/mode handlers not registered');
+      return {
+        cmdRegexHandler: cmdHandlerCall[1] as (thread: any, message: any) => Promise<void>,
+        slashMode: slashModeCall[1] as (event: any) => Promise<void>,
+      };
+    }
+
+    function makeThread(state: Record<string, unknown> | null = null) {
+      return {
+        channelId: 'channel-1',
+        id: 'telegram:channel-1',
+        isDM: false,
+        post: vi.fn().mockResolvedValue(undefined),
+        setState: vi.fn().mockResolvedValue(undefined),
+        state: Promise.resolve(state),
+      };
+    }
+
+    const makeMessage = (text: string) => ({
+      author: { isBot: false, userId: 'alice-id', userName: 'alice' },
+      isMention: false,
+      text,
+    });
+
+    it('switches to chat mode via text dispatch and confirms', async () => {
+      const { cmdRegexHandler } = await loadModeHandlers();
+      const thread = makeThread();
+
+      await cmdRegexHandler(thread, makeMessage('/mode chat'));
+
+      // Merge write (NOT replace) — switching mode must not clobber topicId.
+      expect(thread.setState).toHaveBeenCalledWith({ toolMode: 'chat' }, undefined);
+      expect(thread.post).toHaveBeenCalledTimes(1);
+      expect(thread.post.mock.calls[0][0]).toContain('Chat Mode');
+    });
+
+    it('switches to agent mode via the native slash path', async () => {
+      const { slashMode } = await loadModeHandlers();
+      const channel = makeThread();
+      const event = {
+        channel,
+        text: 'agent',
+        user: { isBot: false, userId: 'alice-id', userName: 'alice' },
+      };
+
+      await slashMode(event);
+
+      expect(channel.setState).toHaveBeenCalledWith({ toolMode: 'agent' }, undefined);
+      expect(channel.post.mock.calls[0][0]).toContain('Agent Mode');
+    });
+
+    it('reports the explicit mode on no-arg /mode without writing state', async () => {
+      const { cmdRegexHandler } = await loadModeHandlers();
+      const thread = makeThread({ toolMode: 'chat', topicId: 'topic-1' });
+
+      await cmdRegexHandler(thread, makeMessage('/mode'));
+
+      expect(thread.setState).not.toHaveBeenCalled();
+      expect(thread.post.mock.calls[0][0]).toContain('Chat Mode');
+    });
+
+    it('reports the effective (agent-default) mode when no override is set', async () => {
+      const { cmdRegexHandler } = await loadModeHandlers();
+      const thread = makeThread(null);
+
+      await cmdRegexHandler(thread, makeMessage('/mode'));
+
+      // No override → the handler resolves the agent's configured default.
+      // In this harness the agent-config lookup fails (stub DB), so the
+      // best-effort fallback reports the product default: Agent Mode.
+      expect(thread.setState).not.toHaveBeenCalled();
+      expect(thread.post.mock.calls[0][0]).toContain('Agent Mode');
+    });
+
+    it('rejects an unknown mode argument with usage help', async () => {
+      const { cmdRegexHandler } = await loadModeHandlers();
+      const thread = makeThread();
+
+      await cmdRegexHandler(thread, makeMessage('/mode banana'));
+
+      expect(thread.setState).not.toHaveBeenCalled();
+      expect(thread.post.mock.calls[0][0]).toContain('/mode agent');
+    });
+
+    it('/new preserves the /mode choice across the state reset', async () => {
+      mockFindEnabledByPlatform.mockResolvedValue([
+        makeProvider({ applicationId: 'app-1', settings: { allowFrom: 'alice-id' } }),
+      ]);
+      const router = new BotMessageRouter();
+      const webhookHandler = router.getWebhookHandler('telegram', 'app-1');
+      await webhookHandler(
+        new Request('https://example.com/webhook', { body: '{}', method: 'POST' }),
+      );
+      const cmdHandlerCall = mockOnNewMessage.mock.calls.find(
+        (call) => call[0] instanceof RegExp && call[0].source.includes('new'),
+      );
+      const cmdRegexHandler = cmdHandlerCall![1] as (thread: any, message: any) => Promise<void>;
+      const thread = makeThread({
+        channelContext: { guild: { id: 'g' } },
+        toolMode: 'chat',
+        topicId: 'topic-1',
+      });
+
+      await cmdRegexHandler(thread, makeMessage('/new'));
+
+      // topicId cleared via replace, toolMode carried over, channelContext
+      // intentionally dropped (same as before this feature).
+      expect(thread.setState).toHaveBeenCalledWith(
+        { toolMode: 'chat', topicId: undefined },
+        { replace: true },
+      );
     });
   });
 });

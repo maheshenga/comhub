@@ -26,12 +26,6 @@ vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => navigate,
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
 const createWrapper = (showProvider: boolean) => {
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <Provider

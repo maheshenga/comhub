@@ -14,6 +14,8 @@ import type {
   AgentBuilderContext,
   AgentContextDocument,
   AgentGroupConfig,
+  GroupAgentBuilderContext,
+  GroupOfficialToolItem,
   OfficialToolItem,
   OnboardingContext,
   PlanTodoConfig,
@@ -30,6 +32,7 @@ import { getActivePluginIds, getDisabledPluginIds } from '@lobechat/types';
 
 import { composioEnv } from '@/config/composio';
 import { AgentModel } from '@/database/models/agent';
+import { ChatGroupModel } from '@/database/models/chatGroup';
 import { FileModel } from '@/database/models/file';
 import { MessageModel as MessageModelClass } from '@/database/models/message';
 import { TopicModel } from '@/database/models/topic';
@@ -84,7 +87,8 @@ export const buildServerCallLlmContext = async ({
   }
 
   const { operationId, stepIndex } = ctx;
-  const { resolved, resolvedSkills, toolDiscoveryConfig } = tooling;
+  const { resolved, resolvedSkills, toolDiscoveryConfig, activeDeviceId, executionTarget } =
+    tooling;
   const contextHints = await resolveServerCallLlmContextHints({
     ctx,
     llmPayload,
@@ -113,27 +117,65 @@ export const buildServerCallLlmContext = async ({
   if (!alreadyHasTopicRefs && ctx.serverDB && ctx.userId) {
     const topicModel = new TopicModel(ctx.serverDB, ctx.userId, ctx.workspaceId);
     const messageModel = new MessageModelClass(ctx.serverDB, ctx.userId, ctx.workspaceId);
+    const agentShareVisitor = ctx.agentShareVisitor;
+    // Topic references are limited to the visitor's own topics in shared runs.
+    // `TopicModel`'s built-in ownership scoping is not sufficient here — the
+    // rows are owned by the CREATOR, so every one of the creator's private
+    // topics would otherwise be addressable by a `<refer_topic>` tag the
+    // visitor typed. Match the visitor/agent pairing of the active share
+    // instead: a visitor topic is tied to its share purely through
+    // `(agentId, senderId)`, since `agent_shares` is 1:1 per agent.
+    //
+    // Known gap: a topic created before the owner paused the share still
+    // matches `(agentId, senderId)` for a returning visitor, because topics
+    // carry no share-instance column. Such a topic is the SAME visitor's own
+    // prior conversation with the SAME agent, so this leaks nothing across
+    // identities — it only means old context can resurface once the share is
+    // turned back on.
+    const isTopicVisibleToRun = (
+      topic: { agentId?: string | null; senderId?: string | null } | null | undefined,
+    ): boolean => {
+      if (!agentShareVisitor) return true;
+      return (
+        topic?.senderId === agentShareVisitor.visitorUserId &&
+        topic?.agentId === agentShareVisitor.agentId
+      );
+    };
     topicReferences = await resolveTopicReferences(
       messagesForContext as Array<{ content: string | unknown }>,
-      async (topicId) => topicModel.findById(topicId),
       async (topicId) => {
         const topic = await topicModel.findById(topicId);
+        return isTopicVisibleToRun(topic) ? topic : null;
+      },
+      async (topicId) => {
+        const topic = await topicModel.findById(topicId);
+        if (!isTopicVisibleToRun(topic)) return [];
+
         return messageModel.query(
           {
             agentId: topic?.agentId ?? undefined,
             groupId: topic?.groupId ?? undefined,
             topicId,
           },
-          { postProcessUrl: buildPostProcessUrl(ctx) },
+          // `isTopicVisibleToRun` above already proved this referenced topic is
+          // the SAME visitor's own conversation with the SAME agent, so the
+          // creator-facing agent-share exclusion must not apply here.
+          { allowShareVisitor: true, postProcessUrl: buildPostProcessUrl(ctx) },
         );
       },
     );
   }
 
   // Fetch agent documents for context injection.
+  // A share visitor run never sees the creator's agent context documents.
+  // `applyShareGateToAgentConfig` already blanks `agentConfig.files` /
+  // `knowledgeBases`, but this source is fetched independently of agentConfig,
+  // so it needs its own gate. Fail closed unconditionally: the share config has
+  // no setting that could grant file access.
+  const agentDocumentsAllowedForShare = !ctx.agentShareVisitor;
   let agentDocuments: AgentContextDocument[] | undefined;
   const agentId = state.metadata?.agentId;
-  if (agentId && ctx.serverDB && ctx.userId) {
+  if (agentId && ctx.serverDB && ctx.userId && agentDocumentsAllowedForShare) {
     try {
       const agentDocService = new AgentDocumentsService(
         ctx.serverDB,
@@ -167,7 +209,20 @@ export const buildServerCallLlmContext = async ({
     );
   });
 
-  if (isOnboardingAgent && !alreadyHasOnboardingContext && ctx.serverDB && ctx.userId) {
+  // Onboarding context is the creator's own persona, SOUL document and initial
+  // user info — personal profile data with no share permission that could ever
+  // grant it, so a share visitor run never builds it. Two paths reach here: the
+  // builtin `web-onboarding` agent, and any shared agent whose enabled tools
+  // include `lobe-web-onboarding`. Gating on `ctx.agentShareVisitor` closes both.
+  const onboardingContextAllowedForShare = !ctx.agentShareVisitor;
+
+  if (
+    isOnboardingAgent &&
+    onboardingContextAllowedForShare &&
+    !alreadyHasOnboardingContext &&
+    ctx.serverDB &&
+    ctx.userId
+  ) {
     try {
       const { formatWebOnboardingStateMessage } =
         await import('@lobechat/builtin-tool-web-onboarding/utils');
@@ -245,11 +300,18 @@ export const buildServerCallLlmContext = async ({
   // Tool-specific template variable resolution. The client-side
   // contextEngineering.ts resolves these via Zustand stores and lambdaClient.
   // In execAgent (server/bot) mode we must fetch from DB directly.
+  //
+  // `{{username}}` / `{{language}}` render back to whoever is actually
+  // conversing. In a share-visitor run `ctx.userId` is the CREATOR (the agent
+  // still executes under their identity), so resolving from it here would leak
+  // the creator's own name/locale into a link visitor's turn. Resolve from the
+  // visitor's own user id instead whenever this is a share-visitor run.
   let serverUsername = '';
   let serverLanguage = '';
-  if (ctx.serverDB && ctx.userId) {
+  const userInfoUserId = ctx.agentShareVisitor?.visitorUserId ?? ctx.userId;
+  if (ctx.serverDB && userInfoUserId) {
     try {
-      const userInfo = await UserModel.getInfoForAIGeneration(ctx.serverDB, ctx.userId);
+      const userInfo = await UserModel.getInfoForAIGeneration(ctx.serverDB, userInfoUserId);
       serverUsername = userInfo.userName;
       serverLanguage = userInfo.responseLanguage;
     } catch (error) {
@@ -258,6 +320,18 @@ export const buildServerCallLlmContext = async ({
   }
 
   const sandboxEnabled = String(resolved.enabledToolIds.includes('lobe-cloud-sandbox'));
+  // `sandbox_enabled` tracks whether the dedicated Cloud Sandbox tool is
+  // offered — true for target 'sandbox', and (so the model can choose sandbox
+  // vs. an auto-routed device per call) for 'auto' too, regardless of whether
+  // a device ended up routed. It's still not the full answer for
+  // `injectCredsToSandbox` reachability: `lobe-skills`' `runCommand`/
+  // `execScript` ALSO silently fall back to that same cloud sandbox session
+  // whenever no device is actively routed, for targets where the dedicated
+  // tool isn't offered at all (e.g. the common no-device 'none' web/agent
+  // session). So a credential is reachable whenever EITHER condition holds:
+  // the dedicated tool is exposed for 'auto' (independent of device routing),
+  // or no device is routed (independent of target).
+  const credsSandboxReachable = String(!activeDeviceId || executionTarget === 'auto');
   let sandboxUploadedFiles = '';
   if (sandboxEnabled === 'true' && ctx.serverDB && ctx.userId && lobehubSkillTopicId) {
     try {
@@ -317,7 +391,24 @@ export const buildServerCallLlmContext = async ({
   let credsListStr = '';
   if (ctx.userId) {
     try {
-      const marketService = new MarketService({ userInfo: { userId: ctx.userId } });
+      // Read market accessToken from DB so the server-side runtime can
+      // authenticate with the Market API instead of falling back to an
+      // anonymous trustedClientToken (which 401s on creds endpoints).
+      let marketAccessToken: string | undefined;
+      if (ctx.serverDB) {
+        try {
+          const userModel = new UserModel(ctx.serverDB, ctx.userId);
+          const settings = await userModel.getUserSettings();
+          marketAccessToken = (settings?.market as any)?.accessToken;
+        } catch {
+          // non-fatal — MarketService will fall back to trustedClientToken
+        }
+      }
+
+      const marketService = new MarketService({
+        accessToken: marketAccessToken,
+        userInfo: { userId: ctx.userId },
+      });
       // Inside a workspace, the agent must only see the workspace's shared
       // organization credentials — personal creds are not visible here.
       const credsResult = ctx.workspaceId
@@ -452,6 +543,7 @@ export const buildServerCallLlmContext = async ({
             avatar: editingConfig.avatar ?? undefined,
             backgroundColor: editingConfig.backgroundColor ?? undefined,
             description: editingConfig.description ?? undefined,
+            name: editingConfig.name ?? undefined,
             tags: editingConfig.tags ?? undefined,
             title: editingConfig.title ?? undefined,
           },
@@ -463,7 +555,106 @@ export const buildServerCallLlmContext = async ({
     }
   }
 
+  // Group Agent Builder — mirrors the block above for the group Profile panel.
+  // Without this the model has no idea which group it is editing, so it cannot
+  // address members by id (updateAgentPrompt) and falls back to telling the user
+  // to wire the group up by hand — built-in group agents were missing from the member list.
+  let groupAgentBuilderContext: GroupAgentBuilderContext | undefined;
+  const editingGroupId = state.metadata?.editingGroupId;
+  if (editingGroupId && ctx.serverDB && ctx.userId) {
+    try {
+      const chatGroupModel = new ChatGroupModel(ctx.serverDB, ctx.userId, ctx.workspaceId);
+      const [group, roster] = await Promise.all([
+        chatGroupModel.findById(editingGroupId),
+        chatGroupModel.getGroupAgentsWithMeta(editingGroupId),
+      ]);
+
+      if (group) {
+        const supervisorAgentId = roster.find((member) => member.role === 'supervisor')?.agentId;
+
+        let supervisorConfig: GroupAgentBuilderContext['supervisorConfig'];
+        let enabledPlugins: string[] = [];
+        if (supervisorAgentId) {
+          const supervisorModel = new AgentModel(ctx.serverDB, ctx.userId, ctx.workspaceId);
+          const supervisor = await supervisorModel.getAgentConfigById(supervisorAgentId);
+          if (supervisor) {
+            // Pinned identifiers only — `supervisorConfig.plugins` is a prompt
+            // formatting DTO and a disabled plugin isn't "enabled".
+            enabledPlugins = getActivePluginIds(
+              Array.isArray(supervisor.plugins) ? supervisor.plugins : undefined,
+            );
+            supervisorConfig = {
+              model: supervisor.model ?? undefined,
+              plugins: enabledPlugins,
+              provider: supervisor.provider ?? undefined,
+            };
+          }
+        }
+
+        const composioIdentifiers = new Set(COMPOSIO_APP_TYPES.map((tool) => tool.identifier));
+        const groupOfficialTools: GroupOfficialToolItem[] = [];
+
+        for (const tool of builtinTools) {
+          if (tool.hidden) continue;
+          if (composioIdentifiers.has(tool.identifier)) continue;
+          groupOfficialTools.push({
+            description: tool.manifest?.meta?.description,
+            enabled: enabledPlugins.includes(tool.identifier),
+            identifier: tool.identifier,
+            installed: true,
+            name: tool.manifest?.meta?.title || tool.identifier,
+            type: 'builtin',
+          });
+        }
+
+        if (composioEnv.COMPOSIO_API_KEY) {
+          try {
+            const connectedComposioIds = await loadConnectedComposioIds(
+              ctx.serverDB,
+              ctx.userId,
+              ctx.workspaceId,
+              supervisorAgentId,
+            );
+            for (const tool of COMPOSIO_APP_TYPES) {
+              groupOfficialTools.push({
+                description: `LobeHub Mcp Server: ${tool.label}`,
+                enabled: enabledPlugins.includes(tool.identifier),
+                identifier: tool.identifier,
+                installed: connectedComposioIds.has(tool.identifier),
+                name: tool.label,
+                type: 'composio',
+              });
+            }
+          } catch (composioError) {
+            log('Failed to load Composio status for groupAgentBuilderContext: %O', composioError);
+          }
+        }
+
+        groupAgentBuilderContext = {
+          config: {
+            openingMessage: group.config?.openingMessage || undefined,
+            openingQuestions: group.config?.openingQuestions ?? undefined,
+            systemPrompt: group.content || undefined,
+          },
+          groupId: editingGroupId,
+          groupTitle: group.title || undefined,
+          members: roster.map((member) => ({
+            description: member.description ?? undefined,
+            id: member.agentId,
+            isSupervisor: member.role === 'supervisor',
+            title: member.title || 'Untitled Agent',
+          })),
+          officialTools: groupOfficialTools,
+          supervisorConfig,
+        };
+      }
+    } catch (error) {
+      log('Failed to build groupAgentBuilderContext for group %s: %O', editingGroupId, error);
+    }
+  }
+
   const contextEngineInput = {
+    additionalContexts: llmPayload.additionalContexts,
     agentDocuments,
     ...(agentBuilderContext && { agentBuilderContext }),
     agentGroup: state.metadata?.agentGroup as AgentGroupConfig | undefined,
@@ -477,7 +668,11 @@ export const buildServerCallLlmContext = async ({
       ...lobehubSkillVariables,
       COMPOSIO_SERVICES_LIST: composioServicesListStr,
       CREDS_LIST: credsListStr,
+      creds_sandbox_reachable: credsSandboxReachable,
       language: serverLanguage,
+      // Only override the generator's 'en-US' locale fallback when the user info
+      // fetch actually resolved a language — an empty string would render blank.
+      ...(serverLanguage && { locale: serverLanguage }),
       memory_effort: memoryEffort,
       sandbox_enabled: sandboxEnabled,
       sandbox_uploaded_files: sandboxUploadedFiles,
@@ -488,9 +683,12 @@ export const buildServerCallLlmContext = async ({
     capabilities,
     botPlatformContext: ctx.botPlatformContext,
     discordContext: ctx.discordContext,
+    enableExpertise: state.enableExpertise,
     enableHistoryCount: agentConfig.chatConfig?.enableHistoryCount ?? undefined,
     evalContext: ctx.evalContext,
+    expertise: state.expertise,
     forceFinish: state.forceFinish,
+    ...(groupAgentBuilderContext && { groupAgentBuilderContext }),
     historyCount: resolveRuntimeHistoryCount(agentConfig.chatConfig?.historyCount),
     initialContext: (state as any).initialContext?.initialContext,
     knowledge: {

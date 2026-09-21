@@ -202,6 +202,8 @@ export class CommonActionImpl {
                 isShowPWAGuide: data.canEnablePWAGuide,
                 isUserCanEnableTrace: data.canEnableTrace,
                 isUserHasConversation: data.hasConversation,
+                isIdentityResolved: true,
+                isSignedIn: Boolean(data.userId) || this.#get().isSignedIn,
                 isUserStateInit: true,
                 isUserStateInitError: undefined,
                 onboarding: data.onboarding,

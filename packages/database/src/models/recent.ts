@@ -16,6 +16,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
+import removeMarkdown from 'remove-markdown';
 
 import {
   agents,
@@ -28,6 +29,7 @@ import {
 } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 import { normalizeInboxAgentMeta } from '../utils/inboxAgent';
+import { notShareVisitorTopic } from '../utils/shareVisitor';
 import { buildWorkspaceWhere } from '../utils/workspace';
 import { ChatGroupModel } from './chatGroup';
 
@@ -43,6 +45,8 @@ export interface RecentDbItem {
   title: string;
   type: 'topic' | 'document' | 'task';
   updatedAt: Date;
+  /** The member who owns (created) this item — for author attribution in team views. */
+  userId: string;
 }
 
 export type RecentItemType = RecentDbItem['type'];
@@ -151,6 +155,16 @@ const compareMobileWorkspaceParents = (
   left.kind.localeCompare(right.kind) ||
   left.id.localeCompare(right.id);
 
+// Best-effort markdown → plain text; previews render in a plain-text row, so
+// syntax noise (**, #, []() …) would show up literally.
+const toPlainTextPreview = (markdown: string): string => {
+  try {
+    return removeMarkdown(markdown).trimEnd();
+  } catch {
+    return markdown;
+  }
+};
+
 export class RecentModel {
   private userId: string;
   private workspaceId?: string;
@@ -166,6 +180,7 @@ export class RecentModel {
     limit: number = 10,
     types?: RecentItemType[],
     withTopicPreview?: boolean,
+    mineOnly?: boolean,
   ): Promise<RecentDbItem[]> => {
     if (types?.length === 0) return [];
     const scope = { userId: this.userId, workspaceId: this.workspaceId };
@@ -177,21 +192,12 @@ export class RecentModel {
       ? eq(tasks.workspaceId, this.workspaceId)
       : and(eq(tasks.createdByUserId, this.userId), isNull(tasks.workspaceId));
 
-    const lastAssistantMessageSubquery = this.db
-      .select({
-        value: sql<string>`left(${messages.content}, ${LAST_MESSAGE_PREVIEW_LENGTH + 1})`,
-      })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.topicId, topics.id),
-          eq(messages.role, 'assistant'),
-          buildWorkspaceWhere(scope, messages),
-          ne(messages.content, ''),
-        ),
-      )
-      .orderBy(desc(messages.createdAt))
-      .limit(1);
+    // Workspace rows are shared across members; `mineOnly` narrows a workspace
+    // feed back to the viewer's own items. A no-op in personal mode, where the
+    // scope predicate already pins the user.
+    const mineTopicWhere = mineOnly ? eq(topics.userId, this.userId) : undefined;
+    const mineDocumentWhere = mineOnly ? eq(documents.userId, this.userId) : undefined;
+    const mineTaskWhere = mineOnly ? eq(tasks.createdByUserId, this.userId) : undefined;
 
     const topicArm = this.db
       .select({
@@ -199,9 +205,6 @@ export class RecentModel {
           ? topics.description
           : sql<string | null>`NULL`.as('description'),
         id: topics.id,
-        lastAssistantMessage: withTopicPreview
-          ? sql<string | null>`(${lastAssistantMessageSubquery})`.as('last_assistant_message')
-          : sql<string | null>`NULL`.as('last_assistant_message'),
         metadata: sql<any>`${topics.metadata}`.as('metadata'),
         routeGroupId: sql<string | null>`${topics.groupId}`.as('route_group_id'),
         routeId: sql<string | null>`${topics.agentId}`.as('route_id'),
@@ -209,6 +212,7 @@ export class RecentModel {
         title: sql<string>`COALESCE(${topics.title}, 'Untitled Topic')`.as('title'),
         type: sql<RecentDbItem['type']>`'topic'`.as('type'),
         updatedAt: topics.updatedAt,
+        userId: topics.userId,
       })
       .from(topics)
       .leftJoin(agents, eq(topics.agentId, agents.id))
@@ -217,6 +221,10 @@ export class RecentModel {
           ? sql`false`
           : and(
               buildWorkspaceWhere(scope, topics),
+              // Agent-share visitor topics keep the creator's userId — never
+              // surface a visitor's conversation in the creator's own Recent feed.
+              notShareVisitorTopic(),
+              mineTopicWhere,
               or(
                 isNotNull(topics.groupId),
                 eq(agents.slug, 'inbox'),
@@ -231,7 +239,6 @@ export class RecentModel {
       .select({
         description: sql<string | null>`NULL`.as('description'),
         id: documents.id,
-        lastAssistantMessage: sql<string | null>`NULL`.as('last_assistant_message'),
         metadata: sql<any>`NULL`.as('metadata'),
         routeGroupId: sql<string | null>`NULL`.as('route_group_id'),
         routeId: sql<string | null>`NULL`.as('route_id'),
@@ -242,6 +249,7 @@ export class RecentModel {
           ),
         type: sql<RecentDbItem['type']>`'document'`.as('type'),
         updatedAt: documents.updatedAt,
+        userId: documents.userId,
       })
       .from(documents)
       .where(
@@ -249,6 +257,7 @@ export class RecentModel {
           ? sql`false`
           : and(
               buildWorkspaceWhere(scope, documents),
+              mineDocumentWhere,
               not(inArray(documents.sourceType, TOOL_DOCUMENT_SOURCE_TYPES)),
               isNull(documents.knowledgeBaseId),
               ne(documents.fileType, DOCUMENT_FOLDER_TYPE),
@@ -259,7 +268,6 @@ export class RecentModel {
       .select({
         description: sql<string | null>`NULL`.as('description'),
         id: tasks.id,
-        lastAssistantMessage: sql<string | null>`NULL`.as('last_assistant_message'),
         metadata: sql<any>`NULL`.as('metadata'),
         routeGroupId: sql<string | null>`NULL`.as('route_group_id'),
         routeId: sql<string | null>`${tasks.assigneeAgentId}`.as('route_id'),
@@ -269,12 +277,13 @@ export class RecentModel {
         ),
         type: sql<RecentDbItem['type']>`'task'`.as('type'),
         updatedAt: tasks.updatedAt,
+        userId: sql<string>`${tasks.createdByUserId}`.as('user_id'),
       })
       .from(tasks)
       .where(
         requestedTypes && !requestedTypes.has('task')
           ? sql`false`
-          : and(taskScopeWhere, not(inArray(tasks.status, TASK_FINAL_STATUSES))),
+          : and(taskScopeWhere, mineTaskWhere, not(inArray(tasks.status, TASK_FINAL_STATUSES))),
       );
 
     const recentItems = unionAll(topicArm, documentArm, taskArm).as('recent_items');
@@ -285,21 +294,60 @@ export class RecentModel {
       .orderBy(desc(recentItems.updatedAt))
       .limit(limit);
 
-    return rows.map((row) => ({
-      description: row.description,
-      id: row.id,
-      lastAssistantMessage:
-        row.lastAssistantMessage && row.lastAssistantMessage.length > LAST_MESSAGE_PREVIEW_LENGTH
-          ? `${row.lastAssistantMessage.slice(0, LAST_MESSAGE_PREVIEW_LENGTH)}…`
-          : row.lastAssistantMessage,
-      metadata: row.metadata ?? undefined,
-      routeGroupId: row.routeGroupId,
-      routeId: row.routeId,
-      status: row.status,
-      title: row.title,
-      type: row.type,
-      updatedAt: row.updatedAt instanceof Date ? row.updatedAt : new Date(row.updatedAt as any),
-    }));
+    // Previews are fetched in a second batched query scoped to the final page
+    // — inlining a correlated subquery in the topic arm would evaluate it for
+    // every topic the user owns before the sort/limit prunes to `limit` rows.
+    const previewByTopicId = withTopicPreview
+      ? await this.queryLastAssistantPreviews(
+          rows.filter((row) => row.type === 'topic').map((row) => row.id),
+        )
+      : new Map<string, string>();
+
+    return rows.map((row) => {
+      const preview = previewByTopicId.get(row.id) ?? null;
+      return {
+        description: row.description,
+        id: row.id,
+        lastAssistantMessage:
+          preview && preview.length > LAST_MESSAGE_PREVIEW_LENGTH
+            ? `${preview.slice(0, LAST_MESSAGE_PREVIEW_LENGTH)}…`
+            : preview,
+        metadata: row.metadata ?? undefined,
+        routeGroupId: row.routeGroupId,
+        routeId: row.routeId,
+        status: row.status,
+        title: row.title,
+        type: row.type,
+        updatedAt: row.updatedAt instanceof Date ? row.updatedAt : new Date(row.updatedAt as any),
+        userId: row.userId,
+      };
+    });
+  };
+
+  private queryLastAssistantPreviews = async (topicIds: string[]): Promise<Map<string, string>> => {
+    if (topicIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .selectDistinctOn([messages.topicId], {
+        topicId: messages.topicId,
+        value: sql<string>`left(${messages.content}, ${LAST_MESSAGE_PREVIEW_LENGTH + 1})`,
+      })
+      .from(messages)
+      .where(
+        and(
+          inArray(messages.topicId, topicIds),
+          eq(messages.role, 'assistant'),
+          buildWorkspaceWhere({ userId: this.userId, workspaceId: this.workspaceId }, messages),
+          ne(messages.content, ''),
+        ),
+      )
+      .orderBy(messages.topicId, desc(messages.createdAt));
+
+    return new Map(
+      rows
+        .filter((row) => row.topicId !== null)
+        .map((row) => [row.topicId!, toPlainTextPreview(row.value)]),
+    );
   };
 
   queryMobileWorkspace = async ({
@@ -329,6 +377,7 @@ export class RecentModel {
         and(
           buildWorkspaceWhere(scope, topics),
           eq(topics.agentId, agents.id),
+          notShareVisitorTopic(),
           isNull(topics.groupId),
           or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
         ),
@@ -342,6 +391,7 @@ export class RecentModel {
         and(
           buildWorkspaceWhere(scope, topics),
           eq(topics.groupId, chatGroups.id),
+          notShareVisitorTopic(),
           or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
         ),
       )
@@ -370,6 +420,7 @@ export class RecentModel {
             and(
               buildWorkspaceWhere(scope, topics),
               eq(topics.agentId, agents.id),
+              notShareVisitorTopic(),
               isNull(topics.groupId),
               ilike(topics.title, `%${keyword}%`),
               or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
@@ -385,6 +436,7 @@ export class RecentModel {
             and(
               buildWorkspaceWhere(scope, topics),
               eq(topics.groupId, chatGroups.id),
+              notShareVisitorTopic(),
               ilike(topics.title, `%${keyword}%`),
               or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
             ),
@@ -509,6 +561,7 @@ export class RecentModel {
               and(
                 buildWorkspaceWhere(scope, topics),
                 eq(topics.status, 'unread'),
+                notShareVisitorTopic(),
                 inArray(topics.agentId, agentIds),
                 or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
               ),
@@ -523,6 +576,7 @@ export class RecentModel {
               and(
                 buildWorkspaceWhere(scope, topics),
                 eq(topics.status, 'unread'),
+                notShareVisitorTopic(),
                 inArray(topics.groupId, groupIds),
                 or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
               ),
@@ -627,6 +681,7 @@ export class RecentModel {
         title: sql<string>`COALESCE(${topics.title}, 'Untitled Topic')`.as('title'),
         type: sql<RecentDbItem['type']>`'topic'`.as('type'),
         updatedAt: topicActivityAt.as('updated_at'),
+        userId: topics.userId,
       })
       .from(topics)
       .leftJoin(agents, eq(topics.agentId, agents.id))
@@ -634,6 +689,7 @@ export class RecentModel {
         and(
           buildWorkspaceWhere(scope, topics),
           parentWhere,
+          notShareVisitorTopic(),
           or(
             isNotNull(topics.groupId),
             eq(agents.slug, 'inbox'),
@@ -653,6 +709,7 @@ export class RecentModel {
       title: row.title,
       type: row.type,
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt : new Date(row.updatedAt as any),
+      userId: row.userId,
     }));
   };
 }

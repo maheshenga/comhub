@@ -1,5 +1,6 @@
 import type { BriefType, TaskDetailActivity } from '@lobechat/types';
-import { Accordion, AccordionItem, Avatar, Empty, Flexbox, Icon, Tag, Text } from '@lobehub/ui';
+import { Accordion, AccordionItem, Empty, Flexbox, Icon } from '@lobehub/ui';
+import { Avatar, Tag, Text } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
 import type { TFunction } from 'i18next';
 import { BotMessageSquare, CircleDot, CirclePlus, MessageCircle } from 'lucide-react';
@@ -34,7 +35,8 @@ const toBriefItem = (act: TaskDetailActivity): BriefItem | null => {
           avatar: act.agent.avatar,
           backgroundColor: act.agent.backgroundColor,
           id: act.agent.id,
-          title: act.agent.title,
+          name: act.agent.name ?? null,
+          title: act.agent.title ?? null,
         }
       : null,
     agentId: act.agentId ?? null,
@@ -126,7 +128,12 @@ const ActivityRow = memo<{ activity: TaskDetailActivity }>(({ activity }) => {
   );
 });
 
-const TaskActivities = memo(() => {
+interface TaskActivitiesProps {
+  /** Result review leads with run output and leaves the reply composer after the evidence. */
+  variant?: 'activity' | 'result';
+}
+
+const TaskActivities = memo<TaskActivitiesProps>(({ variant = 'activity' }) => {
   const { t } = useTranslation('chat');
   const activities = useTaskStore(taskActivitySelectors.activeTaskActivities);
   const activeTaskId = useTaskStore(taskDetailSelectors.activeTaskId);
@@ -148,6 +155,8 @@ const TaskActivities = memo(() => {
     [activities],
   );
 
+  const commentInput = activeTaskId ? <CommentInput taskId={activeTaskId} /> : null;
+
   return (
     <Accordion defaultExpandedKeys={['activities']} gap={0}>
       <AccordionItem
@@ -158,34 +167,45 @@ const TaskActivities = memo(() => {
           <Flexbox horizontal align="center" gap={8}>
             <Icon color={cssVar.colorTextDescription} icon={BotMessageSquare} size={16} />
             <Text color={cssVar.colorTextSecondary} fontSize={13} weight={500}>
-              {t('taskDetail.activities')}
+              {t(variant === 'result' ? 'taskDetail.runResults' : 'taskDetail.activities')}
             </Text>
           </Flexbox>
         }
       >
         <Flexbox gap={12} paddingBlock={12} paddingInline={12}>
-          {activeTaskId && <CommentInput taskId={activeTaskId} />}
+          {variant === 'activity' && commentInput}
           {items.length > 0 ? (
-            items.map(({ activity, brief, key }) => {
-              if (brief) {
-                return (
-                  <TaskBriefCard
-                    brief={brief}
-                    key={key}
-                    onAfterAddComment={refreshActiveTask}
-                    onAfterDelete={refreshActiveTask}
-                    onAfterResolve={refreshActiveTask}
-                  />
-                );
-              }
-              if (activity.type === 'topic') {
-                return <TopicCard activity={activity} key={key} />;
-              }
-              if (activity.type === 'comment') {
-                return <CommentCard activity={activity} key={key} />;
-              }
-              return <ActivityRow activity={activity} key={key} />;
-            })
+            // A goal loop can produce many rounds; only the newest run opens by
+            // default so the latest result is not buried under older ones.
+            (() => {
+              const firstTopicKey = items.find(({ activity }) => activity.type === 'topic')?.key;
+              return items.map(({ activity, brief, key }) => {
+                if (brief) {
+                  return (
+                    <TaskBriefCard
+                      brief={brief}
+                      key={key}
+                      onAfterAddComment={refreshActiveTask}
+                      onAfterDelete={refreshActiveTask}
+                      onAfterResolve={refreshActiveTask}
+                    />
+                  );
+                }
+                if (activity.type === 'topic') {
+                  return (
+                    <TopicCard
+                      activity={activity}
+                      defaultExpanded={key === firstTopicKey}
+                      key={key}
+                    />
+                  );
+                }
+                if (activity.type === 'comment') {
+                  return <CommentCard activity={activity} key={key} />;
+                }
+                return <ActivityRow activity={activity} key={key} />;
+              });
+            })()
           ) : (
             <Empty
               description={t('taskDetail.activitiesEmpty')}
@@ -193,6 +213,7 @@ const TaskActivities = memo(() => {
               style={{ marginTop: 8 }}
             />
           )}
+          {variant === 'result' && commentInput}
         </Flexbox>
       </AccordionItem>
     </Accordion>

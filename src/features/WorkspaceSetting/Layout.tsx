@@ -1,10 +1,13 @@
 'use client';
 
-import { Text } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import { type FC, memo } from 'react';
 import { Outlet, useMatch } from 'react-router';
+import { SWRConfig } from 'swr';
 
+import SuspenseRouteBoundary from '@/components/SuspenseRouteBoundary';
 import NavHeader from '@/features/NavHeader';
+import { RouteSkeletonChromeProvider } from '@/spa/router/routeSkeletonChrome';
 import { WorkspaceSettingsTabs } from '@/types/workspaceSettings';
 
 import Container from './Container';
@@ -19,7 +22,9 @@ const COMPACT_HEADER_TABS = new Set<string>([
   WorkspaceSettingsTabs.Credits,
   WorkspaceSettingsTabs.Devices,
   WorkspaceSettingsTabs.General,
+  WorkspaceSettingsTabs.Labels,
   WorkspaceSettingsTabs.Members,
+  WorkspaceSettingsTabs.Notification,
   WorkspaceSettingsTabs.Plans,
   WorkspaceSettingsTabs.ServiceModel,
   WorkspaceSettingsTabs.Stats,
@@ -31,16 +36,20 @@ const COMPACT_HEADER_TABS = new Set<string>([
  * Bare workspace settings shell — sidebar + outlet, no content padding.
  * Use this when a child route owns its own full-bleed layout (e.g. Provider).
  */
-const WorkspaceSettingsLayout: FC = memo(() => {
+const WorkspaceSettingsLayout: FC = () => {
   return (
     <>
       <SideBar />
-      <Outlet />
+      <SWRConfig value={{ suspense: true }}>
+        <SuspenseRouteBoundary>
+          <RouteSkeletonChromeProvider>
+            <Outlet />
+          </RouteSkeletonChromeProvider>
+        </SuspenseRouteBoundary>
+      </SWRConfig>
     </>
   );
-});
-
-WorkspaceSettingsLayout.displayName = 'WorkspaceSettingsLayout';
+};
 
 /**
  * Standard workspace settings content layout. Compact-header tabs use the

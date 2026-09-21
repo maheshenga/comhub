@@ -10,20 +10,11 @@ interface RequestInitWithDuplex extends RequestInit {
 
 type FetchMock = (input: RequestInfo | URL, init?: RequestInitWithDuplex) => Promise<Response>;
 
-vi.mock('electron-is', () => ({
+vi.mock('@/utils/platform', () => ({
   dev: vi.fn(() => false),
   macOS: vi.fn(() => false),
   windows: vi.fn(() => false),
   linux: vi.fn(() => true),
-}));
-
-vi.mock('@/utils/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  }),
 }));
 
 vi.mock('electron', () => ({

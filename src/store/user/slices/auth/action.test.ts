@@ -5,8 +5,6 @@ import { mutate } from '@/libs/swr';
 import { userKeys } from '@/libs/swr/keys';
 import { useUserStore } from '@/store/user';
 
-vi.mock('zustand/traditional');
-
 // Mock @/libs/swr mutate
 vi.mock('@/libs/swr', async () => {
   const actual = await vi.importActual('@/libs/swr');
@@ -83,6 +81,34 @@ describe('createAuthSlice', () => {
 
       expect(window.location.href).toContain('/signin');
       expect(window.location.href).toContain('callbackUrl');
+
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+        writable: true,
+      });
+    });
+
+    it('should explain an expired session on the signin page', async () => {
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: {
+          ...originalLocation,
+          href: '',
+          pathname: '/chat',
+          toString: () => 'http://localhost/chat',
+        },
+        writable: true,
+      });
+
+      const { result } = renderHook(() => useUserStore());
+
+      await act(async () => {
+        await result.current.openLogin('sessionExpired');
+      });
+
+      expect(window.location.href).toContain('reason=sessionExpired');
 
       Object.defineProperty(window, 'location', {
         configurable: true,

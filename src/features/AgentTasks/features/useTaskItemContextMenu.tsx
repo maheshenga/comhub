@@ -1,7 +1,6 @@
 import type { TaskStatus } from '@lobechat/types';
 import { type ContextMenuItem, copyToClipboard, Icon, type MenuInfo } from '@lobehub/ui';
-import { confirmModal } from '@lobehub/ui/base-ui';
-import { App } from 'antd';
+import { confirmModal, toast } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
 import {
   BarChart3Icon,
@@ -42,6 +41,7 @@ interface TaskItemContextMenu {
 
 export interface TaskContextMenuTarget {
   assigneeAgentId?: string | null;
+  assigneeUserId?: string | null;
   identifier: string;
   priority?: number | null;
   status: string;
@@ -58,7 +58,7 @@ export const useTaskContextMenuActions = (
   routeScope: TaskItemRouteScope = 'agent',
 ): TaskContextMenuActions => {
   const { t } = useTranslation(['chat', 'common']);
-  const { message } = App.useApp();
+
   const appOrigin = useAppOrigin();
   const activeWorkspaceSlug = useActiveWorkspaceSlug();
   const { allowed: canEditTask } = usePermission('create_content');
@@ -154,7 +154,7 @@ export const useTaskContextMenuActions = (
                 onClick: async ({ domEvent }: MenuInfo) => {
                   domEvent.stopPropagation();
                   if (!canEditTask) return;
-                  if (!task.assigneeAgentId && inboxAgentId) {
+                  if (!task.assigneeAgentId && !task.assigneeUserId && inboxAgentId) {
                     await updateTask(task.identifier, { assigneeAgentId: inboxAgentId });
                   }
                   await runTask(task.identifier);
@@ -192,7 +192,7 @@ export const useTaskContextMenuActions = (
           onClick: async ({ domEvent }: MenuInfo) => {
             domEvent.stopPropagation();
             await copyToClipboard(task.identifier);
-            message.success(t('taskList.contextMenu.copyIdSuccess'));
+            toast.success(t('taskList.contextMenu.copyIdSuccess'));
           },
           sfSymbol: 'doc.on.doc',
         },
@@ -203,7 +203,7 @@ export const useTaskContextMenuActions = (
           onClick: async ({ domEvent }: MenuInfo) => {
             domEvent.stopPropagation();
             await copyToClipboard(taskUrl);
-            message.success(t('taskList.contextMenu.copyLinkSuccess'));
+            toast.success(t('taskList.contextMenu.copyLinkSuccess'));
           },
           sfSymbol: 'doc.on.doc',
         },
@@ -300,7 +300,6 @@ export const useTaskContextMenuActions = (
     return { buildItems, installKeyboardHandlers };
   }, [
     canEditTask,
-    message,
     t,
     appOrigin,
     activeWorkspaceSlug,

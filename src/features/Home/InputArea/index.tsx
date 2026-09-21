@@ -1,6 +1,6 @@
 import { Flexbox } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useUploadFiles } from '@/components/DragUploadZone';
@@ -8,21 +8,18 @@ import { useBrand } from '@/features/Brand';
 import { useHomeDailyBrief } from '@/hooks/useHomeDailyBrief';
 import { useInitAgentConfig } from '@/hooks/useInitAgentConfig';
 import { useAgentStore } from '@/store/agent';
-import { agentByIdSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
+import { agentByIdSelectors } from '@/store/agent/selectors';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
-import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 
+import { HOME_NEW_MODELS_BANNER_ID, NewModelShortcuts } from '../NewModelShortcuts';
 import type { HomeMode } from '../types';
 import { HOME_INPUT_RESERVED_HEIGHT } from './constants';
-import { getHomeInputBannerCandidates, type BannerKind } from './bannerCandidates';
-import BotIntegrationBanner, { BOT_INTEGRATION_BANNER_ID } from './BotIntegrationBanner';
 import { EditorSlot } from './EditorSlot';
 import { stripMarkdownLinks } from './hintFormat';
+import { InputBannerQueue, InputBannerSegment } from './InputBanner';
 import InputDragUpload from './InputDragUpload';
 import MessengerBanner, { MESSENGER_BANNER_ID } from './MessengerBanner';
-import SkillInstallBanner, { SKILL_INSTALL_BANNER_ID } from './SkillInstallBanner';
-import StarterList from './StarterList';
 import { useSend } from './useSend';
 
 const styles = createStaticStyles(({ css }) => ({
@@ -37,69 +34,40 @@ interface InputAreaProps {
   mode: HomeMode;
   onInputValueChange: (value: string) => void;
   onModeChange: (mode: HomeMode) => void;
+  showNewModelShortcuts?: boolean;
 }
 
-const InputArea = ({ inputValue, mode, onInputValueChange, onModeChange }: InputAreaProps) => {
+const InputArea = ({
+  inputValue,
+  mode,
+  onInputValueChange,
+  onModeChange,
+  showNewModelShortcuts,
+}: InputAreaProps) => {
   const { t } = useTranslation('home');
-  const { loading, send, agentId } = useSend(mode);
+  const { agentId, contextSelectionKey, loading, send } = useSend(mode);
+  // Subscribe to the SWR key so `internal_refreshAgentConfig`'s `mutate(...)`
+  // has a listener after toggleFile / toggleKnowledgeBase — otherwise the
+  // Library submenu doesn't reflect server-side toggles. Pass `agentId`
+  // explicitly so AgentSelect switches refetch too.
   useInitAgentConfig(agentId);
-
+  // Use the "config absent from agentMap" loading shape (same as Memory /
+  // Search / History) instead of SWR's `isLoading`, which would flash on
+  // every mount-time revalidation even when inbox data is already cached.
   const isAgentConfigLoading = useAgentStore((s) =>
     agentByIdSelectors.isAgentConfigLoadingById(agentId ?? '')(s),
   );
-  const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
-  const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
-  const isComposioEnabled = useServerConfigStore(serverConfigSelectors.enableComposio);
-  const serverConfigInit = useServerConfigStore((s) => s.serverConfigInit);
-  const isMessengerEnabled = useBrand().homeMessengerEnabled;
-  const isSkillBannerDismissed = useGlobalStore(
-    systemStatusSelectors.isBannerDismissed(SKILL_INSTALL_BANNER_ID),
-  );
-  const isBotIntegrationBannerDismissed = useGlobalStore(
-    systemStatusSelectors.isBannerDismissed(BOT_INTEGRATION_BANNER_ID),
-  );
-  const isMessengerBannerDismissed = useGlobalStore(
-    systemStatusSelectors.isBannerDismissed(MESSENGER_BANNER_ID),
-  );
+  // Wait for the persisted status to hydrate so users who already dismissed
+  // the banner never see it flash on mount.
   const isStatusInit = useGlobalStore(systemStatusSelectors.isStatusInit);
-  const [activeBanner, setActiveBanner] = useState<BannerKind | null>(null);
-  const hasPickedRef = useRef(false);
+  const chatInputRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (mode !== 'chat' || hasPickedRef.current) return;
-    if (!isStatusInit || !serverConfigInit || !inboxAgentId) return;
+  const showInputBanners = mode === 'chat' && isStatusInit;
+  const isMessengerEnabled = useBrand().homeMessengerEnabled;
 
-    const candidates = getHomeInputBannerCandidates({
-      isBotIntegrationBannerDismissed,
-      isComposioEnabled,
-      isLobehubSkillEnabled,
-      isMessengerBannerDismissed,
-      isMessengerEnabled,
-      isSkillBannerDismissed,
-    });
-    if (candidates.length === 0) return;
-
-    hasPickedRef.current = true;
-    setActiveBanner(candidates[Math.floor(Math.random() * candidates.length)]);
-  }, [
-    inboxAgentId,
-    isBotIntegrationBannerDismissed,
-    isComposioEnabled,
-    isLobehubSkillEnabled,
-    isMessengerBannerDismissed,
-    isMessengerEnabled,
-    isSkillBannerDismissed,
-    isStatusInit,
-    mode,
-    serverConfigInit,
-  ]);
-
-  const isActiveBannerDismissed =
-    (activeBanner === 'skill' && isSkillBannerDismissed) ||
-    (activeBanner === 'botIntegration' && isBotIntegrationBannerDismissed) ||
-    (activeBanner === 'messenger' && isMessengerBannerDismissed);
-  const visibleBanner = mode === 'chat' && !isActiveBannerDismissed ? activeBanner : null;
-
+  // Get agent's model info for vision support check. Falls back to an empty
+  // id while the agent id resolves; the selectors return DEFAULT_MODEL /
+  // DEFAULT_PROVIDER for unknown ids.
   const resolvedAgentId = agentId ?? '';
   const model = useAgentStore((s) => agentByIdSelectors.getAgentModelById(resolvedAgentId)(s));
   const provider = useAgentStore((s) =>
@@ -107,6 +75,7 @@ const InputArea = ({ inputValue, mode, onInputValueChange, onModeChange }: Input
   );
   const { handleUploadFiles } = useUploadFiles({ agentId: resolvedAgentId, model, provider });
 
+  // Daily-generated input hint paired with the fixed Home greeting.
   const { currentPair } = useHomeDailyBrief();
   const dailyHint = currentPair?.hint ? stripMarkdownLinks(currentPair.hint) : undefined;
   const placeholder =
@@ -118,6 +87,7 @@ const InputArea = ({ inputValue, mode, onInputValueChange, onModeChange }: Input
     <div className={styles.inputSlot}>
       <EditorSlot
         agentId={agentId}
+        contextSelectionKey={contextSelectionKey}
         initialValue={inputValue}
         isAgentConfigLoading={isAgentConfigLoading}
         loading={loading}
@@ -131,11 +101,8 @@ const InputArea = ({ inputValue, mode, onInputValueChange, onModeChange }: Input
   );
 
   return (
-    <Flexbox gap={mode === 'chat' ? 16 : 0}>
-      <Flexbox style={{ paddingBottom: visibleBanner ? 32 : 0, position: 'relative' }}>
-        {visibleBanner === 'skill' && <SkillInstallBanner />}
-        {visibleBanner === 'botIntegration' && <BotIntegrationBanner />}
-        {visibleBanner === 'messenger' && <MessengerBanner />}
+    <Flexbox>
+      <Flexbox ref={chatInputRef}>
         {mode === 'chat' ? (
           <InputDragUpload
             radius={20}
@@ -147,8 +114,21 @@ const InputArea = ({ inputValue, mode, onInputValueChange, onModeChange }: Input
         ) : (
           editorSlot
         )}
+        {showInputBanners && (
+          <InputBannerQueue>
+            {showNewModelShortcuts && (
+              <InputBannerSegment dismissId={HOME_NEW_MODELS_BANNER_ID}>
+                <NewModelShortcuts />
+              </InputBannerSegment>
+            )}
+            {isMessengerEnabled && (
+              <InputBannerSegment dismissId={MESSENGER_BANNER_ID}>
+                <MessengerBanner />
+              </InputBannerSegment>
+            )}
+          </InputBannerQueue>
+        )}
       </Flexbox>
-      {mode === 'chat' && <StarterList />}
     </Flexbox>
   );
 };

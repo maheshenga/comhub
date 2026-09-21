@@ -126,7 +126,6 @@ export class UpdaterManager {
 
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
-    autoUpdater.allowDowngrade = false;
 
     const useDevConfig = isDev || FORCE_DEV_UPDATE_CONFIG;
     if (useDevConfig) {
@@ -142,6 +141,10 @@ export class UpdaterManager {
       );
       this.updateProviderConfigured = this.configureUpdateProvider();
     }
+
+    // Keep every release channel rollback-capable. Assign this after configuring the provider because
+    // electron-updater's channel setter mutates allowDowngrade as a side effect.
+    autoUpdater.allowDowngrade = true;
 
     this.registerEvents();
 
@@ -163,14 +166,13 @@ export class UpdaterManager {
   public switchChannel = (channel: UpdateChannel) => {
     logger.info(`Switching update channel: ${this.currentChannel} -> ${channel}`);
 
-    const isDowngrade = this.currentChannel === 'canary' && channel === 'stable';
-
     this.currentChannel = channel;
-    autoUpdater.allowDowngrade = isDowngrade;
-    logger.info(`allowDowngrade=${isDowngrade}`);
-
     autoUpdater.allowPrerelease = channel !== 'stable';
     this.updateProviderConfigured = this.configureUpdateProvider();
+
+    // Reapply after configureUpdateProvider for the same channel-setter side effect as initialize.
+    autoUpdater.allowDowngrade = true;
+    logger.info('allowDowngrade=true');
 
     this.installLaterVersion = null;
 
@@ -348,6 +350,7 @@ export class UpdaterManager {
     logger.info('Simulating update available...');
 
     const mockUpdateInfo: UpdateInfo = {
+      kind: 'app',
       releaseDate: new Date().toISOString(),
       releaseNotes: ` #### Version 1.0.0 Release Notes
 - Added some great new features
@@ -376,6 +379,7 @@ export class UpdaterManager {
     logger.info('Simulating update downloaded...');
 
     const mockUpdateInfo: UpdateInfo = {
+      kind: 'app',
       releaseDate: new Date().toISOString(),
       releaseNotes: ` #### Version 1.0.0 Release Notes
 - Added some great new features
@@ -388,7 +392,7 @@ export class UpdaterManager {
 
     this.downloading = false;
     this.setStage('downloaded', { updateInfo: mockUpdateInfo });
-    this.mainWindow.broadcast('updateDownloaded', mockUpdateInfo);
+    this.mainWindow.broadcast('updateReady', mockUpdateInfo);
   };
 
   /**
@@ -503,7 +507,7 @@ export class UpdaterManager {
 
       // Always auto-download
       logger.info('Update found, starting download automatically...');
-      this.setStage('downloading', { updateInfo: info });
+      this.setStage('downloading', { updateInfo: { ...info, kind: 'app' } });
       this.downloadUpdate();
     });
 
@@ -557,16 +561,17 @@ export class UpdaterManager {
 
       this.maybeClearInstallLaterGuard(info.version);
 
-      this.setStage('downloaded', { updateInfo: info });
+      const updateInfo = { ...info, kind: 'app' } satisfies UpdateInfo;
+      this.setStage('downloaded', { updateInfo });
 
       if (this.installLaterVersion) {
         logger.info(
-          `Not re-broadcasting updateDownloaded — install-later acknowledged for v${this.installLaterVersion}, incoming v${info.version}`,
+          `Not broadcasting updateReady — install-later acknowledged for v${this.installLaterVersion}, incoming v${info.version}`,
         );
         return;
       }
 
-      this.mainWindow.broadcast('updateDownloaded', info);
+      this.mainWindow.broadcast('updateReady', updateInfo);
     });
 
     logger.debug('Updater events registered');
@@ -615,6 +620,7 @@ export class UpdaterManager {
   private getCurrentUpdateInfo(): UpdateInfo {
     const version = autoUpdater.currentVersion?.version || electronApp.getVersion();
     return {
+      kind: 'app',
       releaseDate: new Date().toISOString(),
       version,
     };

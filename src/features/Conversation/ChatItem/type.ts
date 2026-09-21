@@ -1,8 +1,9 @@
-import type { AlertProps, AvatarProps, DivProps, FlexboxProps } from '@lobehub/ui';
+import type { DivProps, FlexboxProps } from '@lobehub/ui';
+import { type AlertProps, type AvatarProps } from '@lobehub/ui/base-ui';
 import type { EditableMessageProps, MetaData } from '@lobehub/ui/chat';
 import type { ReactNode } from 'react';
 
-export type ChatItemAvatar = Partial<MetaData> & { title?: string };
+export type ChatItemAvatarMeta = Partial<MetaData> & { name?: string | null; title?: string };
 
 export interface ChatItemProps extends Omit<FlexboxProps, 'children' | 'onChange'> {
   aboveMessage?: ReactNode;
@@ -10,11 +11,11 @@ export interface ChatItemProps extends Omit<FlexboxProps, 'children' | 'onChange
   actions?: ReactNode;
   actionsWrapWidth?: number;
   afterActions?: ReactNode;
-  avatar: ChatItemAvatar;
+  avatar: ChatItemAvatarMeta;
   avatarProps?: AvatarProps;
   belowMessage?: ReactNode;
   children?: ReactNode;
-  customAvatarRender?: (avatar: ChatItemAvatar, node: ReactNode) => ReactNode;
+  customAvatarRender?: (avatar: ChatItemAvatarMeta, node: ReactNode) => ReactNode;
   customErrorRender?: (error: AlertProps) => ReactNode;
   /**
    * @description Whether the chat item is disabled

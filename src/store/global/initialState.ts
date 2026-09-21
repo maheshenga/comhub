@@ -80,6 +80,7 @@ export enum SettingsTabs {
   Hotkey = 'hotkey',
   /** @deprecated Use ServiceModel instead */
   Image = 'image',
+  Labels = 'labels',
   Labs = 'labs',
   LLM = 'llm',
   Memory = 'memory',
@@ -141,6 +142,8 @@ export const MODEL_DETAIL_PANEL_EXPANDABLE_KEYS = [
   'config',
 ] as const satisfies readonly ModelDetailPanelExpandedKey[];
 
+export type TaskViewMode = 'kanban' | 'list';
+
 export const DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS = ['pages', 'recents', 'private', 'agent'] as const;
 
 export interface SystemStatus {
@@ -149,6 +152,17 @@ export interface SystemStatus {
    */
   agentBuilderPanelWidth?: number;
   /**
+   * Expanded group keys of the agent view-all page. Expanded (not collapsed)
+   * keys are persisted because groups default to COLLAPSED (mirrors Linear) —
+   * newly appearing groups start collapsed until explicitly opened.
+   */
+  agentListExpandedGroupKeys?: string[];
+  /**
+   * Whether the "in sidebar" overview section of the agent view-all page is
+   * collapsed. Defaults to expanded so the section is discoverable.
+   */
+  agentListSidebarSectionCollapsed?: boolean;
+  /**
    * View mode of the agent view-all page (card grid vs table list)
    */
   agentListViewMode?: 'card' | 'list';
@@ -156,7 +170,7 @@ export interface SystemStatus {
    * Display options of the agent view-all page (grouping / ordering / hidden-agent visibility)
    */
   agentListViewOptions?: {
-    groupBy: 'author' | 'none';
+    groupBy: 'author' | 'label' | 'none';
     orderBy: 'author' | 'title' | 'updatedAt';
     orderDirection: 'asc' | 'desc';
     showSidebarHidden: boolean;
@@ -206,6 +220,12 @@ export interface SystemStatus {
   hidePWAInstaller?: boolean;
   hideThreadLimitAlert?: boolean;
   hideTopicSharePrivacyWarning?: boolean;
+  /**
+   * Home rail: the goals card folded to its title. Persisted, because a card
+   * you deliberately put away must stay away across reloads — otherwise the
+   * affordance is only a scroll trick.
+   */
+  homeGoalsCollapsed?: boolean;
   homeRecentsCount?: number;
   /**
    * Agent picked from the home AgentSelect dropdown. When unset the home page
@@ -259,7 +279,15 @@ export interface SystemStatus {
    * number of pages (documents) to display per page
    */
   pagePageSize?: number;
+  /**
+   * @deprecated legacy shared portal width, kept as the fallback for views that
+   * have no entry in `portalWidths` yet
+   */
   portalWidth: number;
+  /**
+   * portal width remembered per view type, see `PortalWidths`
+   */
+  portalWidths?: Record<string, number>;
   /**
    * number of private agents (ungrouped) to display in the Private sidebar bucket
    */
@@ -320,6 +348,8 @@ export interface SystemStatus {
   showVerifyReportPanel?: boolean;
   showVideoPanel?: boolean;
   showVideoTopicPanel?: boolean;
+  /** Visibility of the lightweight chat overview card. Independent from the workspace panel. */
+  showWorkingOverview?: boolean;
   /**
    * Flat ordered list of sidebar items.
    */
@@ -345,13 +375,20 @@ export interface SystemStatus {
    * Whether the right-side "Hidden columns" panel on the Kanban board is collapsed.
    */
   taskKanbanHiddenPanelCollapsed?: boolean;
+  /**
+   * Display mode for the tasks page. Persisted so a manually selected board or
+   * list view survives navigation and page reloads.
+   */
+  taskListViewMode?: TaskViewMode;
   taskListViewOptions?: {
-    groupBy: 'assignee' | 'none' | 'priority' | 'status';
+    groupBy: 'assignee' | 'member' | 'none' | 'priority' | 'status';
     hideCompleted: boolean;
+    nestedSubTasks: boolean;
     orderBy: 'assignee' | 'createdAt' | 'priority' | 'status' | 'title' | 'updatedAt';
     orderCompletedByRecency: boolean;
     orderDirection: 'asc' | 'desc';
-    subGroupBy: 'assignee' | 'none' | 'priority' | 'status';
+    showSubTasks: boolean;
+    subGroupBy: 'assignee' | 'member' | 'none' | 'priority' | 'status';
   };
   /**
    * Height of the chat bottom terminal panel. Persisted so resizing survives remounts.
@@ -472,6 +509,8 @@ export interface GlobalState {
 
 export const INITIAL_STATUS = {
   agentBuilderPanelWidth: 360,
+  agentListExpandedGroupKeys: [] as string[],
+  agentListSidebarSectionCollapsed: false,
   agentListViewMode: 'list' as const,
   agentListViewOptions: {
     groupBy: 'none' as const,
@@ -486,11 +525,14 @@ export const INITIAL_STATUS = {
   taskListViewOptions: {
     groupBy: 'status',
     hideCompleted: true,
+    nestedSubTasks: true,
     orderBy: 'updatedAt',
     orderCompletedByRecency: true,
     orderDirection: 'asc',
+    showSubTasks: false,
     subGroupBy: 'none',
   },
+  taskListViewMode: 'list' as const,
   taskKanbanHiddenColumns: ['done', 'canceled'],
   taskKanbanHiddenPanelCollapsed: false,
   disabledModelProvidersSortType: 'default',
@@ -505,6 +547,7 @@ export const INITIAL_STATUS = {
   hidePWAInstaller: false,
   hideThreadLimitAlert: false,
   hideTopicSharePrivacyWarning: false,
+  homeGoalsCollapsed: false,
   homeRecentsCount: 8,
   homeTaskCount: 8,
   imagePanelWidth: 320,
@@ -520,6 +563,7 @@ export const INITIAL_STATUS = {
   pageAgentPanelWidth: 360,
   pagePageSize: 20,
   portalWidth: 400,
+  portalWidths: {},
   readNotificationSlugs: [],
   resourceManagerColumnWidths: DEFAULT_RESOURCE_MANAGER_COLUMN_WIDTHS,
   showCommandMenu: false,
@@ -555,10 +599,12 @@ export const INITIAL_STATUS = {
 const statusStorage = new AsyncLocalStorage<SystemStatus>('LOBE_SYSTEM_STATUS');
 
 /**
- * Restore the Home rail before React's first render. The remaining system
- * status still follows the existing async initialization path, but this
- * layout-affecting preference must not briefly render its default value after
- * a page reload.
+ * Restore the shell-defining preferences before React's first render. The
+ * remaining system status still follows the existing async initialization path,
+ * but these must not briefly render their default value after a page reload —
+ * the boot shell reads them synchronously to draw a shell that lines up with
+ * the real layout, and `NavPanelDraggable` would otherwise size its
+ * pre-hydration placeholder to the default width.
  */
 export const createInitialSystemStatus = (): SystemStatus => {
   const persistedStatus = statusStorage.getFromLocalStorageSync();
@@ -568,6 +614,10 @@ export const createInitialSystemStatus = (): SystemStatus => {
     hiddenHomeWidgets: Array.isArray(persistedStatus.hiddenHomeWidgets)
       ? persistedStatus.hiddenHomeWidgets
       : INITIAL_STATUS.hiddenHomeWidgets,
+    leftPanelWidth:
+      typeof persistedStatus.leftPanelWidth === 'number'
+        ? persistedStatus.leftPanelWidth
+        : INITIAL_STATUS.leftPanelWidth,
     showHomePortrait:
       typeof persistedStatus.showHomePortrait === 'boolean'
         ? persistedStatus.showHomePortrait
@@ -576,6 +626,10 @@ export const createInitialSystemStatus = (): SystemStatus => {
       typeof persistedStatus.showHomeRail === 'boolean'
         ? persistedStatus.showHomeRail
         : INITIAL_STATUS.showHomeRail,
+    showLeftPanel:
+      typeof persistedStatus.showLeftPanel === 'boolean'
+        ? persistedStatus.showLeftPanel
+        : INITIAL_STATUS.showLeftPanel,
   };
 };
 

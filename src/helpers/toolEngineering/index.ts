@@ -34,7 +34,7 @@ import {
 } from '@/store/tool/selectors';
 import { connectorSelectors } from '@/store/tool/slices/connector';
 import { useUserStore } from '@/store/user';
-import { labPreferSelectors, settingsSelectors } from '@/store/user/selectors';
+import { settingsSelectors } from '@/store/user/selectors';
 
 import { getSearchConfig } from '../getSearchConfig';
 import { isCanUseFC } from '../isCanUseFC';
@@ -234,16 +234,19 @@ export const createAgentToolsEngine = (
     agentChatConfigSelectors.currentChatConfig(agentState).memory?.enabled ??
     settingsSelectors.memoryEnabled(useUserStore.getState());
   const webBrowsingEnabled = searchConfig.useApplicationBuiltinSearchTool;
-  const imageGenerationEnabled =
+  // Chat mode no longer auto-injects image generation (token cost + unwanted
+  // tool calls). Users opt in by pinning `lobe-image-generation`. Models with
+  // native imageOutput still skip the fallback tool entirely.
+  const imageGenerationCapable =
     isCanUseFC(workingModel.model, workingModel.provider) &&
     !aiModelSelectors.isModelSupportImageOutput(
       workingModel.model,
       workingModel.provider,
     )(getAiInfraStoreState());
+  const imageGenerationEnabled =
+    imageGenerationCapable && userPlugins.includes(ImageGenerationManifest.identifier);
 
   const chatModeRules = {
-    // Example: Claude can call tools but lacks native imageOutput, so expose the
-    // image-generation fallback; image-output models should use their native path.
     [ImageGenerationManifest.identifier]: imageGenerationEnabled,
     [KnowledgeBaseManifest.identifier]: kbEnabled,
     [MemoryManifest.identifier]: memoryEnabled,
@@ -259,13 +262,9 @@ export const createAgentToolsEngine = (
     // Always-on builtin tools
     ...Object.fromEntries(alwaysOnToolIds.map((id) => [id, true])),
     // System-level rules (may override user selection for specific tools)
-    // Browser rides the same local-runtime gate as local-system (the control
-    // IPC only exists in the desktop main process), plus the in-app browser
-    // Labs toggle that also governs the sidebar tab — with the lab off the
-    // tool would drive a pane the user can't see.
-    [BrowserManifest.identifier]:
-      agentChatConfigSelectors.isLocalSystemEnabled(agentState) &&
-      labPreferSelectors.enableInAppBrowser(useUserStore.getState()),
+    // Browser rides the same local-runtime gate as local-system because the
+    // control IPC only exists in the desktop main process.
+    [BrowserManifest.identifier]: agentChatConfigSelectors.isLocalSystemEnabled(agentState),
     [CloudSandboxManifest.identifier]: agentChatConfigSelectors.isCloudSandboxEnabled(agentState),
     [KnowledgeBaseManifest.identifier]: kbEnabled,
     [LocalSystemManifest.identifier]: agentChatConfigSelectors.isLocalSystemEnabled(agentState),

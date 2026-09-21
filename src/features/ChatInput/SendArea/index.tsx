@@ -6,7 +6,6 @@ import { type ActionKey } from '../ActionBar/config';
 import { actionMap } from '../ActionBar/config';
 import { useChatInputResourceAccess } from '../hooks/useChatInputResourceAccess';
 import { useChatInputStore } from '../store';
-import ExpandButton from './ExpandButton';
 import { resolveSendAreaActionKeys } from './resolveActionKeys';
 import SendButton from './SendButton';
 
@@ -27,24 +26,28 @@ interface SendAreaProps {
 
 const SendArea = memo<SendAreaProps>(({ hideContextWindow = true }) => {
   const { canShowControls } = useChatInputResourceAccess();
-  const allowExpand = useChatInputStore((s) => s.allowExpand);
   const rightActions = useChatInputStore((s) => s.rightActions, isEqual);
+  const activeAudioInputMode = useChatInputStore((s) => s.activeAudioInputMode);
+  const audioInputActive = activeAudioInputMode !== undefined;
 
   const items = useMemo(
     () =>
       canShowControls
         ? mapActionsToItems(
-            resolveSendAreaActionKeys(rightActions as ActionKey[], hideContextWindow),
+            resolveSendAreaActionKeys(
+              rightActions as ActionKey[],
+              hideContextWindow,
+              activeAudioInputMode,
+            ),
           )
         : [],
-    [canShowControls, rightActions, hideContextWindow],
+    [activeAudioInputMode, canShowControls, hideContextWindow, rightActions],
   );
 
   return (
     <Flexbox horizontal align={'center'} flex={'none'} gap={12}>
-      {canShowControls && allowExpand && <ExpandButton />}
       {items}
-      <SendButton />
+      {!audioInputActive && <SendButton />}
     </Flexbox>
   );
 });

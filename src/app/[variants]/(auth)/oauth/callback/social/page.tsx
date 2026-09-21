@@ -1,6 +1,7 @@
 'use client';
 
-import { FluentEmoji, Text } from '@lobehub/ui';
+import { FluentEmoji } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import { Result } from 'antd';
 import { useSearchParams } from 'next/navigation';
 import React, { memo, useEffect, useState } from 'react';

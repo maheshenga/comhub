@@ -1,6 +1,8 @@
 import { electronAPI } from '@electron-toolkit/preload';
-import type { ScreenCaptureSession } from '@lobechat/electron-client-ipc';
+import type { RendererMemoryInfo, ScreenCaptureSession } from '@lobechat/electron-client-ipc';
 import { contextBridge, ipcRenderer } from 'electron';
+
+import { readSystemLanguageArg } from '~common/systemLanguage';
 
 import { invoke } from './invoke';
 import { onStreamInvoke } from './streamer';
@@ -29,6 +31,12 @@ export const setupElectronApi = () => {
   }
 
   contextBridge.exposeInMainWorld('electronAPI', {
+    getDesktopBootstrapIdentity: () => ipcRenderer.sendSync('desktop:get-bootstrap-identity'),
+    getRendererMemoryInfo: async (): Promise<RendererMemoryInfo> => {
+      const memory = await process.getProcessMemoryInfo();
+
+      return { privateBytes: memory.private * 1024, sharedBytes: memory.shared * 1024 };
+    },
     invoke,
     onScreenCaptureSession: (listener: (session: ScreenCaptureSession) => void) => {
       screenCaptureSessionListeners.add(listener);
@@ -55,6 +63,7 @@ export const setupElectronApi = () => {
     isMacTahoe: process.platform === 'darwin' && darwinMajorVersion >= 25,
     nodeVersion: process.versions.node,
     platform: process.platform,
+    systemLanguage: readSystemLanguageArg(process.argv),
   });
 };
 

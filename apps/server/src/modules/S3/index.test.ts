@@ -1,12 +1,18 @@
 // @vitest-environment node
+import type { ListPartsCommandOutput } from '@aws-sdk/client-s3';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  paginateListParts,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -295,6 +301,21 @@ describe('FileS3', () => {
       expect(result).toBe(mockContent);
     });
 
+    it('requests only a bounded byte range for a content preview', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({
+        Body: { transformToString: vi.fn().mockResolvedValue('# Preview') },
+      });
+
+      await s3.getFileContent('preview.md', 8192);
+
+      expect(GetObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'preview.md',
+        Range: 'bytes=0-8191',
+      });
+    });
+
     it('should throw error when response body is missing', async () => {
       const s3 = new FileS3();
       mockS3ClientSend.mockResolvedValue({
@@ -579,6 +600,114 @@ describe('FileS3', () => {
     });
   });
 
+  describe('multipart uploads', () => {
+    it('should create an upload and sign individual parts', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({ UploadId: 'upload-1' });
+
+      await expect(s3.createMultipartUpload('large.bin', 'application/octet-stream')).resolves.toBe(
+        'upload-1',
+      );
+      await expect(s3.createPreSignedUploadPartUrl('large.bin', 'upload-1', 2)).resolves.toBe(
+        'https://presigned-url.example.com',
+      );
+
+      expect(CreateMultipartUploadCommand).toHaveBeenCalledWith({
+        ACL: 'public-read',
+        Bucket: 'test-bucket',
+        ContentType: 'application/octet-stream',
+        Key: 'large.bin',
+      });
+      expect(UploadPartCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'large.bin',
+        PartNumber: 2,
+        UploadId: 'upload-1',
+      });
+    });
+
+    it('should complete with ETags returned to the browser', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({});
+
+      await s3.completeMultipartUpload('large.bin', 'upload-1', 2, [
+        { ETag: 'etag-2', PartNumber: 2 },
+        { ETag: 'etag-1', PartNumber: 1 },
+      ]);
+
+      expect(paginateListParts).not.toHaveBeenCalled();
+      expect(CompleteMultipartUploadCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'large.bin',
+        MultipartUpload: {
+          Parts: [
+            { ETag: 'etag-1', PartNumber: 1 },
+            { ETag: 'etag-2', PartNumber: 2 },
+          ],
+        },
+        UploadId: 'upload-1',
+      });
+    });
+
+    it('should fall back to listing parts when CORS hides ETag', async () => {
+      const s3 = new FileS3();
+      vi.mocked(paginateListParts).mockReturnValue(
+        (async function* (): AsyncGenerator<ListPartsCommandOutput, undefined> {
+          yield {
+            Parts: [
+              { ETag: 'etag-2', PartNumber: 2 },
+              { ETag: 'etag-1', PartNumber: 1 },
+            ],
+          } as ListPartsCommandOutput;
+          return undefined;
+        })(),
+      );
+      mockS3ClientSend.mockResolvedValue({});
+
+      await s3.completeMultipartUpload('large.bin', 'upload-1', 2);
+
+      expect(CompleteMultipartUploadCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'large.bin',
+        MultipartUpload: {
+          Parts: [
+            { ETag: 'etag-1', PartNumber: 1 },
+            { ETag: 'etag-2', PartNumber: 2 },
+          ],
+        },
+        UploadId: 'upload-1',
+      });
+    });
+
+    it('should reject completion when a part is missing', async () => {
+      const s3 = new FileS3();
+      vi.mocked(paginateListParts).mockReturnValue(
+        (async function* (): AsyncGenerator<ListPartsCommandOutput, undefined> {
+          yield { Parts: [{ ETag: 'etag-1', PartNumber: 1 }] } as ListPartsCommandOutput;
+          return undefined;
+        })(),
+      );
+
+      await expect(s3.completeMultipartUpload('large.bin', 'upload-1', 2)).rejects.toThrow(
+        'has 1/2 parts',
+      );
+      expect(CompleteMultipartUploadCommand).not.toHaveBeenCalled();
+    });
+
+    it('should abort an unfinished upload', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({});
+
+      await s3.abortMultipartUpload('large.bin', 'upload-1');
+
+      expect(AbortMultipartUploadCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'large.bin',
+        UploadId: 'upload-1',
+      });
+    });
+  });
+
   describe('createPreSignedUrlForPreview', () => {
     it('should create presigned URL for preview with default expiration', async () => {
       const s3 = new FileS3();
@@ -603,6 +732,25 @@ describe('FileS3', () => {
       expect(mockGetSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
         expiresIn: 1800,
       });
+    });
+  });
+
+  describe('createPreSignedUrlForDownload', () => {
+    it('should request attachment delivery with an encoded file name', async () => {
+      const s3 = new FileS3();
+
+      const result = await s3.createPreSignedUrlForDownload('video-file.mp4', '拼贴 动画.mp4');
+
+      expect(GetObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'video-file.mp4',
+        ResponseContentDisposition:
+          "attachment; filename*=UTF-8''%E6%8B%BC%E8%B4%B4%20%E5%8A%A8%E7%94%BB.mp4",
+      });
+      expect(mockGetSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+        expiresIn: 7200,
+      });
+      expect(result).toBe('https://presigned-url.example.com');
     });
   });
 

@@ -17,6 +17,7 @@ const mockFindById = vi.fn();
 const mockCountTopicsForMemoryExtractor = vi.fn();
 const mockDeleteAll = vi.fn();
 const mockDeletePersona = vi.fn();
+const mockResetMemoryExtractStatus = vi.fn();
 const {
   mockExecutorCreate,
   mockExecutorGetTopicsForUser,
@@ -47,6 +48,7 @@ vi.mock('@/database/models/asyncTask', () => ({
 vi.mock('@/database/models/topic', () => ({
   TopicModel: vi.fn(() => ({
     countTopicsForMemoryExtractor: mockCountTopicsForMemoryExtractor,
+    resetMemoryExtractStatus: mockResetMemoryExtractStatus,
   })),
 }));
 
@@ -417,12 +419,14 @@ describe('userMemoryRouter.deleteAll', () => {
   it('purges all user memories through the aggregate model', async () => {
     mockDeleteAll.mockResolvedValue(undefined);
     mockDeletePersona.mockResolvedValue(undefined);
+    mockResetMemoryExtractStatus.mockResolvedValue(undefined);
 
     const caller = createCaller();
     const result = await caller.deleteAll();
 
     expect(mockDeleteAll).toHaveBeenCalledOnce();
     expect(mockDeletePersona).toHaveBeenCalledOnce();
+    expect(mockResetMemoryExtractStatus).toHaveBeenCalledOnce();
     expect(result).toEqual({ success: true });
   });
 });

@@ -9,7 +9,6 @@ export default defineConfig({
     // production dependency inside the bundle so the embedded CLI is truly
     // self-contained instead of failing at startup with ERR_MODULE_NOT_FOUND.
     alwaysBundle: ['ws'],
-    neverBundle: ['@napi-rs/canvas'],
   },
   entry: ['src/index.ts'],
   fixedExtension: false,
@@ -19,5 +18,7 @@ export default defineConfig({
     codeSplitting: false,
   },
   platform: 'node',
-  target: 'node18',
+  // Matches the `engines.node` floor: reading a compressed trace snapshot needs
+  // `node:zlib` zstd, which lands in 22.15. Node 20 went EOL in April 2026.
+  target: 'node22',
 });

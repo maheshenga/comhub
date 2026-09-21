@@ -4,6 +4,7 @@ import {
   __testing,
   sharedModulePreload,
   sharedOptimizeDeps,
+  sharedRendererDedupe,
   sharedRendererPlugins,
 } from './sharedRendererConfig';
 
@@ -25,6 +26,12 @@ describe('sharedOptimizeDeps', () => {
     expect(sharedOptimizeDeps.include).toEqual(
       expect.arrayContaining(['@lobehub/ui', '@lobehub/ui/base-ui']),
     );
+  });
+});
+
+describe('sharedRendererDedupe', () => {
+  it('keeps editor entrypoints on one shared context instance', () => {
+    expect(sharedRendererDedupe).toContain('@lobehub/editor');
   });
 });
 
@@ -179,6 +186,19 @@ describe('sharedManualChunks', () => {
       ),
     ).toBeUndefined();
     expect(__testing.sharedManualChunks('/repo/packages/model-bank/src/index.ts')).toBeUndefined();
+  });
+});
+
+describe('isUiCoreModule', () => {
+  it('folds first-screen @lobehub/ui members into vendor-ui-core and leaves heavy ones lazy', () => {
+    const es = '/repo/node_modules/.pnpm/@lobehub+ui@5/node_modules/@lobehub/ui/es/';
+    expect(__testing.isUiCoreModule(`${es}Flex/FlexBasic.mjs`)).toBe(true);
+    expect(__testing.isUiCoreModule(`${es}base-ui/Button/Button.mjs`)).toBe(true);
+    expect(__testing.isUiCoreModule(`${es}hooks/useIsClient.mjs`)).toBe(true);
+    expect(__testing.isUiCoreModule(`${es}Markdown/Markdown.mjs`)).toBe(false);
+    expect(__testing.isUiCoreModule(`${es}hooks/useMarkdown/index.mjs`)).toBe(false);
+    expect(__testing.isUiCoreModule(`${es}base-ui/Select/Select.mjs`)).toBe(false);
+    expect(__testing.isUiCoreModule('/repo/node_modules/antd/es/index.js')).toBe(false);
   });
 });
 

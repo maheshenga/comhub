@@ -64,7 +64,8 @@ describe('tools marketRouter', () => {
       workspaceId: 'workspace-1',
     } as any);
     mockPreprocessLhCommand.mockResolvedValue({
-      command: 'LOBEHUB_WORKSPACE_ID=workspace-1 npx -y @lobehub/cli agent view agt_1',
+      command:
+        'lh() { LOBEHUB_WORKSPACE_ID=\'workspace-1\' npx -y @lobehub/cli "$@"; }\nlh agent view agt_1',
       isLhCommand: true,
       skipSkillLookup: true,
     });
@@ -82,8 +83,42 @@ describe('tools marketRouter', () => {
       'workspace-1',
     );
     expect(mockSandboxCallTool).toHaveBeenCalledWith('runCommand', {
-      command: 'LOBEHUB_WORKSPACE_ID=workspace-1 npx -y @lobehub/cli agent view agt_1',
+      command:
+        'lh() { LOBEHUB_WORKSPACE_ID=\'workspace-1\' npx -y @lobehub/cli "$@"; }\nlh agent view agt_1',
     });
+  });
+
+  // Regression: `input.userId` used to override `ctx.userId`, so any
+  // authenticated caller could make the server mint another user's JWT into a
+  // sandbox command they control (and read their skills/files).
+  it('should ignore a client-supplied userId and always use the authenticated ctx.userId', async () => {
+    const caller = marketRouter.createCaller({
+      serverDB: {},
+      userId: 'caller-user',
+      workspaceId: null,
+    } as any);
+    mockPreprocessLhCommand.mockResolvedValue({
+      command: 'lh agent view agt_1',
+      isLhCommand: true,
+      skipSkillLookup: true,
+    });
+    mockSandboxCallTool.mockResolvedValue({ result: { ok: true }, success: true });
+
+    await caller.execInSandbox({
+      params: { command: 'lh agent view agt_1' },
+      toolName: 'runCommand',
+      topicId: 'topic-1',
+      userId: 'someone-else',
+    });
+
+    expect(mockPreprocessLhCommand).toHaveBeenCalledWith(
+      'lh agent view agt_1',
+      'caller-user',
+      undefined,
+    );
+    expect(mockCreateSandboxService).toHaveBeenCalledWith(
+      expect.objectContaining({ topicId: 'topic-1', userId: 'caller-user' }),
+    );
   });
 
   it('should fall back to static tools when live discovery fails', async () => {

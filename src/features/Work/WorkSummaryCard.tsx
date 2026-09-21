@@ -1,13 +1,16 @@
 'use client';
 
 import type { WorkSummaryItem } from '@lobechat/types';
-import { Flexbox, Tag, Text } from '@lobehub/ui';
+import { formatUsageValue } from '@lobechat/utils';
+import { Center, Flexbox, Icon as LobeIcon } from '@lobehub/ui';
+import { Tag, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
-import { Trash2Icon } from 'lucide-react';
+import { CircleDollarSignIcon, CoinsIcon, Trash2Icon } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useChatStore } from '@/store/chat';
+import { getWorkVersionTotalTokens } from '@/utils/workCumulativeUsage';
 import { formatWorkVersionCost } from '@/utils/workVersionCost';
 
 import { getWorkTypeDescriptor, isSafeExternalUrl } from './descriptors';
@@ -20,7 +23,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     padding-block: 12px;
     padding-inline: 12px;
     border: 1px solid ${cssVar.colorBorderSecondary};
-    border-radius: 8px;
+    border-radius: ${cssVar.borderRadiusLG};
 
     background: ${cssVar.colorBgElevated};
   `,
@@ -33,10 +36,16 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   cost: css`
     flex-shrink: 0;
+    font-family: ${cssVar.fontFamilyCode};
+    font-size: 12px;
     color: ${cssVar.colorTextTertiary};
   `,
   description: css`
     min-width: 0;
+    color: ${cssVar.colorTextTertiary};
+  `,
+  identifier: css`
+    flex-shrink: 0;
     color: ${cssVar.colorTextTertiary};
   `,
   icon: css`
@@ -78,6 +87,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 11px;
     color: ${cssVar.colorTextTertiary};
   `,
+  inlineIdentifier: css`
+    flex-shrink: 0;
+    font-family: ${cssVar.fontFamilyCode};
+    font-size: 11px;
+    color: ${cssVar.colorTextTertiary};
+  `,
   inlineIcon: css`
     flex-shrink: 0;
     color: ${cssVar.colorTextSecondary};
@@ -89,7 +104,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   title: css`
     min-width: 0;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
   `,
 }));
@@ -118,8 +133,20 @@ const WorkSummaryCard = memo<WorkSummaryCardProps>(
   ({ className, item, onOpen, variant = 'card' }) => {
     const { t } = useTranslation('chat');
     const openDocument = useChatStore((s) => s.openDocument);
+    const openFilePreview = useChatStore((s) => s.openFilePreview);
     const openTaskDetail = useChatStore((s) => s.openTaskDetail);
     const cost = formatWorkVersionCost(item.totalCost);
+    const totalTokens = getWorkVersionTotalTokens(item.event.cumulativeUsage);
+    const usage = cost
+      ? { icon: CircleDollarSignIcon, value: cost.slice(1) }
+      : totalTokens
+        ? { icon: CoinsIcon, value: formatUsageValue(totalTokens) }
+        : null;
+    const usageTitle = cost
+      ? t('workingPanel.works.totalCost', { cost })
+      : totalTokens
+        ? `${totalTokens.toLocaleString()} ${t('opStatusTray.tokens')}`
+        : undefined;
 
     const descriptor = getWorkTypeDescriptor(item);
     const Icon = descriptor.getIcon(item);
@@ -128,6 +155,11 @@ const WorkSummaryCard = memo<WorkSummaryCardProps>(
       descriptor.getIdentifier(item) ||
       item.resourceId ||
       item.id;
+    // Mirrors WorkVersionHistoryCard's label: surface the resource identifier
+    // (e.g. `QA-1989`, `owner/repo#2`) on the card itself, unless the title
+    // already fell back to it.
+    const identifier = descriptor.getIdentifier(item);
+    const showIdentifier = !!identifier && identifier !== title;
     const description = descriptor.getDescription(item);
     const openTarget = descriptor.getOpenTarget(item);
     // The backing task was deleted outside the tool path: the Work lingers as an
@@ -154,6 +186,10 @@ const WorkSummaryCard = memo<WorkSummaryCardProps>(
             window.open(openTarget.url, '_blank', 'noopener,noreferrer');
           return;
         }
+        case 'filePreview': {
+          openFilePreview({ fileId: openTarget.fileId });
+          return;
+        }
         case 'task': {
           openTaskDetail(openTarget.identifier);
         }
@@ -175,6 +211,7 @@ const WorkSummaryCard = memo<WorkSummaryCardProps>(
               <Text ellipsis className={styles.inlineTitle}>
                 {title}
               </Text>
+              {showIdentifier && <span className={styles.inlineIdentifier}>{identifier}</span>}
               {taskDeleted && (
                 <Tag color={'warning'} icon={<Trash2Icon size={12} />} size={'small'}>
                   {t('workingPanel.works.taskDeleted')}
@@ -187,10 +224,11 @@ const WorkSummaryCard = memo<WorkSummaryCardProps>(
               </Text>
             )}
           </Flexbox>
-          {cost && (
-            <span className={styles.inlineCost} title={t('workingPanel.works.totalCost', { cost })}>
-              {cost}
-            </span>
+          {usage && (
+            <Center horizontal className={styles.inlineCost} gap={2} title={usageTitle}>
+              <LobeIcon icon={usage.icon} />
+              {usage.value}
+            </Center>
           )}
         </Flexbox>
       );
@@ -207,31 +245,32 @@ const WorkSummaryCard = memo<WorkSummaryCardProps>(
         <Flexbox align={'center'} className={styles.icon} justify={'center'}>
           <Icon size={18} />
         </Flexbox>
-        <Flexbox flex={1} gap={6} style={{ minWidth: 0 }}>
+        <Flexbox flex={1} gap={2} style={{ minWidth: 0 }}>
           <Flexbox horizontal align={'center'} gap={8} justify={'space-between'}>
             <Flexbox horizontal align={'center'} gap={8} style={{ minWidth: 0 }}>
               <Text ellipsis className={styles.title}>
                 {title}
               </Text>
+              {showIdentifier && (
+                <Text code className={styles.identifier} fontSize={12}>
+                  {identifier}
+                </Text>
+              )}
               {taskDeleted && (
                 <Tag color={'warning'} icon={<Trash2Icon size={12} />} size={'small'}>
                   {t('workingPanel.works.taskDeleted')}
                 </Tag>
               )}
             </Flexbox>
-            {cost && (
-              <Text
-                code
-                className={styles.cost}
-                fontSize={12}
-                title={t('workingPanel.works.totalCost', { cost })}
-              >
-                {cost}
-              </Text>
+            {usage && (
+              <Center horizontal className={styles.cost} gap={2} title={usageTitle}>
+                <LobeIcon icon={usage.icon} />
+                {usage.value}
+              </Center>
             )}
           </Flexbox>
           {description && (
-            <Text ellipsis className={styles.description} fontSize={13}>
+            <Text ellipsis className={styles.description} fontSize={12}>
               {description}
             </Text>
           )}

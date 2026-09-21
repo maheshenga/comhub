@@ -13,16 +13,7 @@ import Group from './Group';
 let mockIsCollapsed = false;
 let mockIsGenerating = false;
 let mockDbMessages: { createdAt?: Date | number | string | null; id: string }[] = [];
-
-vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('antd-style', () => ({
-  createStaticStyles: () => ({
-    container: 'group-container',
-  }),
-}));
+let mockOperations: { metadata: Record<string, unknown>; status: string }[] = [];
 
 vi.mock('@/store/chat', () => ({
   useChatStore: (selector: (state: unknown) => unknown) => selector({}),
@@ -30,7 +21,7 @@ vi.mock('@/store/chat', () => ({
 
 vi.mock('@/store/chat/slices/operation/selectors', () => ({
   operationSelectors: {
-    getOperationsByMessage: () => () => [],
+    getOperationsByMessage: () => () => mockOperations,
   },
 }));
 
@@ -179,6 +170,7 @@ describe('Group', () => {
     mockIsCollapsed = false;
     mockIsGenerating = false;
     mockDbMessages = [];
+    mockOperations = [];
   });
 
   it('keeps a long mixed single-tool block inline in its natural order', () => {
@@ -408,6 +400,61 @@ describe('Group', () => {
     expect(fold.contains(answer)).toBe(false);
     expect(fold.contains(screen.getByTestId('workflow-segment'))).toBe(true);
     expect(fold).toHaveAttribute('data-step-count', '2');
+  });
+
+  it('folds as soon as the operation’s visible output ends, before terminal completion', () => {
+    // After `visible_output_end` the op stays `running` for seconds of terminal
+    // bookkeeping (persistence, agent_runtime_end, completeRun). Folding must
+    // key off the visible end, not the terminal status flip.
+    mockOperations = [{ metadata: { visibleLoadingDone: true }, status: 'running' }];
+
+    render(
+      <Group
+        enableProcessFold
+        isLatestItem
+        id="assistant-1"
+        messageIndex={0}
+        blocks={[
+          blk({
+            content: 'Running the checks.',
+            id: 'block-1',
+            tools: [
+              { apiName: 'bash', id: 'tool-1', result: { content: 'ok' } } as any,
+              { apiName: 'bash', id: 'tool-2', result: { content: 'ok' } } as any,
+            ],
+          }),
+          blk({ content: 'Here is the final answer.', id: 'block-2' }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId('process-fold')).toBeInTheDocument();
+  });
+
+  it('does not fold while the operation is still visibly running', () => {
+    mockOperations = [{ metadata: {}, status: 'running' }];
+
+    render(
+      <Group
+        enableProcessFold
+        isLatestItem
+        id="assistant-1"
+        messageIndex={0}
+        blocks={[
+          blk({
+            content: 'Running the checks.',
+            id: 'block-1',
+            tools: [
+              { apiName: 'bash', id: 'tool-1', result: { content: 'ok' } } as any,
+              { apiName: 'bash', id: 'tool-2', result: { content: 'ok' } } as any,
+            ],
+          }),
+          blk({ content: 'Here is the final answer.', id: 'block-2' }),
+        ]}
+      />,
+    );
+
+    expect(screen.queryByTestId('process-fold')).not.toBeInTheDocument();
   });
 
   it('keeps the latest finished turn’s final answer visible outside the fold', () => {

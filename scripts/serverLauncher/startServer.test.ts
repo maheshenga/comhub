@@ -12,12 +12,17 @@ const source = readFileSync(
 describe('server launcher schedule bootstrap', () => {
   it('keeps the production dispatcher aligned with minute-resolution cron schedules', () => {
     expect(source).toContain("const TASK_SCHEDULE_CRON = '* * * * *';");
-    expect(source).toContain("'Upstash-Cron': TASK_SCHEDULE_CRON");
-    expect(source).not.toContain("'Upstash-Cron': '*/10 * * * *'");
+    expect(source).toContain('cron: TASK_SCHEDULE_CRON');
+    expect(source).toContain("cron: '*/5 * * * *'");
+    expect(source).toContain("'Upstash-Cron': schedule.cron");
   });
 
   it('targets the authenticated central task dispatcher', () => {
     expect(source).toContain('/api/workflows/task/schedule-dispatch');
-    expect(source).toContain("'Upstash-Schedule-Id': 'lobe-task-schedule-dispatch'");
+    expect(source).toContain("id: 'lobe-task-schedule-dispatch'");
+    expect(source).toContain("'Upstash-Schedule-Id': schedule.id");
+    expect(source).toContain("'Authorization': `Bearer ${QSTASH_TOKEN}`");
+    expect(source).toContain("path: '/api/workflows/goal/sweep'");
+    expect(source).toContain("id: 'lobe-goal-sweep'");
   });
 });

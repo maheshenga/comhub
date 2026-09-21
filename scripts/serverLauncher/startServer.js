@@ -168,8 +168,24 @@ const startGateway = async () => {
   console.error('❌ Gateway: Failed to start after retries.');
 };
 
-// Create the central QStash tick at the same one-minute resolution supported by
-// task cron rules.
+// Recurring QStash schedules this deployment needs.
+//
+// The goal sweep is not an optimization: a Goal Graph advances on events, so a
+// dropped delivery or a process that dies after dispatch would strand the goal
+// forever with nothing to notice. The sweep is what makes that recoverable.
+const QSTASH_SCHEDULES = [
+  {
+    cron: TASK_SCHEDULE_CRON,
+    id: 'lobe-task-schedule-dispatch',
+    path: '/api/workflows/task/schedule-dispatch',
+  },
+  {
+    cron: '*/5 * * * *',
+    id: 'lobe-goal-sweep',
+    path: '/api/workflows/goal/sweep',
+  },
+];
+
 const createQstashSchedule = async () => {
   const QSTASH_URL = process.env.QSTASH_URL || 'https://qstash-eu-central-1.upstash.io';
 
@@ -185,28 +201,30 @@ const createQstashSchedule = async () => {
     return;
   }
 
-  const url = `${QSTASH_URL}/v2/schedules/${APP_URL}/api/workflows/task/schedule-dispatch`;
+  for (const schedule of QSTASH_SCHEDULES) {
+    const url = `${QSTASH_URL}/v2/schedules/${APP_URL}${schedule.path}`;
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${QSTASH_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Upstash-Method': 'POST',
-        'Upstash-Cron': TASK_SCHEDULE_CRON,
-        'Upstash-Schedule-Id': 'lobe-task-schedule-dispatch',
-      },
-      body: JSON.stringify({}),
-    });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${QSTASH_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Upstash-Method': 'POST',
+          'Upstash-Cron': schedule.cron,
+          'Upstash-Schedule-Id': schedule.id,
+        },
+        body: JSON.stringify({}),
+      });
 
-    if (res.ok) {
-      console.log('✅ QStash: Schedule created successfully.');
-    } else {
-      console.error(`❌ QStash: Failed to create schedule. Status ${res.status}`);
+      if (res.ok) {
+        console.log(`✅ QStash: Schedule ${schedule.id} created successfully.`);
+      } else {
+        console.error(`❌ QStash: Failed to create schedule ${schedule.id}. Status ${res.status}`);
+      }
+    } catch (err) {
+      console.error(`❌ QStash: Error creating schedule ${schedule.id}:`, err);
     }
-  } catch (err) {
-    console.error('❌ QStash: Error creating schedule:', err);
   }
 };
 
