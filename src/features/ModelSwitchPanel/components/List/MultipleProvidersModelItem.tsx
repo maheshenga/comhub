@@ -11,8 +11,8 @@ import {
   DropdownMenuSubmenuTrigger,
   Flexbox,
   menuSharedStyles,
-  Tag,
 } from '@lobehub/ui';
+import { Tag } from '@lobehub/ui/base-ui';
 import { cx } from 'antd-style';
 import { Check } from 'lucide-react';
 import { memo, useState } from 'react';
@@ -109,6 +109,7 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
           <ModelItemRender
             {...data.model}
             {...data.model.abilities}
+            wrapInfo
             newBadgeLabel={newLabel}
             proBadgeLabel={defaultProviderPro ? proLabel : undefined}
           />

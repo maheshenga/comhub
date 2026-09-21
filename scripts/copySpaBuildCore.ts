@@ -9,18 +9,30 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-const copyDirs = ['assets', 'i18n', 'model-bank', 'shiki', 'vendor'] as const;
+const copyDirs = ['assets', 'devtools', 'i18n', 'model-bank', 'shiki', 'vendor'] as const;
+
+// Workers are requested root-relative, not from under the entry prefix, because
+// `new Worker` needs a same-origin script and the file is byte-identical across
+// variants. So this one lands in `public/` itself rather than in each SPA
+// directory — a single copy behind a single path.
+const rootCopyDirs = ['app-workers'] as const;
 const copyRootFilePatterns = [/^favicon.*\.ico$/, /^apple-touch-icon\.png$/] as const;
 const defaultTargets = [
   { distDir: 'desktop', publicDir: 'public/_spa' },
   { distDir: 'mobile', publicDir: 'public/_spa' },
   { distDir: 'auth', publicDir: 'public/_spa-auth' },
+  { distDir: 'workbench', publicDir: 'public/_spa-workbench' },
+  { distDir: 'share', publicDir: 'public/_spa-share' },
 ] as const;
 
 export type SpaBuildCopyTarget = {
   distDir: string;
   publicDir: string;
 };
+
+export const spaPublicDirNames = [
+  ...new Set(defaultTargets.map(({ publicDir }) => publicDir.split('/')[1])),
+];
 
 const unregisterServiceWorker = `self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -69,6 +81,15 @@ export const copySpaBuild = (
 
       cpSync(sourceDir, targetDir, { recursive: true });
       console.log(`Copied dist/${distDir}/${dir} -> ${publicDir}/${dir}`);
+    }
+
+    for (const dir of rootCopyDirs) {
+      const sourceDir = path.resolve(distRoot, dir);
+
+      if (!existsSync(sourceDir)) continue;
+
+      cpSync(sourceDir, path.resolve(root, 'public', dir), { recursive: true });
+      console.log(`Copied dist/${distDir}/${dir} -> public/${dir}`);
     }
 
     if (!existsSync(distRoot)) continue;

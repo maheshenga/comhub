@@ -19,17 +19,31 @@ import {
 } from './index';
 import { APP_SETTING_SECRET_PREFIX, encryptAppSettingSecret } from './secrets';
 
+const { mockBumpAppSettingsCacheVersion, mockGetAppSettingsCacheVersion } = vi.hoisted(() => ({
+  mockBumpAppSettingsCacheVersion: vi.fn(),
+  mockGetAppSettingsCacheVersion: vi.fn(),
+}));
+
+vi.mock('./cacheVersion', () => ({
+  bumpAppSettingsCacheVersion: mockBumpAppSettingsCacheVersion,
+  getAppSettingsCacheVersion: mockGetAppSettingsCacheVersion,
+}));
+
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 13).toString('base64');
 
 describe('appSettings model helpers', () => {
   beforeEach(async () => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
+    mockGetAppSettingsCacheVersion.mockReset().mockResolvedValue('test-version');
+    mockBumpAppSettingsCacheVersion.mockReset().mockResolvedValue(undefined);
     await invalidateServerAppSettings();
   });
 
   afterEach(() => {
     delete process.env.KEY_VAULTS_SECRET;
     delete process.env.COMPOSIO_API_KEY;
+    delete process.env.S3_ENDPOINT;
+    delete process.env.S3_INTERNAL_ENDPOINT;
     delete process.env.S3_SECRET_ACCESS_KEY;
   });
 
@@ -126,6 +140,44 @@ describe('appSettings model helpers', () => {
       region: 'ap-southeast-1',
       secretAccessKey: 'admin-secret-key',
       setAcl: false,
+    });
+  });
+
+  it('uses the environment internal endpoint when storage uses the environment endpoint', async () => {
+    process.env.S3_ENDPOINT = 'https://env-s3.example.com';
+    process.env.S3_INTERNAL_ENDPOINT = 'http://rustfs:9000';
+
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [],
+        },
+      },
+    } as any;
+
+    await expect(getServerFileS3Config(db)).resolves.toMatchObject({
+      endpoint: 'https://env-s3.example.com',
+      internalEndpoint: 'http://rustfs:9000',
+    });
+  });
+
+  it('does not pair an environment internal endpoint with a different admin endpoint', async () => {
+    process.env.S3_ENDPOINT = 'https://env-s3.example.com';
+    process.env.S3_INTERNAL_ENDPOINT = 'http://legacy-rustfs:9000';
+
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.storageS3Endpoint, value: 'https://admin-s3.example.com' },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerFileS3Config(db)).resolves.toMatchObject({
+      endpoint: 'https://admin-s3.example.com',
+      internalEndpoint: undefined,
     });
   });
 
@@ -280,5 +332,29 @@ describe('appSettings model helpers', () => {
     } finally {
       nowSpy.mockRestore();
     }
+  });
+
+  it('reloads settings when the shared cache version is unavailable', async () => {
+    let model = 'first-model';
+    const findMany = vi
+      .fn()
+      .mockImplementation(async () => [{ key: APP_SETTING_KEYS.defaultAgentModel, value: model }]);
+    const db = { query: { appSettings: { findMany } } } as any;
+
+    mockGetAppSettingsCacheVersion
+      .mockReset()
+      .mockResolvedValueOnce('1')
+      .mockResolvedValueOnce(null);
+
+    await expect(getServerDefaultAgentSettingOverrides(db)).resolves.toEqual({
+      model: 'first-model',
+    });
+
+    model = 'second-model';
+
+    await expect(getServerDefaultAgentSettingOverrides(db)).resolves.toEqual({
+      model: 'second-model',
+    });
+    expect(findMany).toHaveBeenCalledTimes(2);
   });
 });

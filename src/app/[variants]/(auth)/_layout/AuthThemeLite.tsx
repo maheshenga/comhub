@@ -3,6 +3,7 @@
 import 'antd/dist/reset.css';
 
 import { ConfigProvider, ThemeProvider } from '@lobehub/ui';
+import { ToastHost } from '@lobehub/ui/base-ui';
 import { App } from 'antd';
 import { domMax, LazyMotion } from 'motion/react';
 import * as m from 'motion/react-m';
@@ -10,7 +11,6 @@ import Link from 'next/link';
 import { type PropsWithChildren } from 'react';
 import { memo } from 'react';
 
-import AntdStaticMethods from '@/components/AntdStaticMethods';
 import { useIsDark } from '@/hooks/useIsDark';
 import Image from '@/libs/next/Image';
 
@@ -34,7 +34,6 @@ const AuthThemeLite = memo<AuthThemeLiteProps>(({ children, globalCDN }) => {
       }}
     >
       <App style={{ height: '100%' }}>
-        <AntdStaticMethods />
         <ConfigProvider
           motion={m}
           config={{
@@ -45,6 +44,7 @@ const AuthThemeLite = memo<AuthThemeLiteProps>(({ children, globalCDN }) => {
           }}
         >
           <LazyMotion features={domMax}>{children}</LazyMotion>
+          <ToastHost />
         </ConfigProvider>
       </App>
     </ThemeProvider>

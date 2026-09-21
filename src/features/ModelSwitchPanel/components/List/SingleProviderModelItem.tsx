@@ -17,6 +17,7 @@ export const SingleProviderModelItem = memo<SingleProviderModelItemProps>(
       <ModelItemRender
         {...data.model}
         {...data.model.abilities}
+        wrapInfo
         newBadgeLabel={newLabel}
         proBadgeLabel={proBadgeLabel}
         priceLabel={

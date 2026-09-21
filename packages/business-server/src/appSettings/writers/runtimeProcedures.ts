@@ -113,6 +113,7 @@ export const runtimeSettingsWriteProcedures = {
           const s3 = new S3(config.accessKeyId, config.secretAccessKey, config.endpoint, {
             bucket: config.bucket,
             forcePathStyle: config.enablePathStyle,
+            internalEndpoint: config.internalEndpoint,
             previewUrlExpireIn: config.previewUrlExpireIn,
             region: config.region,
             setAcl: config.setAcl,
@@ -130,25 +131,43 @@ export const runtimeSettingsWriteProcedures = {
             await s3.testConnection();
 
             const preSignedUrl = await s3.createPreSignedUrl(healthCheckKey);
-            const corsPreflight = await fetch(preSignedUrl, {
-              headers: {
-                'Access-Control-Request-Headers': 'content-type',
-                'Access-Control-Request-Method': 'PUT',
-                'Origin': origin,
-              },
-              method: 'OPTIONS',
-            });
-            await assertHttpOk(corsPreflight, 'S3_CORS_PREFLIGHT_FAILED');
+            let corsPreflight: Response | undefined;
+            let presignedUpload: Response | undefined;
+            let publicEndpointCheckSkipped = false;
 
-            const presignedUpload = await fetch(preSignedUrl, {
-              body: S3_HEALTH_CHECK_CONTENT,
-              headers: {
-                'Content-Type': 'text/plain',
-                'Origin': origin,
-              },
-              method: 'PUT',
-            });
-            await assertHttpOk(presignedUpload, 'S3_PRESIGNED_UPLOAD_FAILED');
+            try {
+              corsPreflight = await fetch(preSignedUrl, {
+                headers: {
+                  'Access-Control-Request-Headers': 'content-type',
+                  'Access-Control-Request-Method': 'PUT',
+                  'Origin': origin,
+                },
+                method: 'OPTIONS',
+              });
+
+              presignedUpload = await fetch(preSignedUrl, {
+                body: S3_HEALTH_CHECK_CONTENT,
+                headers: {
+                  'Content-Type': 'text/plain',
+                  'Origin': origin,
+                },
+                method: 'PUT',
+              });
+            } catch (error) {
+              if (!config.internalEndpoint || config.internalEndpoint === config.endpoint)
+                throw error;
+
+              // A split endpoint is intentionally browser-only. If the server
+              // cannot resolve/reach that public URL, verify the same object
+              // write through the internal client and report CORS separately.
+              publicEndpointCheckSkipped = true;
+              await s3.uploadContent(healthCheckKey, S3_HEALTH_CHECK_CONTENT);
+            }
+
+            if (!publicEndpointCheckSkipped) {
+              await assertHttpOk(corsPreflight!, 'S3_CORS_PREFLIGHT_FAILED');
+              await assertHttpOk(presignedUpload!, 'S3_PRESIGNED_UPLOAD_FAILED');
+            }
 
             const storedContent = await s3.getFileContent(healthCheckKey);
             if (storedContent !== S3_HEALTH_CHECK_CONTENT) {
@@ -162,23 +181,35 @@ export const runtimeSettingsWriteProcedures = {
               bucket: config.bucket,
               checks: {
                 bucketAccess: { ok: true },
-                corsPreflight: {
-                  allowHeaders: corsPreflight.headers.get('access-control-allow-headers'),
-                  allowMethods: corsPreflight.headers.get('access-control-allow-methods'),
-                  allowOrigin: corsPreflight.headers.get('access-control-allow-origin'),
-                  ok: true,
-                  status: corsPreflight.status,
-                },
+                corsPreflight: publicEndpointCheckSkipped
+                  ? {
+                      ok: true,
+                      reason: 'PUBLIC_ENDPOINT_NOT_REACHABLE_FROM_SERVER',
+                      skipped: true,
+                    }
+                  : {
+                      allowHeaders: corsPreflight!.headers.get('access-control-allow-headers'),
+                      allowMethods: corsPreflight!.headers.get('access-control-allow-methods'),
+                      allowOrigin: corsPreflight!.headers.get('access-control-allow-origin'),
+                      ok: true,
+                      status: corsPreflight!.status,
+                    },
                 objectDelete: { ok: true },
                 objectRead: {
                   bytes: new TextEncoder().encode(storedContent).byteLength,
                   ok: true,
                 },
-                presignedUpload: {
-                  allowOrigin: presignedUpload.headers.get('access-control-allow-origin'),
-                  ok: true,
-                  status: presignedUpload.status,
-                },
+                presignedUpload: publicEndpointCheckSkipped
+                  ? {
+                      ok: true,
+                      reason: 'PUBLIC_ENDPOINT_NOT_REACHABLE_FROM_SERVER',
+                      skipped: true,
+                    }
+                  : {
+                      allowOrigin: presignedUpload!.headers.get('access-control-allow-origin'),
+                      ok: true,
+                      status: presignedUpload!.status,
+                    },
               },
               endpoint: config.endpoint,
               filePath: config.filePath,

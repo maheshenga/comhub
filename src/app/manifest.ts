@@ -10,7 +10,7 @@ const manifest = async (): Promise<MetadataRoute.Manifest> => {
       icons: [
         {
           sizes: '192x192',
-          src: '/icons/icon-192x192.png',
+          src: '/app-icons/icon-192x192.png',
           type: 'image/png',
         },
       ],
@@ -21,40 +21,47 @@ const manifest = async (): Promise<MetadataRoute.Manifest> => {
     };
   }
 
-  const [{ BRANDING_LOGO_URL, BRANDING_NAME }, { kebabCase }, { manifestModule }] =
-    await Promise.all([
-      import('@lobechat/business-const'),
-      import('es-toolkit/compat'),
-      import('@/libs/metadata/manifest'),
-    ]);
+  const [
+    { BRANDING_LOGO_URL, BRANDING_NAME },
+    { kebabCase },
+    { manifestModule },
+    { getServerBrand },
+  ] = await Promise.all([
+    import('@lobechat/business-const'),
+    import('es-toolkit/compat'),
+    import('@/libs/metadata/manifest'),
+    import('@/server/services/brand'),
+  ]);
+  const brand = await getServerBrand();
+  const appName = brand.name?.trim() || BRANDING_NAME;
 
   // @ts-expect-error - manifestModule.generate returns extended manifest with custom properties
   return manifestModule.generate({
-    description: `${BRANDING_NAME} is a work-and-lifestyle space to find, build, and collaborate with agent teams that grow with you.`,
+    description: `${appName} is a work-and-lifestyle space to find, build, and collaborate with agent teams that grow with you.`,
     icons: [
       {
         purpose: 'any',
         sizes: '192x192',
-        url: '/icons/icon-192x192.png',
+        url: '/app-icons/icon-192x192.png',
       },
       {
         purpose: 'maskable',
         sizes: '192x192',
-        url: '/icons/icon-192x192.maskable.png',
+        url: '/app-icons/icon-192x192.maskable.png',
       },
       {
         purpose: 'any',
         sizes: '512x512',
-        url: '/icons/icon-512x512.png',
+        url: '/app-icons/icon-512x512.png',
       },
       {
         purpose: 'maskable',
         sizes: '512x512',
-        url: '/icons/icon-512x512.maskable.png',
+        url: '/app-icons/icon-512x512.maskable.png',
       },
     ],
-    id: kebabCase(BRANDING_NAME),
-    name: BRANDING_NAME,
+    id: kebabCase(appName),
+    name: appName,
     screenshots: BRANDING_LOGO_URL
       ? []
       : [

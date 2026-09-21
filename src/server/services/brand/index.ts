@@ -12,10 +12,10 @@ export interface ServerBrandConfig {
   copyrightText: string | null;
   defaultSkillName: string | null;
   faviconUrl: string | null;
-  homeMessengerEnabled: boolean;
   homeMessengerBannerTitle: string | null;
-  loadingText: string | null;
+  homeMessengerEnabled: boolean;
   loadingSvgUrl: string | null;
+  loadingText: string | null;
   logoUrl: string | null;
   name: string | null;
   primaryColor: string | null;
@@ -50,7 +50,7 @@ const TTL_MS = 30_000;
 const readString = async (db: ServerDB, key: string) => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
   const v = row?.value;
-  return typeof v === 'string' && v.trim() ? v : null;
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
 };
 
 const readOptionalString = async (db: ServerDB, key: string) => {

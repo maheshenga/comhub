@@ -20,6 +20,10 @@ export default defineConfig({
       '@/libs/trpc': path.resolve(__dirname, '../../packages/trpc/src'),
       '@/server/globalConfig': path.resolve(__dirname, '../../apps/server/src/globalConfig'),
       '@/server/modules': path.resolve(__dirname, '../../apps/server/src/modules'),
+      '@/server/services/document': path.resolve(
+        __dirname,
+        '../../apps/server/src/services/document',
+      ),
       '@/server/services/desktopBuild/assets': path.resolve(
         __dirname,
         '../../apps/server/src/services/desktopBuild/assets.ts',
@@ -28,6 +32,7 @@ export default defineConfig({
         __dirname,
         '../../apps/server/src/services/desktopRelease',
       ),
+      '@/server/services/file': path.resolve(__dirname, '../../apps/server/src/services/file'),
       '@/server/services/moduleAppRuntime': path.resolve(
         __dirname,
         '../../apps/server/src/services/moduleAppRuntime',

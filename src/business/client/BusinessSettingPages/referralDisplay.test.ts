@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeReferralCodeInput } from './referralDisplay';
+import {
+  buildReferralLink,
+  getReferralAvailableCredits,
+  normalizeReferralCodeInput,
+} from './referralDisplay';
 
 describe('referral display helpers', () => {
   it('extracts a seven digit referral code from plain text', () => {
@@ -20,5 +24,19 @@ describe('referral display helpers', () => {
   it('returns an empty string when a link has no referral parameter', () => {
     expect(normalizeReferralCodeInput('https://chat.example.com/signup?utm=test')).toBe('');
   });
-}
-);
+
+  it('uses only the referral ledger balance for the available balance', () => {
+    expect(getReferralAvailableCredits({ referral: { available: 2_500_000 } })).toBe(2_500_000);
+    expect(getReferralAvailableCredits({ referral: { available: -1 } })).toBe(0);
+    expect(getReferralAvailableCredits()).toBe(0);
+  });
+
+  it('does not create a referral query parameter until the server code is loaded', () => {
+    expect(buildReferralLink('https://chat.example.com', '')).toBe(
+      'https://chat.example.com/signup',
+    );
+    expect(buildReferralLink('https://chat.example.com', '1234567')).toBe(
+      'https://chat.example.com/signup?ref=1234567',
+    );
+  });
+});

@@ -14,12 +14,25 @@ import { serverConfigSelectors } from '@/store/serverConfig/selectors';
 
 const PARTITION_ID = 'persist:subscription';
 
+export const buildSubscriptionEmbedUrl = (
+  page: SubscriptionIframeWrapperProps['page'],
+  baseUrl: string,
+  language?: string,
+) => {
+  const path =
+    page === 'notification' ? '/embed/settings/notification' : `/embed/subscription/${page}`;
+  const url = new URL(path, baseUrl);
+  if (language) url.searchParams.set('hl', language);
+  return url.toString();
+};
+
 interface SubscriptionIframeWrapperProps {
   page: 'billing' | 'credits' | 'notification' | 'plans' | 'referral' | 'usage';
 }
 
 export const SubscriptionIframeWrapper = memo<SubscriptionIframeWrapperProps>(({ page }) => {
   const [sessionReady, setSessionReady] = useState(false);
+  const [subscriptionBaseUrl, setSubscriptionBaseUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const webviewRef = useRef<HTMLElement>(null);
 
@@ -31,20 +44,14 @@ export const SubscriptionIframeWrapper = memo<SubscriptionIframeWrapperProps>(({
   const iframeUrl = useMemo(() => {
     if (!isCloudActive) return null;
 
-    const path =
-      page === 'notification' ? '/embed/settings/notification' : `/embed/subscription/${page}`;
-    const url = new URL(path, OFFICIAL_URL);
-    // Sync locale to embed page via hl parameter
-    if (i18n.language) {
-      url.searchParams.set('hl', i18n.language);
-    }
-    return url.toString();
-  }, [page, i18n.language, isCloudActive]);
+    return buildSubscriptionEmbedUrl(page, subscriptionBaseUrl || OFFICIAL_URL, i18n.language);
+  }, [page, i18n.language, isCloudActive, subscriptionBaseUrl]);
 
   useEffect(() => {
     const initSession = async () => {
       try {
-        await remoteServerService.setupSubscriptionWebviewSession(PARTITION_ID);
+        const result = await remoteServerService.setupSubscriptionWebviewSession(PARTITION_ID);
+        setSubscriptionBaseUrl(result.remoteServerUrl || null);
         setSessionReady(true);
       } catch (err) {
         console.error('Failed to initialize subscription webview session:', err);
@@ -118,7 +125,10 @@ export const SubscriptionIframeWrapper = memo<SubscriptionIframeWrapperProps>(({
 
     remoteServerService
       .setupSubscriptionWebviewSession(PARTITION_ID)
-      .then(() => setSessionReady(true))
+      .then((result) => {
+        setSubscriptionBaseUrl(result.remoteServerUrl || null);
+        setSessionReady(true);
+      })
       .catch(() => setError('Failed to initialize subscription session'));
   }, []);
 

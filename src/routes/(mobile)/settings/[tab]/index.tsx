@@ -2,7 +2,7 @@
 
 import { useParams } from 'react-router';
 
-import SettingsContent from '@/routes/(main)/settings/features/SettingsContent';
+import SettingsContent from '@/features/Settings/features/SettingsContent';
 
 const MobileSettingsTab = () => {
   const { tab } = useParams<{ tab?: string }>();

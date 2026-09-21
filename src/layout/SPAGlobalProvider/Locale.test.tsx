@@ -1,55 +1,50 @@
 /**
  * @vitest-environment happy-dom
  */
-import { render } from '@testing-library/react';
-import { type ReactNode } from 'react';
+import { render, waitFor } from '@testing-library/react';
+import { type PropsWithChildren, useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import Locale from './Locale';
-
-const { init, instance } = vi.hoisted(() => ({
-  init: vi.fn(() => Promise.resolve()),
-  instance: {
-    isInitialized: false,
-    language: 'en-US',
-    off: vi.fn(),
-    on: vi.fn(),
-  },
+const { getAntdLocale, init, instance } = vi.hoisted(() => ({
+  getAntdLocale: vi.fn(),
+  init: vi.fn(async () => {}),
+  instance: { isInitialized: false, language: 'en-US', off: vi.fn(), on: vi.fn() },
 }));
 
+vi.mock('@/utils/locale', () => ({ getAntdLocale }));
+vi.mock('@/utils/dayjsLocale', () => ({
+  loadDayjsLocaleModule: vi.fn(async () => ({ default: {} })),
+  normalizeDayjsLocale: (lang: string) => lang,
+}));
 vi.mock('@/locales/create', () => ({
   createI18nNext: () => ({ init, instance }),
 }));
-
-vi.mock('@/utils/dayjsLocale', () => ({
-  loadDayjsLocaleModule: () => Promise.resolve({ default: 'en' }),
-  normalizeDayjsLocale: () => 'en',
-}));
-
-vi.mock('@/utils/locale', () => ({
-  getAntdLocale: () => Promise.resolve(undefined),
-}));
-
 vi.mock('antd', () => ({
-  ConfigProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ConfigProvider: ({ children }: PropsWithChildren) => children,
 }));
-
 vi.mock('@/layout/GlobalProvider/Editor', () => ({
-  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+  default: ({ children }: PropsWithChildren) => children,
 }));
+vi.mock('dayjs', () => ({ default: { locale: vi.fn() } }));
+vi.mock('rtl-detect', () => ({ isRtlLang: () => false }));
 
-vi.mock('dayjs', () => ({
-  default: { locale: vi.fn() },
-}));
+import Locale from './Locale';
 
-vi.mock('rtl-detect', () => ({
-  isRtlLang: () => false,
-}));
+let mounts = 0;
+const MountCounter = () => {
+  useEffect(() => {
+    mounts += 1;
+  }, []);
+  return <div>child</div>;
+};
 
-describe('SPAGlobalProvider Locale', () => {
+describe('Locale', () => {
   beforeEach(() => {
+    mounts = 0;
     init.mockClear();
     instance.isInitialized = false;
+    getAntdLocale.mockReset();
+    getAntdLocale.mockResolvedValue(undefined);
   });
 
   it('requests synchronous initialization for bundled resources', () => {
@@ -60,5 +55,27 @@ describe('SPAGlobalProvider Locale', () => {
     );
 
     expect(init).toHaveBeenCalledWith({ initAsync: false });
+  });
+
+  it('keeps the subtree mounted when the antd locale resolves', async () => {
+    let resolveLocale: (value: unknown) => void = () => {};
+    getAntdLocale.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLocale = resolve;
+      }),
+    );
+
+    render(
+      <Locale defaultLang="zh-CN">
+        <MountCounter />
+      </Locale>,
+    );
+    expect(mounts).toBe(1);
+
+    resolveLocale({ locale: 'zh-cn' });
+    await waitFor(() => expect(getAntdLocale).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mounts).toBe(1);
   });
 });

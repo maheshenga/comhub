@@ -275,6 +275,34 @@ describe('APP_SETTINGS_CATALOG', () => {
     ).toThrow();
   });
 
+  it('validates known nested user global default fields without requiring a complete settings object', () => {
+    expect(
+      normalizeAppSettingValue(APP_SETTING_KEYS.userGlobalSettingsDefaults, {
+        systemAgent: { followUpAction: { enabled: true } },
+        tool: { uninstalledBuiltinTools: ['search'] },
+      }),
+    ).toEqual({
+      systemAgent: { followUpAction: { enabled: true } },
+      tool: { uninstalledBuiltinTools: ['search'] },
+    });
+
+    expect(() =>
+      normalizeAppSettingValue(APP_SETTING_KEYS.userGlobalSettingsDefaults, {
+        systemAgent: { followUpAction: { enabled: 'true' } },
+      }),
+    ).toThrow();
+    expect(() =>
+      normalizeAppSettingValue(APP_SETTING_KEYS.userGlobalSettingsDefaults, {
+        tool: { uninstalledBuiltinTools: 'search' },
+      }),
+    ).toThrow();
+    expect(() =>
+      normalizeAppSettingValue(APP_SETTING_KEYS.userGlobalSettingsDefaults, {
+        general: { isLiteMode: 'false' },
+      }),
+    ).toThrow();
+  });
+
   it('accepts only non-credentialed HTTPS or local HTTP payment URLs', () => {
     expect(
       normalizeAppSettingValue(APP_SETTING_KEYS.paymentPublicBaseUrl, 'https://app.example.com'),

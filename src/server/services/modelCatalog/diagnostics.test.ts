@@ -79,4 +79,31 @@ describe('model catalog diagnostics', () => {
     expect(diagnostics.risks.at(-1)?.message).toContain('ToAPI');
     expect(diagnostics.risks.at(-1)?.message).toContain('SiliconFlow');
   });
+
+  it('exposes the stable provider-aware model views for diagnostics consumers', () => {
+    const diagnostics = getModelCatalogDiagnostics({
+      state: createState([
+        {
+          displayName: 'Managed Chat',
+          enabled: true,
+          id: 'managed-chat',
+          instanceName: 'NewAPI',
+          pricing: { currency: 'CNY' },
+          providerId: 'newapi',
+          source: 'admin-managed',
+          type: 'chat',
+        },
+      ]),
+    });
+
+    expect(diagnostics.views).toEqual([
+      expect.objectContaining({
+        displayName: 'Managed Chat',
+        modelId: 'managed-chat',
+        pricing: { currency: 'CNY' },
+        providerName: 'NewAPI',
+        source: 'admin-managed',
+      }),
+    ]);
+  });
 });

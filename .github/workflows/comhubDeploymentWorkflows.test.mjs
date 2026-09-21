@@ -653,6 +653,39 @@ test('Worker deployment relays immutable prerequisites after pruning and before 
   );
 });
 
+test('main deployment smoke covers version, brand assets, and public entry points', () => {
+  const { source } = loadWorkflow('comhub-deploy.yml');
+
+  const smokeStart = source.indexOf("done <<'SMOKE_CHECKS'");
+  const smokeEnd = source.indexOf('\n          SMOKE_CHECKS', smokeStart);
+  const smokeBlock =
+    smokeStart >= 0 && smokeEnd > smokeStart
+      ? source.slice(smokeStart + "done <<'SMOKE_CHECKS'\n".length, smokeEnd)
+      : undefined;
+  assert.ok(smokeBlock, 'post-deploy smoke checks must declare an explicit status table');
+
+  assert.deepEqual(
+    smokeBlock
+      .trim()
+      .split('\n')
+      .map((line) => line.trim().split(/\s+/u)),
+    [
+      ['/', '302'],
+      ['/api/auth/get-session', '200'],
+      ['/api/version', '200'],
+      ['/favicon.ico', '200'],
+      ['/images/brand/xuanguo-loading.svg', '200'],
+      ['/signin', '200'],
+    ],
+  );
+
+  assert.match(source, /if \[ "\$code" != "\$expected" \]; then/u);
+  assert.doesNotMatch(source, /\/branding\/loading\.svg/u);
+
+  assert.match(source, /Version evidence:/u);
+  assert.ok(source.includes('grep -q "${IMAGE_TAG}"'));
+});
+
 test('deployment workflows never trigger from push', () => {
   for (const filename of ['comhub-deploy.yml', 'comhub-deploy-worker.yml']) {
     const { workflow } = loadWorkflow(filename);

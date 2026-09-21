@@ -30,6 +30,7 @@
       "@lobechat/types": ["./packages/types/src/index.ts"],
       "@lobechat/types/*": ["./packages/types/src/*"],
       "@/*": ["./src/*"],
+      "~base-ui-stubs": ["./tests/mocks/baseUiStubs.tsx"],
       "~test-utils": ["./tests/utils.tsx"]
     },
     "plugins": [
@@ -42,7 +43,8 @@
     "node_modules",
     "apps/desktop/**",
     "apps/mobile/**",
-    "scripts/**",
+    "apps/share/**",
+    "apps/workbench/**",
     "tmp",
     "temp",
     ".temp",
@@ -61,6 +63,10 @@
     "tests/**/*.tsx",
     "apps/server/**/*.ts",
     "apps/server/**/*.tsx",
+    "scripts/elasticsearchReindex/**/*.ts",
+    "scripts/elasticsearchSync/**/*.ts",
+    "scripts/installFtsSearchSyncCapture/**/*.ts",
+    "scripts/pgSearchCleanup/**/*.ts",
     "*.ts",
     "*.mts",
     "*.cts",

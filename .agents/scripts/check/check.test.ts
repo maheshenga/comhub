@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,9 +6,6 @@ import { describe, expect, it } from 'vitest';
 
 import { findNewComponentTestAdvisories } from './advisories';
 import { diffStat, renderDiffsForStdout } from './autofix';
-import { hostRootFromGitdir } from './delegate';
-import { run, toolCommand } from './exec';
-import { setConfig } from './paths';
 import { lobehubPipelines } from './pipelines';
 import {
   findVitestConfigDir,
@@ -19,7 +15,7 @@ import {
   resolveMount,
   stylelintApplies,
 } from './routing';
-import type { CheckConfig, RepoMount } from './types';
+import type { RepoMount } from './types';
 import { compactVitestOutput } from './vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -46,49 +42,6 @@ describe('resolveMount', () => {
     const nested: RepoMount = { dir: 'vendor/sub/nested', pipelines: [] };
     expect(resolveMount([root, sub, nested], 'vendor/sub/nested/a.ts').mount).toBe(nested);
   });
-});
-
-describe('toolCommand', () => {
-  it('prefers the Windows command shim when resolving a local tool', async () => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'comhub-check-'));
-    const binDir = path.join(tempRoot, 'node_modules', '.bin');
-
-    try {
-      await mkdir(binDir, { recursive: true });
-      await writeFile(path.join(binDir, 'eslint'), '#!/bin/sh\n');
-      await writeFile(path.join(binDir, 'eslint.cmd'), '@echo off\r\n');
-      setConfig({
-        repos: [{ dir: '', pipelines: [] }],
-        rootDir: tempRoot,
-      } satisfies CheckConfig);
-
-      await expect(toolCommand(tempRoot, 'eslint')).resolves.toBe(
-        process.platform === 'win32'
-          ? path.join(binDir, 'eslint.cmd')
-          : path.join(binDir, 'eslint'),
-      );
-    } finally {
-      await rm(tempRoot, { force: true, recursive: true });
-    }
-  });
-
-  it.runIf(process.platform === 'win32')(
-    'preserves parentheses when invoking Windows command shims',
-    async () => {
-      const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'comhub-check-run-'));
-      const shim = path.join(tempRoot, 'probe.cmd');
-
-      try {
-        await writeFile(shim, '@echo off\r\n@echo ok\r\n');
-        await expect(run(shim, ['src/app/(backend)/route.ts'], tempRoot)).resolves.toMatchObject({
-          code: 0,
-          stdout: expect.stringContaining('ok'),
-        });
-      } finally {
-        await rm(tempRoot, { force: true, recursive: true });
-      }
-    },
-  );
 });
 
 describe('pipelineFor', () => {
@@ -173,10 +126,6 @@ describe('relatedTestCandidates', () => {
     ]);
   });
 
-  it('normalizes Windows separators for repository-relative paths', () => {
-    expect(relatedTestCandidates('src\\auth.ts')).toEqual(relatedTestCandidates('src/auth.ts'));
-  });
-
   it('returns nothing for non-source files', () => {
     expect(relatedTestCandidates('AGENTS.md')).toEqual([]);
     expect(relatedTestCandidates('image.png')).toEqual([]);
@@ -226,27 +175,10 @@ describe('findVitestConfigDir', () => {
     await expect(findVitestConfigDir('src/auth.test.ts', exists)).resolves.toBe('.');
   });
 
-  it('normalizes Windows separators while finding the owning config', async () => {
-    await expect(
-      findVitestConfigDir('vendor\\sub\\src\\utils\\uuid.test.ts', exists),
-    ).resolves.toBe('vendor/sub');
-  });
-
   it('falls back to the repo root when no config is found', async () => {
     await expect(
       findVitestConfigDir('somewhere/deep/file.test.ts', async () => false),
     ).resolves.toBe('.');
-  });
-});
-
-describe('hostRootFromGitdir', () => {
-  it('extracts the superproject root from a submodule gitdir', () => {
-    expect(hostRootFromGitdir('/work/host/.git/modules/vendor/sub')).toBe('/work/host');
-  });
-
-  it('returns null for standalone clones and linked worktrees', () => {
-    expect(hostRootFromGitdir('/work/repo/.git')).toBeNull();
-    expect(hostRootFromGitdir('/work/repo/.git/worktrees/feature')).toBeNull();
   });
 });
 

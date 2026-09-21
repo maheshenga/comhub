@@ -1,11 +1,16 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  paginateListParts,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import mime from 'mime';
@@ -27,6 +32,13 @@ export type FileType = z.infer<typeof fileSchema>;
 
 const DEFAULT_S3_REGION = 'us-east-1';
 const PUBLIC_READ_ACL_HEADER = 'public-read';
+const DELETE_OBJECTS_MAX_KEYS = 1000;
+
+const encodeContentDispositionFilename = (fileName: string) =>
+  encodeURIComponent(fileName || 'download').replaceAll(
+    /['()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 
 export interface PreSignedUpload {
   headers?: Record<string, string>;
@@ -34,7 +46,11 @@ export interface PreSignedUpload {
 }
 
 export class S3 {
+  /** Sends server-side requests through the internal endpoint when configured. */
   private readonly client: S3Client;
+
+  /** Signs URLs with the public endpoint that browsers and model providers can reach. */
+  private readonly presignClient: S3Client;
 
   private readonly bucket: string;
 
@@ -49,6 +65,7 @@ export class S3 {
     options?: {
       bucket?: string;
       forcePathStyle?: boolean;
+      internalEndpoint?: string;
       previewUrlExpireIn?: number;
       region?: string;
       setAcl?: boolean;
@@ -62,18 +79,26 @@ export class S3 {
     this.setAcl = options?.setAcl || false;
     this.previewUrlExpireIn = options?.previewUrlExpireIn || fileEnv.S3_PREVIEW_URL_EXPIRE_IN;
 
-    this.client = new S3Client({
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-      endpoint,
-      forcePathStyle: options?.forcePathStyle,
-      region: options?.region || DEFAULT_S3_REGION,
-      // refs: https://github.com/lobehub/lobe-chat/pull/5479
-      requestChecksumCalculation: 'WHEN_REQUIRED',
-      responseChecksumValidation: 'WHEN_REQUIRED',
-    });
+    const createClient = (clientEndpoint: string) =>
+      new S3Client({
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
+        },
+        endpoint: clientEndpoint,
+        forcePathStyle: options?.forcePathStyle,
+        region: options?.region || DEFAULT_S3_REGION,
+        // refs: https://github.com/lobehub/lobe-chat/pull/5479
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
+      });
+
+    const internalEndpoint = options?.internalEndpoint;
+    this.presignClient = createClient(endpoint);
+    this.client =
+      internalEndpoint && internalEndpoint !== endpoint
+        ? createClient(internalEndpoint)
+        : this.presignClient;
   }
 
   public async deleteFile(key: string) {
@@ -86,18 +111,30 @@ export class S3 {
   }
 
   public async deleteFiles(keys: string[]) {
-    const command = new DeleteObjectsCommand({
-      Bucket: this.bucket,
-      Delete: { Objects: keys.map((key) => ({ Key: key })) },
-    });
+    const batches: string[][] = [];
+    for (let index = 0; index < keys.length; index += DELETE_OBJECTS_MAX_KEYS) {
+      batches.push(keys.slice(index, index + DELETE_OBJECTS_MAX_KEYS));
+    }
+    if (batches.length === 0) batches.push([]);
 
-    return this.client.send(command);
+    const results = [];
+    for (const batch of batches) {
+      const command = new DeleteObjectsCommand({
+        Bucket: this.bucket,
+        Delete: { Objects: batch.map((key) => ({ Key: key })) },
+      });
+      results.push(await this.client.send(command));
+    }
+
+    return results.at(-1)!;
   }
 
-  public async getFileContent(key: string): Promise<string> {
+  public async getFileContent(key: string, byteLength?: number): Promise<string> {
+    const boundedLength = byteLength ? Math.max(1, Math.floor(byteLength)) : undefined;
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
+      ...(boundedLength ? { Range: `bytes=0-${boundedLength - 1}` } : {}),
     });
 
     const response = await this.client.send(command);
@@ -152,22 +189,24 @@ export class S3 {
     await this.client.send(command);
   }
 
-  public async createPreSignedUrl(key: string): Promise<string> {
-    const upload = await this.createPreSignedUpload(key);
+  public async createPreSignedUrl(key: string, contentLength?: number): Promise<string> {
+    const upload = await this.createPreSignedUpload(key, contentLength);
     return upload.url;
   }
 
   private async createPreSignedUploadWithAcl(
     key: string,
     acl?: typeof PUBLIC_READ_ACL_HEADER,
+    contentLength?: number,
   ): Promise<PreSignedUpload> {
     const command = new PutObjectCommand({
       ACL: acl,
       Bucket: this.bucket,
+      ...(contentLength === undefined ? {} : { ContentLength: contentLength }),
       Key: key,
     });
 
-    const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
+    const url = await getSignedUrl(this.presignClient, command, { expiresIn: 3600 });
 
     return {
       headers: acl ? { 'x-amz-acl': acl } : undefined,
@@ -175,12 +214,123 @@ export class S3 {
     };
   }
 
-  public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return this.createPreSignedUploadWithAcl(key, this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined);
+  public async createPreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return this.createPreSignedUploadWithAcl(
+      key,
+      this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined,
+      contentLength,
+    );
   }
 
-  public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return this.createPreSignedUploadWithAcl(key);
+  public async createPrivatePreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return this.createPreSignedUploadWithAcl(key, undefined, contentLength);
+  }
+
+  public async createMultipartUpload(key: string, contentType?: string): Promise<string> {
+    const response = await this.client.send(
+      new CreateMultipartUploadCommand({
+        ACL: this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined,
+        Bucket: this.bucket,
+        ContentType: contentType || undefined,
+        Key: key,
+      }),
+    );
+
+    if (!response.UploadId) throw new Error(`S3 did not return an upload id for ${key}`);
+
+    return response.UploadId;
+  }
+
+  public async createPreSignedUploadPartUrl(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    contentLength?: number,
+  ): Promise<string> {
+    const command = new UploadPartCommand({
+      Bucket: this.bucket,
+      ...(contentLength === undefined ? {} : { ContentLength: contentLength }),
+      Key: key,
+      PartNumber: partNumber,
+      UploadId: uploadId,
+    });
+
+    return getSignedUrl(this.presignClient, command, { expiresIn: 3600 });
+  }
+
+  public async completeMultipartUpload(
+    key: string,
+    uploadId: string,
+    expectedPartCount: number,
+    uploadedParts?: Array<{ ETag: string; PartNumber: number }>,
+    expectedFile?: { partSize: number; size: number },
+  ) {
+    const parts: Array<{ ETag: string; PartNumber: number; Size?: number }> =
+      uploadedParts && !expectedFile ? [...uploadedParts] : [];
+
+    if (!uploadedParts || expectedFile) {
+      for await (const page of paginateListParts(
+        { client: this.client },
+        { Bucket: this.bucket, Key: key, UploadId: uploadId },
+      )) {
+        for (const part of page.Parts ?? []) {
+          if (!part.ETag || !part.PartNumber) continue;
+          parts.push({ ETag: part.ETag, PartNumber: part.PartNumber, Size: part.Size });
+        }
+      }
+    }
+
+    parts.sort((a, b) => a.PartNumber - b.PartNumber);
+    const hasAllParts =
+      parts.length === expectedPartCount &&
+      parts.every((part, index) => part.PartNumber === index + 1);
+
+    if (!hasAllParts) {
+      throw new Error(
+        `S3 multipart upload ${uploadId} has ${parts.length}/${expectedPartCount} parts`,
+      );
+    }
+
+    if (expectedFile) {
+      const hasExpectedSizes = parts.every((part, index) => {
+        const expectedSize =
+          index === expectedPartCount - 1
+            ? expectedFile.size - expectedFile.partSize * (expectedPartCount - 1)
+            : expectedFile.partSize;
+        return part.Size === expectedSize;
+      });
+
+      if (!hasExpectedSizes) {
+        throw new Error(`S3 multipart upload ${uploadId} has an unexpected part size`);
+      }
+    }
+
+    return this.client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: key,
+        MultipartUpload: {
+          Parts: parts.map(({ ETag, PartNumber }) => ({ ETag, PartNumber })),
+        },
+        UploadId: uploadId,
+      }),
+    );
+  }
+
+  public async abortMultipartUpload(key: string, uploadId: string) {
+    return this.client.send(
+      new AbortMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: key,
+        UploadId: uploadId,
+      }),
+    );
   }
 
   public async createPreSignedUrlForPreview(key: string, expiresIn?: number): Promise<string> {
@@ -189,7 +339,23 @@ export class S3 {
       Key: key,
     });
 
-    return getSignedUrl(this.client, command, {
+    return getSignedUrl(this.presignClient, command, {
+      expiresIn: expiresIn ?? this.previewUrlExpireIn,
+    });
+  }
+
+  public async createPreSignedUrlForDownload(
+    key: string,
+    fileName: string,
+    expiresIn?: number,
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeContentDispositionFilename(fileName)}`,
+    });
+
+    return getSignedUrl(this.presignClient, command, {
       expiresIn: expiresIn ?? this.previewUrlExpireIn,
     });
   }
@@ -276,6 +442,7 @@ type FileS3RuntimeCache = {
 };
 
 let fileS3RuntimeCache: FileS3RuntimeCache | null = null;
+let fileS3RuntimeCacheGeneration = 0;
 const FILE_S3_RUNTIME_CACHE_TTL_MS = 30_000;
 
 const createFileS3RuntimeCacheKey = (config: ServerFileS3Config) =>
@@ -283,6 +450,7 @@ const createFileS3RuntimeCacheKey = (config: ServerFileS3Config) =>
     config.accessKeyId ?? '',
     config.secretAccessKey ?? '',
     config.endpoint ?? '',
+    config.internalEndpoint ?? '',
     config.bucket ?? '',
     config.enablePathStyle,
     config.previewUrlExpireIn,
@@ -291,6 +459,7 @@ const createFileS3RuntimeCacheKey = (config: ServerFileS3Config) =>
   ]);
 
 export const invalidateFileS3RuntimeCache = () => {
+  fileS3RuntimeCacheGeneration += 1;
   fileS3RuntimeCache = null;
 };
 
@@ -305,6 +474,7 @@ export class FileS3 extends S3 {
       bucket: fileEnv.S3_BUCKET,
       enablePathStyle: fileEnv.S3_ENABLE_PATH_STYLE,
       endpoint: fileEnv.S3_ENDPOINT,
+      internalEndpoint: fileEnv.S3_INTERNAL_ENDPOINT,
       filePath: fileEnv.NEXT_PUBLIC_S3_FILE_PATH || 'files',
       previewUrlExpireIn: fileEnv.S3_PREVIEW_URL_EXPIRE_IN,
       publicDomain: fileEnv.S3_PUBLIC_DOMAIN,
@@ -321,6 +491,7 @@ export class FileS3 extends S3 {
       {
         bucket: initialConfig.bucket || '__pending_bucket__',
         forcePathStyle: initialConfig.enablePathStyle,
+        internalEndpoint: initialConfig.internalEndpoint,
         previewUrlExpireIn: initialConfig.previewUrlExpireIn,
         region: initialConfig.region,
         setAcl: initialConfig.setAcl,
@@ -338,6 +509,7 @@ export class FileS3 extends S3 {
     return new S3(config.accessKeyId, config.secretAccessKey, config.endpoint, {
       bucket: config.bucket,
       forcePathStyle: config.enablePathStyle,
+      internalEndpoint: config.internalEndpoint,
       previewUrlExpireIn: config.previewUrlExpireIn,
       region: config.region,
       setAcl: config.setAcl,
@@ -355,6 +527,7 @@ export class FileS3 extends S3 {
       return fileS3RuntimeCache.s3;
     }
 
+    const generation = fileS3RuntimeCacheGeneration;
     const config = await this.getConfig();
     const cacheKey = createFileS3RuntimeCacheKey(config);
 
@@ -363,7 +536,9 @@ export class FileS3 extends S3 {
     }
 
     const s3 = this.createS3FromConfig(config);
-    fileS3RuntimeCache = { cacheKey, expiresAt: now + FILE_S3_RUNTIME_CACHE_TTL_MS, s3 };
+    if (generation === fileS3RuntimeCacheGeneration) {
+      fileS3RuntimeCache = { cacheKey, expiresAt: now + FILE_S3_RUNTIME_CACHE_TTL_MS, s3 };
+    }
 
     return s3;
   }
@@ -376,8 +551,8 @@ export class FileS3 extends S3 {
     return (await this.getRuntimeS3()).deleteFiles(keys);
   }
 
-  public async getFileContent(key: string): Promise<string> {
-    return (await this.getRuntimeS3()).getFileContent(key);
+  public async getFileContent(key: string, byteLength?: number): Promise<string> {
+    return (await this.getRuntimeS3()).getFileContent(key, byteLength);
   }
 
   public async getFileByteArray(key: string): Promise<Uint8Array> {
@@ -390,16 +565,60 @@ export class FileS3 extends S3 {
     return (await this.getRuntimeS3()).getFileMetadata(key);
   }
 
-  public async createPreSignedUrl(key: string): Promise<string> {
-    return (await this.getRuntimeS3()).createPreSignedUrl(key);
+  public async createPreSignedUrl(key: string, contentLength?: number): Promise<string> {
+    return (await this.getRuntimeS3()).createPreSignedUrl(key, contentLength);
   }
 
-  public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return (await this.getRuntimeS3()).createPreSignedUpload(key);
+  public async createPreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return (await this.getRuntimeS3()).createPreSignedUpload(key, contentLength);
   }
 
-  public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return (await this.getRuntimeS3()).createPrivatePreSignedUpload(key);
+  public async createPrivatePreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return (await this.getRuntimeS3()).createPrivatePreSignedUpload(key, contentLength);
+  }
+
+  public async createMultipartUpload(key: string, contentType?: string): Promise<string> {
+    return (await this.getRuntimeS3()).createMultipartUpload(key, contentType);
+  }
+
+  public async createPreSignedUploadPartUrl(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    contentLength?: number,
+  ): Promise<string> {
+    return (await this.getRuntimeS3()).createPreSignedUploadPartUrl(
+      key,
+      uploadId,
+      partNumber,
+      contentLength,
+    );
+  }
+
+  public async completeMultipartUpload(
+    key: string,
+    uploadId: string,
+    expectedPartCount: number,
+    uploadedParts?: Array<{ ETag: string; PartNumber: number }>,
+    expectedFile?: { partSize: number; size: number },
+  ) {
+    return (await this.getRuntimeS3()).completeMultipartUpload(
+      key,
+      uploadId,
+      expectedPartCount,
+      uploadedParts,
+      expectedFile,
+    );
+  }
+
+  public async abortMultipartUpload(key: string, uploadId: string) {
+    return (await this.getRuntimeS3()).abortMultipartUpload(key, uploadId);
   }
 
   public async testConnection() {
@@ -408,6 +627,14 @@ export class FileS3 extends S3 {
 
   public async createPreSignedUrlForPreview(key: string, expiresIn?: number): Promise<string> {
     return (await this.getRuntimeS3()).createPreSignedUrlForPreview(key, expiresIn);
+  }
+
+  public async createPreSignedUrlForDownload(
+    key: string,
+    fileName: string,
+    expiresIn?: number,
+  ): Promise<string> {
+    return (await this.getRuntimeS3()).createPreSignedUrlForDownload(key, fileName, expiresIn);
   }
 
   public async uploadBuffer(
@@ -441,6 +668,7 @@ export class EnvFileS3 extends S3 {
     super(fileEnv.S3_ACCESS_KEY_ID, fileEnv.S3_SECRET_ACCESS_KEY, fileEnv.S3_ENDPOINT, {
       bucket: fileEnv.S3_BUCKET,
       forcePathStyle: fileEnv.S3_ENABLE_PATH_STYLE,
+      internalEndpoint: fileEnv.S3_INTERNAL_ENDPOINT,
       previewUrlExpireIn: fileEnv.S3_PREVIEW_URL_EXPIRE_IN,
       region: fileEnv.S3_REGION,
       setAcl: fileEnv.S3_SET_ACL,

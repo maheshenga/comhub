@@ -1,3 +1,4 @@
+import { sanitizeLinkUrl } from '@lobechat/utils';
 import type { ReactNode } from 'react';
 
 import type { PublicCustomizationConfig } from '@/types/serverConfig';
@@ -11,7 +12,12 @@ export interface CustomHelpMenuItem {
 
 export const buildCustomHelpMenuItems = (items: HelpMenuItem[] = []): CustomHelpMenuItem[] =>
   items
-    .map((item, index) => ({ ...item, index, label: item.label.trim() }))
+    .map((item, index) => ({
+      ...item,
+      index,
+      label: item.label.trim(),
+      url: sanitizeLinkUrl(item.url),
+    }))
     .filter((item) => item.label)
     .map((item, index) => ({
       key: `custom-help-${index}`,

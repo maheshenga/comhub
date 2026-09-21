@@ -16,7 +16,7 @@ import {
 } from '@/types/discover';
 
 type Setter = StoreSetter<DiscoverStore>;
-type RequestOptions = { enabled?: boolean };
+type RequestOptions = { enabled?: boolean; keepPreviousData?: boolean };
 
 export const createAssistantSlice = (set: Setter, get: () => DiscoverStore, _api?: unknown) =>
   new AssistantActionImpl(set, get, _api);
@@ -30,10 +30,11 @@ export class AssistantActionImpl {
 
   useAssistantCategories = (
     params: CategoryListQuery & { source?: AssistantMarketSource },
+    options: { enabled?: boolean } = {},
   ): SWRResponse<CategoryItem[]> => {
     const locale = globalHelpers.getCurrentLanguage();
     return useSWR(
-      discoverKeys.assistantCategories(locale, params),
+      options.enabled === false ? null : discoverKeys.assistantCategories(locale, params),
       async () => discoverService.getAssistantCategories(params),
       {
         revalidateOnFocus: false,
@@ -70,7 +71,7 @@ export class AssistantActionImpl {
 
   useAssistantList = (
     params: AssistantQueryParams = {},
-    { enabled = true }: RequestOptions = {},
+    { enabled = true, keepPreviousData }: RequestOptions = {},
   ): SWRResponse<AssistantListResponse> => {
     const locale = globalHelpers.getCurrentLanguage();
     return useSWR(
@@ -82,6 +83,7 @@ export class AssistantActionImpl {
           pageSize: params.pageSize ? Number(params.pageSize) : 21,
         }),
       {
+        keepPreviousData,
         revalidateOnFocus: false,
       },
     );

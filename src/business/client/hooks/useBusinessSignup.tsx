@@ -1,8 +1,8 @@
 import { Alert } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
 
-import type { BaseSignUpFormValues } from '@/app/[variants]/(auth)/signup/[[...signup]]/types';
+import type { BaseSignUpFormValues } from '@/features/Auth/SignUp/types';
 
-import { message } from '@/components/AntdStaticMethods';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -30,7 +30,7 @@ export const useBusinessSignup = (form: any) => {
     // eslint-disable-next-line unused-imports/no-unused-vars
     preSocialSignupCheck: async (values: BusinessSignupFomData & BaseSignUpFormValues) => {
       if (signupClosed) {
-        message.warning(signupClosedMessage);
+        toast.warning(signupClosedMessage);
         return false;
       }
 

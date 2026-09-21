@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import SessionHeader from './SessionHeader';
+import SessionHeader from '@/features/MobileHome/Layout/SessionHeader';
 
 const mocks = vi.hoisted(() => ({
   createAgent: vi.fn(),

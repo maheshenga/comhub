@@ -1,8 +1,9 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
-import { Button, Empty, Input, message } from 'antd';
+import { Empty, Input, message } from 'antd';
 import { createStaticStyles, cx } from 'antd-style';
 import { Copy, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
@@ -21,7 +22,11 @@ import {
   buildReferralHistoryRecord,
   type BusinessRecordFormatters,
 } from './mobile/businessRecordBuilders';
-import { normalizeReferralCodeInput } from './referralDisplay';
+import {
+  buildReferralLink,
+  getReferralAvailableCredits,
+  normalizeReferralCodeInput,
+} from './referralDisplay';
 import {
   formatBusinessDate,
   formatBusinessNumber,
@@ -52,8 +57,8 @@ const styles = createStaticStyles(({ css }) => ({
     > div {
       flex: 1 1 160px;
       min-width: 0;
-      white-space: normal;
       overflow-wrap: anywhere;
+      white-space: normal;
     }
   `,
   mobileTouchTarget: css`
@@ -65,7 +70,8 @@ const REFERRAL_CODE_RE = /^\d{7}$/;
 
 const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('subscription');
-  const { referralCode, referralLink, referralStatus } = useBusinessSubscriptionProfile();
+  const { accountSummary, referralCode, referralLink, referralStatus } =
+    useBusinessSubscriptionProfile();
   const { data: referralOverview } = useClientDataSWR(['business-referral-overview'], () =>
     commercialService.getReferralOverview(),
   );
@@ -86,9 +92,9 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
   const [isActivatingReward, setIsActivatingReward] = useState(false);
 
   const effectiveReferralCode = referralOverview?.referralCode || editableCode;
-  const effectiveReferralLink = referralLink.replace(
-    /ref=[^&]*/i,
-    `ref=${encodeURIComponent(effectiveReferralCode)}`,
+  const effectiveReferralLink = buildReferralLink(
+    referralLink.replace(/\/signup(?:\?.*)?$/i, ''),
+    effectiveReferralCode,
   );
   const effectiveReferralStatus = referralOverview?.currentReferralStatus || referralStatus;
   const hasBoundReferral = Boolean(effectiveReferralStatus);
@@ -318,7 +324,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           />
           <SummaryTile
             title="可用余额"
-            value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
+            value={formatCredits(getReferralAvailableCredits(accountSummary?.breakdown))}
           />
         </div>
         {!mobile && canActivateReward ? (

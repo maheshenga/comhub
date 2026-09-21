@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatPlanCurrencyAmount,
   getAvailableBillingCycles,
+  getConfiguredVisiblePaidPlans,
   getDefaultMobilePlanTarget,
   getPlanYearlyDiscountLabel,
   getPlanYearlyDiscountPercent,
@@ -34,6 +35,22 @@ describe('plans display helpers', () => {
       Plans.Starter,
       Plans.Premium,
     ]);
+  });
+
+  it('only displays paid plans present in the catalog', () => {
+    expect(
+      getConfiguredVisiblePaidPlans(
+        [Plans.Free, Plans.Hobby, Plans.Starter, Plans.Premium],
+        [Plans.Free, Plans.Starter],
+      ),
+    ).toEqual([Plans.Starter]);
+  });
+
+  it('does not fall back to the full plan order when the catalog is empty or unavailable', () => {
+    expect(getConfiguredVisiblePaidPlans([Plans.Free, Plans.Hobby, Plans.Starter], [])).toEqual([]);
+    expect(
+      getConfiguredVisiblePaidPlans([Plans.Free, Plans.Hobby, Plans.Starter], undefined),
+    ).toEqual([]);
   });
 
   it('formats prices with the catalog currency', () => {

@@ -66,7 +66,6 @@ vi.mock('@/hooks/usePermission', () => ({
 vi.mock('@/features/Brand/BrandProvider', () => ({
   useBrand: () => ({ logoUrl: '/brand.svg', name: 'ComHub Brand' }),
 }));
-
 vi.mock('@/store/agent', () => {
   const useAgentStore = (selector: (state: typeof mocks.agentState) => unknown) =>
     selector(mocks.agentState);
@@ -110,7 +109,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => key,
   }),
 }));
-
 describe('AgentSettings Content', () => {
   beforeEach(() => {
     mocks.agentState.isCurrentAgentHeterogeneous = false;

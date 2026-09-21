@@ -10,8 +10,10 @@ import {
   TASK_TEMPLATE_RECOMMEND_COUNT,
   TASK_TEMPLATE_RECOMMEND_MAX_COUNT,
 } from '@lobechat/const';
+import type { LobeChatDatabase } from '@lobechat/database';
 import { z } from 'zod';
 
+import { UserModel } from '@/database/models/user';
 import { appEnv } from '@/envs/app';
 import { isTrustedClientEnabled } from '@/libs/trusted-client';
 import { MarketService } from '@/server/services/market';
@@ -124,10 +126,32 @@ const parseTaskTemplateRecommendations = (value: unknown): TaskTemplate[] => {
 };
 
 export class TaskTemplateService {
-  private marketService: MarketService;
+  private marketService?: MarketService;
 
-  constructor(private userId: string) {
-    this.marketService = new MarketService({ userInfo: { userId } });
+  constructor(
+    private userId: string,
+    private db?: LobeChatDatabase,
+  ) {}
+
+  private async getMarketService(): Promise<MarketService> {
+    if (this.marketService) return this.marketService;
+
+    let accessToken: string | undefined;
+    if (this.db) {
+      try {
+        const userModel = new UserModel(this.db, this.userId);
+        const settings = await userModel.getUserSettings();
+        accessToken = (settings?.market as any)?.accessToken;
+      } catch {
+        // non-fatal — MarketService will fall back to trustedClientToken
+      }
+    }
+
+    this.marketService = new MarketService({
+      accessToken,
+      userInfo: { userId: this.userId },
+    });
+    return this.marketService;
   }
 
   async listDailyRecommend(
@@ -140,7 +164,8 @@ export class TaskTemplateService {
     } = {},
   ): Promise<TaskTemplate[]> {
     try {
-      const market = this.marketService.market as unknown as TaskTemplateMarketApi;
+      const marketService = await this.getMarketService();
+      const market = marketService.market as unknown as TaskTemplateMarketApi;
       const result = await market.taskTemplates.getTaskTemplateRecommendations({
         count: clampRecommendationCount(options.count),
         excludeIds: options.excludeIds,

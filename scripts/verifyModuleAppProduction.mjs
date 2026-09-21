@@ -108,6 +108,8 @@ const execute = (command, args, options = {}) => {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     env: { ...process.env, ...options.env },
+    // npm exposes Bun through bun.cmd on Windows, which requires command-shell resolution.
+    shell: process.platform === 'win32' && command === 'bun',
     stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
   });
   if (result.error) throw result.error;

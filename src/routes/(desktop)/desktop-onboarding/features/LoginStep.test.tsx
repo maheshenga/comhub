@@ -120,6 +120,12 @@ vi.mock('@/services/adminCommercial', () => ({
   },
 }));
 
+vi.mock('@/features/DesktopDownload/usePublicDesktopClientConfig', () => ({
+  usePublicDesktopClientConfig: () => ({
+    loginConfig: mockPublicDesktopUpdate.data?.loginConfig ?? {},
+  }),
+}));
+
 vi.mock('@/const/version', () => ({
   isDesktop: true,
 }));
@@ -158,7 +164,7 @@ vi.mock('@/utils/electron/autoOidc', () => ({
   setDesktopAutoOidcFirstOpenHandled: vi.fn(),
 }));
 
-vi.mock('../components/LobeMessage', () => ({
+vi.mock('@/features/DesktopOnboarding/components/LobeMessage', () => ({
   default: ({ logoUrl, sentences }: { logoUrl?: string; sentences: string[] }) => (
     <div>
       {logoUrl && <img alt="login logo" src={logoUrl} />}
@@ -168,7 +174,7 @@ vi.mock('../components/LobeMessage', () => ({
 }));
 
 const renderLoginStep = async () => {
-  const { default: LoginStep } = await import('./LoginStep');
+  const { default: LoginStep } = await import('@/features/DesktopOnboarding/steps/LoginStep');
 
   render(<LoginStep onBack={vi.fn()} onNext={vi.fn()} />);
 };

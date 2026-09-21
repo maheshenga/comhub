@@ -29,11 +29,6 @@ export class ChatController extends BaseController {
         ? new ChatService(db, userId, workspaceId, config)
         : new ChatService(db, userId, config);
 
-      // If streaming response, return directly
-      if (chatParams.stream) {
-        return await chatService.chat(chatParams);
-      }
-
       const result = await chatService.chat(chatParams);
       return this.success(c, result, 'Chat completed successfully');
     } catch (error) {

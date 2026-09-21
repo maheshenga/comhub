@@ -94,7 +94,9 @@ describe('admin content router', () => {
 
   it('rejects a direct delete without a command envelope before any document model call', async () => {
     const deleteDocument = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+    vi.mocked(DocumentService).mockImplementation(function MockDocumentService() {
+      return { deleteDocument } as any;
+    });
 
     const db = createDb({
       document: {
@@ -118,7 +120,9 @@ describe('admin content router', () => {
 
   it('rejects a null command deterministically before any document model call', async () => {
     const deleteDocument = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+    vi.mocked(DocumentService).mockImplementation(function MockDocumentService() {
+      return { deleteDocument } as any;
+    });
 
     const db = createDb({
       document: {
@@ -144,7 +148,9 @@ describe('admin content router', () => {
 
   it('rejects a command for another action before any document model call', async () => {
     const deleteDocument = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+    vi.mocked(DocumentService).mockImplementation(function MockDocumentService() {
+      return { deleteDocument } as any;
+    });
 
     const db = createDb({
       document: {
@@ -173,8 +179,12 @@ describe('admin content router', () => {
   it('deletes files through FileModel and S3 cleanup instead of direct row deletion', async () => {
     const fileDelete = vi.fn().mockResolvedValue({ url: 'uploads/file.pdf' });
     const storageDelete = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(FileModel).mockImplementation(() => ({ delete: fileDelete }) as any);
-    vi.mocked(FileService).mockImplementation(() => ({ deleteFile: storageDelete }) as any);
+    vi.mocked(FileModel).mockImplementation(function MockFileModel() {
+      return { delete: fileDelete } as any;
+    });
+    vi.mocked(FileService).mockImplementation(function MockFileService() {
+      return { deleteFile: storageDelete } as any;
+    });
 
     const db = createDb({
       file: {
@@ -193,9 +203,11 @@ describe('admin content router', () => {
       fileId: 'file-1',
     });
 
-    expect(FileModel).toHaveBeenCalledWith(db, 'user-1');
-    expect(fileDelete).toHaveBeenCalledWith('file-1', expect.any(Boolean));
-    expect(FileService).toHaveBeenCalledWith(db, 'user-1');
+    expect(FileModel).toHaveBeenCalledWith(db, 'user-1', undefined);
+    expect(fileDelete).toHaveBeenCalledWith('file-1', {
+      removeGlobalFile: expect.any(Boolean),
+    });
+    expect(FileService).toHaveBeenCalledWith(db, 'user-1', undefined);
     expect(storageDelete).toHaveBeenCalledWith('uploads/file.pdf');
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
@@ -207,9 +219,48 @@ describe('admin content router', () => {
     );
   });
 
+  it('deletes agent-share visitor files through their provenance access scope', async () => {
+    const fileDelete = vi.fn().mockResolvedValue({ url: 'uploads/visitor.pdf' });
+    const storageDelete = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(FileModel).mockImplementation(function MockFileModel() {
+      return { delete: fileDelete } as any;
+    });
+    vi.mocked(FileService).mockImplementation(function MockFileService() {
+      return { deleteFile: storageDelete } as any;
+    });
+
+    const db = createDb({
+      file: {
+        fileType: 'application/pdf',
+        id: 'visitor-file-1',
+        metadata: { agentShare: { shareId: 'share-1', visitorUserId: 'visitor-1' } },
+        name: 'visitor.pdf',
+        size: 128,
+        userId: 'owner-1',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
+    await caller.deleteFile({
+      command: { actionId: 'content.deleteFile', confirmed: true },
+      fileId: 'visitor-file-1',
+    });
+
+    expect(FileModel).toHaveBeenCalledWith(db, 'owner-1', undefined);
+    expect(fileDelete).toHaveBeenCalledWith('visitor-file-1', {
+      accessScope: { shareId: 'share-1', type: 'agentShare', visitorUserId: 'visitor-1' },
+      removeGlobalFile: expect.any(Boolean),
+    });
+    expect(FileService).toHaveBeenCalledWith(db, 'owner-1', undefined);
+    expect(storageDelete).toHaveBeenCalledWith('uploads/visitor.pdf');
+  });
+
   it('deletes documents through DocumentService so associated files and children are handled', async () => {
     const deleteDocument = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+    vi.mocked(DocumentService).mockImplementation(function MockDocumentService() {
+      return { deleteDocument } as any;
+    });
 
     const db = createDb({
       document: {

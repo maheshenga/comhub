@@ -1,3 +1,4 @@
+import { agentShareFileAccessScope, getAgentShareFileProvenance } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, count, desc, eq, like, or } from 'drizzle-orm';
 import { z } from 'zod';
@@ -123,9 +124,14 @@ export const adminContentRouter = router({
           targetUserId: file.userId,
         }),
         effect: async () => {
-          const fileModel = new FileModel(ctx.serverDB, file.userId);
-          const fileService = new FileService(ctx.serverDB, file.userId);
-          const removedFile = await fileModel.delete(input.fileId, serverDBEnv.REMOVE_GLOBAL_FILE);
+          const provenance = getAgentShareFileProvenance(file.metadata);
+          const workspaceId = file.workspaceId ?? undefined;
+          const fileModel = new FileModel(ctx.serverDB, file.userId, workspaceId);
+          const fileService = new FileService(ctx.serverDB, file.userId, workspaceId);
+          const removedFile = await fileModel.delete(input.fileId, {
+            ...(provenance ? { accessScope: agentShareFileAccessScope(provenance) } : {}),
+            removeGlobalFile: serverDBEnv.REMOVE_GLOBAL_FILE,
+          });
 
           if (removedFile?.url) {
             await fileService.deleteFile(removedFile.url);

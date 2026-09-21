@@ -52,7 +52,9 @@ const AddColumnButton = memo<AddColumnButtonProps>(({ insertAfterKey, row }) => 
   const addColumn = useFleetStore((s) => s.addColumn);
 
   const handleSelectAgent = useCallback(
-    (agentId: string) => {
+    (agentId: string | null) => {
+      if (!agentId) return;
+
       // Open the agent's main conversation (topicId: null) as a fresh chat —
       // "pick an agent" here means "start a new conversation with this agent",
       // not "mint an empty throwaway topic". Instant (no server round-trip that

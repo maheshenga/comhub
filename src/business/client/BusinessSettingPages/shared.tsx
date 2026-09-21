@@ -85,6 +85,7 @@ export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
   inlineValue: css`
     overflow: hidden;
     flex: 1;
+
     min-width: 0;
     padding-block: 8px;
     padding-inline: 12px;
@@ -104,6 +105,7 @@ export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
     display: flex;
     gap: 8px;
     align-items: center;
+
     width: 100%;
     min-width: 0;
 
@@ -183,8 +185,6 @@ export const resolveCurrentPlan = (subscriptionPlan?: Plans, isFreePlan?: boolea
 
   return Plans.Free;
 };
-
-const createReferralCode = () => String(Math.floor(1_000_000 + Math.random() * 9_000_000));
 
 export const formatBusinessNumber = (value: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
@@ -336,7 +336,7 @@ export const useBusinessSubscriptionProfile = () => {
     [isFreePlan, subscriptionPlan, subscriptionSummary?.plan],
   );
 
-  const [referralCode] = useState(createReferralCode);
+  const referralCode = '';
 
   const [siteOrigin, setSiteOrigin] = useState(OFFICIAL_URL);
 
@@ -347,7 +347,7 @@ export const useBusinessSubscriptionProfile = () => {
   }, []);
 
   const referralLink = useMemo(
-    () => `${siteOrigin}/signup?ref=${referralCode}`,
+    () => (referralCode ? `${siteOrigin}/signup?ref=${referralCode}` : `${siteOrigin}/signup`),
     [referralCode, siteOrigin],
   );
 

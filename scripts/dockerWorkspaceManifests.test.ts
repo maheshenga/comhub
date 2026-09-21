@@ -40,7 +40,7 @@ describe('Docker workspace manifests', () => {
 
   it('copies the server manifest before installing workspace dependencies', () => {
     const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
-    const installIndex = dockerfile.indexOf('pnpm i');
+    const installIndex = dockerfile.indexOf('\n    pnpm i &&');
 
     expect(installIndex).toBeGreaterThan(-1);
     expect(dockerfile.slice(0, installIndex)).toMatch(
@@ -258,5 +258,15 @@ describe('Docker workspace manifests', () => {
     expect(verification).toContain(
       "MODULE_APP_WORKER_INTEGRATION_REQUIRED: 'true',\n      ...composeEnv,\n      ...s3Environment",
     );
+  });
+
+  it('copies the Workbench package manifest before pnpm i', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const copyIdx = dockerfile.indexOf('COPY apps/workbench/package.json');
+    const installIdx = dockerfile.indexOf('\n    pnpm i &&');
+
+    expect(copyIdx).toBeGreaterThan(-1);
+    expect(installIdx).toBeGreaterThan(-1);
+    expect(copyIdx).toBeLessThan(installIdx);
   });
 });

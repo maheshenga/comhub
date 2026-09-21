@@ -3,7 +3,7 @@
 import { createStaticStyles, cx } from 'antd-style';
 import { type FC, type ReactNode } from 'react';
 
-import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
+import SettingHeader from '@/features/Settings/features/SettingHeader';
 
 import BusinessMobileActionBar, {
   isBusinessMobilePrimaryActionExecutable,

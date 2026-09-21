@@ -1,3 +1,5 @@
+import { type SpendOrigin } from '@lobechat/types';
+
 import {
   applyCommercialPricingQuoteToCredits,
   isCommercialUsageReservationHandle,
@@ -18,8 +20,9 @@ interface ChargeParams {
   computePriceParams?: { generateAudio?: boolean; resolution?: string };
   db?: LobeChatDatabase;
   isError?: boolean;
+  /** Total time from task submission to webhook callback (ms) */
   latency?: number;
-  metadata: {
+  metadata: SpendOrigin & {
     asyncTaskId: string;
     generationBatchId: string;
     modelId: string;

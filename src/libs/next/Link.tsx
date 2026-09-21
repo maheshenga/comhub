@@ -27,8 +27,8 @@ const Link = ({
   ref,
   href,
   replace,
-  prefetch,
-  scroll,
+  prefetch: _prefetch,
+  scroll: _scroll,
   children,
   ...rest
 }: LinkProps & { ref?: React.RefObject<HTMLAnchorElement | null> }) => {

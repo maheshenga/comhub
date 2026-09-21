@@ -37,6 +37,163 @@ const jsonSchema: z.ZodType<JsonValue> = z.lazy(() =>
   ]),
 );
 
+// User defaults are intentionally partial: administrators commonly configure only
+// one model or preference group. Known fields still need their declared primitive
+// types validated so malformed values cannot be copied into every user's settings.
+const userSettingsModelItemSchema = z
+  .object({
+    contextLimit: numberSchema.optional(),
+    customPrompt: stringSchema.optional(),
+    enabled: booleanSchema.optional(),
+    model: stringSchema.optional(),
+    provider: stringSchema.optional(),
+  })
+  .passthrough();
+
+const userSystemAgentSchema = z
+  .object({
+    agentMeta: userSettingsModelItemSchema.optional(),
+    followUpAction: userSettingsModelItemSchema.optional(),
+    generationTopic: userSettingsModelItemSchema.optional(),
+    historyCompress: userSettingsModelItemSchema.optional(),
+    inputCompletion: userSettingsModelItemSchema.optional(),
+    onboardingTaskRecommender: userSettingsModelItemSchema.optional(),
+    onboardingUnderstanding: userSettingsModelItemSchema.optional(),
+    promptRewrite: userSettingsModelItemSchema.optional(),
+    thread: userSettingsModelItemSchema.optional(),
+    topic: userSettingsModelItemSchema.optional(),
+    translation: userSettingsModelItemSchema.optional(),
+    memoryAnalysisAgentConfig: userSettingsModelItemSchema.optional(),
+    userMemoryEmbedding: userSettingsModelItemSchema.optional(),
+    userMemoryPersonaWriter: userSettingsModelItemSchema.optional(),
+  })
+  .partial()
+  .passthrough();
+
+const userGlobalSettingsDefaultsSchema = z
+  .object({
+    defaultAgent: z
+      .object({
+        config: z
+          .object({ model: stringSchema.optional(), provider: stringSchema.optional() })
+          .passthrough()
+          .optional(),
+        meta: recordSchema.optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    general: z
+      .object({
+        animationMode: z.enum(['disabled', 'agile', 'elegant']).optional(),
+        contextMenuMode: z.enum(['disabled', 'default']).optional(),
+        costEstimateWarningThreshold: numberSchema.optional(),
+        enableAutoScrollOnStreaming: booleanSchema.optional(),
+        enableMessageLinkIcon: booleanSchema.optional(),
+        fontSize: numberSchema.optional(),
+        isDevMode: booleanSchema.optional(),
+        isLiteMode: booleanSchema.optional(),
+        responseLanguage: stringSchema.optional(),
+        telemetry: booleanSchema.optional(),
+        timezone: stringSchema.optional(),
+        transitionMode: stringSchema.optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    hotkey: z.record(z.string(), stringSchema).optional(),
+    image: z
+      .object({
+        defaultImageNum: numberSchema.optional(),
+        defaultModel: stringSchema.optional(),
+        defaultProvider: stringSchema.optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    languageModel: z
+      .record(
+        z.string(),
+        z
+          .object({
+            autoFetchModelLists: booleanSchema.optional(),
+            customModelCards: z.array(recordSchema).optional(),
+            enabled: booleanSchema.optional(),
+            enabledModels: z.array(stringSchema).nullable().optional(),
+            fetchOnClient: booleanSchema.optional(),
+            latestFetchTime: numberSchema.optional(),
+            remoteModelCards: z.array(recordSchema).optional(),
+            serverModelLists: z.array(recordSchema).optional(),
+          })
+          .partial()
+          .passthrough(),
+      )
+      .optional(),
+    market: z.record(z.string(), z.unknown()).nullable().optional(),
+    memory: z
+      .object({
+        effort: z.enum(['high', 'low', 'medium']).optional(),
+        enabled: booleanSchema.optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    notification: z
+      .object({
+        email: z
+          .object({
+            enabled: booleanSchema.optional(),
+            items: z.record(z.string(), z.record(z.string(), booleanSchema)).optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+        inbox: z
+          .object({
+            enabled: booleanSchema.optional(),
+            items: z.record(z.string(), z.record(z.string(), booleanSchema)).optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+        push: z
+          .object({
+            enabled: booleanSchema.optional(),
+            items: z.record(z.string(), z.record(z.string(), booleanSchema)).optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    systemAgent: userSystemAgentSchema.optional(),
+    tool: z
+      .object({
+        uninstalledBuiltinTools: z.array(stringSchema).optional(),
+        uninstalledBuiltinToolsByWorkspace: z.record(z.string(), z.array(stringSchema)).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    tts: z
+      .object({
+        openAI: z
+          .object({ sttModel: stringSchema.optional(), ttsModel: stringSchema.optional() })
+          .partial()
+          .passthrough()
+          .optional(),
+        sttAutoStop: booleanSchema.optional(),
+        sttServer: z.enum(['openai', 'browser']).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .partial()
+  .passthrough();
+
 const defineValue = <T>(
   normalizer: AppSettingNormalizer,
   valueSchema: z.ZodType<T>,
@@ -415,7 +572,7 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     return stringValue('runtime-model-string');
   }
   if (key === APP_SETTING_KEYS.userGlobalSettingsDefaults) {
-    return defineValue('user-global-settings-object', recordSchema, (value) =>
+    return defineValue('user-global-settings-object', userGlobalSettingsDefaultsSchema, (value) =>
       value && typeof value === 'object' && !Array.isArray(value) ? value : {},
     );
   }

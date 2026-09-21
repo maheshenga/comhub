@@ -1,9 +1,9 @@
-import type { AiProviderRuntimeState } from '@/types/aiProvider';
-
 import type { PlanModelRules } from '@/database/schemas';
+import type { AiProviderRuntimeState } from '@/types/aiProvider';
 
 import {
   buildModelCatalog,
+  buildModelCatalogViews,
   getModelCatalogDuplicateModelGroups,
   getModelCatalogHealth,
 } from './visibleModels';
@@ -29,9 +29,11 @@ export const getModelCatalogDiagnostics = ({ planRules, state }: ModelCatalogDia
     }, new Map<string, number>())
     .entries();
   const duplicateModelGroups = getModelCatalogDuplicateModelGroups(catalog);
+  const views = buildModelCatalogViews(catalog);
 
   return {
     catalog,
+    views,
     health,
     hiddenByReason,
     risks: [
@@ -43,8 +45,7 @@ export const getModelCatalogDiagnostics = ({ planRules, state }: ModelCatalogDia
             {
               key: 'no_visible_models',
               level: 'error' as const,
-              message:
-                'Enabled models exist, but current plan rules do not allow any of them.',
+              message: 'Enabled models exist, but current plan rules do not allow any of them.',
             },
           ]
         : []),

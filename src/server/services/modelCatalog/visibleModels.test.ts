@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildModelCatalog,
+  buildModelCatalogViews,
   getModelCatalogDuplicateModelGroups,
   getModelCatalogHealth,
   resolveModelCatalogModelDisplayName,
@@ -141,6 +142,56 @@ describe('visible model catalog', () => {
         providers: ['ToAPI', 'SiliconFlow'],
         type: 'chat',
       },
+    ]);
+  });
+
+  it('normalizes runtime models into a stable provider-aware view', () => {
+    const catalog = buildModelCatalog({
+      planRules: {
+        chat: { allowlist: ['free:*'], mode: 'allowlist' },
+      } as any,
+      state: {
+        ...createState(),
+        enabledAiModels: [
+          {
+            abilities: ['vision'],
+            displayName: 'Free Chat',
+            enabled: true,
+            id: 'free-chat',
+            instanceName: 'Managed NewAPI',
+            pricing: { currency: 'CNY' },
+            providerId: 'newapi',
+            source: 'admin-managed',
+            type: 'chat',
+          },
+          {
+            enabled: true,
+            groupKey: 'pro',
+            id: 'pro-chat',
+            providerId: 'newapi',
+            type: 'chat',
+          },
+        ],
+      } as any,
+    });
+
+    expect(buildModelCatalogViews(catalog)).toEqual([
+      expect.objectContaining({
+        abilities: ['vision'],
+        displayName: 'Free Chat',
+        enabled: true,
+        modelId: 'free-chat',
+        pricing: { currency: 'CNY' },
+        providerId: 'newapi',
+        providerName: 'Managed NewAPI',
+        restricted: false,
+        source: 'admin-managed',
+        type: 'chat',
+      }),
+      expect.objectContaining({
+        displayName: 'pro-chat',
+        restricted: true,
+      }),
     ]);
   });
 });

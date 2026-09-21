@@ -1,3 +1,5 @@
+import { createGmailConnectorClient, hasGmailReadPermission } from '@lobechat/connector-data/gmail';
+import { getComposioAppByIdentifier } from '@lobechat/const';
 import type { LobeChatDatabase } from '@lobechat/database';
 import { type ToolManifest } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
@@ -98,6 +100,22 @@ type ComposioToolInput = {
   description?: string;
   inputSchema?: Record<string, unknown>;
   name: string;
+};
+
+/**
+ * Rejects connector identities that are not an exact member of the supported Composio catalog.
+ *
+ * This validates both fields so an unsupported toolkit cannot be smuggled through a supported
+ * identifier before an external account is created or local connector state is written.
+ */
+const assertSupportedComposioApp = (identifier: string, appSlug: string): void => {
+  const app = getComposioAppByIdentifier(identifier);
+  if (app?.appSlug.toLowerCase() === appSlug.toLowerCase()) return;
+
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: `Unsupported Composio app: ${identifier}`,
+  });
 };
 
 /**
@@ -237,6 +255,8 @@ export const composioRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { appSlug, identifier, label, agentId } = input;
       const { userId } = ctx;
+
+      assertSupportedComposioApp(identifier, appSlug);
 
       if (agentId)
         await assertCanEditAgent(ctx.serverDB, userId, agentId, ctx.workspaceId ?? undefined);
@@ -425,11 +445,32 @@ export const composioRouter = router({
         const account = await (ctx.composioClient.connectedAccounts as any).get(
           input.connectedAccountId,
         );
+        const appSlug = account?.toolkit?.slug || '';
+        const status = (account?.status || 'PENDING') as string;
+        let gmailReadPermission: boolean | undefined;
+
+        if (appSlug.toLowerCase() === 'gmail' && status === 'ACTIVE') {
+          try {
+            const gmailClient = createGmailConnectorClient({
+              composio: ctx.composioClient,
+              connectedAccountId: input.connectedAccountId,
+              userId: ctx.userId,
+            });
+            const gmailAccount = await gmailClient.getAccount();
+            gmailReadPermission = hasGmailReadPermission(gmailAccount.scopes);
+          } catch (error) {
+            // Permission introspection is advisory: a transient Composio lookup failure must not
+            // downgrade an otherwise active connection or trap the OAuth polling loop.
+            console.warn('[Composio] Failed to inspect Gmail permissions:', error);
+          }
+        }
+
         return {
-          appSlug: account?.toolkit?.slug || '',
+          appSlug,
           connectedAccountId: input.connectedAccountId,
           error: undefined as 'AUTH_ERROR' | undefined,
-          status: (account?.status || 'PENDING') as string,
+          gmailReadPermission,
+          status,
         };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -489,6 +530,8 @@ export const composioRouter = router({
         redirectUrl,
         agentId,
       } = input;
+
+      assertSupportedComposioApp(identifier, appSlug);
 
       if (agentId)
         await assertCanEditAgent(ctx.serverDB, ctx.userId, agentId, ctx.workspaceId ?? undefined);

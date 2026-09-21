@@ -1,3 +1,5 @@
+import { sanitizeLinkUrl } from '@lobechat/utils';
+
 export const HELP_MENU_ACTIONS = [
   'url',
   'feedback',
@@ -75,7 +77,10 @@ const normalizeIcon = (value: unknown, action: HelpMenuAction): HelpMenuIcon => 
 
 const normalizeKey = (value: unknown, label: string, index: number) =>
   normalizeText(value) ||
-  label.toLowerCase().replaceAll(/[^a-z0-9_-]+/g, '-').replaceAll(/^-+|-+$/g, '') ||
+  label
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '') ||
   `item-${index + 1}`;
 
 export const normalizeHelpMenuItems = (items: unknown): HelpMenuItem[] =>
@@ -85,7 +90,7 @@ export const normalizeHelpMenuItems = (items: unknown): HelpMenuItem[] =>
         .map((item, index) => {
           const raw = item as Record<string, unknown>;
           const label = normalizeText(raw.label);
-          const url = normalizeText(raw.url);
+          const url = sanitizeLinkUrl(raw.url);
           const action = normalizeAction(raw.action);
 
           return {

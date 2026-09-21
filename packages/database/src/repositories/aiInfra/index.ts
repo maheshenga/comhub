@@ -213,7 +213,11 @@ export class AiInfraRepos {
             const mergedModel = {
               ...item,
               abilities: !isEmpty(user.abilities) ? user.abilities : item.abilities || {},
-              config: !isEmpty(user.config) ? user.config : item.config,
+              // Deep-merge instead of replacing: a user row holding only a
+              // reasoning preference (`config.chatConfig`) must not drop the
+              // builtin card's `config.deploymentName` (Azure/Volcengine-style
+              // providers resolve the request model from it)
+              config: !isEmpty(user.config) ? merge(item.config || {}, user.config) : item.config,
               contextWindowTokens:
                 typeof user.contextWindowTokens === 'number'
                   ? user.contextWindowTokens
@@ -422,11 +426,20 @@ export class AiInfraRepos {
       m.type = normalizeAiModelType(m.type);
     }
 
+    const builtinIds = new Set(defaultModels.map((m) => m.id));
     // Branding provider may be DB-backed; prune only when there is a builtin allowlist.
     if (providerId === BRANDING_PROVIDER && defaultModels.length > 0) {
-      const builtinIds = new Set(defaultModels.map((m) => m.id));
       mergedModel = mergedModel.filter((m) => builtinIds.has(m.id));
     }
+
+    // Preference-only shells — rows persisting just `config.chatConfig` (created
+    // by updateModelReasoningConfig, or left behind when clearRemoteModels
+    // demotes a remote row with a saved reasoning preference) — carry no
+    // user-visible identity. With no builtin card to merge onto, hide the
+    // ID-only entry instead of listing a ghost disabled model.
+    mergedModel = mergedModel.filter(
+      (m) => builtinIds.has(m.id) || !AiModelModel.isPreferenceOnlyRow(m),
+    );
 
     mergedModel = mergedModel.filter(isAiModelVisible);
 

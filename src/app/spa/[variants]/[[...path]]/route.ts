@@ -1,4 +1,4 @@
-import { BRANDING_NAME, ORG_NAME } from '@lobechat/business-const';
+import { APPLE_APP_STORE_ID, BRANDING_NAME, ORG_NAME } from '@lobechat/business-const';
 import { OG_URL } from '@lobechat/const';
 
 import { getServerFeatureFlagsValue } from '@/config/featureFlags';
@@ -66,13 +66,14 @@ async function buildClientEnv(): Promise<SPAClientEnv> {
 async function buildSeoMeta(
   locale: string,
   brand: Awaited<ReturnType<typeof getServerBrand>>,
+  isMobile: boolean,
 ): Promise<string> {
   const { t } = await translation('metadata', locale);
   const appName = brand.name?.trim() || BRANDING_NAME;
   const title = t('chat.title', { appName });
   const description = t('chat.description', { appName });
 
-  return [
+  const metas = [
     `<title>${title}</title>`,
     `<meta name="description" content="${description}" />`,
     `<meta property="og:title" content="${title}" />`,
@@ -87,7 +88,13 @@ async function buildSeoMeta(
     `<meta name="twitter:description" content="${description}" />`,
     `<meta name="twitter:image" content="${OG_URL}" />`,
     `<meta name="twitter:site" content="${isCustomORG ? `@${ORG_NAME}` : '@lobehub'}" />`,
-  ].join('\n    ');
+  ];
+
+  if (isMobile && APPLE_APP_STORE_ID) {
+    metas.push(`<meta name="apple-itunes-app" content="app-id=${APPLE_APP_STORE_ID}" />`);
+  }
+
+  return metas.join('\n    ');
 }
 
 export async function GET(
@@ -113,14 +120,13 @@ export async function GET(
   };
 
   const template = await getTemplate(isMobile);
-  const seoMeta = await buildSeoMeta(locale, brand);
+  const seoMeta = await buildSeoMeta(locale, brand, isMobile);
   const appName = brand.name?.trim() || BRANDING_NAME;
   const loadingText = getBrandLoadingText(
     { loadingText: brand.loadingText, name: appName, slogan: brand.slogan },
     appName,
   );
-  const loadingSvgUrl =
-    typeof brand.loadingSvgUrl === 'string' ? brand.loadingSvgUrl.trim() : '';
+  const loadingSvgUrl = typeof brand.loadingSvgUrl === 'string' ? brand.loadingSvgUrl.trim() : '';
   const loadingBrandHtml = loadingSvgUrl
     ? buildStaticLoadingBrandHtml(loadingText, loadingSvgUrl)
     : undefined;

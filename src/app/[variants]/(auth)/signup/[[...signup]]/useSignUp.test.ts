@@ -17,8 +17,9 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: mockSearchParamsGet }),
 }));
 
-vi.mock('@/components/AntdStaticMethods', () => ({
-  message: { error: mockMessageError, success: vi.fn() },
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  toast: { error: mockMessageError, success: vi.fn() },
 }));
 
 vi.mock('@/libs/better-auth/auth-client', () => ({
@@ -65,7 +66,7 @@ describe('useSignUp', () => {
     mockEnableEmailVerification = false;
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { ...originalLocation, href: '' },
+      value: { ...originalLocation, href: '', origin: originalLocation.origin },
       writable: true,
     });
   });
@@ -152,7 +153,9 @@ describe('useSignUp', () => {
       });
 
       expect(mockSignUpEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ callbackURL: '/onboarding?callbackUrl=%2Fdashboard' }),
+        expect.objectContaining({
+          callbackURL: `${originalLocation.origin}/onboarding?callbackUrl=%2Fdashboard`,
+        }),
       );
       expect(window.location.href).toBe('/onboarding?callbackUrl=%2Fdashboard');
     });

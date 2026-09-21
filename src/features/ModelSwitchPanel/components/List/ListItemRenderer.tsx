@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Block,
   DropdownMenuPopup,
   DropdownMenuPortal,
@@ -10,6 +9,7 @@ import {
   Icon,
   menuSharedStyles,
 } from '@lobehub/ui';
+import { ActionIcon } from '@lobehub/ui/base-ui';
 import { cssVar, cx } from 'antd-style';
 import { LucideArrowRight, LucideBolt } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
@@ -180,6 +180,7 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                 <ModelItemRender
                   {...item.model}
                   {...item.model.abilities}
+                  wrapInfo
                   newBadgeLabel={newLabel}
                   proBadgeLabel={pro ? proLabel : undefined}
                   priceLabel={
