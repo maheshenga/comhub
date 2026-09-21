@@ -109,6 +109,7 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
           <ModelItemRender
             {...data.model}
             {...data.model.abilities}
+            wrapInfo
             newBadgeLabel={newLabel}
             proBadgeLabel={defaultProviderPro ? proLabel : undefined}
           />

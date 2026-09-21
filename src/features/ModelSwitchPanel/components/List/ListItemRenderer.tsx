@@ -180,6 +180,7 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                 <ModelItemRender
                   {...item.model}
                   {...item.model.abilities}
+                  wrapInfo
                   newBadgeLabel={newLabel}
                   proBadgeLabel={pro ? proLabel : undefined}
                   priceLabel={

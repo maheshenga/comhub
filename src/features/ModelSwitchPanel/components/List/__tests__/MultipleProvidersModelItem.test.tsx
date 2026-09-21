@@ -42,7 +42,19 @@ vi.mock('@lobehub/ui', async (importOriginal) => ({
 vi.mock('@lobehub/ui/base-ui', () => ({
   Avatar: () => <span />,
   Tag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  Text: ({
+    children,
+    style,
+    title,
+  }: {
+    children: ReactNode;
+    style?: HTMLAttributes<HTMLSpanElement>['style'];
+    title?: string;
+  }) => (
+    <span style={style} title={title}>
+      {children}
+    </span>
+  ),
 }));
 
 vi.mock('@lobehub/icons', () => ({
@@ -119,6 +131,31 @@ describe('MultipleProvidersModelItem', () => {
     for (const attr of ['reasoning', 'search', 'structuredoutput', 'knowledgecutoff']) {
       expect(container.querySelector(`[${attr}]`)).toBeNull();
     }
+  });
+
+  it('lets model metadata wrap without truncating the model name', async () => {
+    const { ModelItemRender } = await vi.importActual<typeof ModelSelectModule>(
+      '@/components/ModelSelect',
+    );
+    const displayName = 'gemini-3.7-flash-preview-with-a-long-name';
+
+    render(
+      <ModelItemRender
+        wrapInfo
+        displayName={displayName}
+        id="gemini-3.7-flash-preview"
+        priceLabel={<span>price summary</span>}
+      />,
+    );
+
+    const name = screen.getByText(displayName);
+    const price = screen.getByText('price summary');
+
+    expect(name).toHaveAttribute('title', displayName);
+    expect(name).toHaveStyle({ overflowWrap: 'anywhere', whiteSpace: 'normal' });
+    expect(name.parentElement).not.toBe(price.parentElement);
+    expect(name.parentElement?.parentElement).toBe(price.parentElement?.parentElement);
+    expect(name.parentElement?.parentElement).toHaveStyle({ '--lobe-flex-wrap': 'wrap' });
   });
 
   it('renders model detail panel even when info tags are hidden', () => {

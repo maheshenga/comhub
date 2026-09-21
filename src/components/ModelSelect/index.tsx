@@ -259,12 +259,14 @@ type ModelItemRenderProps = ChatModelCard &
     proBadgeLabel?: string;
     provider?: string;
     showInfoTag?: boolean;
+    wrapInfo?: boolean;
     value?: string;
   };
 
 export const ModelItemRender = memo<ModelItemRenderProps>(
   ({
     showInfoTag = true,
+    wrapInfo = false,
     abilities,
     audio,
     contextWindowTokens,
@@ -290,10 +292,11 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
         horizontal
         align={'center'}
         className={className}
-        gap={32}
+        gap={wrapInfo ? 8 : 32}
         justify={'space-between'}
+        wrap={wrapInfo ? 'wrap' : undefined}
         style={{
-          overflow: 'hidden',
+          overflow: wrapInfo ? 'visible' : 'hidden',
           position: 'relative',
           width: '100%',
           ...style,
@@ -303,15 +306,39 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
           horizontal
           align={'center'}
           gap={8}
-          style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden' }}
+          style={
+            wrapInfo
+              ? {
+                  flex: '1 1 240px',
+                  minWidth: 'min(240px, 100%)',
+                  overflow: 'visible',
+                }
+              : { flexShrink: 1, minWidth: 0, overflow: 'hidden' }
+          }
         >
           <ModelIcon model={id} size={20} />
           <Text
-            style={mobile ? { maxWidth: '60vw' } : { minWidth: 0, overflow: 'hidden' }}
-            ellipsis={{
-              tooltip: displayNameOrId,
-              tooltipWhenOverflow: true,
-            }}
+            title={wrapInfo ? displayNameOrId : undefined}
+            ellipsis={
+              wrapInfo
+                ? undefined
+                : {
+                    tooltip: displayNameOrId,
+                    tooltipWhenOverflow: true,
+                  }
+            }
+            style={
+              wrapInfo
+                ? {
+                    flex: 1,
+                    minWidth: 0,
+                    overflowWrap: 'anywhere',
+                    whiteSpace: 'normal',
+                  }
+                : mobile
+                  ? { maxWidth: '60vw' }
+                  : { minWidth: 0, overflow: 'hidden' }
+            }
           >
             {displayNameOrId}
           </Text>
@@ -327,7 +354,14 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
           )}
         </Flexbox>
         {(priceLabel || showInfoTag) && (
-          <Flexbox horizontal align="center" gap={8} style={{ flexShrink: 0 }}>
+          <Flexbox
+            horizontal
+            align="center"
+            gap={8}
+            justify={wrapInfo ? 'end' : undefined}
+            style={wrapInfo ? { flex: '1 1 auto', minWidth: 0 } : { flexShrink: 0 }}
+            wrap={wrapInfo ? 'wrap' : undefined}
+          >
             {priceLabel}
             {showInfoTag && (
               <ModelInfoTags
