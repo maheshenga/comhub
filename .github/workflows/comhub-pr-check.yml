@@ -37,5 +37,8 @@ jobs:
       - name: Verify deployment workflow contracts
         run: node --test .github/workflows/comhubDeploymentWorkflows.test.mjs
 
+      - name: Verify database migration chain
+        run: pnpm verify:database-migrations
+
       - name: Type check
         run: pnpm type-check
