@@ -60,6 +60,7 @@ export interface LobeAgentChatConfig extends AgentMemoryChatConfig, AgentSelfIte
    * Whether to auto-scroll during AI streaming output
    * undefined = use global setting
    */
+  enableAutoCreateTopic?: boolean;
   enableAutoScrollOnStreaming?: boolean;
   /**
    * Enable history message compression threshold
@@ -247,6 +248,7 @@ export const AgentChatConfigSchema = z
     enableAdaptiveThinking: z.boolean().optional(),
     enableAgentMode: z.boolean().optional(),
     toolMode: z.enum(['agent', 'chat', 'custom']).optional(),
+    enableAutoCreateTopic: z.boolean().optional(),
     enableAutoScrollOnStreaming: z.boolean().optional(),
     enableCompressHistory: z.boolean().optional(),
     enableContextCompression: z.boolean().optional(),

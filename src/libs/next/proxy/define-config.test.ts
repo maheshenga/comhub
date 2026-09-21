@@ -265,6 +265,7 @@ describe('defineConfig Share SPA rewrite', () => {
 describe('Acceptance installation guide', () => {
   it('serves the public Markdown asset without authentication or SPA rewrites', async () => {
     const { auth } = await import('@/auth');
+    const { middleware } = defineConfig();
     vi.mocked(auth.api.getSession).mockClear();
     const response = await middleware(new NextRequest('http://localhost:3010/acceptance/skill.md'));
 

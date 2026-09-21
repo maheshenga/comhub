@@ -245,17 +245,19 @@ export class S3 {
     uploadId: string,
     expectedPartCount: number,
     uploadedParts?: Array<{ ETag: string; PartNumber: number }>,
+    expectedFile?: { partSize: number; size: number },
   ) {
-    const parts = uploadedParts ? [...uploadedParts] : [];
+    const parts: Array<{ ETag: string; PartNumber: number; Size?: number }> =
+      uploadedParts && !expectedFile ? [...uploadedParts] : [];
 
-    if (!uploadedParts) {
+    if (!uploadedParts || expectedFile) {
       for await (const page of paginateListParts(
         { client: this.client },
         { Bucket: this.bucket, Key: key, UploadId: uploadId },
       )) {
         for (const part of page.Parts ?? []) {
           if (!part.ETag || !part.PartNumber) continue;
-          parts.push({ ETag: part.ETag, PartNumber: part.PartNumber });
+          parts.push({ ETag: part.ETag, PartNumber: part.PartNumber, Size: part.Size });
         }
       }
     }
@@ -271,11 +273,27 @@ export class S3 {
       );
     }
 
+    if (expectedFile) {
+      const hasExpectedSizes = parts.every((part, index) => {
+        const expectedSize =
+          index === expectedPartCount - 1
+            ? expectedFile.size - expectedFile.partSize * (expectedPartCount - 1)
+            : expectedFile.partSize;
+        return part.Size === expectedSize;
+      });
+
+      if (!hasExpectedSizes) {
+        throw new Error(`S3 multipart upload ${uploadId} has an unexpected part size`);
+      }
+    }
+
     return this.client.send(
       new CompleteMultipartUploadCommand({
         Bucket: this.bucket,
         Key: key,
-        MultipartUpload: { Parts: parts },
+        MultipartUpload: {
+          Parts: parts.map(({ ETag, PartNumber }) => ({ ETag, PartNumber })),
+        },
         UploadId: uploadId,
       }),
     );
@@ -514,16 +532,22 @@ export class FileS3 extends S3 {
     return (await this.getRuntimeS3()).getFileMetadata(key);
   }
 
-  public async createPreSignedUrl(key: string): Promise<string> {
-    return (await this.getRuntimeS3()).createPreSignedUrl(key);
+  public async createPreSignedUrl(key: string, contentLength?: number): Promise<string> {
+    return (await this.getRuntimeS3()).createPreSignedUrl(key, contentLength);
   }
 
-  public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return (await this.getRuntimeS3()).createPreSignedUpload(key);
+  public async createPreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return (await this.getRuntimeS3()).createPreSignedUpload(key, contentLength);
   }
 
-  public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return (await this.getRuntimeS3()).createPrivatePreSignedUpload(key);
+  public async createPrivatePreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return (await this.getRuntimeS3()).createPrivatePreSignedUpload(key, contentLength);
   }
 
   public async createMultipartUpload(key: string, contentType?: string): Promise<string> {
@@ -534,8 +558,14 @@ export class FileS3 extends S3 {
     key: string,
     uploadId: string,
     partNumber: number,
+    contentLength?: number,
   ): Promise<string> {
-    return (await this.getRuntimeS3()).createPreSignedUploadPartUrl(key, uploadId, partNumber);
+    return (await this.getRuntimeS3()).createPreSignedUploadPartUrl(
+      key,
+      uploadId,
+      partNumber,
+      contentLength,
+    );
   }
 
   public async completeMultipartUpload(
@@ -543,12 +573,14 @@ export class FileS3 extends S3 {
     uploadId: string,
     expectedPartCount: number,
     uploadedParts?: Array<{ ETag: string; PartNumber: number }>,
+    expectedFile?: { partSize: number; size: number },
   ) {
     return (await this.getRuntimeS3()).completeMultipartUpload(
       key,
       uploadId,
       expectedPartCount,
       uploadedParts,
+      expectedFile,
     );
   }
 

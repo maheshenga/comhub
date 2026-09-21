@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { readFile, readFileSync } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import vm from 'node:vm';
 

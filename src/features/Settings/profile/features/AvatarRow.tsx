@@ -118,9 +118,9 @@ const AvatarRow = () => {
       message.success(t('profile.avatarPresetSuccess', '头像已更新'));
       setPresetOpen(false);
     } catch (error) {
-      fetchErrorNotification.error({
-        errorMessage: error instanceof Error ? error.message : String(error),
-        status: 500,
+      saveToast(error, {
+        retry: () => void handleSelectPreset(avatar),
+        title: t('profile.avatarPresetError', '头像更新失败'),
       });
     } finally {
       setSelectingPreset(null);

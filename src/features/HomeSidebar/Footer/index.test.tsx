@@ -60,6 +60,11 @@ const createGlobalState = (readSlugs: string[] = []) => ({
   }),
 });
 
+let mockGlobalState: {
+  status: Record<string, unknown>;
+  updateSystemStatus: ReturnType<typeof vi.fn>;
+};
+
 const renderFooter = async ({
   billboardItems = [],
   customization,

@@ -350,22 +350,27 @@ export const fileRouter = router({
       }
 
       const { id } = await ctx.serverDB.transaction(async (trx) => {
-        await businessFileUploadCheck({
-          actualSize,
-          clientIp: ctx.clientIp ?? undefined,
-          inputSize: input.size,
-          transaction: trx,
-          url: input.url,
-          userId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-        });
+        // Reserved uploads were already authorized when their session was
+        // created. Repeating the business check or quota charge here would
+        // reject valid sessions and count the same bytes twice.
+        if (!activeUpload) {
+          await businessFileUploadCheck({
+            actualSize,
+            clientIp: ctx.clientIp ?? undefined,
+            inputSize: input.size,
+            transaction: trx,
+            url: input.url,
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+          });
 
-        await assertStorageQuota({
-          currentUsage: await ctx.fileModel.countUsage(trx),
-          db: trx,
-          incomingBytes: actualSize,
-          userId: ctx.userId,
-        });
+          await assertStorageQuota({
+            currentUsage: await ctx.fileModel.countUsage(trx),
+            db: trx,
+            incomingBytes: actualSize,
+            userId: ctx.userId,
+          });
+        }
 
         let shouldRefreshGlobalFile = false;
         if (isExist && existingFile.url && existingFile.url !== input.url) {

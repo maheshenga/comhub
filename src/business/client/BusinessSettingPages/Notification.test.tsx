@@ -30,7 +30,7 @@ vi.mock('@/libs/swr', () => ({
   }),
 }));
 
-vi.mock('@/routes/(main)/settings/features/SettingHeader', () => ({
+vi.mock('@/features/Settings/features/SettingHeader', () => ({
   default: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 

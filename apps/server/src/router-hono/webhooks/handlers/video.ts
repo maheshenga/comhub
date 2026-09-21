@@ -58,6 +58,7 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
   let asyncTaskUserId: string | undefined;
   let asyncTaskWorkspaceId: string | undefined;
   let asyncTaskMetadata: VideoGenerationTaskMetadata | undefined;
+  let db: Awaited<ReturnType<typeof getServerDB>> | undefined;
 
   try {
     const runtime = ModelRuntime.initializeWithProvider(provider, {
@@ -77,10 +78,11 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
 
     log('Webhook parse result: %O', result);
 
-    const db = await getServerDB();
+    const serverDb = await getServerDB();
+    db = serverDb;
 
     // Find asyncTask by inferenceId
-    const asyncTask = await AsyncTaskModel.findByInferenceId(db, result.inferenceId);
+    const asyncTask = await AsyncTaskModel.findByInferenceId(serverDb, result.inferenceId);
     if (!asyncTask) {
       log('AsyncTask not found for inferenceId: %s', result.inferenceId);
       return c.json({ error: `AsyncTask not found for inferenceId: ${result.inferenceId}` }, 404);
@@ -121,7 +123,7 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
     }
 
     const generationModel = new GenerationModel(
-      db,
+      serverDb,
       asyncTask.userId,
       asyncTask.workspaceId ?? undefined,
     );
@@ -135,10 +137,14 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
 
     log('Found generation: %s', generation.id);
 
-    asyncTaskModel = new AsyncTaskModel(db, asyncTask.userId, asyncTask.workspaceId ?? undefined);
+    asyncTaskModel = new AsyncTaskModel(
+      serverDb,
+      asyncTask.userId,
+      asyncTask.workspaceId ?? undefined,
+    );
 
     // Query batch to get model info for both error and success paths
-    const batch = await db.query.generationBatches.findFirst({
+    const batch = await serverDb.query.generationBatches.findFirst({
       where: eq(generationBatches.id, generation.generationBatchId!),
     });
     const requestedModel = batch?.model ?? '';
@@ -164,6 +170,7 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
 
       try {
         await chargeAfterGenerate({
+          db: serverDb,
           isError: true,
           metadata: {
             ...metadata?.spendOrigin,
@@ -188,7 +195,7 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
 
     // Handle success result: download video → process → upload S3 → create asset and file
     const videoService = new VideoGenerationService(
-      db,
+      serverDb,
       asyncTask.userId,
       asyncTask.workspaceId ?? undefined,
     );
@@ -245,6 +252,7 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
           generateAudio: (batch?.config as RuntimeVideoGenParams)?.generateAudio,
           resolution: (batch?.config as RuntimeVideoGenParams)?.resolution,
         },
+        db: serverDb,
         latency: duration,
         metadata: {
           ...metadata?.spendOrigin,
@@ -287,6 +295,7 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
     if (asyncTaskUserId && asyncTaskMetadata?.precharge) {
       try {
         await chargeAfterGenerate({
+          db,
           isError: true,
           metadata: {
             ...asyncTaskMetadata.spendOrigin,

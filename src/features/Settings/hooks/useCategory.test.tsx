@@ -173,9 +173,7 @@ describe('settings useCategory', () => {
   // group so the workspace sidebar can mirror exactly this set; the General
   // group keeps the personal-scoped data pages.
   it('splits account-level tabs into a leading Account group', () => {
-    const { result } = renderHook(() => useCategory(), {
-      wrapper: createWrapper(true),
-    });
+    const { result } = renderHook(() => useCategory());
     const accountGroup = result.current.find((group) => group.key === SettingsGroupKey.Account);
     const generalGroup = result.current.find((group) => group.key === SettingsGroupKey.General);
 
@@ -189,6 +187,7 @@ describe('settings useCategory', () => {
     expect(generalGroup?.items.map((item) => item.key)).toEqual([
       SettingsTabs.Stats,
       SettingsTabs.Devices,
+      SettingsTabs.Notification,
     ]);
     expect(
       result.current.find((group) => group.key === SettingsGroupKey.Agent)?.items.map((i) => i.key),

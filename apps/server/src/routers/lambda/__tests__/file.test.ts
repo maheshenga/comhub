@@ -49,6 +49,7 @@ function createCallerWithCtx(partialCtx: any = {}) {
   // All mocks are spies
   const fileModel = {
     checkHash: vi.fn().mockResolvedValue({ isExist: true }),
+    countUsage: vi.fn().mockResolvedValue(0),
     create: vi.fn().mockResolvedValue({ id: 'test-id' }),
     findById: vi.fn().mockResolvedValue(undefined),
     findByIds: vi.fn().mockResolvedValue([]),
@@ -181,6 +182,7 @@ vi.mock('@/database/models/chunk', () => ({
 }));
 
 const mockFileModelCheckHash = vi.fn();
+const mockFileModelCountUsage = vi.fn();
 const mockFileModelCreate = vi.fn();
 const mockFileModelDelete = vi.fn();
 const mockFileModelDeleteUnreferenced = vi.fn();
@@ -198,6 +200,7 @@ vi.mock('@/database/models/file', () => ({
   FileModel: vi.fn(function () {
     return {
       checkHash: mockFileModelCheckHash,
+      countUsage: mockFileModelCountUsage,
       create: mockFileModelCreate,
       delete: mockFileModelDelete,
       deleteUnreferenced: mockFileModelDeleteUnreferenced,
@@ -345,6 +348,7 @@ describe('fileRouter', () => {
       contentLength: 100,
       contentType: 'text/plain',
     });
+    mockFileModelCountUsage.mockResolvedValue(0);
     mockFileServiceGetFileAccessUrl.mockImplementation(async (file: { id: string }) =>
       buildMockFileAccessUrl(file),
     );
@@ -586,6 +590,7 @@ describe('fileRouter', () => {
           transaction: routerMocks.transactionClient,
         }),
       );
+      expect(mockFileModelCountUsage).toHaveBeenCalledWith(routerMocks.transactionClient);
       expect(mockFileModelCreate).toHaveBeenCalledWith(
         expect.objectContaining({ size: 100 }),
         true,
@@ -621,6 +626,7 @@ describe('fileRouter', () => {
       });
 
       expect(routerMocks.businessFileUploadCheck).not.toHaveBeenCalled();
+      expect(mockFileModelCountUsage).not.toHaveBeenCalled();
       expect(mockFileUploadFindLatestForUpdate).toHaveBeenCalledWith(
         'files/test.txt',
         routerMocks.transactionClient,

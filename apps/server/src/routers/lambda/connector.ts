@@ -670,7 +670,8 @@ export const connectorRouter = router({
       const connectedAccountId = target.metadata?.composio?.connectedAccountId;
       if (connectedAccountId) {
         try {
-          await getComposioClient().connectedAccounts.delete(connectedAccountId);
+          const composioClient = await getComposioClient(ctx.serverDB);
+          await composioClient.connectedAccounts.delete(connectedAccountId);
         } catch (error) {
           // Keep deletion recoverable when the remote account is already gone or
           // Composio is temporarily unavailable. This matches deleteConnection:

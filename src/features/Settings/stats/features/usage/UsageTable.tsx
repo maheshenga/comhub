@@ -1,4 +1,3 @@
-import { ProviderIcon } from '@lobehub/icons';
 import { Flexbox, Icon, Input, Tooltip } from '@lobehub/ui';
 import { Button, Select, Text } from '@lobehub/ui/base-ui';
 import { DatePicker, type TableColumnType } from 'antd';
@@ -139,11 +138,14 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     chat: t('usage.type.chat', { defaultValue: '\u5BF9\u8BDD' }),
     embedding: t('usage.type.embedding', { defaultValue: '\u5D4C\u5165' }),
     image: t('usage.type.image', { defaultValue: '\u56FE\u7247' }),
+    imageGeneration: t('usage.type.image', { defaultValue: '\u56FE\u7247' }),
     ppt: t('usage.type.ppt', { defaultValue: 'PPT' }),
+    speechRecognition: t('usage.type.speechRecognition', { defaultValue: '\u8BED\u97F3\u8F6C\u5199' }),
     structured_output: t('usage.type.structuredOutput', {
       defaultValue: '\u7ED3\u6784\u5316\u8F93\u51FA',
     }),
     video: t('usage.type.video', { defaultValue: '\u89C6\u9891' }),
+    videoGeneration: t('usage.type.video', { defaultValue: '\u89C6\u9891' }),
   };
   const triggerLabels: Record<string, string> = {
     chat: '\u804A\u5929\u6D88\u606F',
@@ -161,6 +163,15 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     structured_output: Braces,
     video: Video,
   } as const;
+  const spendTypeMap: Record<string, SpendTypeValue> = {
+    chat: 'chat',
+    embedding: 'embedding',
+    image: 'imageGeneration',
+    imageGeneration: 'imageGeneration',
+    speechRecognition: 'speechRecognition',
+    video: 'videoGeneration',
+    videoGeneration: 'videoGeneration',
+  };
 
   const filteredData = useMemo(() => {
     const normalizedQuery = modelQuery.trim().toLocaleLowerCase();
@@ -272,11 +283,21 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     {
       dataIndex: 'type',
       key: 'type',
-      render: (value) => (
-        <Tooltip title={typeLabels[value] ?? value}>
-          <Icon icon={typeIcons[value as keyof typeof typeIcons] ?? MessageSquareText} size={16} />
-        </Tooltip>
-      ),
+      render: (value) => {
+        const mappedType = spendTypeMap[value];
+        if (mappedType) {
+          return <SpendType type={mappedType}>{typeLabels[value] ?? value}</SpendType>;
+        }
+
+        return (
+          <Tooltip title={typeLabels[value] ?? value}>
+            <Icon
+              icon={typeIcons[value as keyof typeof typeIcons] ?? MessageSquareText}
+              size={16}
+            />
+          </Tooltip>
+        );
+      },
       title: '\u7C7B\u578B',
       width: 64,
     },
