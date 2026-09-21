@@ -13,6 +13,7 @@ export function viteNodeModuleStub(): Plugin {
   const VIRTUAL_PREFIX = '\0node-stub:';
 
   return {
+    applyToEnvironment: (environment) => environment.name === 'client',
     enforce: 'pre',
     load(id) {
       if (id.startsWith(VIRTUAL_PREFIX)) return 'export default {};';

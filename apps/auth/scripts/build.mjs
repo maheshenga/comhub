@@ -5,9 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { resolvePackageBin } from './packageBin.mjs';
+
 const execFileAsync = promisify(execFile);
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
+const authPackage = new URL('../package.json', import.meta.url);
+const reactRouterBin = await resolvePackageBin('@react-router/dev', 'react-router', authPackage);
+const viteBin = await resolvePackageBin('vite', 'vite', authPackage);
 const { DEFAULT_PRERENDER_LOCALE, PRERENDER_LOCALES, PRERENDER_ROUTES, prerenderOutputDir } =
   await import(new URL('../app/lib/prerender.ts', import.meta.url).href);
 
@@ -43,12 +48,16 @@ const assertLocaleMatrix = async () => {
   );
 };
 
-const run = (command, args, env) =>
-  execFileSync(command, args, { cwd: appRoot, env: { ...process.env, ...env }, stdio: 'inherit' });
+const runNodeBin = (bin, args, env) =>
+  execFileSync(process.execPath, [bin, ...args], {
+    cwd: appRoot,
+    env: { ...process.env, ...env },
+    stdio: 'inherit',
+  });
 
 const buildPass = (locale, buildDir) => {
   console.log(`\n=== Prerender pass: ${locale} -> ${buildDir} ===`);
-  run('node_modules/.bin/react-router', ['build', '-c', 'vite.config.rr.mts'], {
+  runNodeBin(reactRouterBin, ['build', '-c', 'vite.config.rr.mts'], {
     AUTH_BUILD_DIR: buildDir,
     AUTH_PRERENDER_LOCALE: locale,
   });
@@ -65,7 +74,7 @@ const buildPassAsync = async (locale, buildDir) => {
   const started = Date.now();
   // Output is captured rather than inherited: eighteen interleaved vite logs
   // are unreadable, and a failure still surfaces through the rejection.
-  await execFileAsync('node_modules/.bin/react-router', ['build', '-c', 'vite.config.rr.mts'], {
+  await execFileAsync(process.execPath, [reactRouterBin, 'build', '-c', 'vite.config.rr.mts'], {
     cwd: appRoot,
     env: { ...process.env, AUTH_BUILD_DIR: buildDir, AUTH_PRERENDER_LOCALE: locale },
     maxBuffer: 64 * 1024 * 1024,
@@ -124,7 +133,7 @@ const main = async () => {
   // Emitted before the locale passes so their documents can be checked against
   // the complete asset set they reference.
   console.log('\n=== Static CSS ===');
-  run('node', ['scripts/emit-static-css.mjs']);
+  runNodeBin(path.join(appRoot, 'scripts/emit-static-css.mjs'), []);
 
   for (const route of [...PRERENDER_ROUTES, '']) {
     const document = path.join(defaultClient, prerenderOutputDir(route), 'index.html');
@@ -176,7 +185,7 @@ const main = async () => {
   });
 
   console.log('\n=== Worker ===');
-  run('node_modules/.bin/vite', ['build', '-c', 'vite.config.worker.mts']);
+  runNodeBin(viteBin, ['build', '-c', 'vite.config.worker.mts']);
 
   console.log(`\nBuilt ${(await readdir(defaultClient)).length} top-level client entries.`);
 };

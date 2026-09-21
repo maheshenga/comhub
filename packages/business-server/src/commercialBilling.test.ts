@@ -69,35 +69,43 @@ vi.mock('./adminNewapiPricing', () => ({
 }));
 
 vi.mock('@/database/models/aiProvider', () => ({
-  AiProviderModel: vi.fn().mockImplementation(() => ({
-    getAiProviderById: mocks.getAiProviderById,
-  })),
+  AiProviderModel: vi.fn().mockImplementation(function AiProviderModel() {
+    return {
+      getAiProviderById: mocks.getAiProviderById,
+    };
+  }),
 }));
 
 vi.mock('@/database/models/commercial', () => ({
-  CommercialModel: vi.fn().mockImplementation(() => ({
-    canStartChatUsage: mocks.canStartChatUsage,
-    consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
-    consumeCreditsForChatUsage: mocks.consumeCreditsForChatUsage,
-    getCreditAccountSummary: mocks.getCreditAccountSummary,
-    quoteCreditsForAiUsage: mocks.quoteCreditsForAiUsage,
-  })),
+  CommercialModel: vi.fn().mockImplementation(function CommercialModel() {
+    return {
+      canStartChatUsage: mocks.canStartChatUsage,
+      consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
+      consumeCreditsForChatUsage: mocks.consumeCreditsForChatUsage,
+      getCreditAccountSummary: mocks.getCreditAccountSummary,
+      quoteCreditsForAiUsage: mocks.quoteCreditsForAiUsage,
+    };
+  }),
 }));
 
 vi.mock('@/database/models/moduleAppCredit', () => ({
-  ModuleAppCreditModel: vi.fn().mockImplementation(() => ({
-    recordSettlementFailure: mocks.recordSettlementFailure,
-    release: mocks.releaseCredits,
-    reserve: mocks.reserveCredits,
-    resolveSettlementFailure: mocks.resolveSettlementFailure,
-    settle: mocks.settleCredits,
-  })),
+  ModuleAppCreditModel: vi.fn().mockImplementation(function ModuleAppCreditModel() {
+    return {
+      recordSettlementFailure: mocks.recordSettlementFailure,
+      release: mocks.releaseCredits,
+      reserve: mocks.reserveCredits,
+      resolveSettlementFailure: mocks.resolveSettlementFailure,
+      settle: mocks.settleCredits,
+    };
+  }),
 }));
 
 vi.mock('@/database/repositories/aiInfra', () => ({
-  AiInfraRepos: vi.fn().mockImplementation(() => ({
-    getAiProviderModelList: mocks.getAiProviderModelList,
-  })),
+  AiInfraRepos: vi.fn().mockImplementation(function AiInfraRepos() {
+    return {
+      getAiProviderModelList: mocks.getAiProviderModelList,
+    };
+  }),
 }));
 
 vi.mock('@/server/globalConfig', () => ({

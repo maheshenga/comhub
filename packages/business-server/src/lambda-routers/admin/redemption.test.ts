@@ -105,13 +105,12 @@ describe('adminRedemptionRouter', () => {
   it('creates and settles redeemed top-up orders inside the redemption transaction', async () => {
     const createTopUpOrder = vi.fn().mockResolvedValue({ id: 'order-1' });
     const settleTopUpOrder = vi.fn().mockResolvedValue({ status: 'paid' });
-    vi.mocked(CommercialModel).mockImplementation(
-      () =>
-        ({
-          createTopUpOrder,
-          settleTopUpOrder,
-        }) as any,
-    );
+    vi.mocked(CommercialModel).mockImplementation(function CommercialModel() {
+      return {
+        createTopUpOrder,
+        settleTopUpOrder,
+      } as any;
+    });
 
     const tx = {
       query: {
