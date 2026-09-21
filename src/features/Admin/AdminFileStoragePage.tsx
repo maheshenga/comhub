@@ -163,7 +163,9 @@ const AdminFileStoragePage = memo(() => {
     try {
       const result = await adminCommercialService.testS3Storage();
       const checkSummary = result.checks
-        ? 'Bucket、CORS、预签名上传、读取、删除均通过'
+        ? result.checks.corsPreflight?.skipped
+          ? 'Bucket、内部上传、读取、删除通过；公共端点 CORS 需由浏览器验证'
+          : 'Bucket、CORS、预签名上传、读取、删除均通过'
         : '连接正常';
       message.success(
         t(

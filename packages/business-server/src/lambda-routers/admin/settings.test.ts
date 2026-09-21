@@ -178,9 +178,9 @@ vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
 
 vi.mock('@/server/modules/S3', () => ({
   invalidateFileS3RuntimeCache: vi.fn(),
-  S3: vi.fn().mockImplementation(() => ({
-    testConnection: vi.fn().mockResolvedValue(undefined),
-  })),
+  S3: vi.fn().mockImplementation(function MockS3() {
+    return { testConnection: vi.fn().mockResolvedValue(undefined) };
+  }),
 }));
 
 vi.mock('@/server/globalConfig', () => ({
@@ -341,26 +341,26 @@ describe('admin settings default model validation', () => {
     vi.resetAllMocks();
     vi.mocked(getServerDefaultAgentConfig).mockReturnValue({});
     vi.mocked(loadCachedMobileFeaturedAssistants).mockResolvedValue([]);
-    vi.mocked(S3).mockImplementation(
-      () =>
-        ({
-          testConnection: vi.fn().mockResolvedValue(undefined),
-        }) as any,
-    );
+    vi.mocked(S3).mockImplementation(function MockS3() {
+      return { testConnection: vi.fn().mockResolvedValue(undefined) } as any;
+    });
     vi.mocked(syncExpiredSubscriptionsToFree).mockResolvedValue({
       expiredSnapshots: 0,
       freeSnapshotsCreated: 0,
     });
     vi.mocked(ModuleAppPackageLifecycleService).mockImplementation(
-      () =>
-        ({
+      function MockModuleAppPackageLifecycleService() {
+        return {
           cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 3, failed: 0 }),
-        }) as any,
+        } as any;
+      },
     );
   });
 
   afterEach(() => {
     delete process.env.KEY_VAULTS_SECRET;
+    delete process.env.S3_ENDPOINT;
+    delete process.env.S3_INTERNAL_ENDPOINT;
     vi.unstubAllGlobals();
   });
 
@@ -1645,10 +1645,11 @@ describe('admin settings default model validation', () => {
 
   it('records a failed maintenance lifecycle when upload cleanup reports partial failures', async () => {
     vi.mocked(ModuleAppPackageLifecycleService).mockImplementation(
-      () =>
-        ({
+      function MockModuleAppPackageLifecycleService() {
+        return {
           cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 2, failed: 1 }),
-        }) as any,
+        } as any;
+      },
     );
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
@@ -2836,13 +2837,18 @@ describe('admin settings default model validation', () => {
   });
 
   it('tests saved S3 storage with CORS, presigned upload, read, and delete checks', async () => {
+    process.env.S3_ENDPOINT = 'https://s3.example.com';
+    process.env.S3_INTERNAL_ENDPOINT = 'http://rustfs:9000';
+
     const s3Mock = {
       createPreSignedUrl: vi.fn().mockResolvedValue('https://admin-bucket.s3.example.com/upload'),
       deleteFile: vi.fn().mockResolvedValue(undefined),
       getFileContent: vi.fn().mockResolvedValue('comhub-s3-health-check'),
       testConnection: vi.fn().mockResolvedValue(undefined),
     };
-    vi.mocked(S3).mockImplementation(() => s3Mock as any);
+    vi.mocked(S3).mockImplementation(function MockS3() {
+      return s3Mock as any;
+    });
 
     const fetchMock = vi
       .fn()
@@ -2914,6 +2920,7 @@ describe('admin settings default model validation', () => {
       {
         bucket: 'admin-bucket',
         forcePathStyle: false,
+        internalEndpoint: 'http://rustfs:9000',
         previewUrlExpireIn: 7200,
         region: 'ap-southeast-1',
         setAcl: false,
@@ -2964,6 +2971,58 @@ describe('admin settings default model validation', () => {
     );
     expect(JSON.stringify(vi.mocked(recordAdminAudit).mock.calls)).not.toContain(
       'admin-secret-key',
+    );
+  });
+
+  it('uses the internal endpoint when the public presigned URL is unreachable by the server', async () => {
+    process.env.S3_ENDPOINT = 'https://s3.example.com';
+    process.env.S3_INTERNAL_ENDPOINT = 'http://rustfs:9000';
+
+    const s3Mock = {
+      createPreSignedUrl: vi.fn().mockResolvedValue('https://public-s3.example.com/upload'),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
+      getFileContent: vi.fn().mockResolvedValue('comhub-s3-health-check'),
+      testConnection: vi.fn().mockResolvedValue(undefined),
+      uploadContent: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(S3).mockImplementation(function MockS3() {
+      return s3Mock as any;
+    });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
+        { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: 'admin-secret-key' },
+        { key: APP_SETTING_KEYS.storageS3Endpoint, value: 'https://s3.example.com' },
+        { key: APP_SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
+        { key: APP_SETTING_KEYS.storageS3FilePath, value: 'admin-files' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .testS3Storage();
+
+    expect(result).toMatchObject({
+      checks: {
+        corsPreflight: {
+          ok: true,
+          reason: 'PUBLIC_ENDPOINT_NOT_REACHABLE_FROM_SERVER',
+          skipped: true,
+        },
+        presignedUpload: {
+          ok: true,
+          reason: 'PUBLIC_ENDPOINT_NOT_REACHABLE_FROM_SERVER',
+          skipped: true,
+        },
+      },
+      ok: true,
+    });
+    expect(s3Mock.uploadContent).toHaveBeenCalledWith(
+      expect.stringMatching(/^admin-files\/admin-s3-health-check\/.+\.txt$/),
+      'comhub-s3-health-check',
     );
   });
 });

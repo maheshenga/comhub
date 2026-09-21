@@ -15,7 +15,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { unionAll } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, unionAll } from 'drizzle-orm/pg-core';
 import removeMarkdown from 'remove-markdown';
 
 import {
@@ -40,6 +40,8 @@ export interface RecentDbItem {
   metadata?: any;
   routeGroupId: string | null;
   routeId: string | null;
+  /** Task link slug source. This is the task name and never its instruction. */
+  slugTitle?: string | null;
   /** Task lifecycle status when `type === 'task'`; null for topic/document. */
   status: TaskStatus | null;
   title: string;
@@ -102,7 +104,14 @@ interface MobileWorkspaceCursor {
 // Mirrors `MAIN_SIDEBAR_EXCLUDE_TRIGGERS` in `src/const/topic.ts` plus the
 // legacy `task_manager` trigger from the previous Task Manager panel.
 // System-trigger topics live in their own surfaces and would clutter Recent.
-const SYSTEM_TOPIC_TRIGGERS = ['cron', 'eval', 'task_manager', 'task', 'document'];
+const SYSTEM_TOPIC_TRIGGERS = [
+  'cron',
+  'eval',
+  'task_manager',
+  'task',
+  'document',
+  'goal_supervision',
+];
 
 // Excluded so tool-owned document rows don't surface as generic recent docs;
 // only user-authored pages ('api') and legacy 'topic' rows remain.
@@ -111,6 +120,9 @@ const TOOL_DOCUMENT_SOURCE_TYPES = ['agent', 'agent-signal', 'file', 'web'] as c
 const TASK_FINAL_STATUSES = ['completed', 'canceled'];
 const TOPIC_INBOX_STATUSES: ChatTopicStatus[] = ['running', 'unread'];
 const LAST_MESSAGE_PREVIEW_LENGTH = 2000;
+
+const sharedParentWhere = (visibility: AnyPgColumn) =>
+  or(isNull(visibility), eq(visibility, 'public'));
 
 const decodeMobileWorkspaceCursor = (cursor?: string): MobileWorkspaceCursor | undefined => {
   if (!cursor) return;
@@ -181,6 +193,8 @@ export class RecentModel {
     types?: RecentItemType[],
     withTopicPreview?: boolean,
     mineOnly?: boolean,
+    /** Restrict a workspace feed to conversations visible to the whole team. */
+    sharedOnly?: boolean,
   ): Promise<RecentDbItem[]> => {
     if (types?.length === 0) return [];
     const scope = { userId: this.userId, workspaceId: this.workspaceId };
@@ -208,6 +222,7 @@ export class RecentModel {
         metadata: sql<any>`${topics.metadata}`.as('metadata'),
         routeGroupId: sql<string | null>`${topics.groupId}`.as('route_group_id'),
         routeId: sql<string | null>`${topics.agentId}`.as('route_id'),
+        slugTitle: sql<string | null>`NULL`.as('slug_title'),
         status: sql<TaskStatus | null>`NULL`.as('status'),
         title: sql<string>`COALESCE(${topics.title}, 'Untitled Topic')`.as('title'),
         type: sql<RecentDbItem['type']>`'topic'`.as('type'),
@@ -230,10 +245,17 @@ export class RecentModel {
               // point at a personal or foreign-workspace agent/group. Check
               // the parent scope before returning titles or loading previews.
               or(
-                and(isNotNull(topics.groupId), buildWorkspaceWhere(scope, chatGroups)),
+                and(
+                  isNotNull(topics.groupId),
+                  buildWorkspaceWhere(scope, chatGroups),
+                  this.workspaceId && sharedOnly
+                    ? sharedParentWhere(chatGroups.visibility)
+                    : undefined,
+                ),
                 and(
                   isNull(topics.groupId),
                   buildWorkspaceWhere(scope, agents),
+                  this.workspaceId && sharedOnly ? sharedParentWhere(agents.visibility) : undefined,
                   or(eq(agents.slug, 'inbox'), ne(agents.virtual, true)),
                 ),
               ),
@@ -249,6 +271,7 @@ export class RecentModel {
         metadata: sql<any>`NULL`.as('metadata'),
         routeGroupId: sql<string | null>`NULL`.as('route_group_id'),
         routeId: sql<string | null>`NULL`.as('route_id'),
+        slugTitle: sql<string | null>`NULL`.as('slug_title'),
         status: sql<TaskStatus | null>`NULL`.as('status'),
         title:
           sql<string>`COALESCE(${documents.title}, ${documents.filename}, 'Untitled Document')`.as(
@@ -278,6 +301,7 @@ export class RecentModel {
         metadata: sql<any>`NULL`.as('metadata'),
         routeGroupId: sql<string | null>`NULL`.as('route_group_id'),
         routeId: sql<string | null>`${tasks.assigneeAgentId}`.as('route_id'),
+        slugTitle: sql<string | null>`${tasks.name}`.as('slug_title'),
         status: sql<TaskStatus | null>`${tasks.status}`.as('status'),
         title: sql<string>`COALESCE(${tasks.name}, ${tasks.instruction}, 'Untitled Task')`.as(
           'title',
@@ -322,6 +346,7 @@ export class RecentModel {
         metadata: row.metadata ?? undefined,
         routeGroupId: row.routeGroupId,
         routeId: row.routeId,
+        slugTitle: row.slugTitle,
         status: row.status,
         title: row.title,
         type: row.type,
@@ -414,10 +439,8 @@ export class RecentModel {
       );
     const agentPinned = sql<boolean>`COALESCE(${agents.pinned}, false)`;
     const groupPinned = sql<boolean>`COALESCE(${chatGroups.pinned}, false)`;
-    const agentActivityEpoch =
-      sql<string>`((EXTRACT(EPOCH FROM ${agentActivityAt}) * 1000000)::bigint)::text`;
-    const groupActivityEpoch =
-      sql<string>`((EXTRACT(EPOCH FROM ${groupActivityAt}) * 1000000)::bigint)::text`;
+    const agentActivityEpoch = sql<string>`((EXTRACT(EPOCH FROM ${agentActivityAt}) * 1000000)::bigint)::text`;
+    const groupActivityEpoch = sql<string>`((EXTRACT(EPOCH FROM ${groupActivityAt}) * 1000000)::bigint)::text`;
 
     const agentTopicSearchQuery = keyword
       ? this.db
@@ -468,10 +491,7 @@ export class RecentModel {
             : sql`false`;
       const samePinnedTail = or(
         lt(activityEpoch, cursorEpoch),
-        and(
-          eq(activityEpoch, cursorEpoch),
-          tieBreaker,
-        ),
+        and(eq(activityEpoch, cursorEpoch), tieBreaker),
       );
 
       return decodedCursor.pinned
@@ -499,10 +519,7 @@ export class RecentModel {
             buildWorkspaceWhere(scope, agents),
             or(eq(agents.slug, 'inbox'), not(eq(agents.virtual, true))),
             keyword
-              ? or(
-                  ilike(agents.title, `%${keyword}%`),
-                  sql`EXISTS (${agentTopicSearchQuery!})`,
-                )
+              ? or(ilike(agents.title, `%${keyword}%`), sql`EXISTS (${agentTopicSearchQuery!})`)
               : undefined,
             cursorWhere(agentPinned, agentActivityAt, 'agent', agents.id),
           ),
@@ -527,10 +544,7 @@ export class RecentModel {
           and(
             buildWorkspaceWhere(scope, chatGroups),
             keyword
-              ? or(
-                  ilike(chatGroups.title, `%${keyword}%`),
-                  sql`EXISTS (${groupTopicSearchQuery!})`,
-                )
+              ? or(ilike(chatGroups.title, `%${keyword}%`), sql`EXISTS (${groupTopicSearchQuery!})`)
               : undefined,
             cursorWhere(groupPinned, groupActivityAt, 'group', chatGroups.id),
           ),
@@ -540,18 +554,20 @@ export class RecentModel {
     ]);
 
     const parents = [...agentRows, ...groupRows]
-      .map(
-        (row): MobileWorkspaceParentRow => ({
-          ...row,
-          activityAt:
-            row.activityAt instanceof Date ? row.activityAt : new Date(row.activityAt as unknown as string),
-          activityEpoch: String(row.activityEpoch),
-          kind: row.kind as SidebarAgentItem['type'],
-          pinned: Boolean(row.pinned),
-          updatedAt:
-            row.updatedAt instanceof Date ? row.updatedAt : new Date(row.updatedAt as unknown as string),
-        }),
-      )
+      .map((row): MobileWorkspaceParentRow => ({
+        ...row,
+        activityAt:
+          row.activityAt instanceof Date
+            ? row.activityAt
+            : new Date(row.activityAt as unknown as string),
+        activityEpoch: String(row.activityEpoch),
+        kind: row.kind as SidebarAgentItem['type'],
+        pinned: Boolean(row.pinned),
+        updatedAt:
+          row.updatedAt instanceof Date
+            ? row.updatedAt
+            : new Date(row.updatedAt as unknown as string),
+      }))
       .sort(compareMobileWorkspaceParents);
     const hasMore = parents.length > boundedLimit;
     const page = parents.slice(0, boundedLimit);
@@ -594,10 +610,7 @@ export class RecentModel {
         ? new ChatGroupModel(this.db, this.userId, this.workspaceId).getMemberAvatarsByGroupIds(
             groupIds,
           )
-        : new Map<
-            string,
-            Array<{ avatar: string | null; backgroundColor: string | null }>
-          >(),
+        : new Map<string, Array<{ avatar: string | null; backgroundColor: string | null }>>(),
     ]);
     const topicByParent = new Map(
       latestTopics.map((topic) => [
@@ -639,8 +652,7 @@ export class RecentModel {
             meta.title?.trim() ||
             (parent.kind === 'group' ? 'Untitled Group' : 'Untitled Assistant'),
           topic,
-          unreadCount:
-            (parent.kind === 'group' ? groupUnread : agentUnread).get(parent.id) ?? 0,
+          unreadCount: (parent.kind === 'group' ? groupUnread : agentUnread).get(parent.id) ?? 0,
           updatedAt: topic?.updatedAt ?? parent.updatedAt,
         };
       }),

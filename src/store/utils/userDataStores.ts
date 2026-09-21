@@ -6,7 +6,12 @@ interface ResetableStoreApi {
   getState: () => ResetableStore;
 }
 
-const getResetableStores = async (): Promise<ResetableStoreApi[]> => {
+interface ResetDependencies {
+  resetGatewayMuxRegistry: () => void;
+  stores: ResetableStoreApi[];
+}
+
+const getResetDependencies = async (): Promise<ResetDependencies> => {
   const [
     { useAgentGroupStore },
     { useAgentStore },
@@ -27,6 +32,7 @@ const getResetableStores = async (): Promise<ResetableStoreApi[]> => {
     { useUserMemoryStore },
     { useUserStore },
     { useVideoStore },
+    { resetGatewayMuxRegistry },
   ] = await Promise.all([
     import('@/store/agentGroup'),
     import('@/store/agent'),
@@ -47,38 +53,44 @@ const getResetableStores = async (): Promise<ResetableStoreApi[]> => {
     import('@/store/userMemory'),
     import('@/store/user'),
     import('@/store/video'),
+    import('@/store/chat/slices/agentRun/actions/transports/gateway/muxRegistry'),
   ]);
 
-  return [
-    useAgentGroupStore,
-    useAgentStore,
-    useChatStore,
-    useDiscoverStore,
-    useDocumentStore,
-    useEvalStore,
-    useFileStore,
-    useHomeStore,
-    useImageStore,
-    useKnowledgeBaseStore,
-    useMentionStore,
-    useNotebookStore,
-    usePageStore,
-    useSessionStore,
-    useTaskStore,
-    useToolStore,
-    useUserMemoryStore,
-    useUserStore,
-    useVideoStore,
-  ];
+  return {
+    resetGatewayMuxRegistry,
+    stores: [
+      useAgentGroupStore,
+      useAgentStore,
+      useChatStore,
+      useDiscoverStore,
+      useDocumentStore,
+      useEvalStore,
+      useFileStore,
+      useHomeStore,
+      useImageStore,
+      useKnowledgeBaseStore,
+      useMentionStore,
+      useNotebookStore,
+      usePageStore,
+      useSessionStore,
+      useTaskStore,
+      useToolStore,
+      useUserMemoryStore,
+      useUserStore,
+      useVideoStore,
+    ],
+  };
 };
 
 export interface StoreActions {
   reset: () => Promise<void>;
 }
 
-const createStoreActions = (getStores: () => Promise<ResetableStoreApi[]>): StoreActions => ({
+const createStoreActions = (getDependencies: () => Promise<ResetDependencies>): StoreActions => ({
   reset: async () => {
-    const stores = await getStores();
+    const { resetGatewayMuxRegistry, stores } = await getDependencies();
+
+    resetGatewayMuxRegistry();
 
     unstable_batchedUpdates(() => {
       for (const store of stores) {
@@ -88,4 +100,4 @@ const createStoreActions = (getStores: () => Promise<ResetableStoreApi[]>): Stor
   },
 });
 
-export const stores = createStoreActions(getResetableStores);
+export const stores = createStoreActions(getResetDependencies);

@@ -192,6 +192,11 @@ export const acceptanceCommentKeys = {
 
 // ---- document comment ---------------------------------------------------
 export const documentCommentKeys = {
+  anchors: def('documentComment:anchors', (workspaceId: string | null, documentId: string) => [
+    'documentComment:anchors',
+    workspaceId ?? '',
+    documentId,
+  ]),
   detail: def('documentComment:detail', (workspaceId: string | null, commentId: string) => [
     'documentComment:detail',
     workspaceId ?? '',
@@ -212,12 +217,13 @@ export const documentCommentKeys = {
   ]),
   threads: def(
     'documentComment:threads',
-    (workspaceId: string | null, documentId: string, cursor?: string) => [
-      'documentComment:threads',
-      workspaceId ?? '',
-      documentId,
-      cursor ?? '',
-    ],
+    (
+      workspaceId: string | null,
+      documentId: string,
+      cursor?: string,
+      /** `'anchored'` / `'document'` page one subset; `'all'` pages every root. */
+      scope: 'all' | 'anchored' | 'document' = 'all',
+    ) => ['documentComment:threads', workspaceId ?? '', documentId, cursor ?? '', scope],
   ),
 };
 
@@ -242,6 +248,7 @@ export const isDocumentCommentKeyForEvent = (
   // carry the comment id, so revalidate them on any comment event in the workspace.
   if (key[0] === documentCommentKeys.detail.root) return true;
   if (key[0] === documentCommentKeys.threads.root) return key[2] === event.documentId;
+  if (key[0] === documentCommentKeys.anchors.root) return key[2] === event.documentId;
   if (key[0] === documentCommentKeys.replies.root) {
     return !event.rootCommentId || key[2] === event.rootCommentId;
   }
@@ -362,6 +369,8 @@ export const isMyTaskListKey = (key: unknown): boolean =>
 export const goalKeys = {
   graph: def('goal:graph', (goalId: string) => ['goal:graph', goalId]),
   metricSeries: def('goal:metricSeries', (goalId: string) => ['goal:metricSeries', goalId]),
+  /** Goals whose planning conversation is this topic (`subject_type = 'topic'`). */
+  topicGoals: def('goal:topicGoals', (topicId: string) => ['goal:topicGoals', topicId]),
 };
 
 export const taskKeys = {
@@ -864,6 +873,35 @@ export const deviceKeys = {
       ...(pullRequestNumber === undefined ? [] : [pullRequestNumber]),
     ],
   ),
+  gitPullRequestDetail: def(
+    'device:gitPullRequestDetail',
+    (deviceId: string, path: string, number: number) => [
+      'device:gitPullRequestDetail',
+      deviceId,
+      path,
+      number,
+    ],
+  ),
+  gitPullRequestActivity: def(
+    'device:gitPullRequestActivity',
+    (deviceId: string, path: string, number: number) => [
+      'device:gitPullRequestActivity',
+      deviceId,
+      path,
+      number,
+    ],
+  ),
+  gitPullRequestMergeContext: def(
+    'device:gitPullRequestMergeContext',
+    (deviceId: string, path: string, number: number, headRefOid?: string, baseRefName?: string) => [
+      'device:gitPullRequestMergeContext',
+      deviceId,
+      path,
+      number,
+      ...(headRefOid === undefined ? [] : [headRefOid]),
+      ...(baseRefName === undefined ? [] : [baseRefName]),
+    ],
+  ),
   gitRemoteBranches: def('device:gitRemoteBranches', (deviceId: string, dirPath: string) => [
     'device:gitRemoteBranches',
     deviceId,
@@ -1100,6 +1138,10 @@ export const verifyKeys = {
    * One scroll page of the list panel. Keyed by workspace + the status split +
    * the cursor, mirroring `reportSummaries` — the sibling paged feed.
    */
+  acceptancePurgePreview: def('verify:acceptancePurgePreview', (acceptanceId: string) => [
+    'verify:acceptancePurgePreview',
+    acceptanceId,
+  ]),
   acceptancePage: def(
     'verify:acceptancePage',
     (workspaceId: string | undefined, filter: string, projectId?: string, cursor?: string) => [

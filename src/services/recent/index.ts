@@ -6,6 +6,7 @@ import type { MobileWorkspaceRecentResponse } from '@/server/routers/lambda/rece
 export interface RecentQueryOptions {
   limit?: number;
   mineOnly?: boolean;
+  sharedOnly?: boolean;
   types?: readonly RecentItem['type'][];
   withTopicPreview?: boolean;
 }
@@ -27,10 +28,11 @@ class RecentService {
     types?: readonly RecentItem['type'][],
     withTopicPreview?: boolean,
     mineOnly?: boolean,
+    sharedOnly?: boolean,
   ): Promise<RecentItem[]> => {
     const query =
       typeof input === 'number' || input === undefined
-        ? { limit: input, mineOnly, types, withTopicPreview }
+        ? { limit: input, mineOnly, sharedOnly, types, withTopicPreview }
         : input;
     const request = {
       ...query,
@@ -43,8 +45,7 @@ class RecentService {
 
   getMobileWorkspace = (
     input: MobileWorkspaceRecentQuery = {},
-  ): Promise<MobileWorkspaceRecentResponse> =>
-    lambdaClient.recent.getMobileWorkspace.query(input);
+  ): Promise<MobileWorkspaceRecentResponse> => lambdaClient.recent.getMobileWorkspace.query(input);
 }
 
 export const recentService = new RecentService();

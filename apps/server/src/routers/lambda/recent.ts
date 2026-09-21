@@ -74,6 +74,7 @@ const toRecentItem = (item: RecentDbItem): RecentItem => {
     lastAssistantMessage: item.lastAssistantMessage,
     metadata: item.metadata as ChatTopicMetadata | undefined,
     routePath,
+    slugTitle: item.slugTitle,
     status: item.status,
     title: item.title,
     type: item.type,
@@ -111,6 +112,8 @@ export const recentRouter = router({
           limit: z.number().optional(),
           /** Restrict a workspace feed to the viewer's own items (mine/team toggle). */
           mineOnly: z.boolean().optional(),
+          /** Restrict the workspace feed to conversations visible to the whole team. */
+          sharedOnly: z.boolean().optional(),
           types: z.array(z.enum(['topic', 'document', 'task'])).optional(),
           withTopicPreview: z.boolean().optional(),
         })
@@ -124,19 +127,24 @@ export const recentRouter = router({
         input?.types,
         input?.withTopicPreview,
         input?.mineOnly,
+        input?.sharedOnly,
       );
       return items.map(toRecentItem);
     }),
   getMobileWorkspace: recentProcedure
     .input(
-      z.object({
-        cursor: z.string().min(1).optional(),
-        limit: z.number().int().min(1).max(50).default(20),
-        query: z.string().trim().max(100).optional(),
-      }).strict(),
+      z
+        .object({
+          cursor: z.string().min(1).optional(),
+          limit: z.number().int().min(1).max(50).default(20),
+          query: z.string().trim().max(100).optional(),
+        })
+        .strict(),
     )
     .query(async ({ ctx, input }): Promise<MobileWorkspaceRecentResponse> => {
-      const result = await ctx.recentModel.queryMobileWorkspace(input satisfies MobileWorkspaceRecentQuery);
+      const result = await ctx.recentModel.queryMobileWorkspace(
+        input satisfies MobileWorkspaceRecentQuery,
+      );
 
       return {
         items: result.items.map(toMobileWorkspaceRecentItem),

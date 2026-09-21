@@ -155,6 +155,54 @@ describe('S3', () => {
       );
     });
   });
+
+  describe('internal endpoint', () => {
+    const createS3 = (internalEndpoint?: string) =>
+      new S3('test-access-key', 'test-secret-key', 'http://localhost:9000', {
+        bucket: 'test-bucket',
+        internalEndpoint,
+      });
+
+    beforeEach(() => {
+      (S3Client as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (config: {
+        endpoint: string;
+      }) {
+        return { endpoint: config.endpoint, send: vi.fn().mockResolvedValue({}) };
+      });
+    });
+
+    it('sends server-side requests through the internal endpoint', async () => {
+      const s3 = createS3('http://rustfs:9000');
+
+      await s3.getFileMetadata('file.png');
+
+      const clients = (S3Client as unknown as ReturnType<typeof vi.fn>).mock.results.map(
+        (result) => result.value,
+      );
+      const internalClient = clients.find((client) => client.endpoint === 'http://rustfs:9000');
+      const publicClient = clients.find((client) => client.endpoint === 'http://localhost:9000');
+      expect(internalClient.send).toHaveBeenCalledTimes(1);
+      expect(publicClient.send).not.toHaveBeenCalled();
+    });
+
+    it('signs URLs for the public endpoint that browsers open', async () => {
+      const s3 = createS3('http://rustfs:9000');
+
+      await s3.createPreSignedUrl('file.png');
+      await s3.createPreSignedUrlForPreview('file.png');
+
+      for (const [client] of mockGetSignedUrl.mock.calls) {
+        expect(client.endpoint).toBe('http://localhost:9000');
+      }
+      expect(mockGetSignedUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses a single client when no internal endpoint is configured', () => {
+      createS3();
+
+      expect(S3Client).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe('FileS3', () => {
@@ -269,6 +317,20 @@ describe('FileS3', () => {
         },
       });
       expect(mockS3ClientSend).toHaveBeenCalled();
+    });
+
+    it('should split more than 1000 keys into multiple requests', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({});
+
+      const keys = Array.from({ length: 2001 }, (_, i) => `file${i}.txt`);
+      await s3.deleteFiles(keys);
+
+      expect(mockS3ClientSend).toHaveBeenCalledTimes(3);
+      const sizes = vi
+        .mocked(DeleteObjectsCommand)
+        .mock.calls.map(([input]) => input.Delete!.Objects!.length);
+      expect(sizes).toEqual([1000, 1000, 1]);
     });
 
     it('should handle empty array', async () => {
@@ -442,6 +504,68 @@ describe('FileS3', () => {
       expect(getServerFileS3Config).toHaveBeenCalledTimes(2);
     });
 
+    it('does not let a stale config request repopulate the cache after invalidation', async () => {
+      let resolveStaleConfig: (config: any) => void = () => {};
+      const staleConfig = new Promise((resolve) => {
+        resolveStaleConfig = resolve;
+      });
+      const freshConfig = {
+        accessKeyId: 'fresh-access-key',
+        bucket: 'fresh-bucket',
+        enablePathStyle: true,
+        endpoint: 'https://fresh-s3.example.com',
+        filePath: 'files',
+        previewUrlExpireIn: 7200,
+        publicDomain: undefined,
+        region: 'us-east-1',
+        secretAccessKey: 'fresh-secret-key',
+        setAcl: true,
+      };
+      const staleConfigValue = {
+        ...freshConfig,
+        accessKeyId: 'stale-access-key',
+        bucket: 'stale-bucket',
+        endpoint: 'https://stale-s3.example.com',
+        secretAccessKey: 'stale-secret-key',
+      };
+      const clients: Array<{ endpoint: string; send: ReturnType<typeof vi.fn> }> = [];
+
+      (S3Client as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (config: {
+        endpoint: string;
+      }) {
+        const client = { endpoint: config.endpoint, send: vi.fn().mockResolvedValue({}) };
+        clients.push(client);
+        return client;
+      });
+      mockGetSignedUrl.mockImplementation((client: { endpoint: string }) =>
+        Promise.resolve(`signed:${client.endpoint}`),
+      );
+      vi.mocked(getServerFileS3Config)
+        .mockReset()
+        .mockImplementationOnce(() => staleConfig as Promise<any>)
+        .mockResolvedValueOnce(freshConfig);
+
+      const s3 = new FileS3();
+      const staleRequest = s3.createPreSignedUrl('stale-upload.txt');
+      await Promise.resolve();
+
+      invalidateFileS3RuntimeCache();
+      await expect(s3.createPreSignedUrl('fresh-upload.txt')).resolves.toBe(
+        'signed:https://fresh-s3.example.com',
+      );
+
+      resolveStaleConfig(staleConfigValue);
+      await expect(staleRequest).resolves.toBe('signed:https://stale-s3.example.com');
+
+      await expect(s3.createPreSignedUrl('cached-upload.txt')).resolves.toBe(
+        'signed:https://fresh-s3.example.com',
+      );
+      expect(getServerFileS3Config).toHaveBeenCalledTimes(2);
+      expect(clients.some((client) => client.endpoint === 'https://fresh-s3.example.com')).toBe(
+        true,
+      );
+    });
+
     it('does not let a static FileS3 config populate the shared runtime cache', async () => {
       const staticS3 = new FileS3({
         accessKeyId: 'static-access-key',
@@ -507,6 +631,45 @@ describe('FileS3', () => {
         ACL: undefined,
         Bucket: 'admin-bucket',
         Key: 'upload-file.txt',
+      });
+    });
+
+    it('uses the admin-managed internal endpoint only for server-side requests', async () => {
+      const clients: Array<{ endpoint: string; send: ReturnType<typeof vi.fn> }> = [];
+      (S3Client as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (config: {
+        endpoint: string;
+      }) {
+        const client = {
+          endpoint: config.endpoint,
+          send: vi.fn().mockResolvedValue({ ContentLength: 123, ContentType: 'image/png' }),
+        };
+        clients.push(client);
+        return client;
+      });
+      vi.mocked(getServerFileS3Config).mockResolvedValueOnce({
+        accessKeyId: 'admin-access-key',
+        bucket: 'admin-bucket',
+        enablePathStyle: true,
+        endpoint: 'http://localhost:9000',
+        filePath: 'admin-files',
+        internalEndpoint: 'http://rustfs:9000',
+        previewUrlExpireIn: 1800,
+        publicDomain: undefined,
+        region: 'us-east-1',
+        secretAccessKey: 'admin-secret-key',
+        setAcl: false,
+      });
+
+      const s3 = new FileS3();
+      await s3.getFileMetadata('file.png');
+      await s3.createPreSignedUrl('file.png');
+
+      const internalClient = clients.find((client) => client.endpoint === 'http://rustfs:9000');
+      const publicClient = clients.find((client) => client.endpoint === 'http://localhost:9000');
+      expect(internalClient?.send).toHaveBeenCalledTimes(1);
+      expect(publicClient?.send).not.toHaveBeenCalled();
+      expect(mockGetSignedUrl).toHaveBeenCalledWith(publicClient, expect.anything(), {
+        expiresIn: 3600,
       });
     });
 

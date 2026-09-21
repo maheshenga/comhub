@@ -19,12 +19,14 @@ export default {
   'completionSound.desc':
     'Play a chime when a chat finishes while LobeHub is in the foreground. The sound, volume and imports stay on this device and are not synced.',
   'completionSound.sound': 'Sound',
-  'completionSound.default': 'LobeHub chime',
-  'completionSound.import': 'Import sound',
+  'completionSound.builtin.lobehub': 'LobeHub chime',
+  'completionSound.builtin.glassBell': 'Glass bell',
+  'completionSound.builtin.softTone': 'Soft tone',
+  'completionSound.builtin.xylophone': 'Xylophone',
+  'completionSound.import': 'Import sound…',
   'completionSound.importHint':
     'Choose WAV, MP3 or OGG (up to 1 MB), or openpeon.json from an extracted OpenPeon pack. Only task completion sounds are imported.',
   'completionSound.preview': 'Preview',
-  'completionSound.reset': 'Use default',
   'completionSound.volume': 'Volume',
   'completionSound.error':
     'Could not load, save or play the sound. Check the audio file or OpenPeon pack and try again.',
@@ -294,8 +296,6 @@ export default {
   'agentSkillModal.url.title': 'Import from URL',
   'agentSkillModal.url.urlPlaceholder': 'https://example.com/path/to/SKILL.md',
   'agentSkillTag': 'Agent Skill',
-  'agentTab.chat': 'Chat Preferences',
-  'agentTab.modal': 'Model Settings',
   'agentTab.graph': 'Graph Runtime',
   'agentTab.opening': 'Opening Settings',
   'agentTab.plugin': 'Skill Settings',
@@ -444,11 +444,8 @@ export default {
   // Heterogeneous agent CLI status (shown on agent profile page in integration mode)
   'heterogeneousStatus.account.label': 'Account',
   'heterogeneousStatus.apiMode.configureProvider': 'Go to provider settings',
-  'heterogeneousStatus.apiMode.enableInLabs': 'Enable in Labs',
-  'heterogeneousStatus.apiMode.labDisabled':
-    "API mode is a Labs experiment. Enable it to use the ComHub default provider or a configured API provider instead of the agent subscription.",
   'heterogeneousStatus.apiMode.localOnly': 'Available only for Desktop local execution',
-  'heterogeneousStatus.apiMode.defaultProvider': "ComHub",
+  'heterogeneousStatus.apiMode.defaultProvider': 'ComHub',
   'heterogeneousStatus.apiMode.model': 'Model',
   'heterogeneousStatus.apiMode.modelPlaceholder': 'Select a model',
   'heterogeneousStatus.apiMode.noProviders':
@@ -635,11 +632,7 @@ export default {
   'devices.connectWizard.cli.connectDesc':
     'Start the background daemon to keep the device online and listening for remote operations.',
   'devices.connectWizard.cli.connectTitle': 'Start the daemon',
-  'devices.connectWizard.cli.installDesc':
-    'Install the LobeHub CLI globally with your preferred package manager to enable device connectivity and management.',
   'devices.connectWizard.cli.installTitle': 'Install the CLI',
-  'devices.connectWizard.cli.loginDesc':
-    'Complete OAuth authorization in your browser to link the CLI with your account.',
   'devices.connectWizard.cli.loginTitle': 'Sign in',
   'devices.connectWizard.desktop.downloadLink': 'Download {{brandName}} Desktop',
   'devices.connectWizard.desktop.step1': 'Download the desktop app',
@@ -716,7 +709,7 @@ export default {
   'devices.workingDirectory': 'Working dir: {{path}}',
   'apps.cli.copied': 'Copied',
   'apps.cli.copy': 'Copy',
-  'apps.cli.desc': "Scripts, cron jobs, and headless agents — the same ComHub, from any terminal.",
+  'apps.cli.desc': 'Scripts, cron jobs, and headless agents — the same ComHub, from any terminal.',
   'apps.cli.title': 'CLI',
   'apps.desktop.cta': 'Get desktop app',
   'apps.desktop.desc': 'Chat, build, and automate in one app, with full access to this machine:',
@@ -730,29 +723,13 @@ export default {
   'apps.desktop.inUseDesc': "You're already in the desktop app.",
   'apps.desktop.title': 'Desktop',
   'apps.messenger.desc':
-    "Talk to your agents where your team already is — replies land back in ComHub.",
+    'Talk to your agents where your team already is — replies land back in ComHub.',
   'apps.messenger.setup': 'Set up',
   'apps.messenger.title': 'Messenger',
   'apps.mobile.cta': 'Get mobile app',
   'apps.mobile.desc': 'Pick up where you left off — your chats, agents, and files travel with you.',
   'apps.mobile.title': 'Mobile',
-  'apps.title': "Do more with ComHub, everywhere you work",
-  'downloads.desktop.cta': 'Download desktop app',
-  'downloads.desktop.desc':
-    'Use the native desktop app for local files, system tools, and focused work on your computer.',
-  'downloads.desktop.title': 'Desktop App',
-  'downloads.messenger.cta': 'Open Messenger settings',
-  'downloads.messenger.desc':
-    'Connect ComHub to the messaging platforms you already use, with quick setup or your own bot configuration.',
-  'downloads.messenger.quickSetup': 'Quick setup',
-  'downloads.messenger.quickSetupTooltip':
-    'You can chat with the official ComHub account on this platform or manually set up your own.',
-  'downloads.messenger.title': 'Messenger integration',
-  'downloads.mobile.cta': 'Get Mobile App',
-  'downloads.mobile.desc':
-    'Start conversations from your phone and keep ComHub available when you are away from the desk.',
-  'downloads.mobile.title': 'Mobile App',
-  'downloads.title': 'Discover more ways to use ComHub',
+  'apps.title': 'Do more with ComHub, everywhere you work',
   'checkingPermissions': 'Checking permissions...',
   'danger.reset.action': 'Reset Now',
   'danger.reset.confirm': 'Reset all settings?',
@@ -877,11 +854,11 @@ export default {
   'notification.email.desc': 'Receive email notifications when important events occur',
   'notification.im.banner.platformUnlinked': '{{platform}} is not linked yet',
   'notification.im.desc':
-    "Deliver notifications to your linked messenger (Telegram, Discord, Slack, or WeChat) via the ComHub bot",
+    'Deliver notifications to your linked messenger (Telegram, Discord, Slack, or WeChat) via the ComHub bot',
   'notification.im.linkAccount': 'Link account',
   'notification.im.title': 'Messenger Notifications',
   'notification.im.platform.desc':
-    "Deliver notifications to your {{platform}} DM via the ComHub bot",
+    'Deliver notifications to your {{platform}} DM via the ComHub bot',
   'notification.im.platform.enable': 'Enable {{platform}} notifications',
   'notification.im.platform.viewSetup': 'View setup',
   'notification.email.title': 'Email Notifications',
@@ -898,7 +875,6 @@ export default {
   'notification.test.title': 'Test notifications',
   'notification.category.agent.title': 'Agent',
   'notification.category.billing.title': 'Billing',
-  'notification.system.action': 'View details',
   'notification.category.generation.title': 'Generation',
   'notification.category.mention.title': 'Mentions',
   'notification.category.schedule.title': 'Scheduled tasks',
@@ -1032,6 +1008,8 @@ export default {
     'Defines who this agent is, what it is responsible for, and how it works and responds. It serves as a core instruction in every conversation.',
   'settingAgent.prompt.editorPlaceholder':
     'Enter core instructions, press / to open the Slash Menu',
+  'settingAgent.prompt.mode.source': 'Markdown source',
+  'settingAgent.prompt.mode.visual': 'Visual editor',
   'settingAgent.prompt.placeholder': 'Enter agent instructions',
   'settingAgent.prompt.title': 'Core Instructions',
   'settingAgent.agentTools.add': 'Add Tool',
@@ -1070,13 +1048,13 @@ export default {
   'settingAgent.modelPolicy.fixedTip':
     'The model is fixed in Agent Profile and cannot be switched while chatting.',
   'settingAgent.modelPolicy.title': 'Model',
+  'settingAgent.runtimeConfig.reasoningEffortHint':
+    'Your default reasoning effort for this model. Shared by every agent using it; each topic keeps the effort it started with and can change it from the chat input.',
   'settingAgent.runtimeConfig.title': 'Model & Tools',
   'settingAgent.selectionPolicy.membersCannotSwitch': "Members can't switch",
   'settingAgent.selectionPolicy.membersCannotSwitchWhenShared': "Members can't switch when shared",
   'settingAgent.selectionPolicy.membersCanSwitch': 'Members can switch',
   'settingAgent.selectionPolicy.membersCanSwitchWhenShared': 'Members can switch when shared',
-  'settingAgent.runtimeConfig.reasoningEffortHint':
-    'Your default reasoning effort for this model. Shared by every agent using it; each topic keeps the effort it started with and can change it from the chat input.',
   // Not a Can-switch / Locked pair like the policies above: sharing is a
   // capability rather than a setting members flip, so the labels name who holds it.
   'settingAgent.topicSharePolicy.membersCanShare': 'Members can share',
@@ -1145,12 +1123,6 @@ export default {
   'settingChat.compressThreshold.title': 'History Message Length Compression Threshold',
   'settingChat.enableAutoScrollOnStreaming.desc': 'Override global setting for this assistant',
   'settingChat.enableAutoScrollOnStreaming.title': 'Auto-scroll During AI Response',
-  'settingChat.enableAutoCreateTopic.desc':
-    'Automatically create a topic when the conversation reaches the configured message count',
-  'settingChat.enableAutoCreateTopic.title': 'Auto-create Topics',
-  'settingChat.autoCreateTopicThreshold.desc':
-    'Number of messages before automatically creating a topic',
-  'settingChat.autoCreateTopicThreshold.title': 'Auto-create Topic Threshold',
   'settingChat.enableCompressHistory.title': 'Enable Automatic Summary of Chat History',
   'settingChat.enableFollowUpChips.desc':
     'After each reply, show one-click follow-up reply chips below the message. Requires the global Follow-up model to be configured.',
@@ -1389,7 +1361,7 @@ export default {
   'settingsSearch.tabKeywords.proxy': 'proxy, network, connection, proxy settings',
   'settingsSearch.tabKeywords.referral': 'referral, invite, rewards, bonus',
   'settingsSearch.tabKeywords.serviceModel':
-    'service model, model assignment, topic naming, translation, tts, tts settings, voice, speech, image, image generation, embedding, prompt rewrite, suggestion, search, search model',
+    'service model, model assignment, topic naming, translation, image, image generation, embedding, prompt rewrite, suggestion, search, search model',
   'settingsSearch.tabKeywords.skill': 'skills, plugins, tools',
   'settingsSearch.tabKeywords.stats': 'analytics, statistics, stats',
   'settingsSearch.tabKeywords.storage':
@@ -1432,6 +1404,13 @@ export default {
     'Development runtime environments for executing scripts and packages',
   'settingSystemTools.detecting': 'Detecting...',
   'settingSystemTools.redetect': 'Re-detect',
+  'settingSystemTools.shell.desc': 'Shell used when the agent runs local commands on this machine',
+  'settingSystemTools.shell.mode.auto': 'Automatic (PowerShell)',
+  'settingSystemTools.shell.mode.desc':
+    'PowerShell is used by default. Git Bash appears as an option when Git for Windows is installed. Current shell:',
+  'settingSystemTools.shell.mode.gitbash': 'Git Bash',
+  'settingSystemTools.shell.mode.title': 'Windows Shell',
+  'settingSystemTools.shell.title': 'Command Execution',
   'settingSystemTools.status.available': 'Available',
   'settingSystemTools.status.notDetected': 'Not detected',
   'settingSystemTools.status.unavailable': 'Unavailable',
@@ -1904,6 +1883,8 @@ When I am ___, I need ___
   'workspace.billingPage.billing.change.currentPlanWithInterval': 'Current plan',
   'workspace.billingPage.billing.change.immediateChangeSeatReductionHint':
     'Reduce seats separately after this immediate plan change.',
+  'workspace.billingPage.billing.change.minPurchasedSeatsHintWithPending':
+    'This workspace has {{members}} billable members and {{pending}} pending invites, using {{used}} seats — at least {{count}} extra seats are required. Revoke a pending invite to go lower.',
   'workspace.billingPage.billing.change.minPurchasedSeatsHint':
     'This workspace currently has {{members}} billable members and requires at least {{count}} extra seats.',
   'workspace.billingPage.billing.change.preview': '{{seats}} seats · {{interval}} billing preview',
@@ -1915,6 +1896,8 @@ When I am ___, I need ___
     'One-time upgrades require a higher tier or a longer duration.',
   'workspace.billingPage.billing.change.memberLimitReached':
     'This workspace currently has {{count}} billable members. Remove members or change them to {{viewerRole}} before reducing seats further.',
+  'workspace.billingPage.billing.change.seatFloorPending':
+    'This workspace has {{members}} billable members and {{pending}} pending invites, using {{used}} seats. Revoke a pending invite before reducing seats further.',
   'workspace.billingPage.billing.change.seatReductionHint':
     'Reducing seats takes effect on the next billing cycle. The current cycle is not refunded.',
   'workspace.billingPage.billing.change.title': 'Adjust plan',
@@ -1935,6 +1918,8 @@ When I am ___, I need ___
   'workspace.billingPage.billing.upgradePlanModal.increaseSeats': 'Increase seats',
   'workspace.billingPage.billing.upgradePlanModal.purchasedSeatFloorSummary':
     'You already have {{count}} purchased extra seats — this change cannot go below that.',
+  'workspace.billingPage.billing.upgradePlanModal.memberSeatSummaryWithPending':
+    'This workspace has {{members}} billable members and {{pending}} pending invites, using {{used}} seats. At least {{count}} extra seats are required.',
   'workspace.billingPage.billing.upgradePlanModal.memberSeatSummary':
     'This workspace has {{members}} billable members. At least {{count}} extra seats are required.',
   'workspace.billingPage.billing.upgradePlanModal.noChargeToday': 'No charge today',
@@ -2101,10 +2086,14 @@ When I am ___, I need ___
   'workspace.billingPage.credits.packages.empty.cta': 'See Plans',
   'workspace.billingPage.credits.packages.empty.title':
     'No add-on packages yet. Upgrade via Plans or contact sales for extra capacity.',
+  'workspace.billingPage.credits.packages.cost': 'Cost',
   'workspace.billingPage.credits.packages.expired': 'Expired',
+  'workspace.billingPage.credits.packages.expires': 'Expires',
   'workspace.billingPage.credits.packages.expiringIn_one': 'in {{count}} day',
   'workspace.billingPage.credits.packages.expiringIn_other': 'in {{count}} days',
   'workspace.billingPage.credits.packages.fallback': 'Package #{{index}}',
+  'workspace.billingPage.credits.packages.loadMore': 'Load more',
+  'workspace.billingPage.credits.packages.purchased': 'Purchased',
   'workspace.billingPage.credits.packages.remaining': 'Remaining',
   'workspace.billingPage.credits.packages.source': 'Source',
   'workspace.billingPage.credits.packages.sourceLabel.autoTopUp': 'Auto top-up',
@@ -2267,64 +2256,42 @@ When I am ___, I need ___
   'workspace.billingPage.usage.activity.viewAll': 'View all',
   'workspace.billingPage.usage.activity.viewAllTitle': 'All recent activity',
   'workspace.billingPage.usage.at': 'When',
-  'workspace.billingPage.usage.byMemberDesc': 'Spend distribution across workspace members',
+  'workspace.billingPage.usage.breakdownTitle': 'Credits Breakdown',
   'workspace.billingPage.usage.byMemberTitle': 'Spend by member',
-  'workspace.billingPage.usage.byModelDesc': 'Spend distribution across models',
-  'workspace.billingPage.usage.byTypeDesc': 'Spend distribution across credit categories',
-  'workspace.billingPage.usage.creditUsage.desc':
-    'Credits usage for AI chat, image generation, speech synthesis',
-  'workspace.billingPage.usage.creditUsage.resetDesc': 'Quota resets in {{time}}',
-  'workspace.billingPage.usage.creditUsage.title': 'Computing Credits Usage',
-  'workspace.billingPage.usage.byModelTitle': 'Spend by model',
   'workspace.billingPage.usage.byTypeTitle': 'Spend by category',
   'workspace.billingPage.usage.categories.chat': 'Chat',
   'workspace.billingPage.usage.categories.embedding': 'Embedding',
   'workspace.billingPage.usage.categories.imageGeneration': 'Image generation',
   'workspace.billingPage.usage.categories.tts': 'Text to speech',
   'workspace.billingPage.usage.categories.videoGeneration': 'Video generation',
-  'workspace.billingPage.usage.cycleHint': '{{from}} → {{to}}',
   'workspace.billingPage.usage.empty': 'No spend yet',
-  'workspace.billingPage.usage.hero.percentOfBudget': '{{percent}}% of {{total}}',
-  'workspace.billingPage.usage.hero.resetsIn_one': 'Resets in {{count}} day',
-  'workspace.billingPage.usage.hero.resetsIn_other': 'Resets in {{count}} days',
-  'workspace.billingPage.usage.hero.resetsToday': 'Resets today',
-  'workspace.billingPage.usage.hero.usedLabel': 'Used',
-  'workspace.billingPage.usage.last30': 'Last 30 days',
   'workspace.billingPage.usage.logsTitle': 'Recent activity',
   'workspace.billingPage.usage.member': 'Member',
   'workspace.billingPage.usage.member.moreMembers_one': '{{count}} more member',
   'workspace.billingPage.usage.member.moreMembers_other': '{{count}} more members',
   'workspace.billingPage.usage.member.showLess': 'Show less',
-  'workspace.billingPage.usage.members.desc': 'Billable workspace seats in use',
   'workspace.billingPage.usage.members.adjustSeats': 'Adjust seats',
-  'workspace.billingPage.usage.members.includedSeats': 'Plan-included seats',
-  'workspace.billingPage.usage.members.purchasedSeats': 'Purchased seats',
   'workspace.billingPage.usage.members.title': 'Members',
   'workspace.billingPage.usage.members.unit_one': '{{count}} member',
   'workspace.billingPage.usage.members.unit_other': '{{count}} members',
-  'workspace.billingPage.usage.members.usedTitle': 'Active members',
-  'workspace.billingPage.usage.members.viewMembers': 'View member list',
   'workspace.billingPage.usage.messages': 'Messages',
-  'workspace.billingPage.usage.model.moreModels_one': '{{count}} more model',
-  'workspace.billingPage.usage.model.moreModels_other': '{{count}} more models',
-  'workspace.billingPage.usage.model.showLess': 'Show less',
   'workspace.billingPage.usage.model.unknown': 'Unknown model',
   'workspace.billingPage.usage.ops': 'Operations',
   'workspace.billingPage.usage.privateAgents': 'Private agents',
   'workspace.billingPage.usage.privateAgentsTooltip':
     'Number of private agents owned by this member. Owners can see the count for accounting, but not the agent content.',
+  'workspace.billingPage.usage.quota.credits': 'Credits',
+  'workspace.billingPage.usage.quota.currentPlan': 'You are on {{plan}} plan',
+  'workspace.billingPage.usage.quota.seats': 'Member seats',
+  'workspace.billingPage.usage.quota.title': 'Overview',
+  'workspace.billingPage.usage.quota.upgrade': 'Upgrade',
   'workspace.billingPage.usage.range.30d': 'Last 30 days',
   'workspace.billingPage.usage.range.all': 'All time',
   'workspace.billingPage.usage.range.cycle': 'This cycle',
   'workspace.billingPage.usage.rank': 'Rank',
-  'workspace.billingPage.usage.remaining': 'Remaining: {{amount}}',
   'workspace.billingPage.usage.selfTitle': 'Your usage',
   'workspace.billingPage.usage.spend': 'Spend',
-  'workspace.billingPage.usage.summaryCardTitle': 'Credits usage statistics',
   'workspace.billingPage.usage.summaryTitle': 'Usage',
-  'workspace.billingPage.usage.topSpender': 'Top spender: {{name}} ({{amount}})',
-  'workspace.billingPage.usage.trendTitle': 'Daily spend trend',
-  'workspace.billingPage.usage.trendTooltip': '{{date}}: {{value}}',
   'workspace.billingPage.usage.type': 'Type',
   'workspace.apiKey.policy.desc':
     'Choose who can create personal API Keys that act on their behalf in this workspace.',
@@ -2360,6 +2327,9 @@ When I am ___, I need ___
   'workspace.auditLog.actions.budget.member_override_created': 'Member budget override created',
   'workspace.auditLog.actions.budget.member_override_removed': 'Member budget override removed',
   'workspace.auditLog.actions.budget.member_override_updated': 'Member budget override updated',
+  'workspace.auditLog.actions.budget.pool_created': 'Dedicated budget created',
+  'workspace.auditLog.actions.budget.pool_deleted': 'Dedicated budget deleted',
+  'workspace.auditLog.actions.budget.pool_updated': 'Dedicated budget updated',
   'workspace.auditLog.actions.api_key.created': 'API key created',
   'workspace.auditLog.actions.api_key.renamed': 'API key renamed',
   'workspace.auditLog.actions.api_key.revoked': 'API key revoked',
@@ -2682,8 +2652,6 @@ When I am ___, I need ___
   'workspace.general.transferAgents.modal.selectTarget':
     'You can move to personal or workspaces that have permission to create an agent.',
   'workspace.general.transferAgents.modal.selected': 'selected',
-  'workspace.general.transferAgents.modal.selectedAgent':
-    'This Agent will move to {{target}} and leave the current space. All associated data moves with it: sessions, topics and messages, file and knowledge base links, scheduled jobs, and related tasks — including every member’s conversations with this Agent.',
   'workspace.general.transferAgents.modal.success': '{{count}} agent(s) moved',
   'workspace.general.transferAgents.modal.title': 'Move Agents',
   'workspace.general.transferAgents.modal.transfer': 'Move {{count}} agent(s)',
@@ -2894,6 +2862,8 @@ When I am ___, I need ___
   'workspace.member.removeSuccess': 'Member removed from workspace successfully.',
   'workspace.member.roles.basicBadge': 'Basic',
   'workspace.member.roles.admin': 'Admin',
+  'workspace.member.roles.adminDescription':
+    "Manage members, settings, usage, and shared configuration, but not billing, workspace deletion, ownership transfer, or other members' content.",
   'workspace.member.roles.freeBadge': 'Free',
   'workspace.member.roles.member': 'Member',
   'workspace.member.roles.memberDescription':
@@ -2951,7 +2921,7 @@ When I am ___, I need ___
   'workspace.waitlistPage.enabledSubtitle': 'Workspace is already enabled for your account.',
   'workspace.waitlistPage.enabledTitle': 'Workspace is ready for you',
   'workspace.waitlistPage.entryCta': 'Join Workspace Beta',
-  'workspace.waitlistPage.goHome': "Back to ComHub",
+  'workspace.waitlistPage.goHome': 'Back to ComHub',
   'workspace.waitlistPage.learnMore': 'Learn more about Workspace',
   'workspace.waitlistPage.learnMoreNewTabHint': 'Opens in a new tab',
   'workspace.waitlistPage.organizationLabel': 'Organization / Group (optional)',
@@ -3012,6 +2982,12 @@ When I am ___, I need ___
   'workspace.members.invite.freePlanAskOwnerToUpgrade':
     'This Free workspace can’t invite more members. Ask the workspace owner to upgrade to Pro, or invite viewers instead (they don’t take a seat).',
   'workspace.members.invite.upgradePlanCta': 'Upgrade plan',
+  'workspace.members.invite.seatLimitReached':
+    'All seats are in use. Buy more seats to keep inviting, or invite viewers instead (they don’t take a seat).',
+  'workspace.members.invite.seatLimitReachedFreePlan':
+    'All seats on your Free workspace are in use. Upgrade to Pro for more seats, or invite viewers instead (they don’t take a seat).',
+  'workspace.members.invite.seatLimitReachedNoBuy':
+    'All seats are in use. Ask the workspace owner to buy more seats, or invite viewers instead (they don’t take a seat).',
   'workspace.members.invite.roleLabel': 'Role',
   'workspace.members.invite.submit': 'Invite',
   'workspace.members.invite.addAnother': 'Add another',
@@ -3042,10 +3018,20 @@ When I am ___, I need ___
   'workspace.members.pending.revokeFailed': 'Failed to revoke invitation',
   'workspace.members.seatChange.memberJoinBlocked':
     'Current members have reached the scheduled seat limit, so new paid members may not be able to join this workspace',
+  'workspace.members.seatBreakdown':
+    '{{members}} billable members + {{pending}} pending invites = {{used}} of {{capacity}} seats used. Viewers don’t take a seat.',
+  'workspace.members.seatBreakdownNoPending':
+    '{{members}} billable members use {{used}} of {{capacity}} seats. Viewers don’t take a seat.',
+  'workspace.members.seatPending_one': '{{count}} invite pending',
+  'workspace.members.seatPending_other': '{{count}} invites pending',
+  'workspace.members.seatUsage_one': '{{used}} / {{capacity}} seat',
+  'workspace.members.seatUsage_other': '{{used}} / {{capacity}} seats',
   'workspace.members.subtitle': 'Manage workspace members and invitations',
   'workspace.members.tabs.members': 'Team Members',
   'workspace.members.tabs.pending': 'Pending Invitations',
   'workspace.members.title': 'Members',
+  'workspace.members.totalCount_one': '{{total}} member',
+  'workspace.members.totalCount_other': '{{total}} members',
   'workspace.name.placeholder': 'Workspace name',
   'workspace.name.title': 'Name',
   'workspace.newWorkspace': 'New Workspace',
@@ -3236,9 +3222,11 @@ When I am ___, I need ___
   'workspace.wizard.title': 'Create Workspace',
   // Tooltips for action buttons disabled by the active user's workspace role.
   // Wired through `usePermission`; the two role buckets correspond to the
-  // RBAC matrix (member can create/edit own; owner has everything).
+  // RBAC matrix (Member owns content, Admin manages, Owner has everything).
   'workspace.permission.requiresMember':
     "You don't have permission to do this. Ask a workspace owner to grant you Member or higher.",
+  'workspace.permission.requiresAdmin':
+    'Only workspace Admins and the Owner can do this. Ask an Admin if you need this changed.',
   'workspace.permission.requiresOwner':
     'Only workspace owners can do this. Ask an owner if you need this changed.',
   'workspace.permission.requiresPrimaryOwner':
@@ -3414,9 +3402,6 @@ When I am ___, I need ___
   'workspaceSetting.tab.labels': 'Labels',
   'workspaceSetting.tab.members': 'Members',
   'workspaceSetting.storage.comingSoon': 'Workspace-scoped data import & export is coming soon.',
-  'workspaceSetting.storage.danger.reset.desc':
-    'Restore all workspace settings to defaults. Workspace data will not be deleted.',
-  'workspaceSetting.storage.danger.reset.title': 'Reset Workspace Settings',
   'workspaceSetting.storage.telemetry.desc':
     'Help us improve {{appName}} with anonymous workspace usage data',
   'workspaceSetting.storage.telemetry.title': 'Send Anonymous Workspace Usage Data',
@@ -3472,7 +3457,7 @@ When I am ___, I need ___
   'tools.builtins.lobe-agent-management.description': 'Create, manage, and orchestrate AI agents',
   'tools.builtins.lobe-agent-management.title': 'Agent Management',
   'tools.builtins.lobe-agent.description':
-    "Built-in Agent capabilities: plan and todo management, sub-agent dispatch, and multimodal media analysis",
+    'Built-in Agent capabilities: plan and todo management, sub-agent dispatch, and multimodal media analysis',
   'tools.builtins.lobe-agent.title': 'Agent',
   'tools.builtins.lobe-brief.description':
     'Report progress, deliver results, and request user decisions',
@@ -3524,7 +3509,7 @@ When I am ___, I need ___
     'Search the web for current information and crawl web pages to extract content. Supports multiple search engines, categories, and time ranges for comprehensive research.',
   'tools.builtins.lobe-web-browsing.title': 'Web Browsing',
   'tools.builtins.lobe-image-generation.description':
-    "Generate images through ComHub providers when the current chat model has no native image output.",
+    'Generate images through ComHub providers when the current chat model has no native image output.',
   'tools.builtins.lobe-image-generation.readme':
     'Opt-in image generation for models without native image output. Pin this tool to enable it in chat or agent mode; leave unpinned to avoid the tool schema cost.',
   'tools.builtins.lobe-image-generation.title': 'Image Generation',
@@ -3788,33 +3773,72 @@ When I am ___, I need ___
   'tools.tabs.all': 'All',
   'tools.tabs.installed': 'Enabled',
   'tools.title': 'Skills',
-  "settingAgent.prompt.mode.source": 'Markdown source',
-  "settingAgent.prompt.mode.visual": 'Visual editor',
-  "settingSystemTools.shell.desc": 'Shell used when the agent runs local commands on this machine',
-  "settingSystemTools.shell.mode.auto": 'Automatic (PowerShell)',
-  "settingSystemTools.shell.mode.desc": 'PowerShell is used by default. Git Bash appears as an option when Git for Windows is installed. Current shell:',
-  "settingSystemTools.shell.mode.gitbash": 'Git Bash',
-  "settingSystemTools.shell.mode.title": 'Windows Shell',
-  "settingSystemTools.shell.title": 'Command Execution',
-  "workspace.billingPage.credits.packages.cost": 'Cost',
-  "workspace.billingPage.credits.packages.expires": 'Expires',
-  "workspace.billingPage.credits.packages.loadMore": 'Load more',
-  "workspace.billingPage.credits.packages.purchased": 'Purchased',
-  "workspace.billingPage.usage.breakdownTitle": 'Credits Breakdown',
-  "workspace.billingPage.usage.quota.credits": 'Credits',
-  "workspace.billingPage.usage.quota.currentPlan": 'You are on {{plan}} plan',
-  "workspace.billingPage.usage.quota.seats": 'Member seats',
-  "workspace.billingPage.usage.quota.title": 'Overview',
-  "workspace.billingPage.usage.quota.upgrade": 'Upgrade',
-  "workspace.auditLog.actions.budget.pool_created": 'Dedicated budget created',
-  "workspace.auditLog.actions.budget.pool_deleted": 'Dedicated budget deleted',
-  "workspace.auditLog.actions.budget.pool_updated": 'Dedicated budget updated',
-  "workspace.member.roles.adminDescription": "Manage members, settings, usage, and shared configuration, but not billing, workspace deletion, ownership transfer, or other members' content.",
-  "workspace.members.seatUsage_one": '{{used}} / {{capacity}} seat',
-  "workspace.members.seatUsage_other": '{{used}} / {{capacity}} seats',
-  "workspace.members.totalCount_one": '{{total}} member',
-  "workspace.members.totalCount_other": '{{total}} members',
-  "workspace.permission.requiresAdmin": 'Only workspace Admins and the Owner can do this. Ask an Admin if you need this changed.',
-  "workspaceSetting.storage.danger.reset.confirm.content": 'Every workspace setting goes back to its default, for everyone in the workspace. Agents, conversations, and files are not touched.',
-  "workspaceSetting.storage.danger.reset.confirm.ok": 'Reset Settings',
+  'agentTab.chat': 'Chat Preferences',
+  'agentTab.modal': 'Model Settings',
+  'heterogeneousStatus.apiMode.enableInLabs': 'Enable in Labs',
+  'heterogeneousStatus.apiMode.labDisabled':
+    'API mode is a Labs experiment. Enable it to use the ComHub default provider or a configured API provider instead of the agent subscription.',
+  'devices.connectWizard.cli.installDesc':
+    'Install the LobeHub CLI globally with your preferred package manager to enable device connectivity and management.',
+  'devices.connectWizard.cli.loginDesc':
+    'Complete OAuth authorization in your browser to link the CLI with your account.',
+  'downloads.desktop.cta': 'Download desktop app',
+  'downloads.desktop.desc':
+    'Use the native desktop app for local files, system tools, and focused work on your computer.',
+  'downloads.desktop.title': 'Desktop App',
+  'downloads.messenger.cta': 'Open Messenger settings',
+  'downloads.messenger.desc':
+    'Connect ComHub to the messaging platforms you already use, with quick setup or your own bot configuration.',
+  'downloads.messenger.quickSetup': 'Quick setup',
+  'downloads.messenger.quickSetupTooltip':
+    'You can chat with the official ComHub account on this platform or manually set up your own.',
+  'downloads.messenger.title': 'Messenger integration',
+  'downloads.mobile.cta': 'Get Mobile App',
+  'downloads.mobile.desc':
+    'Start conversations from your phone and keep ComHub available when you are away from the desk.',
+  'downloads.mobile.title': 'Mobile App',
+  'downloads.title': 'Discover more ways to use ComHub',
+  'notification.system.action': 'View details',
+  'settingChat.enableAutoCreateTopic.desc':
+    'Automatically create a topic when the conversation reaches the configured message count',
+  'settingChat.enableAutoCreateTopic.title': 'Auto-create Topics',
+  'settingChat.autoCreateTopicThreshold.desc':
+    'Number of messages before automatically creating a topic',
+  'settingChat.autoCreateTopicThreshold.title': 'Auto-create Topic Threshold',
+  'workspace.billingPage.usage.byMemberDesc': 'Spend distribution across workspace members',
+  'workspace.billingPage.usage.byModelDesc': 'Spend distribution across models',
+  'workspace.billingPage.usage.byTypeDesc': 'Spend distribution across credit categories',
+  'workspace.billingPage.usage.creditUsage.desc':
+    'Credits usage for AI chat, image generation, speech synthesis',
+  'workspace.billingPage.usage.creditUsage.resetDesc': 'Quota resets in {{time}}',
+  'workspace.billingPage.usage.creditUsage.title': 'Computing Credits Usage',
+  'workspace.billingPage.usage.byModelTitle': 'Spend by model',
+  'workspace.billingPage.usage.cycleHint': '{{from}} → {{to}}',
+  'workspace.billingPage.usage.hero.percentOfBudget': '{{percent}}% of {{total}}',
+  'workspace.billingPage.usage.hero.resetsIn_one': 'Resets in {{count}} day',
+  'workspace.billingPage.usage.hero.resetsIn_other': 'Resets in {{count}} days',
+  'workspace.billingPage.usage.hero.resetsToday': 'Resets today',
+  'workspace.billingPage.usage.hero.usedLabel': 'Used',
+  'workspace.billingPage.usage.last30': 'Last 30 days',
+  'workspace.billingPage.usage.members.desc': 'Billable workspace seats in use',
+  'workspace.billingPage.usage.members.includedSeats': 'Plan-included seats',
+  'workspace.billingPage.usage.members.purchasedSeats': 'Purchased seats',
+  'workspace.billingPage.usage.members.usedTitle': 'Active members',
+  'workspace.billingPage.usage.members.viewMembers': 'View member list',
+  'workspace.billingPage.usage.model.moreModels_one': '{{count}} more model',
+  'workspace.billingPage.usage.model.moreModels_other': '{{count}} more models',
+  'workspace.billingPage.usage.model.showLess': 'Show less',
+  'workspace.billingPage.usage.remaining': 'Remaining: {{amount}}',
+  'workspace.billingPage.usage.summaryCardTitle': 'Credits usage statistics',
+  'workspace.billingPage.usage.topSpender': 'Top spender: {{name}} ({{amount}})',
+  'workspace.billingPage.usage.trendTitle': 'Daily spend trend',
+  'workspace.billingPage.usage.trendTooltip': '{{date}}: {{value}}',
+  'workspace.general.transferAgents.modal.selectedAgent':
+    'This Agent will move to {{target}} and leave the current space. All associated data moves with it: sessions, topics and messages, file and knowledge base links, scheduled jobs, and related tasks — including every member’s conversations with this Agent.',
+  'workspaceSetting.storage.danger.reset.desc':
+    'Restore all workspace settings to defaults. Workspace data will not be deleted.',
+  'workspaceSetting.storage.danger.reset.title': 'Reset Workspace Settings',
+  'workspaceSetting.storage.danger.reset.confirm.content':
+    'Every workspace setting goes back to its default, for everyone in the workspace. Agents, conversations, and files are not touched.',
+  'workspaceSetting.storage.danger.reset.confirm.ok': 'Reset Settings',
 };

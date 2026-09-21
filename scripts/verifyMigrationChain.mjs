@@ -13,6 +13,14 @@ export const V2217_APPEND_TAGS = [
   '0161_acceptance_comments',
 ];
 
+export const V2218_APPEND_TAGS = [
+  '0162_fts_capture_version',
+  '0163_environments',
+  '0164_document_comment_selection_anchor',
+  '0165_expertise_rejection_provenance',
+  '0166_device_architecture',
+];
+
 const readJournal = (rootDirectory) => {
   const migrationsDirectory = path.join(rootDirectory, 'packages/database/migrations');
   const journalPath = path.join(migrationsDirectory, 'meta/_journal.json');
@@ -104,35 +112,39 @@ export const verifyMigrationChain = ({
     );
   }
 
-  const appendStart = entries.findIndex((entry) => entry.tag === V2217_APPEND_TAGS[0]);
-  if (appendStart < 0) {
-    errors.push(`Missing v2.2.17 append migration: ${V2217_APPEND_TAGS[0]}`);
-  } else {
-    const actualAppendTags = entries
-      .slice(appendStart, appendStart + V2217_APPEND_TAGS.length)
-      .map((entry) => entry.tag);
+  const verifyAppend = (version, expectedTags) => {
+    const appendStart = entries.findIndex((entry) => entry.tag === expectedTags[0]);
+    if (appendStart < 0) {
+      errors.push(`Missing ${version} append migration: ${expectedTags[0]}`);
+      return;
+    }
 
-    if (actualAppendTags.join('\u0000') !== V2217_APPEND_TAGS.join('\u0000')) {
+    const appendEntries = entries.slice(appendStart, appendStart + expectedTags.length);
+    const actualAppendTags = appendEntries.map((entry) => entry.tag);
+
+    if (actualAppendTags.join('\u0000') !== expectedTags.join('\u0000')) {
       errors.push(
-        `v2.2.17 migrations are not contiguous: expected ${V2217_APPEND_TAGS.join(', ')}, got ${actualAppendTags.join(', ')}`,
+        `${version} migrations are not contiguous: expected ${expectedTags.join(', ')}, got ${actualAppendTags.join(', ')}`,
       );
     }
 
     const previousEntries = entries.slice(0, appendStart);
     const previousMaxWhen = Math.max(...previousEntries.map((entry) => entry.when));
-    const appendEntries = entries.slice(appendStart, appendStart + V2217_APPEND_TAGS.length);
 
     appendEntries.forEach((entry, index) => {
       if (entry.when <= previousMaxWhen) {
         errors.push(
-          `v2.2.17 migration ${entry.tag} timestamp ${entry.when} is not after the legacy cutoff ${previousMaxWhen}`,
+          `${version} migration ${entry.tag} timestamp ${entry.when} is not after the legacy cutoff ${previousMaxWhen}`,
         );
       }
       if (index > 0 && entry.when <= appendEntries[index - 1].when) {
-        errors.push(`v2.2.17 migration timestamps are not strictly increasing at ${entry.tag}`);
+        errors.push(`${version} migration timestamps are not strictly increasing at ${entry.tag}`);
       }
     });
-  }
+  };
+
+  verifyAppend('v2.2.17', V2217_APPEND_TAGS);
+  verifyAppend('v2.2.18', V2218_APPEND_TAGS);
 
   const summary = {
     appendTags: V2217_APPEND_TAGS,
@@ -140,6 +152,7 @@ export const verifyMigrationChain = ({
     fileCount: files.length,
     legacyDuplicateIndexCount: duplicateIndexes.length,
     migrationFiles: files,
+    v2218AppendTags: V2218_APPEND_TAGS,
   };
 
   return { errors, warnings, summary };
@@ -158,7 +171,7 @@ if (isMainModule) {
       process.exitCode = 1;
     } else {
       console.log(
-        `[migration-check] OK: ${result.summary.entryCount} journal entries and ${result.summary.fileCount} SQL files; v2.2.17 append verified`,
+        `[migration-check] OK: ${result.summary.entryCount} journal entries and ${result.summary.fileCount} SQL files; v2.2.17 and v2.2.18 appends verified`,
       );
     }
   } catch (error) {

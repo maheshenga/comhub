@@ -42,6 +42,8 @@ describe('appSettings model helpers', () => {
   afterEach(() => {
     delete process.env.KEY_VAULTS_SECRET;
     delete process.env.COMPOSIO_API_KEY;
+    delete process.env.S3_ENDPOINT;
+    delete process.env.S3_INTERNAL_ENDPOINT;
     delete process.env.S3_SECRET_ACCESS_KEY;
   });
 
@@ -138,6 +140,44 @@ describe('appSettings model helpers', () => {
       region: 'ap-southeast-1',
       secretAccessKey: 'admin-secret-key',
       setAcl: false,
+    });
+  });
+
+  it('uses the environment internal endpoint when storage uses the environment endpoint', async () => {
+    process.env.S3_ENDPOINT = 'https://env-s3.example.com';
+    process.env.S3_INTERNAL_ENDPOINT = 'http://rustfs:9000';
+
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [],
+        },
+      },
+    } as any;
+
+    await expect(getServerFileS3Config(db)).resolves.toMatchObject({
+      endpoint: 'https://env-s3.example.com',
+      internalEndpoint: 'http://rustfs:9000',
+    });
+  });
+
+  it('does not pair an environment internal endpoint with a different admin endpoint', async () => {
+    process.env.S3_ENDPOINT = 'https://env-s3.example.com';
+    process.env.S3_INTERNAL_ENDPOINT = 'http://legacy-rustfs:9000';
+
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.storageS3Endpoint, value: 'https://admin-s3.example.com' },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerFileS3Config(db)).resolves.toMatchObject({
+      endpoint: 'https://admin-s3.example.com',
+      internalEndpoint: undefined,
     });
   });
 

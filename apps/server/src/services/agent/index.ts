@@ -1,6 +1,7 @@
 import { type BuiltinAgentSlug } from '@lobechat/builtin-agents';
 import { BUILTIN_AGENTS } from '@lobechat/builtin-agents';
-import { DEFAULT_AGENT_CONFIG, INBOX_SESSION_ID } from '@lobechat/const';
+import { DEFAULT_PROVIDER } from '@lobechat/business-const';
+import { DEFAULT_AGENT_CONFIG, DEFAULT_MODEL, INBOX_SESSION_ID } from '@lobechat/const';
 import { type LobeChatDatabase } from '@lobechat/database';
 import { type AgentItem, type LobeAgentChatConfig, type LobeAgentConfig } from '@lobechat/types';
 import { cleanObject, merge } from '@lobechat/utils';
@@ -158,9 +159,10 @@ export class AgentService {
       this.userModel.getUserSettingsDefaultAgentConfig(),
     ]);
 
-    const config = (await this.mergeDefaultConfig(agent, defaultAgentConfig)) as
-      | AgentConfigWithId
-      | null;
+    const config = (await this.mergeDefaultConfig(
+      agent,
+      defaultAgentConfig,
+    )) as AgentConfigWithId | null;
     if (!config) return null;
 
     return this.applyBuiltinIdentity(config);
@@ -198,6 +200,23 @@ export class AgentService {
     }
 
     return normalizedConfig;
+  }
+
+  /** Resolve the provider and model using the same defaults as a full agent read. */
+  async resolveModelSelection(agent: {
+    createdAt?: Date | string | null;
+    model?: string | null;
+    provider?: string | null;
+    slug?: string | null;
+    updatedAt?: Date | string | null;
+  }): Promise<{ model: string; provider: string }> {
+    const defaultAgentConfig = await this.userModel.getUserSettingsDefaultAgentConfig();
+    const merged = await this.mergeDefaultConfig(agent, defaultAgentConfig);
+
+    return {
+      model: merged?.model ?? DEFAULT_MODEL,
+      provider: merged?.provider ?? DEFAULT_PROVIDER,
+    };
   }
 
   /**

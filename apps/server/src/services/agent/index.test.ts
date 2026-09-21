@@ -123,7 +123,9 @@ describe('AgentService', () => {
         createInbox: vi.fn(),
       };
 
-      (SessionModel as any).mockImplementation(() => mockSessionModel);
+      (SessionModel as any).mockImplementation(function MockSessionModel() {
+        return mockSessionModel;
+      });
       (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
       vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
         model: 'admin-model',
@@ -278,7 +280,9 @@ describe('AgentService', () => {
         getBuiltinAgent: vi.fn().mockResolvedValue(mockAgent),
       };
 
-      (AgentModel as any).mockImplementation(() => mockAgentModel);
+      (AgentModel as any).mockImplementation(function MockAgentModel() {
+        return mockAgentModel;
+      });
       (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
       vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
         model: 'admin-model',
@@ -312,7 +316,9 @@ describe('AgentService', () => {
         getBuiltinAgent: vi.fn().mockResolvedValue(mockAgent),
       };
 
-      (AgentModel as any).mockImplementation(() => mockAgentModel);
+      (AgentModel as any).mockImplementation(function MockAgentModel() {
+        return mockAgentModel;
+      });
       (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
       vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
         avatar: '/admin-avatar.png',
@@ -582,6 +588,90 @@ describe('AgentService', () => {
     });
   });
 
+  describe('resolveModelSelection', () => {
+    it("layers the user's default over the server default for an agent without a model", async () => {
+      (parseAgentConfig as any).mockReturnValue({ model: 'server-model', provider: 'server' });
+      mockUserModel.getUserSettingsDefaultAgentConfig.mockResolvedValueOnce({
+        config: { model: 'user-preferred-model', provider: 'user-provider' },
+      });
+
+      await expect(service.resolveModelSelection({ model: null, provider: null })).resolves.toEqual(
+        { model: 'user-preferred-model', provider: 'user-provider' },
+      );
+    });
+
+    it('falls back to the server default, then the hardcoded default, without a user default', async () => {
+      (parseAgentConfig as any).mockReturnValue({ model: 'server-model' });
+      mockUserModel.getUserSettingsDefaultAgentConfig.mockResolvedValueOnce(undefined);
+
+      await expect(service.resolveModelSelection({})).resolves.toEqual({
+        model: 'server-model',
+        provider: DEFAULT_AGENT_CONFIG.provider,
+      });
+    });
+
+    it("keeps the agent's own model over every default", async () => {
+      (parseAgentConfig as any).mockReturnValue({ model: 'server-model', provider: 'server' });
+      mockUserModel.getUserSettingsDefaultAgentConfig.mockResolvedValueOnce({
+        config: { model: 'user-preferred-model', provider: 'user-provider' },
+      });
+
+      await expect(
+        service.resolveModelSelection({ model: 'claude-3-opus', provider: 'anthropic' }),
+      ).resolves.toEqual({ model: 'claude-3-opus', provider: 'anthropic' });
+    });
+
+    it('keeps a manually updated inbox selection when resolving a shared agent capability', async () => {
+      (parseAgentConfig as any).mockReturnValue({ model: 'server-model', provider: 'server' });
+      vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValueOnce({
+        model: 'admin-model',
+        provider: 'admin-provider',
+      });
+
+      await expect(
+        service.resolveModelSelection({
+          createdAt: new Date('2026-05-01T00:00:00.000Z'),
+          model: 'inbox-model',
+          provider: 'inbox-provider',
+          slug: INBOX_SESSION_ID,
+          updatedAt: new Date('2026-05-25T18:31:56.559Z'),
+        }),
+      ).resolves.toEqual({ model: 'inbox-model', provider: 'inbox-provider' });
+    });
+
+    it('applies the admin selection to an inbox that has not been manually updated', async () => {
+      (parseAgentConfig as any).mockReturnValue({ model: 'server-model', provider: 'server' });
+      vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValueOnce({
+        model: 'admin-model',
+        provider: 'admin-provider',
+      });
+      const createdAt = new Date('2026-05-01T00:00:00.000Z');
+
+      await expect(
+        service.resolveModelSelection({
+          createdAt,
+          model: 'persisted-inbox-model',
+          provider: 'persisted-inbox-provider',
+          slug: INBOX_SESSION_ID,
+          updatedAt: createdAt,
+        }),
+      ).resolves.toEqual({ model: 'admin-model', provider: 'admin-provider' });
+    });
+
+    it('does not let a workspace agent inherit a personal default model', async () => {
+      (parseAgentConfig as any).mockReturnValue({});
+      mockUserModel.getUserSettingsDefaultAgentConfig.mockResolvedValueOnce({
+        config: { model: 'user-preferred-model', provider: 'user-provider' },
+      });
+      const workspaceService = new AgentService(mockDb, mockUserId, mockWorkspaceId);
+
+      await expect(workspaceService.resolveModelSelection({})).resolves.toEqual({
+        model: DEFAULT_AGENT_CONFIG.model,
+        provider: DEFAULT_AGENT_CONFIG.provider,
+      });
+    });
+  });
+
   describe('getAgentConfigById', () => {
     it('should return null if agent does not exist', async () => {
       const mockAgentModel = {
@@ -674,7 +764,9 @@ describe('AgentService', () => {
         getAgentConfigById: vi.fn().mockResolvedValue(mockAgent),
       };
 
-      (AgentModel as any).mockImplementation(() => mockAgentModel);
+      (AgentModel as any).mockImplementation(function MockAgentModel() {
+        return mockAgentModel;
+      });
       (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
       vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
         avatar: '/admin-avatar.png',

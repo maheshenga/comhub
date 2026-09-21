@@ -202,6 +202,7 @@ export type ServerFileS3Config = {
   bucket?: string;
   enablePathStyle: boolean;
   endpoint?: string;
+  internalEndpoint?: string;
   filePath: string;
   previewUrlExpireIn: number;
   publicDomain?: string;
@@ -241,11 +242,21 @@ export const getServerFileS3Config = async (db?: LobeChatDatabase): Promise<Serv
     secretAccessKey,
   );
 
+  const adminEndpoint = normalizeString(endpoint);
+  const environmentEndpoint = normalizeString(process.env.S3_ENDPOINT);
+
   return {
     accessKeyId: normalizeString(accessKeyId) ?? process.env.S3_ACCESS_KEY_ID,
     bucket: normalizeString(bucket) ?? process.env.S3_BUCKET,
     enablePathStyle: normalizeBoolean(enablePathStyle, process.env.S3_ENABLE_PATH_STYLE === '1'),
-    endpoint: normalizeString(endpoint) ?? process.env.S3_ENDPOINT,
+    endpoint: adminEndpoint ?? environmentEndpoint ?? undefined,
+    // An internal endpoint configured through the environment belongs to the
+    // environment endpoint. Do not combine it with a different admin-managed
+    // public endpoint, or server-side CRUD can target a different bucket.
+    internalEndpoint:
+      !adminEndpoint || adminEndpoint === environmentEndpoint
+        ? normalizeString(process.env.S3_INTERNAL_ENDPOINT) ?? undefined
+        : undefined,
     filePath:
       normalizeS3FilePath(filePath) ||
       normalizeS3FilePath(process.env.NEXT_PUBLIC_S3_FILE_PATH) ||
