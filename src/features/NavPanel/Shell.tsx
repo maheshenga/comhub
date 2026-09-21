@@ -1,7 +1,5 @@
 'use client';
 
-import { memo } from 'react';
-
 import HomeNavPanelPortal from '@/features/HomeSidebar';
 import { useActiveLocation } from '@/hooks/useActiveLocation';
 
@@ -16,7 +14,7 @@ import NavPanel from './index';
 export const isAdminConsolePath = (pathname: string) =>
   pathname === '/settings/admin' || pathname.startsWith('/settings/admin/');
 
-const NavPanelShell = memo(() => {
+const NavPanelShell = () => {
   const { pathname } = useActiveLocation();
 
   if (isAdminConsolePath(pathname)) return null;
@@ -27,8 +25,6 @@ const NavPanelShell = memo(() => {
       <NavPanel />
     </>
   );
-});
-
-NavPanelShell.displayName = 'NavPanelShell';
+};
 
 export default NavPanelShell;

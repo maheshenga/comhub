@@ -5,7 +5,7 @@ import {
   resolveBusinessModelMapping,
 } from '@lobechat/business-model-runtime';
 import { type CreateImageMethodOptions } from '@lobechat/model-runtime';
-import { AsyncTaskError, AsyncTaskStatus, RequestTrigger } from '@lobechat/types';
+import { AsyncTaskError, AsyncTaskStatus, RequestTrigger, type SpendOrigin } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import debug from 'debug';
 import { type RuntimeImageGenParams } from 'model-bank';
@@ -125,6 +125,7 @@ export const imageRouter = router({
       let requestedModelId: string | undefined = model;
       let resolvedModelId = model;
       let prechargeResult: unknown;
+      let spendOrigin: SpendOrigin | undefined;
 
       log('Updating task status to Processing: %s', taskId);
       await asyncTaskModel.update(taskId, { status: AsyncTaskStatus.Processing });
@@ -143,7 +144,12 @@ export const imageRouter = router({
         // billing. Loaded before the model mapping so the handle is available
         // for reconciliation even when mapping resolution throws.
         const asyncTask = await asyncTaskModel.findById(taskId);
-        prechargeResult = (asyncTask?.metadata as { precharge?: unknown } | undefined)?.precharge;
+        const taskMetadata = asyncTask?.metadata as
+          { precharge?: unknown; spendOrigin?: SpendOrigin } | undefined;
+        prechargeResult = taskMetadata?.precharge;
+        // Origin of the submitting request, stamped on the completion charge so
+        // spend keeps its attribution across the async boundary.
+        spendOrigin = taskMetadata?.spendOrigin;
 
         // Resolve model mapping up front so both the success and error billing
         // paths can reference the resolved model id.
@@ -302,6 +308,7 @@ export const imageRouter = router({
               await chargeAfterGenerate({
                 metrics: { latency: duration },
                 metadata: {
+                  ...spendOrigin,
                   asyncTaskId: taskId,
                   generationBatchId,
                   ...(routeMetadata ? { routeMetadata } : {}),
@@ -383,6 +390,7 @@ export const imageRouter = router({
             await chargeAfterGenerate({
               isError: true,
               metadata: {
+                ...spendOrigin,
                 asyncTaskId: taskId,
                 generationBatchId,
                 topicId: generationTopicId,

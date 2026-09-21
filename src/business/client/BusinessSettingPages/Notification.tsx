@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/antd-compat/Card';
 import { buildNotificationPreferenceGroups } from '@/const/notificationPreferences';
 import { useClientDataSWR } from '@/libs/swr';
-import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
+import SettingHeader from '@/features/Settings/features/SettingHeader';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { SubscriptionIframeWrapper } from './SubscriptionIframeWrapper';

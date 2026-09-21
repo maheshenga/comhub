@@ -1,10 +1,10 @@
 import { type ChatModelCard } from '@lobechat/types';
 import { type IconAvatarProps } from '@lobehub/icons';
-import { LobeHub, ModelIcon, ProviderIcon } from '@lobehub/icons';
+import { LobeHub } from '@lobehub/icons';
 import { type FlexboxProps } from '@lobehub/ui';
-import { Avatar, Flexbox, Icon, Tag, Text, Tooltip } from '@lobehub/ui';
+import { Flexbox, Icon, Tooltip } from '@lobehub/ui';
+import { Avatar, Tag, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles, useResponsive } from 'antd-style';
-import { omit } from 'es-toolkit/compat';
 import {
   AudioLines,
   Infinity as InfinityIcon,
@@ -20,6 +20,7 @@ import { type CSSProperties, type FC, type ReactNode } from 'react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ModelIcon, ProviderIcon } from '@/components/LobeIcons';
 import { type AiProviderSourceType } from '@/types/aiProvider';
 import { formatTokenNumber } from '@/utils/format';
 
@@ -250,7 +251,7 @@ export const ModelInfoTags = memo<ModelInfoTagsProps>(
 type ModelItemRenderProps = ChatModelCard &
   Partial<AiModelForSelect> &
   Partial<ModelAbilities> &
-  Partial<Omit<FlexboxProps, 'id' | 'title'>> & {
+  Pick<FlexboxProps, 'className' | 'style'> & {
     abilities?: ModelAbilities;
     label?: ReactNode;
     newBadgeLabel?: string;
@@ -260,32 +261,6 @@ type ModelItemRenderProps = ChatModelCard &
     showInfoTag?: boolean;
     value?: string;
   };
-
-const MODEL_ONLY_PROPS = [
-  'approximatePricePerImage',
-  'approximatePricePerVideo',
-  'deploymentName',
-  'description',
-  'enabled',
-  'family',
-  'generation',
-  'isCustom',
-  'knowledgeCutoff',
-  'label',
-  'legacy',
-  'maxOutput',
-  'parameters',
-  'pricePerImage',
-  'pricePerVideo',
-  'pricing',
-  'provider',
-  'reasoning',
-  'search',
-  'settings',
-  'structuredOutput',
-  'type',
-  'value',
-] as const;
 
 export const ModelItemRender = memo<ModelItemRenderProps>(
   ({
@@ -304,24 +279,24 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
     id,
     displayName,
     releasedAt,
-    ...rest
+    className,
+    style,
   }) => {
     const { mobile } = useResponsive();
     const displayNameOrId = displayName || id;
-    const flexboxProps = omit(rest, MODEL_ONLY_PROPS);
 
     return (
       <Flexbox
         horizontal
         align={'center'}
+        className={className}
         gap={32}
         justify={'space-between'}
-        {...flexboxProps}
         style={{
           overflow: 'hidden',
           position: 'relative',
           width: '100%',
-          ...flexboxProps.style,
+          ...style,
         }}
       >
         <Flexbox

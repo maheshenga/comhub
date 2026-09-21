@@ -30,23 +30,33 @@ vi.mock('electron-log', () => ({
 }));
 
 // Mock electron-updater
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    allowDowngrade: false,
-    allowPrerelease: false,
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    channel: 'stable',
-    checkForUpdates: vi.fn(),
-    currentVersion: undefined as any,
-    downloadUpdate: vi.fn(),
-    forceDevUpdateConfig: false,
-    logger: null as any,
-    on: vi.fn(),
-    quitAndInstall: vi.fn(),
-    setFeedURL: vi.fn(),
-  },
-}));
+vi.mock('electron-updater', () => {
+  let channel = 'stable';
+
+  return {
+    autoUpdater: {
+      allowDowngrade: false,
+      allowPrerelease: false,
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+      get channel() {
+        return channel;
+      },
+      set channel(value: string) {
+        channel = value;
+        this.allowDowngrade = true;
+      },
+      checkForUpdates: vi.fn(),
+      currentVersion: undefined as any,
+      downloadUpdate: vi.fn(),
+      forceDevUpdateConfig: false,
+      logger: null as any,
+      on: vi.fn(),
+      quitAndInstall: vi.fn(),
+      setFeedURL: vi.fn(),
+    },
+  };
+});
 
 // Mock electron - uses hoisted functions for require() compatibility
 vi.mock('electron', () => ({
@@ -57,16 +67,6 @@ vi.mock('electron', () => ({
     getVersion: vi.fn().mockReturnValue('0.0.0'),
     releaseSingleInstanceLock: mockReleaseSingleInstanceLock,
   },
-}));
-
-// Mock logger
-vi.mock('@/utils/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  }),
 }));
 
 // Mock updater configs
@@ -172,7 +172,17 @@ describe('UpdaterManager', () => {
       expect(autoUpdater.autoInstallOnAppQuit).toBe(false);
       expect(autoUpdater.channel).toBe('stable');
       expect(autoUpdater.allowPrerelease).toBe(false);
-      expect(autoUpdater.allowDowngrade).toBe(false);
+      expect(autoUpdater.allowDowngrade).toBe(true);
+    });
+
+    it('should allow a persisted canary channel to roll back to an older canary build', async () => {
+      vi.mocked(mockApp.storeManager.get).mockReturnValue('canary');
+
+      await updaterManager.initialize();
+
+      expect(autoUpdater.channel).toBe('canary');
+      expect(autoUpdater.allowPrerelease).toBe(true);
+      expect(autoUpdater.allowDowngrade).toBe(true);
     });
 
     it('should register all event listeners', async () => {
@@ -218,6 +228,29 @@ describe('UpdaterManager', () => {
         provider: 'generic',
         url: 'https://cdn.qingyouai.com/desktop/canary',
       });
+    });
+  });
+
+  describe('switchChannel', () => {
+    it('should allow rollback whenever canary is the target channel', () => {
+      updaterManager.switchChannel('canary');
+
+      expect(autoUpdater.allowDowngrade).toBe(true);
+    });
+
+    it('should preserve canary-to-stable downgrade support', async () => {
+      vi.mocked(mockApp.storeManager.get).mockReturnValue('canary');
+      await updaterManager.initialize();
+
+      updaterManager.switchChannel('stable');
+
+      expect(autoUpdater.allowDowngrade).toBe(true);
+    });
+
+    it('should allow rollback when stable remains the target channel', () => {
+      updaterManager.switchChannel('stable');
+
+      expect(autoUpdater.allowDowngrade).toBe(true);
     });
   });
 
@@ -498,10 +531,10 @@ describe('UpdaterManager', () => {
       registeredEvents.get('update-available')?.({ version });
     };
 
-    it('suppresses re-broadcast of updateDownloaded for the install-later version', () => {
+    it('suppresses re-broadcast of updateReady for the install-later version', () => {
       fireDownloaded('2.2.6');
       expect(mockBroadcast).toHaveBeenCalledWith(
-        'updateDownloaded',
+        'updateReady',
         expect.objectContaining({ version: '2.2.6' }),
       );
 
@@ -510,7 +543,7 @@ describe('UpdaterManager', () => {
       mockBroadcast.mockClear();
       fireDownloaded('2.2.6');
 
-      expect(mockBroadcast).not.toHaveBeenCalledWith('updateDownloaded', expect.anything());
+      expect(mockBroadcast).not.toHaveBeenCalledWith('updateReady', expect.anything());
       expect(mockBroadcast).toHaveBeenCalledWith(
         'updaterStateChanged',
         expect.objectContaining({ stage: 'downloaded' }),
@@ -537,7 +570,7 @@ describe('UpdaterManager', () => {
       fireDownloaded('2.2.7');
 
       expect(mockBroadcast).toHaveBeenCalledWith(
-        'updateDownloaded',
+        'updateReady',
         expect.objectContaining({ version: '2.2.7' }),
       );
     });
@@ -550,7 +583,7 @@ describe('UpdaterManager', () => {
       fireDownloaded('2.2.5');
 
       expect(mockBroadcast).not.toHaveBeenCalledWith(
-        'updateDownloaded',
+        'updateReady',
         expect.objectContaining({ version: '2.2.5' }),
       );
     });
@@ -565,7 +598,7 @@ describe('UpdaterManager', () => {
       fireDownloaded('2.2.6');
 
       expect(mockBroadcast).toHaveBeenCalledWith(
-        'updateDownloaded',
+        'updateReady',
         expect.objectContaining({ version: '2.2.6' }),
       );
     });
@@ -659,14 +692,14 @@ describe('UpdaterManager', () => {
     });
 
     describe('update-downloaded', () => {
-      it('should broadcast updateDownloaded', async () => {
+      it('should broadcast updateReady with the app update info', async () => {
         await updaterManager.initialize();
 
         const info = { version: '2.0.0' };
         const handler = registeredEvents.get('update-downloaded');
         handler?.(info);
 
-        expect(mockBroadcast).toHaveBeenCalledWith('updateDownloaded', info);
+        expect(mockBroadcast).toHaveBeenCalledWith('updateReady', { ...info, kind: 'app' });
       });
     });
 
@@ -730,7 +763,7 @@ describe('UpdaterManager', () => {
       updaterManager.simulateUpdateDownloaded();
 
       expect(mockBroadcast).not.toHaveBeenCalledWith(
-        'updateDownloaded',
+        'updateReady',
         expect.objectContaining({ version: '1.0.0' }),
       );
     });

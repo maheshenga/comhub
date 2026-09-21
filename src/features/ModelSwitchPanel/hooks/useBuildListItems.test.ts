@@ -1,110 +1,31 @@
-/**
- * @vitest-environment happy-dom
- */
-import { renderHook } from '@testing-library/react';
 import type { AiModelForSelect } from 'model-bank';
 import { describe, expect, it } from 'vitest';
 
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
-import { buildListItems, useBuildListItems } from './useBuildListItems';
+import { buildListItems } from './useBuildListItems';
 
-const createModel = (id: string, displayName = id): AiModelForSelect => ({
-  abilities: {
-    functionCall: true,
-    reasoning: false,
-    vision: true,
-  },
-  displayName,
-  id,
-});
+const model = (id: string, displayName = id, releasedAt?: string) =>
+  ({ abilities: {}, displayName, id, releasedAt }) satisfies AiModelForSelect;
 
-const createProvider = (
-  id: string,
-  name: string,
-  children: AiModelForSelect[],
-): EnabledProviderWithModels => ({
+/** `isNewReleaseDate` uses a 14-day window, so anchor fixtures relative to today. */
+const daysAgo = (days: number) =>
+  new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
+const provider = (id: string, children: AiModelForSelect[]): EnabledProviderWithModels => ({
   children,
   id,
-  name,
+  name: id,
   source: 'builtin',
 });
 
 const getProviderModelIds = (items: ReturnType<typeof buildListItems>) =>
   items.flatMap((item) => (item.type === 'provider-model-item' ? [item.model.id] : []));
 
-describe('useBuildListItems', () => {
-  const duplicateModelProviders = [
-    createProvider('provider-a', 'Provider A', [createModel('gpt-4o', 'GPT-4o')]),
-    createProvider('provider-b', 'Provider B', [createModel('gpt-4o', 'GPT-4o')]),
-  ];
-
-  it('keeps duplicate provider model rows when grouped by provider', () => {
-    const { result } = renderHook(() => useBuildListItems(duplicateModelProviders, 'byProvider'));
-
-    const modelItems = result.current.filter((item) => item.type === 'provider-model-item');
-
-    expect(modelItems).toHaveLength(2);
-    expect(
-      modelItems.map((item) => ({
-        modelId: item.model.id,
-        providerId: item.provider.id,
-        type: item.type,
-      })),
-    ).toEqual([
-      { modelId: 'gpt-4o', providerId: 'provider-a', type: 'provider-model-item' },
-      { modelId: 'gpt-4o', providerId: 'provider-b', type: 'provider-model-item' },
-    ]);
-  });
-
-  it('collapses the same model ID into one multi-provider row', () => {
-    const { result } = renderHook(() => useBuildListItems(duplicateModelProviders, 'byModel'));
-
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0]).toMatchObject({
-      data: {
-        displayName: 'GPT-4o',
-        providers: [
-          { id: 'provider-a', name: 'Provider A' },
-          { id: 'provider-b', name: 'Provider B' },
-        ],
-      },
-      type: 'model-item-multiple',
-    });
-  });
-
-  it('keeps models with the same display name separate when their IDs differ', () => {
-    const { result } = renderHook(() =>
-      useBuildListItems(
-        [
-          createProvider('provider-a', 'Provider A', [
-            createModel('chat-model-a', 'Chat Model'),
-            createModel('chat-model-b', 'Chat Model'),
-          ]),
-        ],
-        'byModel',
-      ),
-    );
-
-    expect(
-      result.current.map((item) =>
-        item.type === 'model-item-single' || item.type === 'model-item-multiple'
-          ? item.data.model.id
-          : item.type,
-      ),
-    ).toEqual(['chat-model-a', 'chat-model-b']);
-  });
-
-  it('stably moves matching models after other models within a provider', () => {
+describe('buildListItems', () => {
+  it('should stably move matching models after other models within a provider', () => {
     const items = buildListItems(
-      [
-        createProvider('lobehub', 'LobeHub', [
-          createModel('pro-a'),
-          createModel('normal-a'),
-          createModel('pro-b'),
-          createModel('normal-b'),
-        ]),
-      ],
+      [provider('lobehub', [model('pro-a'), model('normal-a'), model('pro-b'), model('normal-b')])],
       'byProvider',
       '',
       (modelId, providerId) => providerId === 'lobehub' && modelId.startsWith('pro-'),
@@ -113,15 +34,11 @@ describe('useBuildListItems', () => {
     expect(getProviderModelIds(items)).toEqual(['normal-a', 'normal-b', 'pro-a', 'pro-b']);
   });
 
-  it('does not move a by-model row when another provider remains available', () => {
+  it('should not move a by-model row when another provider remains available', () => {
     const items = buildListItems(
       [
-        createProvider('lobehub', 'LobeHub', [
-          createModel('mixed-pro', 'Mixed'),
-          createModel('lobehub-pro'),
-          createModel('normal'),
-        ]),
-        createProvider('openai', 'OpenAI', [createModel('mixed-pro', 'Mixed')]),
+        provider('lobehub', [model('mixed-pro', 'Mixed'), model('lobehub-pro'), model('normal')]),
+        provider('openai', [model('mixed-pro', 'Mixed')]),
       ],
       'byModel',
       '',
@@ -135,5 +52,62 @@ describe('useBuildListItems', () => {
           : [],
       ),
     ).toEqual(['mixed-pro', 'normal', 'lobehub-pro']);
+  });
+
+  it('should order the pinned new models newest-first instead of by catalog order', () => {
+    const items = buildListItems(
+      [
+        provider('lobehub', [
+          model('fable-5.1', 'Claude Fable 5.1', daysAgo(3)),
+          model('gpt-6-astra', 'GPT-6 Astra', daysAgo(1)),
+          model('glm-5.3-flash', 'GLM-5.3-Flash', daysAgo(9)),
+          model('deepseek-v4-pro', 'DeepSeek V4 Pro', daysAgo(200)),
+        ]),
+      ],
+      'byProvider',
+    );
+
+    expect(getProviderModelIds(items)).toEqual([
+      'gpt-6-astra',
+      'fable-5.1',
+      'glm-5.3-flash',
+      'deepseek-v4-pro',
+    ]);
+  });
+
+  it('should keep catalog order for new models released on the same day', () => {
+    const sameDay = daysAgo(2);
+    const items = buildListItems(
+      [
+        provider('lobehub', [
+          model('gemini-3.8-flash', 'Gemini 3.8 Flash', sameDay),
+          model('qwen3.8-max', 'Qwen3.8 Max', sameDay),
+          model('legacy', 'Legacy', daysAgo(400)),
+        ]),
+      ],
+      'byProvider',
+    );
+
+    expect(getProviderModelIds(items)).toEqual(['gemini-3.8-flash', 'qwen3.8-max', 'legacy']);
+  });
+
+  it('should order new models newest-first in byModel mode too', () => {
+    const items = buildListItems(
+      [
+        provider('lobehub', [
+          model('fable-5.1', 'Claude Fable 5.1', daysAgo(3)),
+          model('gpt-6-astra', 'GPT-6 Astra', daysAgo(1)),
+        ]),
+      ],
+      'byModel',
+    );
+
+    expect(
+      items.flatMap((item) =>
+        item.type === 'model-item-single' || item.type === 'model-item-multiple'
+          ? [item.data.model.id]
+          : [],
+      ),
+    ).toEqual(['gpt-6-astra', 'fable-5.1']);
   });
 });

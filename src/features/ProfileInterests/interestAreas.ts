@@ -1,6 +1,6 @@
 import { BriefcaseIcon, type LucideIcon } from 'lucide-react';
 
-import { INTEREST_AREAS, type InterestAreaKey } from '@/routes/onboarding/config';
+import { INTEREST_AREAS, type InterestAreaKey } from '@/features/Onboarding/config';
 
 export type ConfiguredInterestArea = {
   key: string;

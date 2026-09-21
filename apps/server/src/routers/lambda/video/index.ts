@@ -250,6 +250,7 @@ export const videoRouter = router({
               metadata: {
                 ...(prechargeResult ? { precharge: prechargeResult } : {}),
                 ...(routeMetadata ? { routeMetadata } : {}),
+                ...(ctx.spendOrigin ? { spendOrigin: ctx.spendOrigin } : {}),
                 webhookToken,
               },
               status: AsyncTaskStatus.Pending,

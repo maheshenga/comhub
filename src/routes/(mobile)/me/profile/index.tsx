@@ -1,14 +1,10 @@
 'use client';
 
-import { memo } from 'react';
-
-import SettingsContent from '@/routes/(main)/settings/features/SettingsContent';
+import SettingsContent from '@/features/Settings/features/SettingsContent';
 import { SettingsTabs } from '@/store/global/initialState';
 
-const MeProfilePage = memo(() => {
+const MeProfilePage = () => {
   return <SettingsContent mobile activeTab={SettingsTabs.Profile} />;
-});
-
-MeProfilePage.displayName = 'MeProfilePage';
+};
 
 export default MeProfilePage;

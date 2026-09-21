@@ -35,8 +35,9 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: mockSearchParamsGet }),
 }));
 
-vi.mock('@/components/AntdStaticMethods', () => ({
-  message: { error: mockMessageError, success: mockMessageSuccess },
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  toast: { error: mockMessageError, success: mockMessageSuccess },
 }));
 
 vi.mock('@/libs/better-auth/auth-client', () => ({
@@ -129,7 +130,7 @@ describe('useSignIn', () => {
     mockBusinessSignin.preSocialSigninCheck.mockResolvedValue(true);
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { ...originalLocation, href: '' },
+      value: { ...originalLocation, href: '', origin: originalLocation.origin },
       writable: true,
     });
   });
@@ -267,6 +268,7 @@ describe('useSignIn', () => {
 
       expect(mockSignInEmail).toHaveBeenCalledWith(
         expect.objectContaining({
+          callbackURL: `${originalLocation.origin}/`,
           email: 'user@example.com',
           password: 'password123',
         }),
@@ -359,6 +361,32 @@ describe('useSignIn', () => {
   });
 
   describe('handleSocialSignIn', () => {
+    it('should bind relative OAuth callbacks to the current auth origin', async () => {
+      const authOrigin = 'https://auth.example.com';
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: { ...originalLocation, href: `${authOrigin}/signin`, origin: authOrigin },
+        writable: true,
+      });
+      mockSearchParamsGet.mockImplementation((key: string) =>
+        key === 'callbackUrl' ? '/workspace?tab=members' : null,
+      );
+      mockSignInSocial.mockResolvedValue({ url: 'https://google.com/auth' });
+
+      const { result } = renderHook(() => useSignIn());
+
+      await act(async () => {
+        await result.current.handleSocialSignIn('google');
+      });
+
+      expect(mockSignInSocial).toHaveBeenCalledWith(
+        expect.objectContaining({
+          callbackURL: `${authOrigin}/workspace?tab=members`,
+          newUserCallbackURL: `${authOrigin}/onboarding?callbackUrl=%2Fworkspace%3Ftab%3Dmembers`,
+        }),
+      );
+    });
+
     it('should call signIn.social for builtin providers', async () => {
       mockSignInSocial.mockResolvedValue({ url: 'https://google.com/auth' });
 
@@ -369,7 +397,10 @@ describe('useSignIn', () => {
       });
 
       expect(mockSignInSocial).toHaveBeenCalledWith(
-        expect.objectContaining({ newUserCallbackURL: '/onboarding', provider: 'google' }),
+        expect.objectContaining({
+          newUserCallbackURL: `${originalLocation.origin}/onboarding`,
+          provider: 'google',
+        }),
       );
       expect(mockMessageError).not.toHaveBeenCalled();
     });
@@ -384,7 +415,28 @@ describe('useSignIn', () => {
       });
 
       expect(mockSignInOauth2).toHaveBeenCalledWith(
-        expect.objectContaining({ newUserCallbackURL: '/onboarding', providerId: 'custom-oidc' }),
+        expect.objectContaining({
+          newUserCallbackURL: `${originalLocation.origin}/onboarding`,
+          providerId: 'custom-oidc',
+        }),
+      );
+    });
+
+    it('should preserve a mobile app callback scheme', async () => {
+      const mobileCallbackUrl = 'com.lobehub.app:///auth/callback';
+      mockSearchParamsGet.mockImplementation((key: string) =>
+        key === 'callbackUrl' ? mobileCallbackUrl : null,
+      );
+      mockSignInSocial.mockResolvedValue({ url: 'https://google.com/auth' });
+
+      const { result } = renderHook(() => useSignIn());
+
+      await act(async () => {
+        await result.current.handleSocialSignIn('google');
+      });
+
+      expect(mockSignInSocial).toHaveBeenCalledWith(
+        expect.objectContaining({ callbackURL: mobileCallbackUrl }),
       );
     });
 
@@ -491,7 +543,7 @@ describe('useSignIn', () => {
 
   describe('handleForgotPassword', () => {
     it('should call requestPasswordReset and land on the email-sent state', async () => {
-      mockRequestPasswordReset.mockResolvedValue(undefined);
+      mockRequestPasswordReset.mockResolvedValue({ data: { status: true }, error: null });
 
       mockFetch.mockResolvedValueOnce({
         json: async () => ({ exists: true, hasPassword: true }),
@@ -510,7 +562,10 @@ describe('useSignIn', () => {
       });
 
       expect(mockRequestPasswordReset).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'user@example.com' }),
+        expect.objectContaining({
+          email: 'user@example.com',
+          redirectTo: `${originalLocation.origin}/reset-password?email=user%40example.com`,
+        }),
       );
       // Success is a persistent landing state, not a fleeting toast
       expect(result.current.step).toBe('emailSent');
@@ -528,6 +583,35 @@ describe('useSignIn', () => {
 
       expect(mockRequestPasswordReset).not.toHaveBeenCalled();
       expect(result.current.step).toBe('email');
+    });
+
+    // The better-auth client resolves with `{ data, error }` rather than
+    // throwing, so a rejected-promise test alone leaves the failure branch
+    // unreachable and a failed send lands on the "email sent" screen.
+    it('should show error and stay put when the client resolves with an error', async () => {
+      mockRequestPasswordReset.mockResolvedValue({
+        data: null,
+        error: { message: 'Email provider rejected the request', status: 503 },
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => ({ exists: true, hasPassword: true }),
+        ok: true,
+      });
+
+      const { result } = renderHook(() => useSignIn());
+
+      await act(async () => {
+        await result.current.handleCheckUser({ email: 'user@example.com' });
+      });
+
+      await act(async () => {
+        await result.current.handleForgotPassword();
+      });
+
+      expect(mockMessageError).toHaveBeenCalled();
+      expect(result.current.step).toBe('password');
+      expect(result.current.sentInfo).toBeNull();
     });
 
     it('should show error on failure', async () => {
@@ -569,6 +653,12 @@ describe('useSignIn', () => {
       });
 
       expect(mockSignInMagicLink).toHaveBeenCalledTimes(1);
+      expect(mockSignInMagicLink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          callbackURL: `${originalLocation.origin}/`,
+          newUserCallbackURL: `${originalLocation.origin}/onboarding`,
+        }),
+      );
       expect(result.current.step).toBe('emailSent');
       expect(result.current.sentInfo).toEqual(
         expect.objectContaining({ email: 'user@example.com', type: 'magicLink' }),
@@ -578,7 +668,7 @@ describe('useSignIn', () => {
 
   describe('handleResendEmail', () => {
     it('should resend the password reset email and confirm', async () => {
-      mockRequestPasswordReset.mockResolvedValue(undefined);
+      mockRequestPasswordReset.mockResolvedValue({ data: { status: true }, error: null });
       mockFetch.mockResolvedValueOnce({
         json: async () => ({ exists: true, hasPassword: true }),
         ok: true,
@@ -607,7 +697,7 @@ describe('useSignIn', () => {
 
   describe('handleBackFromSent', () => {
     it('should return to the email entry (not the password step) after a reset email', async () => {
-      mockRequestPasswordReset.mockResolvedValue(undefined);
+      mockRequestPasswordReset.mockResolvedValue({ data: { status: true }, error: null });
       mockFetch.mockResolvedValueOnce({
         json: async () => ({ exists: true, hasPassword: true }),
         ok: true,

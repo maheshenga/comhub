@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { assertVectorQuota } from '@/business/server/resourceQuota';
 import { checkEmbeddingUsage } from '@/business/server/trpc-middlewares/async';
+import { FILE_PARSE_SIZE_LIMIT_ERROR_MESSAGE, MAX_FILE_PARSE_SIZE } from '@/const/file';
 import { DEFAULT_FILE_EMBEDDING_MODEL_ITEM } from '@/const/settings/knowledge';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { ChunkModel } from '@/database/models/chunk';
@@ -220,6 +221,21 @@ export const fileRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'File not found' });
       }
 
+      if (file.size > MAX_FILE_PARSE_SIZE) {
+        await asyncTaskModel.update(input.taskId, {
+          error: new AsyncTaskError(
+            AsyncTaskErrorType.FileTooLargeToParse,
+            FILE_PARSE_SIZE_LIMIT_ERROR_MESSAGE,
+          ),
+          status: AsyncTaskStatus.Error,
+        });
+
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: FILE_PARSE_SIZE_LIMIT_ERROR_MESSAGE,
+        });
+      }
+
       // Inline documents (custom/document) keep a mirror file row whose url is the
       // `internal://document/placeholder` marker. Their content lives on documents.content
       // and is intentionally not chunked — searching is handled by BM25 instead.
@@ -315,14 +331,12 @@ export const fileRouter = router({
           });
 
           // after finish partition, we need to filter out some elements
-          const chunks = chunkResult.chunks.map(
-            ({ text, ...item }): NewChunkItem => ({
-              ...item,
-              text: text ? sanitizeUTF8(text) : '',
-              userId: ctx.userId,
-              workspaceId,
-            }),
-          );
+          const chunks = chunkResult.chunks.map(({ text, ...item }): NewChunkItem => ({
+            ...item,
+            text: text ? sanitizeUTF8(text) : '',
+            userId: ctx.userId,
+            workspaceId,
+          }));
 
           const duration = Date.now() - startAt;
 
@@ -338,14 +352,12 @@ export const fileRouter = router({
           await chunkModel.bulkCreate(chunks, input.fileId);
 
           if (chunkResult.unstructuredChunks) {
-            const unstructuredChunks = chunkResult.unstructuredChunks.map(
-              (item): NewChunkItem => ({
-                ...item,
-                fileId: input.fileId,
-                userId: ctx.userId,
-                workspaceId,
-              }),
-            );
+            const unstructuredChunks = chunkResult.unstructuredChunks.map((item): NewChunkItem => ({
+              ...item,
+              fileId: input.fileId,
+              userId: ctx.userId,
+              workspaceId,
+            }));
             await chunkModel.bulkCreateUnstructuredChunks(unstructuredChunks);
           }
 

@@ -7,7 +7,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useClientDataSWR } from '@/libs/swr';
-import UsageTable from '@/routes/(main)/settings/stats/features/usage/UsageTable';
+import UsageTable from '@/features/Settings/stats/features/usage/UsageTable';
 import { commercialService } from '@/services/commercial';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';

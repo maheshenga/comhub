@@ -1,6 +1,10 @@
 'use client';
 
-import { type SidebarAgentItem } from '@lobechat/types';
+import {
+  agentDisplayName,
+  agentSecondaryDisplayName,
+  type SidebarAgentItem,
+} from '@lobechat/types';
 import isEqual from 'fast-deep-equal';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +12,10 @@ import { useTranslation } from 'react-i18next';
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_INBOX_AVATAR } from '@/const/meta';
-import { useKeepSidebarListed } from '@/routes/(main)/home/_layout/Body/Agent/List/useAgentList';
+import {
+  useKeepSidebarGroupsListed,
+  useKeepSidebarListed,
+} from '@/features/HomeSidebar/Body/Agent/List/useAgentList';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useHomeStore } from '@/store/home';
@@ -21,6 +28,7 @@ export interface AgentRow {
   backgroundColor?: string;
   id: string;
   pinned?: boolean;
+  subtitle?: string;
   title: string;
 }
 
@@ -58,10 +66,11 @@ export const useHomeAgentRows = (): HomeAgentRows => {
 
   const activeWorkspaceId = useActiveWorkspaceId();
 
-  // Drop the caller's "removed from my sidebar" items, exactly like the sidebar
-  // lists and the agent-detail switcher do — a hidden agent must not resurface
-  // in the home switcher.
+  // Drop the caller's "removed from my sidebar" items and folders, exactly like
+  // the sidebar lists and the agent-detail switcher do — a hidden agent (or an
+  // agent inside a hidden Category) must not resurface in the home switcher.
   const keep = useKeepSidebarListed();
+  const keepGroups = useKeepSidebarGroupsListed();
 
   return useMemo(() => {
     const seen = new Set<string>();
@@ -82,7 +91,8 @@ export const useHomeAgentRows = (): HomeAgentRows => {
             backgroundColor: item.backgroundColor || undefined,
             id: item.id,
             pinned: item.pinned ?? false,
-            title: item.title || t('untitledAgent'),
+            subtitle: agentSecondaryDisplayName(item),
+            title: agentDisplayName(item, t('untitledAgent')),
           });
         }
       }
@@ -91,7 +101,7 @@ export const useHomeAgentRows = (): HomeAgentRows => {
 
     const privateRows = collect([
       privatePinnedAgents,
-      privateAgentGroups.flatMap((group) => group.items),
+      keepGroups(privateAgentGroups).flatMap((group) => group.items),
       privateUngroupedAgents,
     ]);
 
@@ -106,11 +116,15 @@ export const useHomeAgentRows = (): HomeAgentRows => {
         avatar: inboxAvatar,
         backgroundColor: inboxMeta?.backgroundColor || undefined,
         id: inboxAgentId,
-        title: inboxMeta?.title || defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME,
+        title: agentDisplayName(inboxMeta, defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME),
       });
     }
     workspaceRows.push(
-      ...collect([pinnedAgents, agentGroups.flatMap((group) => group.items), ungroupedAgents]),
+      ...collect([
+        pinnedAgents,
+        keepGroups(agentGroups).flatMap((group) => group.items),
+        ungroupedAgents,
+      ]),
     );
 
     return {
@@ -128,6 +142,7 @@ export const useHomeAgentRows = (): HomeAgentRows => {
     inboxAgentId,
     inboxMeta,
     keep,
+    keepGroups,
     pinnedAgents,
     privateAgentGroups,
     privatePinnedAgents,

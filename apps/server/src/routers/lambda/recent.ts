@@ -1,8 +1,10 @@
-import type { TaskStatus } from '@lobechat/types';
+import { AGENT_CHAT_TOPIC_URL, GROUP_CHAT_TOPIC_URL } from '@lobechat/const';
+import type { ChatTopicMetadata, RecentItem } from '@lobechat/types';
 import { z } from 'zod';
 
+export type { RecentItem } from '@lobechat/types';
+
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
-import { AGENT_CHAT_TOPIC_URL, GROUP_CHAT_TOPIC_URL } from '@/const/url';
 import {
   type MobileWorkspaceRecentDbItem,
   type MobileWorkspaceRecentQuery,
@@ -11,22 +13,6 @@ import {
 } from '@/database/models/recent';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import type { ChatTopicMetadata } from '@/types/topic';
-
-export interface RecentItem {
-  agentId?: string | null;
-  description?: string | null;
-  icon: string;
-  id: string;
-  lastAssistantMessage?: string | null;
-  metadata?: ChatTopicMetadata;
-  routePath: string;
-  /** Task lifecycle status when `type === 'task'`; null for topic/document. */
-  status: TaskStatus | null;
-  title: string;
-  type: 'topic' | 'document' | 'task';
-  updatedAt: Date;
-}
 
 export interface MobileWorkspaceRecentItem {
   avatar?: MobileWorkspaceRecentDbItem['avatar'];
@@ -92,6 +78,7 @@ const toRecentItem = (item: RecentDbItem): RecentItem => {
     title: item.title,
     type: item.type,
     updatedAt: item.updatedAt,
+    userId: item.userId,
   };
 };
 
@@ -122,6 +109,8 @@ export const recentRouter = router({
       z
         .object({
           limit: z.number().optional(),
+          /** Restrict a workspace feed to the viewer's own items (mine/team toggle). */
+          mineOnly: z.boolean().optional(),
           types: z.array(z.enum(['topic', 'document', 'task'])).optional(),
           withTopicPreview: z.boolean().optional(),
         })
@@ -134,6 +123,7 @@ export const recentRouter = router({
         limit,
         input?.types,
         input?.withTopicPreview,
+        input?.mineOnly,
       );
       return items.map(toRecentItem);
     }),

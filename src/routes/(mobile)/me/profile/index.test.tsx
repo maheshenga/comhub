@@ -5,7 +5,7 @@ import { SettingsTabs } from '@/store/global/initialState';
 
 import MeProfilePage from './index';
 
-vi.mock('@/routes/(main)/settings/features/SettingsContent', () => ({
+vi.mock('@/features/Settings/features/SettingsContent', () => ({
   default: ({ activeTab, mobile }: { activeTab?: string; mobile?: boolean }) => (
     <div data-active-tab={activeTab} data-mobile={String(mobile)} data-testid="settings-content" />
   ),

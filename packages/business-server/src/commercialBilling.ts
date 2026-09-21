@@ -789,7 +789,7 @@ const resolveEffectiveCost = (
 ): { costSource: CostSource; usdCost: number } | null => {
   // Tier 1: gateway cost is valid
   if (isPositiveFinite(usage.cost)) {
-    return { costSource: 'gateway', usdCost: usage.cost };
+    return { costSource: 'gateway', usdCost: usage.cost! };
   }
 
   if (hasTrustedFreePricing(modelCard?.pricing, modelCard?.pricingSource, usageType)) {

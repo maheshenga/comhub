@@ -8,6 +8,8 @@ import NextThemeProvider from '@/layout/GlobalProvider/NextThemeProvider';
 import { bootTiming } from '@/libs/bootTiming';
 import { createAppRouter } from '@/utils/router';
 
+import BootShell from './BootShell';
+import { isMainLayoutLocation } from './BootShell/routeScope';
 import { startAppInitialization } from './initialize/bootstrap';
 import { desktopRoutes } from './router/desktopRouter.config';
 import { createSPARoot } from './runtime';
@@ -23,10 +25,16 @@ const basename =
 
 const router = createAppRouter(desktopRoutes, { basename });
 
+// Mounting is conditional rather than an early return inside the shell: the hook
+// also strips the static logo, and a standalone route needs that logo to stay up
+// until its own brand-loading fallback takes over.
+const showBootShell = isMainLayoutLocation(desktopRoutes, window.location.pathname, basename);
+
 createSPARoot(document.getElementById('root')!).render(
   <BootErrorBoundary>
     <NextThemeProvider>
       <BrandProvider initialBrand={window.__SERVER_CONFIG__?.brand}>
+        {showBootShell && <BootShell />}
         <RouterProvider router={router} />
       </BrandProvider>
     </NextThemeProvider>

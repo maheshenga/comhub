@@ -1,12 +1,13 @@
 'use client';
 
-import { Avatar, Text } from '@lobehub/ui';
-import { Button, Popover } from '@lobehub/ui/base-ui';
+import { agentDisplayName } from '@lobechat/types';
+import { Button, Popover, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import Avatar from '@/components/Avatar';
 import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { useFetchAgentList } from '@/hooks/useFetchAgentList';
@@ -71,11 +72,12 @@ const AgentSelect = memo(() => {
   const agentMapMeta = useAgentStore(agentSelectors.getAgentMetaById(displayAgentId));
   const showInboxFallback = isInbox || !resolvedAgentId;
   const displayMeta = showInboxFallback ? inboxMeta : (sidebarItem ?? agentMapMeta);
-  const displayTitle =
-    displayMeta?.title ||
-    (showInboxFallback
+  const displayTitle = agentDisplayName(
+    displayMeta,
+    showInboxFallback
       ? defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME
-      : t('defaultSession', { ns: 'common' }));
+      : t('defaultSession', { ns: 'common' }),
+  );
   const displayAvatar =
     showInboxFallback && (!displayMeta?.avatar || displayMeta.avatar === DEFAULT_INBOX_AVATAR)
       ? defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR
@@ -118,6 +120,7 @@ const AgentSelect = memo(() => {
         <Avatar
           avatar={displayAvatar}
           background={displayMeta?.backgroundColor || undefined}
+          name={displayTitle}
           shape={'square'}
           size={24}
         />

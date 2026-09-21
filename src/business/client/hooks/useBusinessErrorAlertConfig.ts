@@ -1,5 +1,5 @@
 import { type ErrorType } from '@lobechat/types';
-import { type AlertProps } from '@lobehub/ui';
+import { type AlertProps } from '@lobehub/ui/base-ui';
 import { Button } from 'antd';
 import React from 'react';
 

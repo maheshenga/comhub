@@ -1,14 +1,14 @@
 'use client';
 
-import { memo, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router';
 
 import MobileContentLayout from '@/components/server/MobileNavLayout';
+import SettingsContextProvider from '@/features/Settings/Layout/ContextProvider';
 
-import SettingsContextProvider from '../../../(main)/settings/_layout/ContextProvider';
 import Header from './Header';
 
-const MobileSettingsWrapper = memo(() => {
+const MobileSettingsWrapper = () => {
   const location = useLocation();
 
   useEffect(() => {
@@ -28,8 +28,6 @@ const MobileSettingsWrapper = memo(() => {
       </MobileContentLayout>
     </SettingsContextProvider>
   );
-});
-
-MobileSettingsWrapper.displayName = 'MobileSettingsWrapper';
+};
 
 export default MobileSettingsWrapper;

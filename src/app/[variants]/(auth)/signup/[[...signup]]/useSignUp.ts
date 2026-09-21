@@ -1,3 +1,4 @@
+import { toast } from '@lobehub/ui/base-ui';
 import { Form } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -5,10 +6,9 @@ import { useTranslation } from 'react-i18next';
 
 import type { BusinessSignupFomData } from '@/business/client/hooks/useBusinessSignup';
 import { useBusinessSignup } from '@/business/client/hooks/useBusinessSignup';
-import { message } from '@/components/AntdStaticMethods';
 import { trackLoginOrSignupClicked } from '@/features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
 import { signUp } from '@/libs/better-auth/auth-client';
-import { buildOnboardingRedirectUrl } from '@/utils/onboardingRedirect';
+import { buildOnboardingRedirectUrl, toAbsoluteAuthCallbackUrl } from '@/utils/onboardingRedirect';
 
 import { useAuthServerConfigStore } from '../../_layout/AuthServerConfigProvider';
 import type { AuthFetchOptions } from '../../utils/authFetchOptions';
@@ -59,7 +59,7 @@ export const useSignUp = () => {
 
       const submit = async (nextFetchOptions?: AuthFetchOptions) =>
         signUp.email({
-          callbackURL: redirectUrl,
+          callbackURL: toAbsoluteAuthCallbackUrl(redirectUrl, window.location.origin),
           email: values.email,
           fetchOptions: nextFetchOptions,
           name: username,
@@ -83,19 +83,19 @@ export const useSignUp = () => {
           signUpError.details?.cause?.code === '23505';
 
         if (isEmailDuplicate) {
-          message.error(t('betterAuth.errors.emailExists'));
+          toast.error(t('betterAuth.errors.emailExists'));
           return;
         }
 
         if (signUpError.code === 'INVALID_EMAIL' || signUpError.message === 'Invalid email') {
-          message.error(t('betterAuth.errors.emailInvalid'));
+          toast.error(t('betterAuth.errors.emailInvalid'));
           return;
         }
 
         const translated = signUpError.code
           ? t(`authError:codes.${signUpError.code}`, { defaultValue: '' })
           : '';
-        message.error(translated || signUpError.message || t('betterAuth.signup.error'));
+        toast.error(translated || signUpError.message || t('betterAuth.signup.error'));
         return;
       }
 
@@ -107,7 +107,7 @@ export const useSignUp = () => {
         window.location.href = redirectUrl;
       }
     } catch {
-      message.error(t('betterAuth.signup.error'));
+      toast.error(t('betterAuth.signup.error'));
     } finally {
       setLoading(false);
     }
