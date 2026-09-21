@@ -149,7 +149,7 @@ describe('module worker verification definition', () => {
       'rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3',
     );
     expect(definition.services['module-app-s3-init'].image).toBe(
-      'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727',
+      'quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727',
     );
     expect(definition.services['module-app-worker'].tmpfs).toEqual(['/tmp:size=64m,noexec,nosuid']);
     expect(definition.services['module-app-worker'].volumes).toEqual([
