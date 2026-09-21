@@ -140,7 +140,7 @@ export default {
   'inbox.unread.followUpPlaceholder': 'Reply to continue this run…',
   'inbox.unread.title': 'Unread',
   'inbox.unread.viewChat': 'View chat',
-  'inbox.usage.title': 'Usage',
+  'inbox.usage.title': 'Usage & Quota',
   'project.create': 'New project',
   'project.deleteConfirm':
     "This project will be deleted and can't be recovered. Confirm to continue.",

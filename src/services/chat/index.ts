@@ -38,6 +38,7 @@ import {
 } from '@/store/agent/selectors';
 import { aiModelSelectors, aiProviderSelectors, getAiInfraStoreState } from '@/store/aiInfra';
 import { getChatStoreState } from '@/store/chat';
+import { topicSelectors } from '@/store/chat/slices/topic/selectors';
 import { getToolStoreState } from '@/store/tool';
 import {
   builtinToolSelectors,
@@ -350,6 +351,15 @@ class ChatService {
       model: payload.model,
       provider: payload.provider!,
       subAgentChatConfigOverride: resolvedAgentConfig.subAgentChatConfigOverride,
+      // The topic's own effort pin (only when pinned for this very model — a
+      // sub-agent modelOverride must not inherit the parent topic's effort).
+      topicReasoningConfig: topicId
+        ? topicSelectors.getTopicReasoningConfigForModel(
+            topicId,
+            payload.model,
+            payload.provider!,
+          )(getChatStoreState())
+        : undefined,
     });
 
     // For models governed by the reasoning extend-params family the user-level
@@ -493,7 +503,13 @@ class ChatService {
        */
       fetcher = async () => {
         try {
-          return await this.fetchOnClient({ payload, provider, runtimeProvider: sdkType, signal });
+          return await this.fetchOnClient({
+            payload,
+            provider,
+            runtimeProvider: sdkType,
+            signal,
+            topicId,
+          });
         } catch (e) {
           const {
             errorType = ChatErrorType.BadRequest,
@@ -631,6 +647,7 @@ class ChatService {
     provider: string;
     runtimeProvider: string;
     signal?: AbortSignal;
+    topicId?: string;
   }) => {
     /**
      * if enable login and not signed in, return unauthorized error
@@ -647,7 +664,10 @@ class ChatService {
     });
     const data = params.payload as ChatStreamPayload;
 
-    return agentRuntime.chat(data, { signal: params.signal });
+    return agentRuntime.chat(data, {
+      metadata: { topicId: params.topicId },
+      signal: params.signal,
+    });
   };
 }
 

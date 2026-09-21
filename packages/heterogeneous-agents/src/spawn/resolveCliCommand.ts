@@ -691,6 +691,9 @@ const HETEROGENEOUS_CLI_AGENT_OPTIONS = {
     validateHelpKeywords: ['--output-format', 'ACP modes'],
     validatePattern: /^v?\d+\.\d+\.\d+(?:[-+][\dA-Za-z.-]+)?$/,
   },
+  'devin': {
+    validateKeywords: ['devin'],
+  },
   'grok-build': {
     validateHelpArgs: ['agent', '--help'],
     validateHelpKeywords: ['agent', 'stdio'],
@@ -825,6 +828,10 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
         platformPath.join(homedir(), '.npm-global', 'bin', 'droid'),
         platformPath.join(homedir(), 'Library', 'pnpm', 'droid'),
       ];
+    }
+    case 'devin': {
+      if (platform() !== 'darwin' && platform() !== 'linux') return [];
+      return [path.join(homedir(), '.local', 'bin', 'devin')];
     }
     case 'grok-build': {
       if (platform() === 'win32') {

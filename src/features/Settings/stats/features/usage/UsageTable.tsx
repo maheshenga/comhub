@@ -15,6 +15,8 @@ import {
 } from '@/business/client/BusinessSettingPages/mobile/businessRecordBuilders';
 import { formatCredits } from '@/business/client/BusinessSettingPages/shared';
 import InlineTable from '@/components/InlineTable';
+import { ProviderIcon } from '@/components/LobeIcons';
+import SpendType, { type SpendTypeValue } from '@/components/SpendType';
 import TablePagination from '@/components/TablePagination';
 import { parseAsInteger, useQueryStates } from '@/hooks/useQueryParam';
 import { useClientDataSWR } from '@/libs/swr';

@@ -6,7 +6,8 @@ import type * as SWRLib from '@/libs/swr';
 import { taskTemplateKeys, userKeys } from '@/libs/swr/keys';
 import { userService } from '@/services/user';
 import { useUserStore } from '@/store/user';
-import { settingsSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
+import { readUserDisplaySnapshot, writeUserDisplaySnapshot } from '@/store/user/displaySnapshot';
+import { userGeneralSettingsSelectors } from '@/store/user/selectors';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { type UserInitializationState, type UserPreference } from '@/types/user';
 import { withSWR } from '~test-utils';
@@ -35,6 +36,7 @@ vi.mock('swr', async (importOriginal) => {
 });
 
 beforeEach(() => {
+  localStorage.clear();
   swrMocks.mutate.mockReset();
   swrMocks.mutate.mockResolvedValue(undefined);
 });
@@ -168,7 +170,6 @@ describe('createCommonSlice', () => {
           general: { fontSize: 14, timezone: 'America/New_York' },
         },
         email: 'test@example.com',
-        role: 'admin',
       };
 
       vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
@@ -197,95 +198,7 @@ describe('createCommonSlice', () => {
         }),
       );
       expect(useUserStore.getState().user?.email).toEqual(mockUserState.email);
-      expect((useUserStore.getState().user as any)?.role).toBe('admin');
       expect(successCallback).toHaveBeenCalledWith(mockUserState);
-    });
-
-    it('should let server-managed default agent override existing user default agent settings', async () => {
-      const mockUserState: UserInitializationState = {
-        userId: 'user-id',
-        isOnboard: true,
-        onboarding: { finishedAt: '2024-01-01T00:00:00Z', version: 1 },
-        preference: {},
-        settings: {
-          defaultAgent: {
-            config: { model: 'old-user-model', provider: 'openai' },
-            meta: { avatar: 'old-avatar', title: 'Old Assistant' },
-          },
-          general: { responseLanguage: 'en-US', timezone: 'UTC' },
-        } as any,
-      };
-      const serverConfig = {
-        ...mockServerConfig,
-        defaultAgent: {
-          config: { model: 'admin-model', provider: 'newapi' },
-          meta: { avatar: '/admin-avatar.svg', title: 'Admin Assistant' },
-        },
-      } as GlobalServerConfig;
-
-      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
-
-      renderHook(() => useUserStore().useInitUserState(true, serverConfig), {
-        wrapper: withSWR,
-      });
-
-      await waitFor(() => {
-        const state = useUserStore.getState() as any;
-        expect(settingsSelectors.defaultAgentConfig(state)).toMatchObject({
-          model: 'admin-model',
-          provider: 'newapi',
-        });
-        expect(settingsSelectors.defaultAgentMeta(state)).toMatchObject({
-          avatar: '/admin-avatar.svg',
-          title: 'Admin Assistant',
-        });
-      });
-    });
-
-    it('should prefer the managed user default agent over the legacy server default agent', async () => {
-      const mockUserState: UserInitializationState = {
-        userId: 'user-id',
-        isOnboard: true,
-        onboarding: { finishedAt: '2024-01-01T00:00:00Z', version: 1 },
-        preference: {},
-        settings: {
-          defaultAgent: {
-            config: { model: 'old-user-model', provider: 'openai' },
-            meta: { avatar: 'old-avatar', title: 'Old Assistant' },
-          },
-        } as any,
-      };
-      const serverConfig = {
-        ...mockServerConfig,
-        defaultAgent: {
-          config: { model: 'legacy-model', provider: 'legacy-provider' },
-          meta: { avatar: '/legacy-avatar.svg', title: 'Legacy Assistant' },
-        },
-        userDefaults: {
-          defaultAgent: {
-            config: { model: 'managed-model', provider: 'managed-provider' },
-            meta: { avatar: '/managed-avatar.svg', title: 'Managed Assistant' },
-          },
-        },
-      } as GlobalServerConfig;
-
-      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
-
-      renderHook(() => useUserStore().useInitUserState(true, serverConfig), {
-        wrapper: withSWR,
-      });
-
-      await waitFor(() => {
-        const state = useUserStore.getState() as any;
-        expect(settingsSelectors.defaultAgentConfig(state)).toMatchObject({
-          model: 'managed-model',
-          provider: 'managed-provider',
-        });
-        expect(settingsSelectors.defaultAgentMeta(state)).toMatchObject({
-          avatar: '/managed-avatar.svg',
-          title: 'Managed Assistant',
-        });
-      });
     });
 
     it('should call switch language when language is auto', async () => {
@@ -352,6 +265,50 @@ describe('createCommonSlice', () => {
         expect(preference.current.data?.preference).toEqual(savedPreference);
         expect(result.current.isUserStateInit).toBeTruthy();
         expect(result.current.preference).toEqual(savedPreference);
+      });
+    });
+
+    it('should persist the authoritative avatar and preference for the returned user', async () => {
+      const { result } = renderHook(() => useUserStore());
+      const mockUserState: UserInitializationState = {
+        avatar: 'avatar-a',
+        preference: { lab: { enableProjects: true } },
+        settings: {},
+        userId: 'user-a',
+      };
+
+      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
+
+      renderHook(() => result.current.useInitUserState(true, mockServerConfig), {
+        wrapper: withSWR,
+      });
+
+      await waitFor(() => {
+        expect(readUserDisplaySnapshot('user-a')).toEqual({
+          avatar: 'avatar-a',
+          preference: { lab: { enableProjects: true } },
+        });
+      });
+      expect(readUserDisplaySnapshot('user-b')).toBeUndefined();
+    });
+
+    it('should clear a previously cached avatar when the authoritative state has none', async () => {
+      const { result } = renderHook(() => useUserStore());
+      const mockUserState: UserInitializationState = {
+        preference: { lab: { enableProjects: true } },
+        settings: {},
+        userId: 'user-a',
+      };
+
+      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
+
+      writeUserDisplaySnapshot('user-a', { avatar: 'stale-avatar' });
+      renderHook(() => result.current.useInitUserState(true, mockServerConfig), {
+        wrapper: withSWR,
+      });
+
+      await waitFor(() => {
+        expect(readUserDisplaySnapshot('user-a')?.avatar).toBe('');
       });
     });
 

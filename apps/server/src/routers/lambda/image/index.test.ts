@@ -51,23 +51,29 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 // Mock FileService
 vi.mock('@/server/services/file', () => ({
-  FileService: vi.fn(() => ({
-    getKeyFromFullUrl: mockGetKeyFromFullUrl,
-    getFullFileUrl: mockGetFullFileUrl,
-  })),
+  FileService: vi.fn(function () {
+    return {
+      getKeyFromFullUrl: mockGetKeyFromFullUrl,
+      getFullFileUrl: mockGetFullFileUrl,
+    };
+  }),
 }));
 
 // Mock AsyncTaskModel
 vi.mock('@/database/models/asyncTask', () => ({
-  AsyncTaskModel: vi.fn(() => ({
-    update: mockAsyncTaskModelUpdate,
-  })),
+  AsyncTaskModel: vi.fn(function () {
+    return {
+      update: mockAsyncTaskModelUpdate,
+    };
+  }),
 }));
 
 vi.mock('@/database/models/generationTopic', () => ({
-  GenerationTopicModel: vi.fn(() => ({
-    findById: mockGenerationTopicFindById,
-  })),
+  GenerationTopicModel: vi.fn(function () {
+    return {
+      findById: mockGenerationTopicFindById,
+    };
+  }),
 }));
 
 vi.mock('@/database/models/user', () => ({
@@ -123,8 +129,12 @@ vi.mock('@/server/routers/async/caller', () => ({
 
 // Mock drizzle-orm
 vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args) => args),
-  eq: vi.fn((a, b) => ({ a, b })),
+  and: vi.fn(function (...args) {
+    return args;
+  }),
+  eq: vi.fn(function (a, b) {
+    return { a, b };
+  }),
 }));
 
 // Mock database schemas
@@ -136,7 +146,9 @@ vi.mock('@/database/schemas', () => ({
 
 // Mock seed generator
 vi.mock('@/utils/number', () => ({
-  generateUniqueSeeds: vi.fn((count: number) => Array.from({ length: count }, (_, i) => 1000 + i)),
+  generateUniqueSeeds: vi.fn(function (count: number) {
+    return Array.from({ length: count }, (_, i) => 1000 + i);
+  }),
 }));
 
 describe('imageRouter', () => {
@@ -204,10 +216,10 @@ describe('imageRouter', () => {
       insertCallCount = 0;
       const tx = {
         insert: vi.fn().mockReturnValue({
-          values: vi.fn((value) => {
+          values: vi.fn(function (value) {
             mockInsertValues.push(value);
             return {
-              returning: vi.fn().mockImplementation(() => {
+              returning: vi.fn().mockImplementation(function () {
                 insertCallCount++;
                 if (insertCallCount === 1) return [mockBatch];
                 if (insertCallCount === 2) return mockGenerations;

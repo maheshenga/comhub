@@ -15,7 +15,7 @@ vi.mock('@lobechat/builtin-tools', () => ({
   builtinTools: [],
 }));
 vi.mock('@/locales/resources', () => ({
-  normalizeLocale: vi.fn((locale) => {
+  normalizeLocale: vi.fn(function (locale) {
     if (locale === 'en-US') return 'en';
     return locale || 'en';
   }),
@@ -248,7 +248,7 @@ describe('DiscoverService', () => {
       getAgentIndex: vi
         .fn()
         .mockResolvedValue(mockAssistantList.map((item) => ({ ...item, meta: {} }))),
-      getAgent: vi.fn().mockImplementation((identifier) => {
+      getAgent: vi.fn().mockImplementation(function (identifier) {
         const agent = mockAssistantList.find((a) => a.identifier === identifier);
         return Promise.resolve(agent ? { ...agent, meta: {} } : null);
       }),
@@ -290,7 +290,7 @@ describe('DiscoverService', () => {
           { category: 'tools', count: 5 },
           { category: 'utilities', count: 3 },
         ]),
-        getPluginDetail: vi.fn().mockImplementation((params) => {
+        getPluginDetail: vi.fn().mockImplementation(function (params) {
           const plugin = mockPluginList.find((p) => p.identifier === params.identifier);
           return Promise.resolve(plugin || null);
         }),
@@ -310,8 +310,12 @@ describe('DiscoverService', () => {
       },
     };
 
-    (AssistantStore as any).mockImplementation(() => mockAssistantStore);
-    (PluginStore as any).mockImplementation(() => mockPluginStore);
+    (AssistantStore as any).mockImplementation(function () {
+      return mockAssistantStore;
+    });
+    (PluginStore as any).mockImplementation(function () {
+      return mockPluginStore;
+    });
 
     service = new DiscoverService();
     service.market = mockMarket;

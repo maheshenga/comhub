@@ -105,7 +105,7 @@ const renderFooter = async ({
       analytics: { track: analyticsTrack },
     };
   }
-  vi.doMock('@lobehub/analytics/react', () => ({
+  vi.doMock('@/libs/analytics/client', () => ({
     useAnalytics: createAnalyticsApi,
   }));
   const renderMenuLabels = (
@@ -257,6 +257,7 @@ afterEach(() => {
   vi.doUnmock('@lobechat/const');
   vi.doUnmock('@lobehub/analytics/react');
   vi.doUnmock('@lobehub/ui');
+  vi.doUnmock('@/libs/analytics/client');
   vi.doUnmock('@/components/ChangelogModal');
   vi.doUnmock('@/components/FeedbackModal');
   vi.doUnmock('@/features/Billboard');

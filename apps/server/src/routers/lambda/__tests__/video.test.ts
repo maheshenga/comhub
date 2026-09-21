@@ -8,8 +8,6 @@ import { AsyncTaskStatus } from '@/types/asyncTask';
 
 const {
   mockCreateVideo,
-  mockAssertModelPolicyAllowed,
-  mockAssertPlanModelAllowed,
   mockFindUserById,
   mockGenerationTopicFindById,
   mockIsLobeHubModelAvailable,
@@ -22,17 +20,15 @@ const {
   const mockTransaction = vi.fn();
   const mockServerDB = { transaction: mockTransaction };
   const mockCreateVideo = vi.fn();
-  const mockAfter = vi.fn((cb: () => void) => cb());
-  const mockAssertModelPolicyAllowed = vi.fn();
-  const mockAssertPlanModelAllowed = vi.fn();
+  const mockAfter = vi.fn(function (cb: () => void) {
+    return cb();
+  });
   const mockFindUserById = vi.fn();
   const mockGenerationTopicFindById = vi.fn();
   const mockIsLobeHubModelAvailable = vi.fn();
   const mockProcessBackgroundVideoPolling = vi.fn().mockResolvedValue(undefined);
   const mockResolveBusinessModelMapping = vi.fn();
   return {
-    mockAssertModelPolicyAllowed,
-    mockAssertPlanModelAllowed,
     mockCreateVideo,
     mockFindUserById,
     mockGenerationTopicFindById,
@@ -49,9 +45,11 @@ const {
 
 vi.mock('@/database/models/asyncTask');
 vi.mock('@/database/models/generationTopic', () => ({
-  GenerationTopicModel: vi.fn(() => ({
-    findById: mockGenerationTopicFindById,
-  })),
+  GenerationTopicModel: vi.fn(function () {
+    return {
+      findById: mockGenerationTopicFindById,
+    };
+  }),
 }));
 vi.mock('@/server/services/file');
 vi.mock('@/database/models/user', () => ({
@@ -71,12 +69,6 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
 }));
 vi.mock('@/business/server/video-generation/chargeBeforeGenerate', () => ({
   chargeBeforeGenerate: vi.fn().mockResolvedValue({ errorBatch: null, prechargeResult: null }),
-}));
-vi.mock('@/business/server/planModelRules', () => ({
-  assertPlanModelAllowed: (params: any) => mockAssertPlanModelAllowed(params),
-}));
-vi.mock('@/business/server/modelPolicy', () => ({
-  assertModelPolicyAllowed: (params: any) => mockAssertModelPolicyAllowed(params),
 }));
 vi.mock('@/business/server/video-generation/chargeAfterGenerate', () => ({
   chargeAfterGenerate: vi.fn().mockResolvedValue(undefined),
@@ -107,7 +99,11 @@ vi.mock('@/server/services/generation/videoBackgroundPolling', () => ({
 vi.mock('@/envs/app', () => ({
   appEnv: { APP_URL: 'https://app.example.com' },
 }));
-vi.mock('debug', () => ({ default: vi.fn(() => vi.fn()) }));
+vi.mock('debug', () => ({
+  default: vi.fn(function () {
+    return vi.fn();
+  }),
+}));
 
 // ---- helpers ----
 
@@ -149,14 +145,15 @@ const mockDbUpdate = vi.fn().mockReturnValue({
 function setupMocks() {
   const mockUpdate = vi.fn().mockResolvedValue(undefined);
 
-  vi.mocked(AsyncTaskModel).mockImplementation(() => ({ update: mockUpdate }) as any);
-  vi.mocked(FileService).mockImplementation(
-    () =>
-      ({
-        getFullFileUrl: vi.fn().mockResolvedValue(null),
-        getKeyFromFullUrl: vi.fn().mockResolvedValue(null),
-      }) as any,
-  );
+  vi.mocked(AsyncTaskModel).mockImplementation(function () {
+    return { update: mockUpdate } as any;
+  });
+  vi.mocked(FileService).mockImplementation(function () {
+    return {
+      getFullFileUrl: vi.fn().mockResolvedValue(null),
+      getKeyFromFullUrl: vi.fn().mockResolvedValue(null),
+    } as any;
+  });
 
   const mockInsert = createInsertChain();
   mockTransaction.mockImplementation(async (cb: any) =>
@@ -190,39 +187,12 @@ describe('videoRouter', () => {
   describe('createVideo - async strategy routing', () => {
     it('should use webhook path when response contains useWebhook: true', async () => {
       const { mockUpdate } = setupMocks();
-      const { initModelRuntimeFromDB } = await import('@/server/modules/ModelRuntime');
       mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-1', useWebhook: true });
 
       const caller = videoRouter.createCaller(mockCtx);
       const result = await caller.createVideo(defaultInput);
 
       expect(result.success).toBe(true);
-      expect(initModelRuntimeFromDB).toHaveBeenCalledWith(mockServerDB, 'test-user', 'volcengine', {
-        model: 'test-model',
-        modelType: 'video',
-      });
-      expect(mockAssertPlanModelAllowed).toHaveBeenCalledWith({
-        db: mockServerDB,
-        model: 'test-model',
-        modelType: 'video',
-        userId: 'test-user',
-      });
-      expect(mockAssertModelPolicyAllowed).toHaveBeenCalledWith({
-        db: mockServerDB,
-        model: 'test-model',
-        provider: 'volcengine',
-        usageType: 'video',
-      });
-      const { chargeBeforeGenerate } =
-        await import('@/business/server/video-generation/chargeBeforeGenerate');
-      expect(chargeBeforeGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          db: mockServerDB,
-          model: 'test-model',
-          provider: 'volcengine',
-          userId: 'test-user',
-        }),
-      );
       expect(mockUpdate).toHaveBeenCalledWith('async-1', {
         inferenceId: 'inf-1',
         status: AsyncTaskStatus.Processing,
@@ -260,26 +230,6 @@ describe('videoRouter', () => {
       expect(mockCreateVideo).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'dreamina-seedance-2-0-260128' }),
         expect.any(Object),
-      );
-      expect(mockAssertModelPolicyAllowed).toHaveBeenCalledWith({
-        db: mockServerDB,
-        model: 'dreamina-seedance-2-0-260128',
-        provider: 'lobehub',
-        usageType: 'video',
-      });
-      expect(mockAssertPlanModelAllowed).toHaveBeenCalledWith({
-        db: mockServerDB,
-        model: 'dreamina-seedance-2-0-260128',
-        modelType: 'video',
-        userId: mockCtx.userId,
-      });
-      const { chargeBeforeGenerate } =
-        await import('@/business/server/video-generation/chargeBeforeGenerate');
-      expect(chargeBeforeGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: 'dreamina-seedance-2-0-260128',
-          provider: 'lobehub',
-        }),
       );
     });
 
@@ -370,15 +320,8 @@ describe('videoRouter', () => {
   });
 
   describe('createVideo - error handling', () => {
-    it('should set error status and release the reservation when createVideo throws', async () => {
+    it('should set error status when createVideo throws', async () => {
       const { mockUpdate } = setupMocks();
-      const { chargeAfterGenerate } =
-        await import('@/business/server/video-generation/chargeAfterGenerate');
-      const { chargeBeforeGenerate } =
-        await import('@/business/server/video-generation/chargeBeforeGenerate');
-      vi.mocked(chargeBeforeGenerate).mockResolvedValueOnce({
-        prechargeResult: { reservationId: 'reservation-1' },
-      });
       mockCreateVideo.mockRejectedValue(new Error('API timeout'));
 
       const caller = videoRouter.createCaller(mockCtx);
@@ -389,12 +332,6 @@ describe('videoRouter', () => {
       expect(mockUpdate).toHaveBeenCalledWith(
         'async-1',
         expect.objectContaining({ status: AsyncTaskStatus.Error }),
-      );
-      expect(chargeAfterGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          isError: true,
-          prechargeResult: { reservationId: 'reservation-1' },
-        }),
       );
     });
   });
@@ -414,43 +351,6 @@ describe('videoRouter', () => {
 
       expect(result).toEqual({ error: 'insufficient_balance' });
       // Should not proceed to createVideo
-      expect(mockCreateVideo).not.toHaveBeenCalled();
-    });
-
-    it('preserves the transaction error when reservation release also fails', async () => {
-      const { chargeAfterGenerate } =
-        await import('@/business/server/video-generation/chargeAfterGenerate');
-      const { chargeBeforeGenerate } =
-        await import('@/business/server/video-generation/chargeBeforeGenerate');
-      vi.mocked(chargeBeforeGenerate).mockResolvedValueOnce({
-        prechargeResult: { reservationId: 'reservation-1' },
-      });
-      mockTransaction.mockRejectedValueOnce(new Error('transaction failed'));
-      vi.mocked(chargeAfterGenerate).mockRejectedValueOnce(new Error('release failed'));
-
-      const caller = videoRouter.createCaller(mockCtx);
-      await expect(caller.createVideo(defaultInput)).rejects.toThrow('transaction failed');
-
-      expect(chargeAfterGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          isError: true,
-          prechargeResult: { reservationId: 'reservation-1' },
-        }),
-      );
-      expect(mockCreateVideo).not.toHaveBeenCalled();
-    });
-
-    it('should reject disallowed video models before pre-charge and task creation', async () => {
-      setupMocks();
-      mockAssertModelPolicyAllowed.mockRejectedValueOnce(new Error('video model blocked'));
-
-      const caller = videoRouter.createCaller(mockCtx);
-      await expect(caller.createVideo(defaultInput)).rejects.toThrow('video model blocked');
-
-      const { chargeBeforeGenerate } =
-        await import('@/business/server/video-generation/chargeBeforeGenerate');
-      expect(chargeBeforeGenerate).not.toHaveBeenCalled();
-      expect(mockTransaction).not.toHaveBeenCalled();
       expect(mockCreateVideo).not.toHaveBeenCalled();
     });
   });

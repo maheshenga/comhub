@@ -13,11 +13,14 @@ import { type DevDockLayout as DevDockLayoutComponent } from './index';
 
 let SPAGlobalProvider: typeof SPAGlobalProviderComponent;
 let DevDockLayout: typeof DevDockLayoutComponent;
-const { cacheGateReleased, canAccessDevDock, devDockRenderError } = vi.hoisted(() => ({
-  cacheGateReleased: { current: true },
-  canAccessDevDock: vi.fn(() => false),
-  devDockRenderError: { current: null as Error | null },
-}));
+const { cacheGateReleased, canAccessDevDock, devDockRenderError, initializeBuiltin } = vi.hoisted(
+  () => ({
+    cacheGateReleased: { current: true },
+    canAccessDevDock: vi.fn(() => false),
+    devDockRenderError: { current: null as Error | null },
+    initializeBuiltin: vi.fn(() => null),
+  }),
+);
 
 vi.mock('@lobehub/ui', async (importOriginal) => {
   const React = await import('react');
@@ -78,7 +81,7 @@ vi.mock('@/layout/AuthProvider', async () => {
 
   return {
     default: ({ children }: { children?: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'spa-auth-provider' }, children),
+      React.createElement(React.Fragment, null, children),
   };
 });
 
@@ -145,7 +148,8 @@ vi.mock('@/layout/GlobalProvider/ServerVersionOutdatedAlert', () => ({
 }));
 
 vi.mock('@/layout/GlobalProvider/StoreInitialization', () => ({
-  default: () => <div data-testid="store-initialization" />,
+  BuiltinAgentInitialization: initializeBuiltin,
+  default: () => null,
 }));
 
 vi.mock('@/store/serverConfig/Provider', async () => {
@@ -179,6 +183,7 @@ describe('SPAGlobalProvider', () => {
   }, 30_000);
 
   beforeEach(() => {
+    initializeBuiltin.mockClear();
     cacheGateReleased.current = true;
     canAccessDevDock.mockReturnValue(false);
     devDockRenderError.current = null;
@@ -187,20 +192,27 @@ describe('SPAGlobalProvider', () => {
     setPostRenderReady(false);
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('uses the SPA AuthProvider so sessions are synced into the user store', () => {
-    render(
+  it('defers builtin subscriptions until persistent cache hydration has completed', () => {
+    cacheGateReleased.current = false;
+    const { unmount } = render(
       <SPAGlobalProvider>
-        <div>SPA content</div>
+        <div />
       </SPAGlobalProvider>,
     );
+    expect(initializeBuiltin).not.toHaveBeenCalled();
+    unmount();
 
-    expect(screen.getByTestId('spa-auth-provider')).toBeInTheDocument();
-    expect(screen.getByTestId('store-initialization')).toBeInTheDocument();
-    expect(screen.getByText('SPA content')).toBeInTheDocument();
+    cacheGateReleased.current = true;
+    render(
+      <SPAGlobalProvider>
+        <div />
+      </SPAGlobalProvider>,
+    );
+    expect(initializeBuiltin).toHaveBeenCalled();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('provides Market auth from the SPA global provider', () => {

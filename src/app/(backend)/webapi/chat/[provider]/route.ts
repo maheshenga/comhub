@@ -2,6 +2,7 @@ import {
   REQUEST_ASSISTANT_MESSAGE_ID_HEADER,
   REQUEST_MESSAGE_ID_HEADER,
   REQUEST_OPERATION_ID_HEADER,
+  REQUEST_TOPIC_ID_HEADER,
 } from '@lobechat/const';
 import { AGENT_RUNTIME_ERROR_SET, type ChatCompletionErrorPayload } from '@lobechat/model-runtime';
 import { ChatErrorType } from '@lobechat/types';
@@ -28,6 +29,7 @@ const getRequestMetadata = (req: Request) => {
     messageId: getStringHeader(req, REQUEST_MESSAGE_ID_HEADER),
     assistantMessageId: getStringHeader(req, REQUEST_ASSISTANT_MESSAGE_ID_HEADER),
     operationId: getStringHeader(req, REQUEST_OPERATION_ID_HEADER),
+    topicId: getStringHeader(req, REQUEST_TOPIC_ID_HEADER),
   };
 
   const entries = Object.entries(metadata).filter(([, value]) => value);

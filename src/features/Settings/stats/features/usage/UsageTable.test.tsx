@@ -3,11 +3,19 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react';
 import { type ReactNode } from 'react';
+import { TooltipGroup } from '@lobehub/ui';
+import userEvent from '@testing-library/user-event';
+import { createInstance } from 'i18next';
+import type { ReactNode } from 'react';
+import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UsageRecordItem } from '@/types/usage/usageRecord';
 
+import spend from '@/locales/default/spend';
+
+import zhSpend from '../../../../../../locales/zh-CN/spend.json';
 import UsageTable from './UsageTable';
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +38,24 @@ vi.mock('@lobehub/ui', () => ({
   Tag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Tooltip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+vi.unmock('react-i18next');
+
+vi.mock('@/components/LobeIcons', () => ({
+  ProviderIcon: ({ provider }: { provider: string }) => <span>{provider}</span>,
+}));
+
+const rows = Array.from({ length: 12 }, (_, index) => ({
+  createdAt: new Date(2026, 0, index + 1).toISOString(),
+  id: `row-${index + 1}`,
+  model: 'gpt-5-mini',
+  provider: 'openai',
+  spend: index,
+  totalInputTokens: index,
+  totalOutputTokens: index,
+  totalTokens: index * 2,
+  tps: 1,
+  ttft: 1,
+  type: index === 0 ? 'speechRecognition' : 'chat',
 }));
 
 vi.mock('@lobehub/ui/base-ui', () => ({
@@ -96,6 +122,7 @@ vi.mock('@/components/InlineTable', () => ({
       {dataSource.map((item) => (
         <div data-testid="usage-row" key={item.id}>
           {item.model}
+// Keep pagination lightweight while exercising the actual type column renderer.
         </div>
       ))}
     </div>
@@ -173,6 +200,42 @@ describe('UsageTable', () => {
       makeRecord('record-1', 'claude-opus-5', 'chat', '2026-07-02T10:00:00.000Z'),
       makeRecord('record-2', 'gpt-5.4', 'image', '2026-07-03T10:00:00.000Z'),
     ];
+  it.each([
+    ['en-US', 'Voice Transcription'],
+    ['zh-CN', '语音转写'],
+  ])('renders the speech-recognition icon and label in %s', async (lng, label) => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng,
+      resources: { 'en-US': { spend }, 'zh-CN': { spend: zhSpend } },
+    });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TooltipGroup popupContainer={document.body}>
+          <MemoryRouter>
+            <UsageTable />
+          </MemoryRouter>
+        </TooltipGroup>
+      </I18nextProvider>,
+    );
+
+    const cell = screen.getByTestId('type-row-1');
+    expect(cell.querySelector('svg.lucide-mic')).toBeInTheDocument();
+    expect(cell.querySelector('svg.lucide-circle-dot-dashed')).not.toBeInTheDocument();
+    await userEvent.hover(cell.querySelector('svg')!);
+    expect(await screen.findByText(label)).toBeInTheDocument();
+  });
+
+  it('moves to the next page when only the page changes', async () => {
+    renderTable();
+    expect(screen.getByTestId('rows')).toHaveTextContent('row-1,row-2,row-3,row-4,row-5');
+
+    // Page and page size are written in one update. Writing them through two
+    // separate query-param setters lost the page, because the second setter
+    // rebuilt the URL from the params captured before the first one navigated.
+    await userEvent.click(screen.getByText('next-page'));
+
+    expect(screen.getByTestId('rows')).toHaveTextContent('row-6,row-7,row-8,row-9,row-10');
   });
 
   it('exposes upstream usage filters and narrows rows by model search', () => {

@@ -6,7 +6,9 @@ import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { asrRouter } from '../asr';
 
 vi.mock('@/database/core/db-adaptor', () => ({
-  getServerDB: vi.fn(() => ({})),
+  getServerDB: vi.fn(function () {
+    return {};
+  }),
 }));
 
 const transcribeMock = vi.fn();
@@ -16,12 +18,16 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
 
 const findByIdMock = vi.fn();
 vi.mock('@/database/models/file', () => ({
-  FileModel: vi.fn(() => ({ findById: findByIdMock })),
+  FileModel: vi.fn(function () {
+    return { findById: findByIdMock };
+  }),
 }));
 
 const getFileByteArrayMock = vi.fn();
 vi.mock('@/server/services/file', () => ({
-  FileService: vi.fn(() => ({ getFileByteArray: getFileByteArrayMock })),
+  FileService: vi.fn(function () {
+    return { getFileByteArray: getFileByteArrayMock };
+  }),
 }));
 
 const caller = asrRouter.createCaller({ jwtPayload: { userId: 'u1' }, userId: 'u1' } as any);

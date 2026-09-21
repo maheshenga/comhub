@@ -165,18 +165,20 @@ export class S3 {
     await this.client.send(command);
   }
 
-  public async createPreSignedUrl(key: string): Promise<string> {
-    const upload = await this.createPreSignedUpload(key);
+  public async createPreSignedUrl(key: string, contentLength?: number): Promise<string> {
+    const upload = await this.createPreSignedUpload(key, contentLength);
     return upload.url;
   }
 
   private async createPreSignedUploadWithAcl(
     key: string,
     acl?: typeof PUBLIC_READ_ACL_HEADER,
+    contentLength?: number,
   ): Promise<PreSignedUpload> {
     const command = new PutObjectCommand({
       ACL: acl,
       Bucket: this.bucket,
+      ...(contentLength === undefined ? {} : { ContentLength: contentLength }),
       Key: key,
     });
 
@@ -188,12 +190,22 @@ export class S3 {
     };
   }
 
-  public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return this.createPreSignedUploadWithAcl(key, this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined);
+  public async createPreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return this.createPreSignedUploadWithAcl(
+      key,
+      this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined,
+      contentLength,
+    );
   }
 
-  public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return this.createPreSignedUploadWithAcl(key);
+  public async createPrivatePreSignedUpload(
+    key: string,
+    contentLength?: number,
+  ): Promise<PreSignedUpload> {
+    return this.createPreSignedUploadWithAcl(key, undefined, contentLength);
   }
 
   public async createMultipartUpload(key: string, contentType?: string): Promise<string> {
@@ -215,9 +227,11 @@ export class S3 {
     key: string,
     uploadId: string,
     partNumber: number,
+    contentLength?: number,
   ): Promise<string> {
     const command = new UploadPartCommand({
       Bucket: this.bucket,
+      ...(contentLength === undefined ? {} : { ContentLength: contentLength }),
       Key: key,
       PartNumber: partNumber,
       UploadId: uploadId,

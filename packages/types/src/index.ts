@@ -78,6 +78,8 @@ export * from './work';
 export * from './admin';
 export * from './adminAudit';
 export * from './adminCommand';
+export * from './acceptanceComment';
+export * from './acceptanceFlow';
 export * from './agentRuntime';
 export * from './openai/chat';
 export * from './openai/plugin';
