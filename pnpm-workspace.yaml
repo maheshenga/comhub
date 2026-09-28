@@ -60,6 +60,11 @@ overrides:
   '@react-pdf/image': 3.0.4
   '@types/react': 19.2.13
   '@vitest/coverage-v8': 5.0.0
+  # 2026-09-29: @lobehub/ui 5.51.2 removed the NeuralNetworkLoading export and the
+  # Empty padding/paddingBlock props, hard-failing the Docker SPA build and tsgo.
+  # 5.48.2 is the version of the last successful image build (2026-09-21, run 35667858992).
+  # Bump this override together with the source adaptation when upstream re-adds the API.
+  '@lobehub/ui': 5.48.2
   antd: 6.3.5
   baseline-browser-mapping: 2.10.31
   drizzle-orm: ^0.45.2
