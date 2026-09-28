@@ -269,4 +269,16 @@ describe('Docker workspace manifests', () => {
     expect(installIdx).toBeGreaterThan(-1);
     expect(copyIdx).toBeLessThan(installIdx);
   });
+
+  it('copies the prepare hook before pnpm i', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const copyIdx = dockerfile.indexOf(
+      'COPY scripts/configureGitHooks.mjs ./scripts/configureGitHooks.mjs',
+    );
+    const installIdx = dockerfile.indexOf('\n    pnpm i &&');
+
+    expect(copyIdx).toBeGreaterThan(-1);
+    expect(installIdx).toBeGreaterThan(-1);
+    expect(copyIdx).toBeLessThan(installIdx);
+  });
 });

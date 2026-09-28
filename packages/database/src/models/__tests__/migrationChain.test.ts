@@ -73,4 +73,76 @@ describe('ComHub v2.2.7 workspace/device/aiInfra migration chain', () => {
     );
     expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "devices_user_id_device_id_unique"');
   });
+
+  it('keeps the carry-forward chain after the legacy cutoff', () => {
+    const journal = JSON.parse(
+      readFileSync(path.join(migrationsDir, 'meta/_journal.json'), 'utf8'),
+    ) as {
+      entries: { idx: number; tag: string; when: number }[];
+    };
+    const cutoffTag = '0177_add_subscription_payments';
+    const carryForwardTag = '0178_repair_migration_chain';
+    const cutoffIndex = journal.entries.findIndex((entry) => entry.tag === cutoffTag);
+    const carryForwardIndex = journal.entries.findIndex((entry) => entry.tag === carryForwardTag);
+
+    expect(cutoffIndex).toBeGreaterThanOrEqual(0);
+    expect(carryForwardIndex).toBeGreaterThan(cutoffIndex);
+
+    expect(journal.entries[carryForwardIndex + 1]?.tag).toBe(
+      '0149_goals_recovery_and_document_evidence',
+    );
+
+    const legacyEntries = journal.entries.slice(0, carryForwardIndex);
+    const carryForwardEntries = journal.entries.slice(carryForwardIndex);
+    const legacyMaxWhen = Math.max(...legacyEntries.map((entry) => entry.when));
+    const latestMergedEntry = journal.entries.find(
+      (entry) => entry.tag === '0166_device_architecture',
+    );
+    const legacyIndexes = new Set(legacyEntries.map((entry) => entry.idx));
+
+    const historicalRepairEntries = journal.entries.slice(cutoffIndex + 1, carryForwardIndex);
+    expect(historicalRepairEntries).toHaveLength(22);
+    expect(historicalRepairEntries.slice(0, 4)).toEqual([
+      {
+        idx: 127,
+        version: '7',
+        when: 1784716592911,
+        tag: '0127_add_topic_comments',
+        breakpoints: true,
+      },
+      {
+        idx: 128,
+        version: '7',
+        when: 1784898202325,
+        tag: '0128_notifications_add_workspace_id',
+        breakpoints: true,
+      },
+      {
+        idx: 129,
+        version: '7',
+        when: 1784941780510,
+        tag: '0129_workspace_members_unique_active_owner',
+        breakpoints: true,
+      },
+      {
+        idx: 130,
+        version: '7',
+        when: 1785044468256,
+        tag: '0130_notifications_add_context',
+        breakpoints: true,
+      },
+    ]);
+
+    expect(carryForwardEntries[0].when).toBeGreaterThan(legacyMaxWhen);
+    expect(latestMergedEntry).toBeDefined();
+    expect(carryForwardEntries[0].when).toBeGreaterThan(latestMergedEntry!.when);
+    expect(legacyIndexes.has(carryForwardEntries[0].idx)).toBe(false);
+    const repairSql = readFileSync(path.join(migrationsDir, `${carryForwardTag}.sql`), 'utf8');
+    expect(repairSql).not.toContain('-- Source: 0149_');
+    for (const entry of historicalRepairEntries) {
+      expect(repairSql).toContain(`-- Source: ${entry.tag}.sql`);
+      expect(repairSql).toContain(`-- Historical created_at: ${entry.when}`);
+      expect(repairSql).toContain(`WHERE "created_at" = ${entry.when}`);
+    }
+  });
 });

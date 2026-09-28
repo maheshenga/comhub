@@ -21,6 +21,27 @@ export const V2218_APPEND_TAGS = [
   '0166_device_architecture',
 ];
 
+const LEGACY_CUTOFF_TAG = '0177_add_subscription_payments';
+const REPAIR_MIGRATION_TAG = '0178_repair_migration_chain';
+const LATEST_MERGED_MIGRATION_TAG = '0166_device_architecture';
+const REPAIR_SOURCE_TAGS = [
+  '0127_add_topic_comments',
+  '0128_notifications_add_workspace_id',
+  '0129_workspace_members_unique_active_owner',
+  '0130_notifications_add_context',
+];
+const REPAIR_SOURCE_COUNT = 22;
+const HISTORICAL_REPAIR_ENTRIES = [
+  { idx: 127, tag: '0127_add_topic_comments', when: 1784716592911 },
+  { idx: 128, tag: '0128_notifications_add_workspace_id', when: 1784898202325 },
+  {
+    idx: 129,
+    tag: '0129_workspace_members_unique_active_owner',
+    when: 1784941780510,
+  },
+  { idx: 130, tag: '0130_notifications_add_context', when: 1785044468256 },
+];
+
 const readJournal = (rootDirectory) => {
   const migrationsDirectory = path.join(rootDirectory, 'packages/database/migrations');
   const journalPath = path.join(migrationsDirectory, 'meta/_journal.json');
@@ -112,6 +133,101 @@ export const verifyMigrationChain = ({
     );
   }
 
+  const legacyCutoffIndex = entries.findIndex((entry) => entry.tag === LEGACY_CUTOFF_TAG);
+  const repairIndex = entries.findIndex((entry) => entry.tag === REPAIR_MIGRATION_TAG);
+
+  if (legacyCutoffIndex < 0) {
+    errors.push(`Missing legacy migration cutoff: ${LEGACY_CUTOFF_TAG}`);
+  }
+  if (repairIndex < 0) {
+    errors.push(`Missing repair migration: ${REPAIR_MIGRATION_TAG}`);
+  }
+
+  if (legacyCutoffIndex >= 0 && repairIndex >= 0) {
+    if (repairIndex <= legacyCutoffIndex) {
+      errors.push(
+        `${REPAIR_MIGRATION_TAG} must be appended after ${LEGACY_CUTOFF_TAG} in the journal`,
+      );
+    }
+    const firstPostRepairTag = '0149_goals_recovery_and_document_evidence';
+    const firstPostRepairIndex = entries.findIndex((entry) => entry.tag === firstPostRepairTag);
+    if (firstPostRepairIndex !== repairIndex + 1) {
+      errors.push(`${REPAIR_MIGRATION_TAG} must be immediately before ${firstPostRepairTag}`);
+    }
+
+    const historicalRepairEntries = entries.slice(legacyCutoffIndex + 1, repairIndex);
+    if (historicalRepairEntries.length !== REPAIR_SOURCE_COUNT) {
+      errors.push(
+        `Expected ${REPAIR_SOURCE_COUNT} historical carry-forward entries before ${REPAIR_MIGRATION_TAG}, got ${historicalRepairEntries.length}`,
+      );
+    }
+
+    HISTORICAL_REPAIR_ENTRIES.forEach((expected, index) => {
+      const actual = historicalRepairEntries[index];
+      if (
+        !actual ||
+        actual.tag !== expected.tag ||
+        actual.idx !== expected.idx ||
+        actual.when !== expected.when
+      ) {
+        errors.push(
+          `Historical repair entry ${index + 1} changed: expected ${expected.tag} (${expected.idx}, ${expected.when}), got ${actual?.tag ?? '<missing>'} (${actual?.idx ?? '<missing>'}, ${actual?.when ?? '<missing>'})`,
+        );
+      }
+    });
+
+    const actualRepairSourceTags = historicalRepairEntries
+      .slice(0, REPAIR_SOURCE_TAGS.length)
+      .map((entry) => entry.tag);
+    if (actualRepairSourceTags.join('\u0000') !== REPAIR_SOURCE_TAGS.join('\u0000')) {
+      errors.push(
+        `Repair source migrations are not contiguous: expected ${REPAIR_SOURCE_TAGS.join(', ')}, got ${actualRepairSourceTags.join(', ')}`,
+      );
+    }
+
+    const repairSqlPath = path.join(migrationsDirectory, `${REPAIR_MIGRATION_TAG}.sql`);
+    if (existsSync(repairSqlPath)) {
+      const repairSql = readFileSync(repairSqlPath, 'utf8');
+      historicalRepairEntries.forEach((entry) => {
+        const sourceMarker = `-- Source: ${entry.tag}.sql`;
+        const timestampMarker = `-- Historical created_at: ${entry.when}`;
+        const guardMarker = `WHERE "created_at" = ${entry.when}`;
+        if (!repairSql.includes(sourceMarker)) {
+          errors.push(`Repair migration is missing source marker: ${sourceMarker}`);
+        }
+        if (!repairSql.includes(timestampMarker) || !repairSql.includes(guardMarker)) {
+          errors.push(`Repair migration is missing historical guard: ${entry.tag}`);
+        }
+      });
+    }
+
+    const repairEntry = entries[repairIndex];
+    const previousEntries = entries.slice(0, repairIndex);
+    const previousMaxWhen = Math.max(...previousEntries.map((entry) => entry.when));
+    const latestMergedMigration = entries.find(
+      (entry) => entry.tag === LATEST_MERGED_MIGRATION_TAG,
+    );
+    // Keep this timestamp above every historical entry so the repair also runs
+    // on databases that reached a later appended migration before the gap was
+    // detected. Journal order still places it before the 0149+ migrations.
+    if (repairEntry.when <= previousMaxWhen) {
+      errors.push(
+        `${REPAIR_MIGRATION_TAG} timestamp ${repairEntry.when} is not after the historical maximum ${previousMaxWhen}`,
+      );
+    }
+    if (latestMergedMigration && repairEntry.when <= latestMergedMigration.when) {
+      errors.push(
+        `${REPAIR_MIGRATION_TAG} timestamp ${repairEntry.when} must be after ${LATEST_MERGED_MIGRATION_TAG} timestamp ${latestMergedMigration.when}`,
+      );
+    }
+    if (previousEntries.some((entry) => entry.idx === repairEntry.idx)) {
+      errors.push(`Repair migration idx ${repairEntry.idx} collides with the historical journal`);
+    }
+    if (new Set(historicalRepairEntries.map((entry) => entry.tag)).size !== REPAIR_SOURCE_COUNT) {
+      errors.push('Historical carry-forward migration tags must be unique');
+    }
+  }
+
   const verifyAppend = (version, expectedTags) => {
     const appendStart = entries.findIndex((entry) => entry.tag === expectedTags[0]);
     if (appendStart < 0) {
@@ -128,7 +244,9 @@ export const verifyMigrationChain = ({
       );
     }
 
-    const previousEntries = entries.slice(0, appendStart);
+    const previousEntries = entries
+      .slice(0, appendStart)
+      .filter((entry) => entry.tag !== REPAIR_MIGRATION_TAG);
     const previousMaxWhen = Math.max(...previousEntries.map((entry) => entry.when));
 
     appendEntries.forEach((entry, index) => {

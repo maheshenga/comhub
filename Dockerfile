@@ -71,6 +71,9 @@ COPY apps/module-worker/package.json ./apps/module-worker/package.json
 COPY apps/desktop/src/main/package.json ./apps/desktop/src/main/package.json
 COPY apps/share/package.json ./apps/share/package.json
 COPY apps/workbench/package.json ./apps/workbench/package.json
+# pnpm runs the root package's prepare hook during install, so keep the hook
+# available in the dependency cache layer before installing workspace packages.
+COPY scripts/configureGitHooks.mjs ./scripts/configureGitHooks.mjs
 
 # @neondatabase/serverless is required at load time by drizzle-orm/neon-serverless, which the
 # bundled Elasticsearch sync CLI imports through the shared server DB factory even when
