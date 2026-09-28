@@ -59,13 +59,21 @@ services:
       - /data:uid=10001,gid=10001,mode=0770
 
   module-app-s3-init:
-    image: quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    image: public.ecr.aws/aws-cli/aws-cli@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6
     entrypoint: /bin/sh
+    environment:
+      AWS_ACCESS_KEY_ID: module_app_worker_test
+      AWS_SECRET_ACCESS_KEY: module_app_worker_test_secret
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: 'true'
     command:
       - -ec
       - |
-        mc alias set module-app-s3 http://module-app-s3:9000 module_app_worker_test module_app_worker_test_secret
-        mc mb module-app-s3/module-app-worker-test --ignore-existing
+        if aws --endpoint-url http://module-app-s3:9000 s3api head-bucket --bucket module-app-worker-test 2>/dev/null; then
+          echo 'bucket module-app-worker-test already exists'
+        else
+          aws --endpoint-url http://module-app-s3:9000 s3api create-bucket --bucket module-app-worker-test
+        fi
     depends_on:
       module-app-s3:
         condition: service_healthy
