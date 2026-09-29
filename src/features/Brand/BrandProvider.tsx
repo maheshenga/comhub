@@ -34,7 +34,7 @@ const DEFAULT_BRAND: BrandConfig = {
   communityForkAndChatLabel: null,
   copyrightText: DEFAULT_RUNTIME_BRAND.copyrightText,
   defaultSkillName: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
-  faviconUrl: null,
+  faviconUrl: DEFAULT_RUNTIME_BRAND.faviconUrl ?? null,
   homeMessengerEnabled: true,
   homeMessengerBannerTitle: null,
   loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
