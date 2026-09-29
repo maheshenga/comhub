@@ -54,13 +54,13 @@ importers:
         version: 3.1.0(eslint@10.0.0(jiti@2.7.0)(supports-color@9.4.0))(supports-color@9.4.0)(typescript@6.0.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.2
-        version: 3.0.2(electron@43.2.0(supports-color@9.4.0))
+        version: 3.0.2(electron@43.5.0(supports-color@9.4.0))
       '@electron-toolkit/tsconfig':
         specifier: ^2.0.0
         version: 2.0.0(@types/node@24.13.3)
       '@electron-toolkit/utils':
         specifier: ^4.0.0
-        version: 4.0.0(electron@43.2.0(supports-color@9.4.0))
+        version: 4.0.0(electron@43.5.0(supports-color@9.4.0))
       '@lobechat/chat-adapter-imessage':
         specifier: workspace:*
         version: link:../../packages/chat-adapter-imessage
@@ -158,8 +158,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)
       electron:
-        specifier: 43.2.0
-        version: 43.2.0(supports-color@9.4.0)
+        specifier: 43.5.0
+        version: 43.5.0(supports-color@9.4.0)
       electron-builder:
         specifier: 26.16.1
         version: 26.16.1(electron-builder-squirrel-windows@26.16.1)(supports-color@9.4.0)
@@ -406,8 +406,8 @@ importers:
         version: 2.2.0
     devDependencies:
       electron:
-        specifier: ^43.2.0
-        version: 43.2.0(supports-color@9.4.0)
+        specifier: ^43.5.0
+        version: 43.5.0(supports-color@9.4.0)
 
   ../../packages/electron-mac-notifications:
     dependencies:
@@ -3021,12 +3021,6 @@ packages:
       react: 19.2.7
       react-dom: 19.2.7
 
-  '@rc-component/util@1.11.1':
-    resolution: {integrity: sha512-awVlI3ub2vqfqkYxOBc/uQ0efm3jw0wcrhtO/YWLyZfxiKXczKwNbVuhlnyxytDt7H9pbbVQiqr+O6MLATtRYg==}
-    peerDependencies:
-      react: 19.2.7
-      react-dom: 19.2.7
-
   '@rc-component/util@1.13.0':
     resolution: {integrity: sha512-IXf2zBfZrbQGT+G8LxnoICDBGnMHIPIiq5HCRn3EDfKUx28x1rnbZBj46ULJf4sM8ImTG1SepqfNBdxZziqQ4w==}
     peerDependencies:
@@ -5249,8 +5243,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@43.2.0:
-    resolution: {integrity: sha512-80zvrgG7ZRXD+tD0IyLvrnN9n+veSxadMRsMaC9wKKP3iUbtC7rGM8+dVuCmOb0Rrwwv8ESW4awnUZh9Hbp1fA==}
+  electron@43.5.0:
+    resolution: {integrity: sha512-nV2aWuKatmUrxrAWP2pNIynNX7dy83TCAz+6KnsbK7hDVLE+6fa2iouOtir41AboZTa+J5w2UgicWHAqUaaUJw==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -9343,7 +9337,7 @@ snapshots:
       '@babel/runtime': 7.29.7
       '@emotion/hash': 0.8.0
       '@emotion/unitless': 0.7.5
-      '@rc-component/util': 1.11.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@rc-component/util': 1.13.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       clsx: 2.1.1
       csstype: 3.2.3
       react: 19.2.7
@@ -9760,17 +9754,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@43.2.0(supports-color@9.4.0))':
+  '@electron-toolkit/preload@3.0.2(electron@43.5.0(supports-color@9.4.0))':
     dependencies:
-      electron: 43.2.0(supports-color@9.4.0)
+      electron: 43.5.0(supports-color@9.4.0)
 
   '@electron-toolkit/tsconfig@2.0.0(@types/node@24.13.3)':
     dependencies:
       '@types/node': 24.13.3
 
-  '@electron-toolkit/utils@4.0.0(electron@43.2.0(supports-color@9.4.0))':
+  '@electron-toolkit/utils@4.0.0(electron@43.5.0(supports-color@9.4.0))':
     dependencies:
-      electron: 43.2.0(supports-color@9.4.0)
+      electron: 43.5.0(supports-color@9.4.0)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -10512,7 +10506,7 @@ snapshots:
       '@lobehub/ui': 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.18.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       antd: 6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       antd-style: 4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
-      es-toolkit: 1.51.0
+      es-toolkit: 1.52.0
       lucide-react: 0.469.0(react@19.2.7)
       polished: 4.3.1
       react: 19.2.7
@@ -11502,13 +11496,6 @@ snapshots:
       clsx: 2.1.1
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
-
-  '@rc-component/util@1.11.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      is-mobile: 5.0.0
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      react-is: 18.3.1
 
   '@rc-component/util@1.13.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
@@ -13706,7 +13693,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@43.2.0(supports-color@9.4.0):
+  electron@43.5.0(supports-color@9.4.0):
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0(supports-color@9.4.0)
