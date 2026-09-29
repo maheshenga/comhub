@@ -9,6 +9,12 @@ export const getProtocolScheme = (): string => {
   const bundleId = app.name;
   const appPath = app.getPath('exe');
 
+  // Branded builds (productName ComHub / executable ComHub.exe) register the
+  // `comhub://` scheme via the desktop build profile; match that at runtime.
+  if (bundleId?.toLowerCase().includes('comhub') || appPath?.toLowerCase().includes('comhub')) {
+    return 'comhub';
+  }
+
   // Determine by bundle identifier
   if (bundleId?.toLowerCase().includes('nightly')) return 'lobehub-nightly';
   if (bundleId?.toLowerCase().includes('beta')) return 'lobehub-beta';
@@ -93,13 +99,25 @@ function validateMcpSchema(schema: any): schema is McpSchema {
  * @param url Protocol URL
  * @returns Parse result, including basic structure and all query parameters
  */
+/**
+ * Protocol schemes the app accepts for deep links. Covers the upstream
+ * schemes, channel variants, and the branded build's scheme (the build
+ * profile's `protocolScheme`, e.g. `comhub`), so `comhub://plugin/install`
+ * deep links work in the branded installer.
+ */
+const VALID_PROTOCOL_PREFIXES = ['lobehub', 'comhub'];
+
+const isAcceptedProtocolScheme = (scheme: string): boolean =>
+  VALID_PROTOCOL_PREFIXES.some((prefix) =>
+    scheme === prefix ? true : scheme.startsWith(`${prefix}-`) && scheme.length > prefix.length + 1,
+  );
+
 export const parseProtocolUrl = (url: string): ProtocolUrlParsed | null => {
   try {
     const parsedUrl = new URL(url);
 
     // Support multiple protocol schemes
-    const validProtocols = ['lobehub:', 'lobehub-dev:', 'lobehub-nightly:', 'lobehub-beta:'];
-    if (!validProtocols.includes(parsedUrl.protocol)) {
+    if (!isAcceptedProtocolScheme(parsedUrl.protocol.replace(/:$/, ''))) {
       return null;
     }
 

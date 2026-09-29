@@ -9,6 +9,7 @@ import { memo } from 'react';
 
 import { OFFICIAL_SITE } from '@/const/url';
 import { isCustomORG } from '@/const/version';
+import { useBrand } from '@/features/Brand';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   logoLink: css`
@@ -22,6 +23,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 const BrandWatermark = memo<Omit<FlexboxProps, 'children'>>(({ style, ...rest }) => {
+  const brand = useBrand();
+
+  // Runtime brand wins when configured (admin brand settings or the built-in
+  // XuanguoAI defaults); otherwise fall back to the upstream attribution.
+  const isRuntimeBranded = Boolean(brand.logoUrl) || brand.name !== 'LobeHub';
+
   return (
     <Flexbox
       horizontal
@@ -33,8 +40,8 @@ const BrandWatermark = memo<Omit<FlexboxProps, 'children'>>(({ style, ...rest })
       {...rest}
     >
       <span>Powered by</span>
-      {isCustomORG ? (
-        <span>{ORG_NAME}</span>
+      {isRuntimeBranded || isCustomORG ? (
+        <span>{brand.name || ORG_NAME}</span>
       ) : (
         <a
           className={styles.logoLink}

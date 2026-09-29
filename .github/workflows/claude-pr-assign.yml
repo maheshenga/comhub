@@ -32,7 +32,10 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Fall back to the built-in token: the fork has no upstream GH_TOKEN
+          # secret, and this step only posts a comment (pull-requests: write
+          # is already granted at the job level).
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           if [[ "$HEAD_REF" == hotfix/* ]] || [[ "$HEAD_REF" == release/* ]]; then
             echo "✅ Release/hotfix branch ($HEAD_REF) -> main is allowed"
@@ -126,4 +129,4 @@ jobs:
         run: |
           gh pr edit ${{ github.event.pull_request.number }} --remove-label "trigger:assign"
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
