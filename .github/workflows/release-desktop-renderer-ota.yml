@@ -69,7 +69,7 @@ jobs:
       - name: Resolve update server base URL
         id: server
         env:
-          UPDATE_SERVER_URL: ${{ secrets.UPDATE_SERVER_URL }}
+          UPDATE_SERVER_URL: ${{ vars.DESKTOP_RELEASE_UPDATE_SERVER_URL }}
         run: |
           set -euo pipefail
           UPDATE_SERVER_BASE_URL="${UPDATE_SERVER_URL%/}"
@@ -128,6 +128,8 @@ jobs:
           cloud-repository: ${{ vars.OVERLAY_REPOSITORY }}
           cloud-token: ${{ secrets.LOBEHUB_CLOUD_TOKEN }}
           node-version: ${{ env.NODE_VERSION }}
+        # Cloud overlay is optional: OSS-only builds are valid when no
+        # commercial overlay repository is configured for this fork.
 
       - name: Set package version
         id: app_version
@@ -143,7 +145,7 @@ jobs:
           BASE_MAIN_HASH: ${{ steps.base.outputs.main_hash }}
           RENDERER_OTA_PUBLIC_KEY: ${{ secrets.RENDERER_OTA_PUBLIC_KEY }}
           UPDATE_CHANNEL: ${{ inputs.channel }}
-          UPDATE_SERVER_URL: ${{ secrets.UPDATE_SERVER_URL }}
+          UPDATE_SERVER_URL: ${{ vars.DESKTOP_RELEASE_UPDATE_SERVER_URL }}
         run: |
           set -euo pipefail
           MAIN_HASH=$(node apps/desktop/scripts/mainHash.mjs)
@@ -192,12 +194,12 @@ jobs:
         run: npm run build:renderer --prefix=./apps/desktop
         env:
           UPDATE_CHANNEL: ${{ inputs.channel }}
-          UPDATE_SERVER_URL: ${{ secrets.UPDATE_SERVER_URL }}
+          UPDATE_SERVER_URL: ${{ vars.DESKTOP_RELEASE_UPDATE_SERVER_URL }}
           APP_URL: http://localhost:3015
           DATABASE_URL: 'postgresql://postgres@localhost:5432/postgres'
           KEY_VAULTS_SECRET: 'oLXWIiR/AKF+rWaqy9lHkrYgzpATbW3CtJp3UfkVgpE='
-          NEXT_PUBLIC_DESKTOP_PROJECT_ID: ${{ inputs.channel == 'stable' && secrets.UMAMI_STABLE_DESKTOP_PROJECT_ID || secrets.UMAMI_BETA_DESKTOP_PROJECT_ID }}
-          NEXT_PUBLIC_DESKTOP_UMAMI_BASE_URL: ${{ inputs.channel == 'stable' && secrets.UMAMI_STABLE_DESKTOP_BASE_URL || secrets.UMAMI_BETA_DESKTOP_BASE_URL }}
+          NEXT_PUBLIC_DESKTOP_PROJECT_ID: ${{ secrets.UMAMI_DESKTOP_PROJECT_ID || '' }}
+          NEXT_PUBLIC_DESKTOP_UMAMI_BASE_URL: ${{ secrets.UMAMI_DESKTOP_BASE_URL || '' }}
 
       - name: Build and sign manifest
         id: sign
@@ -221,11 +223,11 @@ jobs:
         id: publish
         if: steps.gate.outputs.allowed == 'true'
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.UPDATE_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.UPDATE_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.UPDATE_S3_REGION }}
-          S3_BUCKET: ${{ secrets.UPDATE_S3_BUCKET }}
-          S3_ENDPOINT: ${{ secrets.UPDATE_S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.DESKTOP_RELEASE_S3_REGION || 'us-east-1' }}
+          S3_BUCKET: ${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}
+          S3_ENDPOINT: ${{ vars.DESKTOP_RELEASE_S3_ENDPOINT || '' }}
           APP_VERSION: ${{ steps.base.outputs.app_version }}
           CHANNEL: ${{ inputs.channel }}
         run: |
