@@ -127,7 +127,11 @@ jobs:
             exit 1
           fi
 
-          profile_path="$(pnpm exec tsx scripts/electronWorkflow/fetchDesktopBuildProfile.ts "$APP_URL" "$PROFILE_STAGE_DIR" "$RELEASE_ID")"
+          # `pnpm exec` here makes pnpm v12 re-verify the install and try to
+          # re-link the hoisted node_modules tree, which intermittently dies
+          # with ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR (os error 5) on
+          # Windows runners. Invoke the already-installed tsx loader directly.
+          profile_path="$(node node_modules/tsx/dist/cli.mjs scripts/electronWorkflow/fetchDesktopBuildProfile.ts "$APP_URL" "$PROFILE_STAGE_DIR" "$RELEASE_ID")"
           profile_revision_id="$(node -e "const profile=require(process.argv[1]); process.stdout.write(profile.profileRevisionId)" "$profile_path")"
           printf 'DESKTOP_BUILD_PROFILE_PATH=%s\n' "$profile_path" >> "$GITHUB_ENV"
           printf 'DESKTOP_BUILD_PROFILE_REVISION_ID=%s\n' "$profile_revision_id" >> "$GITHUB_ENV"
