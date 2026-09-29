@@ -75,18 +75,21 @@ jobs:
           fi
 
       - name: Copy prompts
-        if: steps.check-team.outputs.is_team == 'false'
+        if: steps.check-team.outputs.is_team == 'false' && secrets.CLAUDE_CODE_OAUTH_TOKEN != ''
         run: |
           mkdir -p /tmp/claude-prompts
           cp .claude/prompts/pr-assign.md /tmp/claude-prompts/
           cp .claude/prompts/team-assignment.md /tmp/claude-prompts/
           cp .claude/prompts/security-rules.md /tmp/claude-prompts/
 
+      # Without a Claude token the fork cannot run automated reviewer
+      # assignment; the base-branch reminder above still posted. Skip instead
+      # of failing every PR.
       - name: Run Claude Code for PR Reviewer Assignment
-        if: steps.check-team.outputs.is_team == 'false'
+        if: steps.check-team.outputs.is_team == 'false' && secrets.CLAUDE_CODE_OAUTH_TOKEN != ''
         uses: anthropics/claude-code-action@v1
         with:
-          github_token: ${{ secrets.GH_TOKEN }}
+          github_token: ${{ secrets.GH_TOKEN || github.token }}
           allowed_non_write_users: '*'
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
