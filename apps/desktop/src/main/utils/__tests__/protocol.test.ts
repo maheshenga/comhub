@@ -188,6 +188,8 @@ describe('Protocol', () => {
         'lobehub-dev://plugin/install?test=value',
         'lobehub-beta://plugin/install?test=value',
         'lobehub-nightly://plugin/install?test=value',
+        'comhub://plugin/install?test=value',
+        'comhub-canary://plugin/install?test=value',
       ];
 
       testCases.forEach((url) => {
@@ -198,6 +200,11 @@ describe('Protocol', () => {
         expect(parsed?.params.test).toBe('value');
         expect(parsed?.originalUrl).toBe(url);
       });
+    });
+
+    it('should reject lookalike prefixes that merely contain an accepted token', () => {
+      expect(parseProtocolUrl('comhubfoo://plugin/install?test=value')).toBeNull();
+      expect(parseProtocolUrl('fakelobehub://plugin/install?test=value')).toBeNull();
     });
   });
 });

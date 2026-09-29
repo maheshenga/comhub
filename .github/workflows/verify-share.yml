@@ -140,6 +140,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR: ${{ github.event.pull_request.number }}
         run: |
+          # Without a Cloudflare token the fork cannot upload previews; the
+          # bundle build + gzip guard above still ran, so skip the upload
+          # instead of failing every PR on a missing repo secret.
+          if [ "$SAME_REPO" = 'true' ] && [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::No CLOUDFLARE_PREVIEW_API_TOKEN/CLOUDFLARE_API_TOKEN secret set; skipping preview upload."
+            exit 0
+          fi
           if [ "$SAME_REPO" = 'true' ]; then
             set -- --preview-alias "pr${PR}" --tag "${HEAD_SHA::7}" \
               --message "PR-${PR} ${GITHUB_ACTOR} ${GITHUB_REPOSITORY}@${HEAD_SHA::7} run ${GITHUB_RUN_ID}"
