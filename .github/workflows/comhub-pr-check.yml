@@ -40,5 +40,19 @@ jobs:
       - name: Verify database migration chain
         run: pnpm verify:database-migrations
 
+      # tsgo peaks past the 7 GB hosted runner's RAM and the kernel reaps it
+      # (job dies with a shutdown signal ~2.5 min into `tsgo --noEmit`). A
+      # swap file absorbs the peak; this step is cheap when there is headroom.
+      - name: Add swap for the native type checker
+        run: |
+          if [ "$(free -m | awk '/^Swap:/{print $2}')" -lt 4096 ]; then
+            sudo swapoff -a || true
+            sudo fallocate -l 6G /mnt/swapfile
+            sudo chmod 600 /mnt/swapfile
+            sudo mkswap /mnt/swapfile
+            sudo swapon /mnt/swapfile
+            free -m
+          fi
+
       - name: Type check
         run: pnpm type-check
