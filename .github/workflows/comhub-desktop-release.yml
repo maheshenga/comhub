@@ -181,6 +181,8 @@ jobs:
           OFFICIAL_CLOUD_SERVER: ${{ env.OFFICIAL_CLOUD_SERVER }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
           UPDATE_CHANNEL: ${{ inputs.channel }}
+          UPDATE_SERVER_URL: ${{ env.UPDATE_SERVER_URL }}
+          RENDERER_OTA_PUBLIC_KEY: ${{ secrets.RENDERER_OTA_PUBLIC_KEY }}
         run: npm run package:win --prefix=./apps/desktop
 
       - name: Verify desktop backend target
@@ -190,8 +192,7 @@ jobs:
           const fs = require('node:fs');
           const path = require('node:path');
 
-          const distDir = path.join(process.cwd(), 'apps', 'desktop', 'dist', 'main');
-          const expected = process.env.OFFICIAL_CLOUD_SERVER;
+          const distDir = path.join(process.cwd(), 'apps', 'desktop', 'dist', 'main');          const expected = process.env.OFFICIAL_CLOUD_SERVER;
           const forbidden = 'https://app.lobehub.com';
           let sawExpected = false;
           const offenders = [];
@@ -224,10 +225,31 @@ jobs:
           }
           NODE
 
+      - name: Sign renderer OTA r0 baseline
+        if: ${{ inputs.publish == 'true' }}
+        shell: bash
+        env:
+          RENDERER_OTA_PRIVATE_KEY: ${{ secrets.RENDERER_OTA_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDERER_OTA_PRIVATE_KEY}" ]; then
+            echo 'Set secret RENDERER_OTA_PRIVATE_KEY (ed25519 PEM) so the updater can bootstrap renderer OTA.'
+            exit 1
+          fi
+          MAIN_HASH=$(cat apps/desktop/release/renderer-mainhash.txt)
+          node apps/desktop/scripts/buildRendererManifest.mjs \
+            --renderer=apps/desktop/dist/renderer \
+            --out=apps/desktop/release/renderer-ota \
+            --channel=${{ inputs.channel }} \
+            --version=r0 \
+            --mainHash="$MAIN_HASH"
+
       - name: Upload release artifacts
         uses: ./.github/actions/desktop-upload-artifacts
         with:
           artifact-name: merged-release
+          renderer-ota-public-key: ${{ secrets.RENDERER_OTA_PUBLIC_KEY }}
+          update-channel: ${{ inputs.channel }}
 
       - name: Report build failure
         if: ${{ failure() && inputs.release_id != '' && steps.reject_unpublished.outputs.reported != 'true' }}
@@ -306,6 +328,18 @@ jobs:
         with:
           channel: ${{ inputs.channel }}
           version: ${{ inputs.version }}
+          cloud-ref: ${{ github.sha }}
+          aws-access-key-id: ${{ secrets.DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
+          s3-bucket: ${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}
+          s3-region: ${{ vars.DESKTOP_RELEASE_S3_REGION || 'us-east-1' }}
+          s3-endpoint: ${{ vars.DESKTOP_RELEASE_S3_ENDPOINT || '' }}
+
+      - name: Prune old channel versions
+        uses: ./.github/actions/desktop-cleanup-s3
+        with:
+          channel: ${{ inputs.channel }}
+          keep-count: '5'
           aws-access-key-id: ${{ secrets.DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
           s3-bucket: ${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}
