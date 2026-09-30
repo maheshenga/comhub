@@ -49,18 +49,35 @@ services:
     restart: always
     entrypoint: >
       /bin/sh -c "
-        minio server /etc/minio/data --address ':${MINIO_PORT}' --console-address ':9001' &
-        MINIO_PID=\$!
-        while ! curl -s http://localhost:${MINIO_PORT}/minio/health/live; do
-          echo 'Waiting for MinIO to start...'
-          sleep 1
-        done
-        sleep 5
-        mc alias set myminio http://localhost:${MINIO_PORT} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}
-        echo 'Creating bucket ${MINIO_LOBE_BUCKET}'
-        mc mb myminio/${MINIO_LOBE_BUCKET}
-        wait \$MINIO_PID
+        minio server /etc/minio/data --address ':${MINIO_PORT}' --console-address ':9001'
       "
+
+  # Bucket bootstrap. The classic `mc` init inline in the minio entrypoint was
+  # replaced because quay.io/minio/mc went private during MinIO's 2026
+  # closed-source transition (anonymous pulls return 401). aws-cli from the
+  # public ECR mirror is the ComHub reference replacement (same pattern as
+  # docker-compose/deploy/module-runtime.yml).
+  minio-init:
+    image: public.ecr.aws/aws-cli/aws-cli@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6
+    container_name: lobe-minio-init
+    network_mode: 'service:network-service'
+    environment:
+      - 'AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}'
+      - 'AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}'
+      - 'AWS_DEFAULT_REGION=us-east-1'
+      - 'AWS_EC2_METADATA_DISABLED=true'
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        if aws --endpoint-url http://localhost:${MINIO_PORT} s3api head-bucket --bucket ${MINIO_LOBE_BUCKET} 2>/dev/null; then
+          echo 'bucket ${MINIO_LOBE_BUCKET} already exists'
+        else
+          aws --endpoint-url http://localhost:${MINIO_PORT} s3api create-bucket --bucket ${MINIO_LOBE_BUCKET}
+        fi
+    depends_on:
+      - minio
+    restart: 'no'
 
 
   # version lock ref: https://github.com/lobehub/lobe-chat/pull/7331
