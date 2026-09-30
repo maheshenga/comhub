@@ -179,8 +179,12 @@ jobs:
           echo "Disk usage before image relay:"
           df -h /
           docker system df || true
-          echo "Pruning unused Docker images before image relay..."
-          docker image prune -af || true
+          echo "Pruning unused Docker images before image relay (keeping imported relay refs)..."
+          # `docker image prune -af` here would also delete ctr-level
+          # `ghcr.io/...@sha256:...` refs seeded by a previous relay attempt
+          # (they are tagless from docker's view once no container uses them),
+          # re-forcing the slow GHCR stream on every retry.
+          docker image prune -af --filter "label!=comhub.image-relay=true" || true
           REMOTE_PREPARE
 
           relay_image() {
@@ -214,10 +218,17 @@ jobs:
               "oci-archive:${archive}:${relay_ref}"
 
             echo "Streaming $label to the production containerd content store..."
-            gzip -1 -c "$archive" | \
+            if ! gzip -1 -c "$archive" | \
               timeout "${COMHUB_IMAGE_RELAY_TIMEOUT:-1800}" \
                 ssh "${ssh_options[@]}" "$remote_target" \
-                  'gzip -dc | ctr -n moby images import --all-platforms -'
+                  'gzip -dc | ctr -n moby images import --all-platforms -'; then
+              echo "Direct GHCR relay timed out or failed for $label." >&2
+              echo "Fallback: pull the image on a well-connected host, then" >&2
+              echo "  docker save <image> | gzip > img.tar.gz   # upload to OSS/对象存储" >&2
+              echo "  on prod: curl -O <oss-url> && gunzip -c img.tar.gz | ctr -n moby images import --all-platforms -" >&2
+              echo "  ctr -n moby images tag <imported-ref> '${image_ref}' && docker pull '${image_ref}'" >&2
+              return 1
+            fi
             rm -f "$archive"
 
             echo "Registering the immutable $label digest on production..."
