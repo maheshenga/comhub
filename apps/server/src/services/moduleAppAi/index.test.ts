@@ -22,11 +22,11 @@ vi.mock('@/business/server/commercialBilling', () => ({
 }));
 
 vi.mock('@/database/models/moduleAppCredit', () => ({
-  ModuleAppCreditModel: vi.fn(() => ({
-    release: mocks.release,
-    reserve: mocks.reserve,
-    settle: mocks.settle,
-  })),
+  ModuleAppCreditModel: class {
+    release = mocks.release;
+    reserve = mocks.reserve;
+    settle = mocks.settle;
+  },
 }));
 
 describe('createModuleAppTextGenerator', () => {

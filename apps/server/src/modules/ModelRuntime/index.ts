@@ -42,19 +42,12 @@ import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { createLLMGenerationTracingHook } from '@/server/services/llmGenerationTracing/hook';
-import {
-  type AdminModelApiProviderType,
-  buildNewapiRouteMetadata,
-  type NewapiModelType,
-  resolveDefaultNewapiInstance,
-  type ResolvedNewapiInstance,
-  resolveNewapiInstanceByProviderId,
-  resolveNewapiInstancesForModel,
-} from '@/server/services/newapiInstance';
+import { type NewapiModelType } from '@/server/services/newapiInstance';
 import { ensureFreshOAuthToken } from '@/server/services/oauthDeviceFlow/refresh';
 
 import { KeyVaultsGateKeeper } from '../KeyVaultsEncrypt';
 import apiKeyManager from './apiKeyManager';
+import { initModelRuntimeFromNewapiRoute } from './newapiRouting';
 
 export * from './trace';
 export type { ServerDefaultHeterogeneousAgentType } from '@lobechat/heterogeneous-agents';
@@ -71,7 +64,7 @@ export interface InitModelRuntimeFromDBOptions {
 /**
  * Combined KeyVaults type for all providers
  */
-type ProviderKeyVaults = OpenAICompatibleKeyVault &
+export type ProviderKeyVaults = OpenAICompatibleKeyVault &
   AzureOpenAIKeyVault &
   AWSBedrockKeyVault &
   CloudflareKeyVault &
@@ -97,31 +90,6 @@ const resolveRuntimeProvider = (provider: string, sdkType?: string): string => {
   if (isBuiltin) return provider;
 
   return sdkType || 'openai';
-};
-
-const resolveAdminRuntimeProvider = (providerType?: AdminModelApiProviderType | null) => {
-  switch (providerType) {
-    case 'openai':
-    case 'openai-compatible': {
-      return ModelProvider.OpenAI;
-    }
-    case 'claude': {
-      return ModelProvider.Anthropic;
-    }
-    case 'deepseek': {
-      return ModelProvider.DeepSeek;
-    }
-    case 'aliyun': {
-      return ModelProvider.Qwen;
-    }
-    case 'opencode-go': {
-      return ModelProvider.OpenCodeCodingPlan;
-    }
-    case 'newapi':
-    default: {
-      return ModelProvider.NewAPI;
-    }
-  }
 };
 
 /**
@@ -462,81 +430,6 @@ const buildVertexOptions = (
   return options;
 };
 
-/**
- * Wraps a ModelRuntime to add automatic failover for NewAPI instances.
- * When the primary instance returns a retriable error (5xx, network), this
- * wrapper retries with the next fallback instance in priority order.
- */
-const wrapNewapiRuntimeWithFailover = (
-  runtime: ModelRuntime,
-  payload: ClientSecretPayload,
-  failoverInstances: ResolvedNewapiInstance[],
-  userId: string,
-  provider: string,
-  workspaceId?: string,
-  onRouteResolved?: (routeMetadata: AiUsageRouteMetadata | undefined) => void,
-): ModelRuntime => {
-  const originalChat = runtime.chat.bind(runtime);
-
-  runtime.chat = async function (chatPayload, options?) {
-    try {
-      return await originalChat(chatPayload, options);
-    } catch (primaryError) {
-      const statusCode = (primaryError as any)?.statusCode;
-      const is5xx = typeof statusCode === 'number' && statusCode >= 500;
-      const isNetwork = ['NetworkError', 'ServiceUnavailable', 'TimeoutError'].includes(
-        (primaryError as any)?.errorType,
-      );
-
-      if (!is5xx && !isNetwork) throw primaryError;
-
-      // Try fallback instances in order. The final successful runtime still needs
-      // billing/tracing hooks; ledger writes are idempotent by billing reference.
-      for (const instance of failoverInstances) {
-        try {
-          const fallbackPayload = {
-            ...payload,
-            apiKey: instance.apiKey,
-            baseURL: instance.baseUrl,
-          };
-          const fallbackRuntimeProvider = resolveAdminRuntimeProvider(instance.providerType);
-          fallbackPayload.runtimeProvider = fallbackRuntimeProvider;
-          const fallbackBusinessHooks = getBusinessModelRuntimeHooks(
-            userId,
-            provider,
-            buildNewapiRouteMetadata(instance),
-            workspaceId,
-          );
-          const fallbackTracingHooks = createLLMGenerationTracingHook(
-            userId,
-            provider,
-            workspaceId,
-          );
-          const fallbackHooks = mergeModelRuntimeHooks(fallbackBusinessHooks, fallbackTracingHooks);
-          const fallbackRuntime = await initModelRuntimeWithUserPayload(
-            fallbackRuntimeProvider,
-            fallbackPayload,
-            { userId, workspaceId },
-            fallbackHooks,
-          );
-          console.warn(
-            `[newapi-failover] primary failed (${statusCode}), retrying on instance "${instance.instanceName}" (priority ${instance.priority})`,
-          );
-          onRouteResolved?.(buildNewapiRouteMetadata(instance));
-          return await fallbackRuntime.chat(chatPayload, options);
-        } catch {
-          // Continue to next fallback
-        }
-      }
-
-      // All fallbacks exhausted, throw the original error
-      throw primaryError;
-    }
-  };
-
-  return runtime;
-};
-
 const normalizeInitOptions = (
   optionsOrWorkspaceId?: InitModelRuntimeFromDBOptions | string,
 ): InitModelRuntimeFromDBOptions => {
@@ -654,96 +547,20 @@ export const initModelRuntimeFromDB = async (
     keyVaults = { ...keyVaults, ...freshKeyVaults } as ProviderKeyVaults;
   }
 
+  // 3.6. ComHub admin-managed NewAPI routing (multi-instance, failover,
+  //      route-metadata billing) lives in ./newapiRouting; undefined means
+  //      the provider is not admin-managed and the standard path runs.
+  const newapiRuntime = await initModelRuntimeFromNewapiRoute({
+    db,
+    keyVaults,
+    options,
+    provider,
+    userId,
+    workspaceId,
+  });
+  if (newapiRuntime) return newapiRuntime;
+
   const payload = buildPayloadFromKeyVaults(keyVaults, runtimeProvider);
-
-  const adminManagedInstance =
-    provider === ModelProvider.NewAPI
-      ? null
-      : await resolveNewapiInstanceByProviderId(db, provider);
-  const isAdminManagedNewapiProvider = provider === ModelProvider.NewAPI || !!adminManagedInstance;
-
-  if (isAdminManagedNewapiProvider) {
-    // Multi-instance routing: when a specific model is in flight, prefer the
-    // highest-priority enabled instance that has it registered. Otherwise use
-    // the default (lowest-priority enabled) instance.
-    let resolvedInstances: ResolvedNewapiInstance[];
-    if (adminManagedInstance && options?.model) {
-      resolvedInstances = await resolveNewapiInstancesForModel(db, {
-        modelId: options.model,
-        modelType: options.modelType ?? 'chat',
-        preferredInstanceId: adminManagedInstance.instanceId,
-        userId,
-      });
-    } else if (adminManagedInstance) {
-      resolvedInstances = [adminManagedInstance];
-    } else if (options?.model) {
-      resolvedInstances = await resolveNewapiInstancesForModel(db, {
-        modelId: options.model,
-        modelType: options.modelType ?? 'chat',
-        userId,
-      });
-    } else {
-      const defaultInstance = await resolveDefaultNewapiInstance(db);
-      resolvedInstances = defaultInstance ? [defaultInstance] : [];
-    }
-
-    const primary = resolvedInstances[0];
-    if (!primary && options.requireAdminManagedNewapi) {
-      throw new Error('MODULE_APP_NEWAPI_ROUTE_NOT_AVAILABLE');
-    }
-    if (primary) {
-      if (options.requireAdminManagedNewapi) {
-        payload.apiKey = primary.apiKey;
-        payload.baseURL = primary.baseUrl;
-      } else {
-        payload.apiKey ||= primary.apiKey;
-        payload.baseURL ||= primary.baseUrl;
-      }
-    }
-    const adminRuntimeProvider = resolveAdminRuntimeProvider(primary?.providerType);
-    payload.runtimeProvider = adminRuntimeProvider;
-
-    // Store fallback instances for failover (exclude primary which is already set)
-    const fallbackInstances = resolvedInstances.slice(1);
-
-    // 4. Compose business billing hooks with llm_generation_tracing. The tracing
-    // hook is no-op when unconfigured, while business hooks receive NewAPI route
-    // metadata for group-aware billing.
-    const routeMetadata = buildNewapiRouteMetadata(primary);
-    onRouteResolved?.(routeMetadata);
-    const businessHooks = getBusinessModelRuntimeHooks(
-      userId,
-      provider,
-      routeMetadata,
-      workspaceId,
-    );
-    const tracingHooks = createLLMGenerationTracingHook(userId, provider, workspaceId);
-    const hooks = mergeModelRuntimeHooks(businessHooks, tracingHooks);
-
-    // 5. Initialize ModelRuntime with the payload and hooks
-    const runtime = await initModelRuntimeWithUserPayload(
-      adminRuntimeProvider,
-      payload,
-      { userId, workspaceId },
-      hooks,
-    );
-
-    // 6. Wire up NewAPI failover: if the primary instance returns a retriable
-    //    error (5xx / network), automatically retry with the next fallback instance.
-    if (fallbackInstances.length > 0) {
-      return wrapNewapiRuntimeWithFailover(
-        runtime,
-        payload,
-        fallbackInstances,
-        userId,
-        provider,
-        workspaceId,
-        onRouteResolved,
-      );
-    }
-
-    return runtime;
-  }
 
   // Non-NewAPI providers: standard path
   onRouteResolved?.({ providerType: runtimeProvider });
