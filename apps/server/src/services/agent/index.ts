@@ -1,7 +1,7 @@
 import { type BuiltinAgentSlug } from '@lobechat/builtin-agents';
 import { BUILTIN_AGENTS } from '@lobechat/builtin-agents';
 import { DEFAULT_PROVIDER } from '@lobechat/business-const';
-import { DEFAULT_AGENT_CONFIG, DEFAULT_MODEL, INBOX_SESSION_ID } from '@lobechat/const';
+import { DEFAULT_AGENT_CONFIG, DEFAULT_MODEL } from '@lobechat/const';
 import { type LobeChatDatabase } from '@lobechat/database';
 import { type AgentItem, type LobeAgentChatConfig, type LobeAgentConfig } from '@lobechat/types';
 import { cleanObject, merge } from '@lobechat/utils';
@@ -24,6 +24,7 @@ import {
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { getServerDefaultAgentSettingOverrides } from '@/server/services/appSettings';
 
+import { resolveInboxAdminOverride } from './inboxModelGuard';
 import { type UpdateAgentResult } from './type';
 
 const log = debug('lobe-agent:service');
@@ -46,20 +47,6 @@ interface AgentWelcomeData {
   openQuestions: string[];
   welcomeMessage: string;
 }
-
-const hasRuntimeModelSelection = (agent: any) => !!agent?.model || !!agent?.provider;
-
-const hasBeenUpdatedAfterCreate = (agent: any) => {
-  const createdAt = agent?.createdAt ? new Date(agent.createdAt).getTime() : Number.NaN;
-  const updatedAt = agent?.updatedAt ? new Date(agent.updatedAt).getTime() : Number.NaN;
-
-  return Number.isFinite(createdAt) && Number.isFinite(updatedAt) && updatedAt > createdAt;
-};
-
-const omitRuntimeModelOverride = (config: PartialDeep<LobeAgentConfig>) => {
-  const { model: _model, provider: _provider, ...rest } = config;
-  return rest;
-};
 
 /**
  * Agent Service
@@ -285,13 +272,10 @@ export class AgentService {
       : merge(withAdminConfig, userDefaultAgentConfig);
     const mergedConfig = merge(configBeforeAgent, cleanObject(agent));
 
-    if (agent.slug !== INBOX_SESSION_ID) return mergedConfig;
-
-    const shouldPreserveInboxRuntimeSelection =
-      hasRuntimeModelSelection(agent) && hasBeenUpdatedAfterCreate(agent);
-    const inboxAdminConfig = shouldPreserveInboxRuntimeSelection
-      ? omitRuntimeModelOverride(adminDefaultAgentConfig)
-      : adminDefaultAgentConfig;
+    // Inbox guard lives in ./inboxModelGuard (ComHub-owned); the upstream
+    // file only threads it into the final merge.
+    const inboxAdminConfig = resolveInboxAdminOverride(agent, adminDefaultAgentConfig);
+    if (!inboxAdminConfig) return mergedConfig;
 
     return merge(mergedConfig, inboxAdminConfig);
   }

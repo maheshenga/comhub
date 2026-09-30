@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { findModuleForPath } from '../comhub-customizations/registry.mjs';
 import {
   buildCandidateBranch,
   extractCustomizationFilePaths,
@@ -22,9 +23,13 @@ const DEFAULT_CUSTOMIZATION_REGISTRY = 'docs/development/comhub-upstream-customi
 const main = () => {
   const options = parseArgs(process.argv.slice(2));
   const root = process.cwd();
-  const baseBranch = options.baseBranch || env('COMHUB_UPSTREAM_BASE_BRANCH') || DEFAULT_BASE_BRANCH;
+  const baseBranch =
+    options.baseBranch || env('COMHUB_UPSTREAM_BASE_BRANCH') || DEFAULT_BASE_BRANCH;
   const upstreamUrl =
-    options.upstreamUrl || env('COMHUB_UPSTREAM_URL') || env('UPSTREAM_URL') || DEFAULT_UPSTREAM_URL;
+    options.upstreamUrl ||
+    env('COMHUB_UPSTREAM_URL') ||
+    env('UPSTREAM_URL') ||
+    DEFAULT_UPSTREAM_URL;
   const channel = options.channel || env('COMHUB_UPSTREAM_CHANNEL') || 'stable';
   const shouldPush = options.push || env('COMHUB_UPSTREAM_PUSH') === 'true';
   const shouldVerify = options.verify !== false;
@@ -34,7 +39,11 @@ const main = () => {
   ensureCleanWorktree({ allowDirty });
   if (shouldFetch) ensureRemote('upstream', upstreamUrl);
 
-  const upstreamRef = resolveUpstreamRef({ channel, explicitRef: options.upstreamRef, upstreamUrl });
+  const upstreamRef = resolveUpstreamRef({
+    channel,
+    explicitRef: options.upstreamRef,
+    upstreamUrl,
+  });
   const candidateBranch =
     options.candidateBranch ||
     env('COMHUB_UPSTREAM_CANDIDATE_BRANCH') ||
@@ -55,13 +64,31 @@ const main = () => {
 
   const changedFiles = getChangedFiles(upstreamRef);
   const isNoop = isSameCommit('HEAD', upstreamRef);
-  const customizationFiles = loadCustomizationFiles(root);
+  // Registry-first: every changed upstream file is classified by
+  // scripts/comhub-customizations/registry.mjs. The legacy markdown ledger is
+  // still merged in so pre-registry notes keep flagging.
+  const registryFiles = [
+    ...new Set(
+      changedFiles
+        .map((file) => {
+          const hit = findModuleForPath(file);
+          return hit ? file : null;
+        })
+        .filter(Boolean),
+    ),
+  ];
+  const ledgerFiles = loadCustomizationFiles(root);
+  const customizationFiles = uniqueSorted([...registryFiles, ...ledgerFiles]);
   const touchedCustomizations = findTouchedCustomizations({ changedFiles, customizationFiles });
+  const touchesByModule = summarizeTouchesByModule(registryFiles);
   ensureGitIdentity();
   const mergeResult = isNoop ? { status: 'noop' } : mergeUpstream(upstreamRef);
-  const conflictFiles = mergeResult.status === 'conflict' ? parseConflictFiles(git(['status', '--porcelain'])) : [];
+  const conflictFiles =
+    mergeResult.status === 'conflict' ? parseConflictFiles(git(['status', '--porcelain'])) : [];
   const verification =
-    mergeResult.status === 'clean' && shouldVerify ? runVerificationCommands() : skippedVerification();
+    mergeResult.status === 'clean' && shouldVerify
+      ? runVerificationCommands()
+      : skippedVerification();
 
   writeReport(reportPath, {
     baseBranch,
@@ -71,6 +98,7 @@ const main = () => {
     currentVersion: readPackageVersion(root),
     generatedAt: new Date().toISOString(),
     mergeStatus: mergeResult.status,
+    touchedByModule: touchesByModule,
     touchedCustomizations,
     upstreamRef,
     verification,
@@ -204,6 +232,20 @@ const isSameCommit = (leftRef, rightRef) => {
   return left === right;
 };
 
+const summarizeTouchesByModule = (files) => {
+  const byModule = new Map();
+  for (const file of files) {
+    const hit = findModuleForPath(file);
+    if (!hit) continue;
+    const entry = byModule.get(hit.module.id) ?? { files: [], sync: hit.module.sync };
+    entry.files.push(file);
+    byModule.set(hit.module.id, entry);
+  }
+  return [...byModule.entries()]
+    .map(([id, { files: moduleFiles, sync }]) => ({ files: moduleFiles.sort(), id, sync }))
+    .sort((a, b) => b.files.length - a.files.length);
+};
+
 const loadCustomizationFiles = (root) => {
   const registryPath = path.resolve(root, DEFAULT_CUSTOMIZATION_REGISTRY);
   if (!existsSync(registryPath)) return [];
@@ -278,9 +320,13 @@ const writeReport = (reportPath, report) => {
 const commitReportIfNeeded = ({ reportPath, root, upstreamRef }) => {
   git(['add', '--', toPosixRelative(root, reportPath)]);
 
-  const diffResult = spawnSync('git', ['diff', '--cached', '--quiet', '--', toPosixRelative(root, reportPath)], {
-    stdio: 'ignore',
-  });
+  const diffResult = spawnSync(
+    'git',
+    ['diff', '--cached', '--quiet', '--', toPosixRelative(root, reportPath)],
+    {
+      stdio: 'ignore',
+    },
+  );
   if (diffResult.status === 0) return;
 
   git(['commit', '-m', `chore: add upstream sync report for ${upstreamRef}`], { stdio: 'inherit' });
@@ -291,7 +337,8 @@ const ensureGitIdentity = () => {
   const hasUserEmail = spawnSync('git', ['config', 'user.email'], { stdio: 'ignore' }).status === 0;
 
   if (!hasUserName) git(['config', 'user.name', 'github-actions[bot]']);
-  if (!hasUserEmail) git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+  if (!hasUserEmail)
+    git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
 };
 
 const readPackageVersion = (root) => {

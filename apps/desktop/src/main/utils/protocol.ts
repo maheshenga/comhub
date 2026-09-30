@@ -1,19 +1,19 @@
 import { app } from 'electron';
 
 import type { McpSchema, ProtocolUrlParsed } from '../types/protocol';
+import { getComHubProtocolScheme, isAcceptedProtocolScheme } from './comhubProtocol';
 
 export type AppChannel = 'stable' | 'beta' | 'nightly';
 
 export const getProtocolScheme = (): string => {
+  // Branded ComHub builds register the `comhub://` scheme via the desktop
+  // build profile; match that first (delegated to comhubProtocol.ts).
+  const brandedScheme = getComHubProtocolScheme();
+  if (brandedScheme) return brandedScheme;
+
   // In Electron environment, version can be determined in multiple ways
   const bundleId = app.name;
   const appPath = app.getPath('exe');
-
-  // Branded builds (productName ComHub / executable ComHub.exe) register the
-  // `comhub://` scheme via the desktop build profile; match that at runtime.
-  if (bundleId?.toLowerCase().includes('comhub') || appPath?.toLowerCase().includes('comhub')) {
-    return 'comhub';
-  }
 
   // Determine by bundle identifier
   if (bundleId?.toLowerCase().includes('nightly')) return 'lobehub-nightly';
@@ -100,18 +100,10 @@ function validateMcpSchema(schema: any): schema is McpSchema {
  * @returns Parse result, including basic structure and all query parameters
  */
 /**
- * Protocol schemes the app accepts for deep links. Covers the upstream
- * schemes, channel variants, and the branded build's scheme (the build
- * profile's `protocolScheme`, e.g. `comhub`), so `comhub://plugin/install`
- * deep links work in the branded installer.
+ * Protocol schemes the app accepts for deep links are maintained in
+ * `comhubProtocol.ts` (upstream `lobehub*` family + branded `comhub` family),
+ * so `comhub://plugin/install` deep links work in the branded installer.
  */
-const VALID_PROTOCOL_PREFIXES = ['lobehub', 'comhub'];
-
-const isAcceptedProtocolScheme = (scheme: string): boolean =>
-  VALID_PROTOCOL_PREFIXES.some((prefix) =>
-    scheme === prefix ? true : scheme.startsWith(`${prefix}-`) && scheme.length > prefix.length + 1,
-  );
-
 export const parseProtocolUrl = (url: string): ProtocolUrlParsed | null => {
   try {
     const parsedUrl = new URL(url);

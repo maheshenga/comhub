@@ -173,6 +173,7 @@ export const renderMarkdownReport = ({
   currentVersion,
   generatedAt,
   mergeStatus,
+  touchedByModule = [],
   touchedCustomizations = [],
   upstreamRef,
   verification = [],
@@ -199,6 +200,8 @@ export const renderMarkdownReport = ({
     '',
     ...renderList(touchedCustomizations, 'No registered ComHub customization files were touched.'),
     '',
+    ...renderTouchesByModule(touchedByModule),
+    '',
     `## Verification`,
     '',
     ...renderVerification(verification),
@@ -222,10 +225,7 @@ export const renderMarkdownReport = ({
  * @returns {string}
  */
 export const normalizeRepoPath = (value) =>
-  value
-    .replaceAll('\\', '/')
-    .replace(/^\.\//, '')
-    .replaceAll(/\/+$/g, '');
+  value.replaceAll('\\', '/').replace(/^\.\//, '').replaceAll(/\/+$/g, '');
 
 const isLikelyRepoPath = (value) =>
   REPO_ROOT_FILES.has(value) ||
@@ -247,7 +247,8 @@ const parsePorcelainPath = (value) => {
   return path;
 };
 
-const uniqueSorted = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+const uniqueSorted = (values) =>
+  [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
 const parseTagVersion = (tagName) => {
   const match = tagName.match(/^v?(\d+)\.(\d+)\.(\d+)(?:-canary\.(\d+))?$/);
@@ -293,6 +294,21 @@ const renderList = (items, emptyText) => {
   if (items.length === 0) return [emptyText];
 
   return items.map((item) => `- \`${item}\``);
+};
+
+const renderTouchesByModule = (touchedByModule) => {
+  if (!Array.isArray(touchedByModule) || touchedByModule.length === 0) return [];
+
+  const lines = [`## Module Touches (registry)`, ''];
+  for (const entry of touchedByModule) {
+    lines.push(`### ${entry.id} (sync: ${entry.sync}) — ${entry.files.length} file(s)`);
+    lines.push('');
+    for (const file of entry.files.slice(0, 30)) lines.push(`- \`${file}\``);
+    if (entry.files.length > 30) lines.push(`- _...and ${entry.files.length - 30} more_`);
+    lines.push('');
+  }
+
+  return lines;
 };
 
 const renderVerification = (verification) => {

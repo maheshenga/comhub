@@ -1,9 +1,8 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import dayjs from 'dayjs';
 import debug from 'debug';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 
-import { creditLedgerEntries, messages } from '@/database/schemas';
+import { messages } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 import { notCopiedTranscript } from '@/database/utils/copiedTranscript';
 import { genRangeWhere, genWhere } from '@/database/utils/genWhere';
@@ -20,20 +19,9 @@ import {
 import { formatDate } from '@/utils/format';
 
 import { computeMessageCostSplit } from './cost';
+import { findAssistantMessageLedgerUsage, findBillableLedgerUsage } from './ledgerReconciliation';
 
 const log = debug('lobe-usage:service');
-
-const BILLABLE_LEDGER_REFERENCE_TYPES = [
-  'image_generation',
-  'model_runtime_embeddings',
-  'model_runtime_generate_object',
-  'ppt_generation',
-  'video_generation',
-] as const;
-
-type BillableLedgerReferenceType = (typeof BILLABLE_LEDGER_REFERENCE_TYPES)[number];
-type BillableLedgerUsageType = 'embedding' | 'image' | 'ppt' | 'structured_output' | 'video';
-type UnknownRecord = Record<string, unknown>;
 
 export class UsageRecordService {
   private userId: string;
@@ -81,7 +69,9 @@ export class UsageRecordService {
       )
       .orderBy(desc(messages.createdAt));
 
-    const ledgerUsageMap = await this.findAssistantMessageLedgerUsage(
+    const ledgerUsageMap = await findAssistantMessageLedgerUsage(
+      this.db,
+      this.userId,
       spends.map((spend) => spend.id),
     );
 
@@ -119,231 +109,11 @@ export class UsageRecordService {
       } as UsageRecordItem;
     });
 
-    const generationSpends = await this.findBillableLedgerUsage(startAt, endAt);
+    const generationSpends = await findBillableLedgerUsage(this.db, this.userId, startAt, endAt);
 
     return [...chatSpends, ...generationSpends].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
     );
-  };
-
-  private findAssistantMessageLedgerUsage = async (messageIds: string[]) => {
-    if (messageIds.length === 0) return new Map<string, { credits: number; spend: number }>();
-
-    const ledgerRows = await this.db
-      .select({
-        amount: creditLedgerEntries.amount,
-        metadata: creditLedgerEntries.metadata,
-        referenceId: creditLedgerEntries.referenceId,
-      })
-      .from(creditLedgerEntries)
-      .where(
-        and(
-          eq(creditLedgerEntries.userId, this.userId),
-          eq(creditLedgerEntries.type, 'consume'),
-          eq(creditLedgerEntries.referenceType, 'assistant_message'),
-          inArray(creditLedgerEntries.referenceId, messageIds),
-        ),
-      );
-
-    const ledgerUsageMap = new Map<string, { credits: number; spend: number }>();
-    for (const row of ledgerRows) {
-      if (!row.referenceId) continue;
-
-      const metadata = row.metadata ?? {};
-      const credits = Math.abs(Number(row.amount) || 0);
-      const usdCost = Number(metadata.usdCost);
-      const fallbackCost = credits / CREDITS_PER_DOLLAR;
-      const spend = Number.isFinite(usdCost) && usdCost > 0 ? usdCost : fallbackCost;
-      const current = ledgerUsageMap.get(row.referenceId) ?? { credits: 0, spend: 0 };
-
-      if (credits > 0 || spend > 0) {
-        ledgerUsageMap.set(row.referenceId, {
-          credits: current.credits + credits,
-          spend: current.spend + spend,
-        });
-      }
-    }
-
-    return ledgerUsageMap;
-  };
-
-  private findBillableLedgerUsage = async (
-    startAt: string,
-    endAt: string,
-  ): Promise<UsageRecordItem[]> => {
-    const ledgerRows = await this.db
-      .select({
-        amount: creditLedgerEntries.amount,
-        createdAt: creditLedgerEntries.createdAt,
-        description: creditLedgerEntries.description,
-        id: creditLedgerEntries.id,
-        metadata: creditLedgerEntries.metadata,
-        referenceId: creditLedgerEntries.referenceId,
-        referenceType: creditLedgerEntries.referenceType,
-        title: creditLedgerEntries.title,
-        updatedAt: creditLedgerEntries.updatedAt,
-        userId: creditLedgerEntries.userId,
-      })
-      .from(creditLedgerEntries)
-      .where(
-        genWhere([
-          eq(creditLedgerEntries.userId, this.userId),
-          eq(creditLedgerEntries.type, 'consume'),
-          inArray(creditLedgerEntries.referenceType, [...BILLABLE_LEDGER_REFERENCE_TYPES]),
-          genRangeWhere([startAt, endAt], creditLedgerEntries.createdAt, (date) => date.toDate()),
-        ]),
-      );
-
-    return ledgerRows.map((row) =>
-      this.mapBillableLedgerUsage({
-        ...row,
-        referenceType: row.referenceType as BillableLedgerReferenceType,
-      }),
-    );
-  };
-
-  private mapBillableLedgerUsage = (row: {
-    amount: number;
-    createdAt: Date;
-    description: string | null;
-    id: string;
-    metadata: UnknownRecord | null;
-    referenceId: string | null;
-    referenceType: BillableLedgerReferenceType;
-    title: string | null;
-    updatedAt: Date;
-    userId: string;
-  }): UsageRecordItem => {
-    const metadata = row.metadata ?? {};
-    const type = this.resolveBillableLedgerUsageType(row.referenceType);
-    const tokenUsage = this.resolveGenerationTokenUsage(type, metadata);
-
-    return {
-      createdAt: row.createdAt,
-      credits: Math.abs(Number(row.amount) || 0),
-      id: row.id || row.referenceId || `${row.referenceType}-${row.createdAt.getTime()}`,
-      metadata: row.metadata as MessageMetadata | null,
-      model: this.resolveGenerationModel(type, metadata, row.description, row.title),
-      provider: this.resolveGenerationProvider(type, metadata),
-      spend: Math.abs(Number(row.amount) || 0) / CREDITS_PER_DOLLAR,
-      totalInputTokens: tokenUsage.totalInputTokens,
-      totalOutputTokens: tokenUsage.totalOutputTokens,
-      totalTokens: tokenUsage.totalTokens,
-      tps: 0,
-      ttft: 0,
-      type,
-      updatedAt: row.updatedAt,
-      userId: row.userId,
-    };
-  };
-
-  private resolveBillableLedgerUsageType = (
-    referenceType: BillableLedgerReferenceType,
-  ): BillableLedgerUsageType => {
-    switch (referenceType) {
-      case 'image_generation': {
-        return 'image';
-      }
-      case 'model_runtime_embeddings': {
-        return 'embedding';
-      }
-      case 'model_runtime_generate_object': {
-        return 'structured_output';
-      }
-      case 'video_generation': {
-        return 'video';
-      }
-      case 'ppt_generation': {
-        return 'ppt';
-      }
-    }
-  };
-
-  private resolveGenerationProvider = (
-    type: BillableLedgerUsageType,
-    metadata: UnknownRecord,
-  ): string => {
-    if (type === 'ppt') return 'docmee';
-
-    const routeMetadata = this.asRecord(metadata.routeMetadata);
-
-    return (
-      this.firstString(metadata, ['provider', 'providerId']) ??
-      this.firstString(routeMetadata, ['providerType', 'instanceName', 'instanceId']) ??
-      'generation'
-    );
-  };
-
-  private resolveGenerationModel = (
-    type: BillableLedgerUsageType,
-    metadata: UnknownRecord,
-    description: string | null,
-    title: string | null,
-  ): string => {
-    if (type === 'ppt') return 'ppt';
-
-    return (
-      this.firstString(metadata, ['model', 'modelId']) ??
-      this.parseModelFromDescription(description) ??
-      title ??
-      type
-    );
-  };
-
-  private resolveGenerationTokenUsage = (
-    type: BillableLedgerUsageType,
-    metadata: UnknownRecord,
-  ): Pick<UsageRecordItem, 'totalInputTokens' | 'totalOutputTokens' | 'totalTokens'> => {
-    if (type === 'ppt') {
-      return { totalInputTokens: 0, totalOutputTokens: 0, totalTokens: 0 };
-    }
-
-    const usage = this.asRecord(metadata.modelUsage) ?? this.asRecord(metadata.usage) ?? metadata;
-    const totalOutputTokens =
-      this.firstNumber(usage, ['totalOutputTokens', 'outputTokens', 'completionTokens']) ?? 0;
-    const explicitInputTokens =
-      this.firstNumber(usage, ['totalInputTokens', 'inputTokens', 'promptTokens']) ?? undefined;
-    const explicitTotalTokens = this.firstNumber(usage, ['totalTokens']) ?? undefined;
-    const totalInputTokens =
-      explicitInputTokens ??
-      (explicitTotalTokens === undefined
-        ? 0
-        : Math.max(explicitTotalTokens - totalOutputTokens, 0));
-    const totalTokens = explicitTotalTokens ?? totalInputTokens + totalOutputTokens;
-
-    return { totalInputTokens, totalOutputTokens, totalTokens };
-  };
-
-  private parseModelFromDescription = (description: string | null) => {
-    if (!description) return;
-
-    const marker = 'usage:';
-    const markerIndex = description.toLowerCase().lastIndexOf(marker);
-
-    if (markerIndex < 0) return;
-
-    return description.slice(markerIndex + marker.length).trim() || undefined;
-  };
-
-  private asRecord = (value: unknown): UnknownRecord | undefined => {
-    return typeof value === 'object' && value !== null ? (value as UnknownRecord) : undefined;
-  };
-
-  private firstNumber = (record: UnknownRecord | undefined, keys: string[]) => {
-    for (const key of keys) {
-      const value = record?.[key];
-      const numberValue = Number(value);
-
-      if (Number.isFinite(numberValue)) return numberValue;
-    }
-  };
-
-  private firstString = (record: UnknownRecord | undefined, keys: string[]) => {
-    for (const key of keys) {
-      const value = record?.[key];
-
-      if (typeof value === 'string' && value.trim()) return value;
-    }
   };
 
   /**

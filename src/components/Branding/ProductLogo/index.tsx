@@ -5,7 +5,7 @@ import { LobeHub } from '@lobehub/ui/brand';
 import { type CSSProperties, memo } from 'react';
 
 import { isCustomBranding } from '@/const/version';
-import { useBrand } from '@/features/Brand';
+import { useRuntimeBrand } from '@/features/Brand/useRuntimeBrand';
 
 import CustomLogo from './Custom';
 
@@ -19,17 +19,19 @@ interface ProductLogoProps extends LobeHubProps {
 }
 
 export const ProductLogo = memo<ProductLogoProps>((props) => {
-  const brand = useBrand();
+  // ComHub logo resolution (runtime brand → build-time custom → upstream)
+  // lives in features/Brand/useRuntimeBrand; this upstream component only
+  // threads the hook and renders the chosen branch.
+  const { logoUrl, name } = useRuntimeBrand();
   const logoHeight = props.height ?? props.size;
   const logoWidth = props.width ?? props.size;
 
-  // Runtime-configured brand logo takes precedence over build-time CUSTOM_BRANDING.
-  if (brand.logoUrl) {
+  if (logoUrl) {
     return (
       <img
-        alt={brand.name || 'logo'}
+        alt={name || 'logo'}
         height={logoHeight}
-        src={brand.logoUrl}
+        src={logoUrl}
         style={{ height: logoHeight, objectFit: 'contain', width: logoWidth, ...props.style }}
         width={logoWidth}
       />
