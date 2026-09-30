@@ -777,6 +777,11 @@ const MODULES = [
       ['p:apps/server/src/router-hono/workflows/', 'upstream', 'qstash client availability guards'],
       ['p:apps/server/src/routers/', 'upstream', 'routers not covered elsewhere'],
       ['p:apps/server/src/', 'upstream', 'catch-all for remaining server files'],
+      [
+        'p:patches/',
+        'upstream',
+        'qstash patch (otel caching + error logging); watch for @upstash/qstash floating-resolve rot',
+      ],
       ['p:src/libs/qstash/', 'upstream', 'otel client caching'],
       ['p:src/libs/', 'owned', 'fork libs not covered elsewhere'],
       ['p:src/utils/errorResponse', 'upstream', 'internal error sanitization'],
