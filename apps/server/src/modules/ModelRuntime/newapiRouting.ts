@@ -1,4 +1,5 @@
-import type { mergeModelRuntimeHooks, ModelRuntime } from '@lobechat/model-runtime';
+import type { ModelRuntime } from '@lobechat/model-runtime';
+import { mergeModelRuntimeHooks } from '@lobechat/model-runtime';
 import type { ClientSecretPayload } from '@lobechat/types';
 import { ModelProvider } from 'model-bank';
 
