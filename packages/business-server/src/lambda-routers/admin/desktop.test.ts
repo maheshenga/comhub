@@ -81,7 +81,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock('node:crypto', () => mocks.ids);
 
 vi.mock('@/database/models/desktopBuild', () => ({
-  DesktopBuildModel: vi.fn(() => mocks.model),
+  DesktopBuildModel: class {
+    constructor() {
+      return mocks.model;
+    }
+  },
   isDesktopBuildProfileCursor: (value: string) => value !== 'malformed-cursor',
 }));
 
@@ -92,7 +96,11 @@ vi.mock('@/server/services/desktopRelease/github', () => mocks.github);
 vi.mock('@/server/services/desktopRelease/publication', () => mocks.publication);
 
 vi.mock('@/server/modules/S3', () => ({
-  FileS3: vi.fn(() => ({})),
+  FileS3: class {
+    constructor() {
+      return {};
+    }
+  },
 }));
 
 vi.mock('./audit', () => mocks.audit);

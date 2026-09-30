@@ -201,8 +201,8 @@ const MODULES = [
       ['p:src/app/(backend)/api/workflows/', 'owned', 'module-app run workflow route'],
       [
         'p:apps/server/src/services/desktopRelease/',
-        'upstream',
-        'github.ts health + index.ts diagnostics',
+        'owned',
+        'index.ts = upstream resolvers + delegation; diagnostics.ts (SSRF/zod/timeout/channel health), downloadTypes.ts (matchers), github.ts health',
       ],
       ['p:apps/desktop/scripts/update-test/', 'upstream', 'file-mode only changes'],
       ['p:scripts/electronWorkflow/', 'upstream', 'setDesktopVersion + remaining scripts'],
@@ -339,7 +339,11 @@ const MODULES = [
     description:
       'FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.',
     ownershipRules: [
-      ['p:apps/server/src/modules/S3/', 'upstream', 'FileS3 runtime override + cache in index.ts'],
+      [
+        'p:apps/server/src/modules/S3/',
+        'owned',
+        'index.ts = upstream barrel; s3Client.ts (upstream base + fork methods), fileS3Runtime.ts (FileS3 override + TTL cache), envFileS3.ts',
+      ],
       ['p:apps/server/src/services/file/', 'upstream', 's3.ts impl reads config via getConfig()'],
       ['p:apps/server/src/services/connectorData/', 'upstream', 'S3 config usage'],
       ['p:src/services/upload.ts', 'upstream', 'client S3 path from server config'],
