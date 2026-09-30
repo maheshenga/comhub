@@ -196,6 +196,15 @@ jobs:
               return 1
             }
 
+            # The GHCR -> production link is slow (cross-border egress); a
+            # previous relay attempt may have already seeded this digest. Skip
+            # the ~GB stream when the content store already has it.
+            if timeout 60 ssh "${ssh_options[@]}" "$remote_target" \
+              "timeout 30 ctr -n moby images ls -q | grep -F '${image_ref}' >/dev/null 2>&1"; then
+              echo "$label image already present on production, skipping relay: $image_ref"
+              return 0
+            fi
+
             echo "Exporting $label as a digest-preserving OCI archive..."
             skopeo copy \
               --all \
