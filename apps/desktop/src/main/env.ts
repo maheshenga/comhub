@@ -2,6 +2,8 @@ import { createEnv } from '@t3-oss/env-core';
 import { memoize } from 'es-toolkit';
 import { z } from 'zod';
 
+import { DEFAULT_OFFICIAL_CLOUD_SERVER } from './const/comhubServer';
+
 const normalizeEnvString = (input: unknown) => {
   if (typeof input !== 'string') return undefined;
   const trimmed = input.trim();
@@ -100,15 +102,16 @@ export const getDesktopEnv = memoize(() =>
       // - unset NODE_ENV should behave like "not production" in logger runtime paths
       NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
 
-      // cloud server url (can be overridden for selfhost/dev)
-      OFFICIAL_CLOUD_SERVER: z.string().optional().default('https://chat.qingyouai.com'),
+      // cloud server url (can be overridden for selfhost/dev); the branded
+      // default lives in ./const/comhubServer (ComHub-owned).
+      OFFICIAL_CLOUD_SERVER: z.string().optional().default(DEFAULT_OFFICIAL_CLOUD_SERVER),
 
       // updater
       // process.env.xxx will replace in build stage
       UPDATE_CHANNEL: z.string().optional().default(process.env.UPDATE_CHANNEL),
 
       // Custom update server URL (for stable channel)
-      // e.g., https://releases.qingyouai.com/releases or https://your-bucket.s3.amazonaws.com/releases
+      // e.g., https://your-bucket.s3.amazonaws.com/releases
       UPDATE_SERVER_URL: z.string().optional().default(process.env.UPDATE_SERVER_URL),
 
       // Vercel JWT for bypassing deployment protection (dev only)

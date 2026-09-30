@@ -46,9 +46,9 @@ vi.mock('@/business/server/model-runtime', () => ({
 }));
 
 vi.mock('@/database/models/aiProvider', () => ({
-  AiProviderModel: vi.fn().mockImplementation(() => ({
-    getAiProviderById: mocks.getAiProviderById,
-  })),
+  AiProviderModel: class {
+    getAiProviderById = mocks.getAiProviderById;
+  },
 }));
 
 vi.mock('@/envs/llm', () => ({
