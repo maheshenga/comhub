@@ -1,6 +1,6 @@
 'use client';
 
-import { ORG_NAME, UTM_SOURCE } from '@lobechat/business-const';
+import { UTM_SOURCE } from '@lobechat/business-const';
 import { type FlexboxProps } from '@lobehub/ui';
 import { Flexbox } from '@lobehub/ui';
 import { LobeHub } from '@lobehub/ui/brand';
@@ -9,7 +9,7 @@ import { memo } from 'react';
 
 import { OFFICIAL_SITE } from '@/const/url';
 import { isCustomORG } from '@/const/version';
-import { useBrand } from '@/features/Brand';
+import { useRuntimeBrand } from '@/features/Brand/useRuntimeBrand';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   logoLink: css`
@@ -23,11 +23,9 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 const BrandWatermark = memo<Omit<FlexboxProps, 'children'>>(({ style, ...rest }) => {
-  const brand = useBrand();
-
-  // Runtime brand wins when configured (admin brand settings or the built-in
-  // XuanguoAI defaults); otherwise fall back to the upstream attribution.
-  const isRuntimeBranded = Boolean(brand.logoUrl) || brand.name !== 'LobeHub';
+  // ComHub brand resolution lives in features/Brand/useRuntimeBrand; this
+  // upstream component only threads the hook and picks the render branch.
+  const { isRuntimeBranded, name } = useRuntimeBrand();
 
   return (
     <Flexbox
@@ -41,7 +39,7 @@ const BrandWatermark = memo<Omit<FlexboxProps, 'children'>>(({ style, ...rest })
     >
       <span>Powered by</span>
       {isRuntimeBranded || isCustomORG ? (
-        <span>{brand.name || ORG_NAME}</span>
+        <span>{name}</span>
       ) : (
         <a
           className={styles.logoLink}

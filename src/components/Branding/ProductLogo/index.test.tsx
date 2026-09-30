@@ -18,8 +18,8 @@ vi.mock('@/const/version', () => ({
   isCustomBranding: false,
 }));
 
-vi.mock('@/features/Brand', () => ({
-  useBrand: () => mocks.brand,
+vi.mock('@/features/Brand/useRuntimeBrand', () => ({
+  useRuntimeBrand: () => ({ isRuntimeBranded: Boolean(mocks.brand.logoUrl), ...mocks.brand }),
 }));
 
 describe('ProductLogo', () => {

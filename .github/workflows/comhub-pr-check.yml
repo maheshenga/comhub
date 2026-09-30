@@ -37,6 +37,17 @@ jobs:
       - name: Verify deployment workflow contracts
         run: node --test .github/workflows/comhubDeploymentWorkflows.test.mjs
 
+      # The upstream baseline tag must exist for the customization gate; fetch
+      # the exact tag shallowly to avoid pulling full upstream history.
+      - name: Fetch upstream baseline tag
+        run: |
+          git remote add upstream https://github.com/lobehub/lobehub.git || true
+          git fetch --depth=1 upstream tag v2.2.18 --no-tags || \
+            echo "::warning::could not fetch upstream v2.2.18; gate will fail with a fetch hint"
+
+      - name: Verify customization registry
+        run: node --test scripts/comhub-customizations/registry.test.mjs && node scripts/comhub-customizations/verify.mjs
+
       - name: Verify database migration chain
         run: pnpm verify:database-migrations
 
