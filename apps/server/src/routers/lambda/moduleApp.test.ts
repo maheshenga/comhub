@@ -154,7 +154,11 @@ vi.mock('@/business/server/module-apps/runModuleAppAction', () => ({
 }));
 
 vi.mock('@/server/services/moduleAppPackage/ingestion', () => ({
-  ModuleAppPackageIngestionService: vi.fn(() => mockIngestionService),
+  ModuleAppPackageIngestionService: class {
+    constructor() {
+      return mockIngestionService;
+    }
+  },
 }));
 
 vi.mock('@/server/services/moduleAppAi', () => ({
@@ -167,7 +171,11 @@ vi.mock('@/server/services/moduleAppRuntime/capability', () => ({
 }));
 
 vi.mock('@/database/models/workspaceMember', () => ({
-  WorkspaceMemberModel: vi.fn(() => ({ getMember: mockGetWorkspaceMember })),
+  WorkspaceMemberModel: class {
+    constructor() {
+      return { getMember: mockGetWorkspaceMember };
+    }
+  },
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
@@ -175,10 +183,14 @@ vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
-  ModuleAppRuntimeClient: vi.fn(() => ({
-    healthCheck: mockRuntimeClientHealthCheck,
-    invoke: mockRuntimeClientInvoke,
-  })),
+  ModuleAppRuntimeClient: class {
+    constructor() {
+      return {
+        healthCheck: mockRuntimeClientHealthCheck,
+        invoke: mockRuntimeClientInvoke,
+      };
+    }
+  },
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/config', () => ({
@@ -186,23 +198,43 @@ vi.mock('@/server/services/moduleAppRuntime/config', () => ({
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
-  ModuleAppModel: vi.fn(() => mockModuleAppModel),
+  ModuleAppModel: class {
+    constructor() {
+      return mockModuleAppModel;
+    }
+  },
 }));
 
 vi.mock('@/database/models/moduleAppDeveloper', () => ({
-  ModuleAppDeveloperModel: vi.fn(() => mockModuleAppDeveloperModel),
+  ModuleAppDeveloperModel: class {
+    constructor() {
+      return mockModuleAppDeveloperModel;
+    }
+  },
 }));
 
 vi.mock('@/database/models/moduleAppCommerce', () => ({
-  ModuleAppCommerceModel: vi.fn(() => mockModuleAppCommerceModel),
+  ModuleAppCommerceModel: class {
+    constructor() {
+      return mockModuleAppCommerceModel;
+    }
+  },
 }));
 
 vi.mock('@/database/models/moduleAppPayment', () => ({
-  ModuleAppPaymentModel: vi.fn(() => mockModuleAppPaymentModel),
+  ModuleAppPaymentModel: class {
+    constructor() {
+      return mockModuleAppPaymentModel;
+    }
+  },
 }));
 
 vi.mock('@/business/server/module-apps/payments/service', () => ({
-  ModuleAppPaymentService: vi.fn(() => mockModuleAppPaymentService),
+  ModuleAppPaymentService: class {
+    constructor() {
+      return mockModuleAppPaymentService;
+    }
+  },
 }));
 
 vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
@@ -228,7 +260,11 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
 }));
 
 vi.mock('@/database/models/moduleAppWorkflow', () => ({
-  ModuleAppWorkflowModel: vi.fn(() => mockModuleAppWorkflowModel),
+  ModuleAppWorkflowModel: class {
+    constructor() {
+      return mockModuleAppWorkflowModel;
+    }
+  },
 }));
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
@@ -603,58 +639,58 @@ describe('moduleApp router registration', () => {
       upsertMyPublisherProfile: { inputs: 1, type: 'mutation' },
     };
     const inputSchemaContract: Record<string, null | string> = {
-      archiveRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
-      callSdk: '842cf7a18c485cc6032081ec322bfda3918a747b24e7406e46667bbea4b36e88',
-      changeInstallationVersion: 'f36685e31e29d5fab8628274f9f818a6617168f71adc2f69a8c225a7438a76aa',
-      cancelOrder: 'f354fb7b76ad0f6770518e7e144e89a63f82fa803356ed1315bcf88402d058df',
-      cancelWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
-      createOrder: '6d395f5827879b996e464493db3e38aafd7bb0d684358e16b1d92571d8211851',
-      createPackageUpload: '6215d3a377a32c7184babaeb9ead827e776a6df3a83ad77e8f41904b636e8dfa',
-      createPayment: 'f9eb0037ddaefeca7bed8a9587dc6d21a5c36b348deba4a3d2891578715f35bc',
-      createRecord: '2f321b2820b2252ffcb9c9c134c652fc540cbd348579402dafd5d0a3a6d9bcf7',
-      deleteInstallationSecret: '69951d4f3ebbaf044287c02aa021b3f222c70206fa728c133bf5889acd424639',
-      getDetail: '071a01e07fe8fc3449788d0f354c6ff6f3ea0001462e1012814d0f676102917a',
-      getLaunchContext: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
-      getLicense: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
+      archiveRecord: 'a5bdb0e9d08be4c8aec1ab63f7799506c2ae7da4e2d74eafec42b9331277c763',
+      callSdk: 'f5f6172af0f33be5f6d0858876658ad5f32746f0617a62b90413eed4fc57720f',
+      changeInstallationVersion: 'ae456d2d5e205358b561db305e880f7ec270248143dbc945b3b2ab00e5da079d',
+      cancelOrder: 'fe711490d2ceed87cb98390a3bd76a74d924ba9c3b1c5a3d8cf45222a71597c2',
+      cancelWorkflowRun: 'bc20752fff1ee9502b870951f737d082ae1b4b3324685ea975789775ebe68d80',
+      createOrder: 'a77750111d36691a56d35663c7b3a5364e586a86fd8e276402236ba5752ab1b0',
+      createPackageUpload: '2dc0265cf42f11400ba7c719729021b7acf0b47cd508353f8d505780eb523b0e',
+      createPayment: 'd9f5254f1dfe54cc29aa901f3774e27744ad34d89fbc6cfdc4d52ab77a6bd44e',
+      createRecord: '795662084260f4185fb50b4448b0ef5e99b8e83f49c0640d829c25b55578dc5d',
+      deleteInstallationSecret: 'b543fe95fddae7a73ee56112f465caca7e7fd99cf1c4adeb490aa009cbc958c8',
+      getDetail: 'c6181d288edb53cff19fde101dfd505082918d75601413541645de541da5a6f7',
+      getLaunchContext: '00a65371494cfddaff03a3b1e8b6b851964cd5bc09f2f2f4bc61c25afea08200',
+      getLicense: '00a65371494cfddaff03a3b1e8b6b851964cd5bc09f2f2f4bc61c25afea08200',
       getPaymentMethods: null,
-      getPaymentStatus: 'f354fb7b76ad0f6770518e7e144e89a63f82fa803356ed1315bcf88402d058df',
+      getPaymentStatus: 'fe711490d2ceed87cb98390a3bd76a74d924ba9c3b1c5a3d8cf45222a71597c2',
       getMyDeveloperFinance: null,
       getMyDeveloperFinanceSummary: null,
       getMyPublisherProfile: null,
-      getRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
-      getRuntimeManifest: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
-      getWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
-      installPersonal: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
-      installWorkspace: 'e102d8e2eb438941c109770451ee755dfe5680ac29e020b50c82ca41981f43f5',
-      listArtifacts: '31ca6256590d548cf1378bb4c8dbc6edac446b302021647b9ade6134d2ef6bd7',
-      listCatalog: '789a28a4bd88dbbb0a4fe89c2a6538c190ebf8427135cb961433cd1d341f7079',
-      listInstallationSecrets: '21d355edace3fd4479dc17131bfe8844a9ba90f88cfe630d4afc9df8c8070d23',
-      listMarketplace: '5b4111c42b1b67721865e703b17f57207ab663914acbbd1885433bbe9a624d27',
-      listMyDeveloperApps: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
-      listMyDeveloperPayouts: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
-      listMyDeveloperRevenue: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
+      getRecord: 'a5bdb0e9d08be4c8aec1ab63f7799506c2ae7da4e2d74eafec42b9331277c763',
+      getRuntimeManifest: '00a65371494cfddaff03a3b1e8b6b851964cd5bc09f2f2f4bc61c25afea08200',
+      getWorkflowRun: 'bc20752fff1ee9502b870951f737d082ae1b4b3324685ea975789775ebe68d80',
+      installPersonal: 'a530463f8f7699bcd593af39ca61ac5daeeaaee954aeb5f393280daa57acf5c5',
+      installWorkspace: '5cfc644ff365215bd199e06f369fa744dc9159273e21affec61722b0ef255398',
+      listArtifacts: 'e03f196872ccae1f68b6cfc3763e56ea12457d42e8a62cb89f9df8ba367739ea',
+      listCatalog: '29a586026eb72026c0d46abbe8e1ebc1f53571d7bdc7eed7e436f1bee27c0614',
+      listInstallationSecrets: '2a4ee71bedc82c90921be9f261cb67d48d9a3ba8ef447f53dfaab5f6e0764a96',
+      listMarketplace: 'be2295a60051f9b0ac69157d1574fb2ed025528ca3c0c68f4941ff78b2775a36',
+      listMyDeveloperApps: 'd55492ea7b2a3d42dfd716d07513bedc8b93c85c9fc16a6ae2855b22ca67b331',
+      listMyDeveloperPayouts: 'd55492ea7b2a3d42dfd716d07513bedc8b93c85c9fc16a6ae2855b22ca67b331',
+      listMyDeveloperRevenue: 'd55492ea7b2a3d42dfd716d07513bedc8b93c85c9fc16a6ae2855b22ca67b331',
       listMyDeveloperSubmissions:
-        '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
-      listMyDeveloperVersions: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
-      listMobileApps: 'fd9e67ce22cbc8dd53d16c3f71e527a0bbd628afeb46949e355bd2442c29de7c',
-      listMyApps: '1d2e18a1f9afecde06441e409c12cdb15bb4f0ea494545effe6824f39dd8355e',
-      listMyPackageSubmissions: '73f4357a6b7d4d088b0eadd243ce4201c94295e9e8f83dc60b642f7b2979133c',
-      listOrders: '64b1f64794012be91a399e0c1754f3a9cd71cc689f6c35534d8dcf045566ff95',
-      listRecords: '9f3afddbdb9d58174d22c658b9b89cc57f8d16a2d29fa451f992617cd0a6f0f2',
-      listRuns: '31ca6256590d548cf1378bb4c8dbc6edac446b302021647b9ade6134d2ef6bd7',
-      listTeamApps: '9bbd98dad19781d69ccc360646979c139118dce38697b889175b6efcb2f5a7a5',
-      listWorkflowNodes: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
-      quoteProduct: 'f0bb4ee4fa6e509c8621f0c0c49b8ea2952c1c07b8c219354a5c85684ec2d858',
-      publishMyDeveloperApp: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
-      rollbackMyDeveloperApp: 'f34a5de1f0e2e8e20b6c8430c43949b8f2b1b5011b300adaac0add188b7db9ca',
-      runAction: 'b02a2c4f1fe29489a7b4c9315e0bd3f461024e41dfb4b875cdea64b78e020c0f',
-      submitUploadedPackage: '1257dbc5e374e9500f59cc034f282ba76faafaea9bf7b38fee9124b599bdf571',
-      uninstallPersonal: '79284150daa6c6b2a585054665ebb4d1c5617ccb7bd25fcb89018768a43c7707',
-      uninstallWorkspace: '62a649f11b2cb6a1a4820c118e6ffb5b28da3ea4e6833caa31c89e0c1a6c55ec',
-      unpublishMyDeveloperApp: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
-      updateRecord: '33347b3388f8c6500c014bb99506e2df954697674a2b8dce44264e05c20c0f5d',
-      upsertInstallationSecret: 'ca13d38564530b36a90fce7005154de37f59124a9ea82265552848174ddf45d1',
-      upsertMyPublisherProfile: 'a50b9d5b9d6829e10e9ce10c5a9ab2836ba4df4cc89f8761c7fad584273b31d3',
+        'd55492ea7b2a3d42dfd716d07513bedc8b93c85c9fc16a6ae2855b22ca67b331',
+      listMyDeveloperVersions: '898fea177d3aa3758ccfc1e0405c10f8407660e85996bba8f333d4aa480e0030',
+      listMobileApps: '3cc1cb6b55b5224b726b5d6d488b0c77f018faaabe59a832c8c47740907f2d37',
+      listMyApps: 'ec614d5e71557596909d2d472085dc70994ea43b2959199a11e17bba1f1c3ed7',
+      listMyPackageSubmissions: 'c950aa4ce80b261adbdd1b11c2a4f8b890c7a5169bb65cd736c70d5f7953d387',
+      listOrders: '90eae46fff55349f39bc7aff0049837e19d4110a52193693722ebf2a1b3c8508',
+      listRecords: '654ca57e0d4500fa0e8fedb3a05c28e4effc9e6cf77c1328e286cb572f52abd4',
+      listRuns: 'e03f196872ccae1f68b6cfc3763e56ea12457d42e8a62cb89f9df8ba367739ea',
+      listTeamApps: '3fd04226efa9c85b7e4cf51b12d6e755e8bc5d217b2237cd965658e3b367ca1e',
+      listWorkflowNodes: 'bc20752fff1ee9502b870951f737d082ae1b4b3324685ea975789775ebe68d80',
+      quoteProduct: 'a1853d54f05d51366ec02c149e42fa2b352b179da8f511a0bf1e4eddefa5c3c1',
+      publishMyDeveloperApp: '898fea177d3aa3758ccfc1e0405c10f8407660e85996bba8f333d4aa480e0030',
+      rollbackMyDeveloperApp: '5c742d4129cfc6389786050a9705e162342cf227f9a8c3a554a7793be9c6e0b0',
+      runAction: '130d701a022b7b66f023bb29ce2700d3da14562b8517f00f6969693d34a4e7db',
+      submitUploadedPackage: '8e0eef4a51d48655356cf4b396a0d0a4e90acd29f39bbcae7c16f81934c0b3d7',
+      uninstallPersonal: 'a8393e9b9c81bbbd9ff38c6077dc9c298f47ec432ae845177119d32c1f0ea3e8',
+      uninstallWorkspace: 'd4939cce108a95fbb53a358c8538c4d512fdbae2354c1467d9b63f6fbd0887dd',
+      unpublishMyDeveloperApp: '898fea177d3aa3758ccfc1e0405c10f8407660e85996bba8f333d4aa480e0030',
+      updateRecord: '0dbe4d35271edff71ef49bf389655d2b58d1bdc38f5e462095be5b43facf6d41',
+      upsertInstallationSecret: 'f4ab655261b56c892510b4f00e2e9329ef619c330b04952af0728dcce8ff5441',
+      upsertMyPublisherProfile: '23c2bfc737ff9f8ca13e95699a727f04e87e54e04dccfed8871672365cf5ec9b',
     };
     const baseMiddlewares = moduleAppProcedure._def.middlewares;
     const authMiddlewares = authedProcedure._def.middlewares;

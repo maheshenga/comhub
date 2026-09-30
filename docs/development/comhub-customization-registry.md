@@ -23,13 +23,13 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | CI / deploy workflows (`ci-deploy`)                         | re-apply                     | 11          | 35             | ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.                                                                                          |
 | Admin app settings runtime config (`admin-app-settings`)    | verify-only                  | 11          | 29             | app_settings key/value store + typed registry + CAS revisions + per-section readers (brand, S3, composio, model policy, defaults) + newapi instance management.                                                                                                      |
 | Locale additions (`locales`)                                | merge                        | 0           | 31             | ComHub locale keys (admin.\*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults.                                                                                                                                  |
-| Desktop release pipeline (`desktop-release-pipeline`)       | re-apply                     | 19          | 11             | GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions.                                                                                                                                              |
+| Desktop release pipeline (`desktop-release-pipeline`)       | re-apply                     | 24          | 6              | GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions.                                                                                                                                              |
 | Onboarding & community (`onboarding-community`)             | re-apply                     | 4           | 26             | Local onboarding agent templates, fork-and-chat community flow, market/discover services, expert plaza entries.                                                                                                                                                      |
 | Desktop main process patches (`desktop-main-patches`)       | re-apply                     | 8           | 21             | Electron main-process behavior: OFFICIAL_CLOUD_SERVER default, updater remote config, gateway/webview partitions, splash, Browser subscription partition, ComHub feature UI.                                                                                         |
 | Desktop build profile pipeline (`desktop-build-profile`)    | verify-only                  | 27          | 0              | Runtime installer branding: admin-authored profile → DB revisions → CI staging → electron-builder overrides (appId, icons, NSIS, protocol schemes).                                                                                                                  |
 | Dependency pins (`deps-pins`)                               | verify-only                  | 1           | 7              | pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps.                                                                                                                                                                   |
 | Usage ledger reconciliation (`server-usage-ledger`)         | re-apply                     | 0           | 5              | Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output).                                                                                                                         |
-| Admin-managed S3 routing (`server-storage-s3`)              | re-apply                     | 0           | 5              | FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.                                                                                                                                        |
+| Admin-managed S3 routing (`server-storage-s3`)              | re-apply                     | 2           | 3              | FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.                                                                                                                                        |
 | Desktop deep-link scheme (comhub://) (`desktop-deep-links`) | re-apply                     | 0           | 3              | comhub:// protocol scheme detection + whitelist extension in the desktop main process.                                                                                                                                                                               |
 | PostgreSQL pool guardrails (`db-pool-guardrails`)           | re-apply                     | 0           | 3              | DATABASE_POOL\_\* / statement & idle-in-transaction timeouts for Node pg pools.                                                                                                                                                                                      |
 | Agent inbox/default-model guard (`server-agent-guard`)      | re-apply                     | 0           | 3              | Admin default-agent settings layer + inbox runtime model preservation (user-updated inbox model/provider survives hydrate).                                                                                                                                          |
@@ -137,19 +137,19 @@ GH desktop release workflow, release callback API, GitHub release health service
 - Tests: `apps/server/src/services/desktopRelease/index.test.ts`
 - Notes: Release callbacks require status + profileRevisionId + workflow metadata; publication needs downloadUrl + serverUrl. stage_profile uses direct node tsx (pnpm v12 ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR).
 
-| Rule                                             | Ownership | Covers                                  | vs baseline |
-| ------------------------------------------------ | --------- | --------------------------------------- | ----------- |
-| `p:.github/workflows/comhub-desktop-release.yml` | owned     | release workflow                        | 19          |
-| `p:.github/workflows/comhub-manual-desktop.yml`  | owned     | manual dispatch workflow                | 19          |
-| `p:.github/actions/desktop-publish-s3/`          | upstream  | OTA publish action + mainhash inputs    | 11          |
-| `p:.github/actions/desktop-upload-artifacts/`    | upstream  | artifact upload incl. renderer mainhash | 11          |
-| `p:src/app/(backend)/api/admin/desktop-release/` | owned     | callback + profile API routes           | 19          |
-| `p:src/app/(backend)/api/admin/maintenance/`     | owned     | admin maintenance route                 | 19          |
-| `p:src/app/(backend)/api/webhooks/`              | owned     | payment/module-app webhook routes       | 19          |
-| `p:src/app/(backend)/api/workflows/`             | owned     | module-app run workflow route           | 19          |
-| `p:apps/server/src/services/desktopRelease/`     | upstream  | github.ts health + index.ts diagnostics | 11          |
-| `p:apps/desktop/scripts/update-test/`            | upstream  | file-mode only changes                  | 11          |
-| `p:scripts/electronWorkflow/`                    | upstream  | setDesktopVersion + remaining scripts   | 11          |
+| Rule                                             | Ownership | Covers                                                                                                                                      | vs baseline |
+| ------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `p:.github/workflows/comhub-desktop-release.yml` | owned     | release workflow                                                                                                                            | 24          |
+| `p:.github/workflows/comhub-manual-desktop.yml`  | owned     | manual dispatch workflow                                                                                                                    | 24          |
+| `p:.github/actions/desktop-publish-s3/`          | upstream  | OTA publish action + mainhash inputs                                                                                                        | 6           |
+| `p:.github/actions/desktop-upload-artifacts/`    | upstream  | artifact upload incl. renderer mainhash                                                                                                     | 6           |
+| `p:src/app/(backend)/api/admin/desktop-release/` | owned     | callback + profile API routes                                                                                                               | 24          |
+| `p:src/app/(backend)/api/admin/maintenance/`     | owned     | admin maintenance route                                                                                                                     | 24          |
+| `p:src/app/(backend)/api/webhooks/`              | owned     | payment/module-app webhook routes                                                                                                           | 24          |
+| `p:src/app/(backend)/api/workflows/`             | owned     | module-app run workflow route                                                                                                               | 24          |
+| `p:apps/server/src/services/desktopRelease/`     | owned     | index.ts = upstream resolvers + delegation; diagnostics.ts (SSRF/zod/timeout/channel health), downloadTypes.ts (matchers), github.ts health | 24          |
+| `p:apps/desktop/scripts/update-test/`            | upstream  | file-mode only changes                                                                                                                      | 6           |
+| `p:scripts/electronWorkflow/`                    | upstream  | setDesktopVersion + remaining scripts                                                                                                       | 6           |
 
 ## PostgreSQL pool guardrails (`db-pool-guardrails`)
 
@@ -227,12 +227,12 @@ FileS3 routes runtime methods through getRuntimeS3() built from admin app_settin
 - Tests: `apps/server/src/modules/S3/index.test.ts`
 - Notes: Do not call inherited S3 methods from FileS3 unless they delegate through getRuntimeS3(). invalidateServerAppSettings() must clear the runtime cache.
 
-| Rule                                        | Ownership | Covers                                      | vs baseline |
-| ------------------------------------------- | --------- | ------------------------------------------- | ----------- |
-| `p:apps/server/src/modules/S3/`             | upstream  | FileS3 runtime override + cache in index.ts | 5           |
-| `p:apps/server/src/services/file/`          | upstream  | s3.ts impl reads config via getConfig()     | 5           |
-| `p:apps/server/src/services/connectorData/` | upstream  | S3 config usage                             | 5           |
-| `p:src/services/upload.ts`                  | upstream  | client S3 path from server config           | 5           |
+| Rule                                        | Ownership | Covers                                                                                                                               | vs baseline |
+| ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| `p:apps/server/src/modules/S3/`             | owned     | index.ts = upstream barrel; s3Client.ts (upstream base + fork methods), fileS3Runtime.ts (FileS3 override + TTL cache), envFileS3.ts | 2           |
+| `p:apps/server/src/services/file/`          | upstream  | s3.ts impl reads config via getConfig()                                                                                              | 3           |
+| `p:apps/server/src/services/connectorData/` | upstream  | S3 config usage                                                                                                                      | 3           |
+| `p:src/services/upload.ts`                  | upstream  | client S3 path from server config                                                                                                    | 3           |
 
 ## Agent inbox/default-model guard (`server-agent-guard`)
 
