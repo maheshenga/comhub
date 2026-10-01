@@ -256,6 +256,11 @@ const MODULES = [
       ['p:packages/types/src/usage/', 'upstream', 'usage record types'],
       ['p:packages/trpc/src/client/', 'upstream', 'lambda/async client surface'],
       [
+        'p:src/server/services/newapiInstance/',
+        'owned',
+        'instance registry: resolver + round-robin, catalog, credentials, pricing',
+      ],
+      [
         'p:apps/server/src/modules/ModelRuntime/',
         'upstream',
         'initModelRuntimeFromDB + newapi route metadata',

@@ -6,6 +6,7 @@ import { resolvePlanModelRules } from '@/business/server/planModelRules';
 import {
   getAllEnabledModels,
   invalidateNewapiInstancesCache,
+  resetRoundRobinCounters,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
   resolveNewapiModelPricingFromMetadata,
@@ -69,6 +70,7 @@ describe('NewAPI instance resolver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     invalidateNewapiInstancesCache();
+    resetRoundRobinCounters();
     vi.mocked(resolvePlanModelRules).mockResolvedValue(null);
     pricingMocks.resolveNewapiModelPricing.mockImplementation(
       async ({ databasePricing }: { databasePricing?: unknown }) => ({
@@ -323,6 +325,106 @@ describe('NewAPI instance resolver', () => {
     expect(routes.map((route) => route.instanceId)).toEqual(['asr-1']);
   });
 
+  it('round-robins across instances serving the same model', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-a',
+        baseUrl: 'https://a.example.com',
+        groupKey: 'default',
+        id: 'a-1',
+        name: 'A',
+        priority: 0,
+      },
+      {
+        apiKey: 'sk-b',
+        baseUrl: 'https://b.example.com',
+        groupKey: 'default',
+        id: 'b-1',
+        name: 'B',
+        priority: 1,
+      },
+      {
+        apiKey: 'sk-c',
+        baseUrl: 'https://c.example.com',
+        groupKey: 'default',
+        id: 'c-1',
+        name: 'C',
+        priority: 2,
+      },
+    ]);
+
+    const resolve = () =>
+      resolveNewapiInstancesForModel(db, { modelId: 'gpt-4o', modelType: 'chat' });
+
+    const first = (await resolve()).map((route) => route.instanceId);
+    const second = (await resolve()).map((route) => route.instanceId);
+    const third = (await resolve()).map((route) => route.instanceId);
+    const fourth = (await resolve()).map((route) => route.instanceId);
+
+    expect(first).toEqual(['a-1', 'b-1', 'c-1']);
+    expect(second).toEqual(['b-1', 'c-1', 'a-1']);
+    expect(third).toEqual(['c-1', 'a-1', 'b-1']);
+    expect(fourth).toEqual(['a-1', 'b-1', 'c-1']);
+  });
+
+  it('round-robins per model independently and is a no-op with a single instance', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-a',
+        baseUrl: 'https://a.example.com',
+        groupKey: 'default',
+        id: 'a-1',
+        name: 'A',
+        priority: 0,
+      },
+      {
+        apiKey: 'sk-b',
+        baseUrl: 'https://b.example.com',
+        groupKey: 'default',
+        id: 'b-1',
+        name: 'B',
+        priority: 1,
+      },
+    ]);
+
+    const resolveModel = (modelId: string) =>
+      resolveNewapiInstancesForModel(db, { modelId, modelType: 'chat' });
+
+    expect((await resolveModel('m1')).map((r) => r.instanceId)).toEqual(['a-1', 'b-1']);
+    expect((await resolveModel('m2')).map((r) => r.instanceId)).toEqual(['a-1', 'b-1']);
+    expect((await resolveModel('m1')).map((r) => r.instanceId)).toEqual(['b-1', 'a-1']);
+    expect((await resolveModel('m2')).map((r) => r.instanceId)).toEqual(['b-1', 'a-1']);
+  });
+
+  it('does not rotate when a preferred instance is pinned', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-a',
+        baseUrl: 'https://a.example.com',
+        groupKey: 'default',
+        id: 'a-1',
+        name: 'A',
+        priority: 0,
+      },
+      {
+        apiKey: 'sk-b',
+        baseUrl: 'https://b.example.com',
+        groupKey: 'default',
+        id: 'b-1',
+        name: 'B',
+        priority: 1,
+      },
+    ]);
+
+    const routes = await resolveNewapiInstancesForModel(db, {
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+      preferredInstanceId: 'a-1',
+    });
+
+    expect(routes.map((route) => route.instanceId)).toEqual(['a-1']);
+  });
+
   it('prefers default group for default instance resolution', async () => {
     const db = createDb([
       {
@@ -351,7 +453,7 @@ describe('NewAPI instance resolver', () => {
     );
   });
 
-  it('keeps enabled model routes distinct when the same model exists in multiple groups', async () => {
+  it('shows a model registered on multiple instances only once (best-instance entry wins)', async () => {
     const db = createDb([
       {
         displayName: 'GPT-4o',
@@ -361,6 +463,7 @@ describe('NewAPI instance resolver', () => {
         instanceName: 'Basic Gateway',
         modelId: 'gpt-4o',
         modelType: 'chat',
+        priority: 0,
         providerType: 'newapi',
       },
       {
@@ -371,20 +474,34 @@ describe('NewAPI instance resolver', () => {
         instanceName: 'Pro Gateway',
         modelId: 'gpt-4o',
         modelType: 'chat',
+        priority: 1,
         providerType: 'openai-compatible',
+      },
+      {
+        displayName: 'Video model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        modelId: 'sora-2',
+        modelType: 'video',
+        priority: 0,
+        providerType: 'newapi',
       },
     ]);
 
-    await expect(getAllEnabledModels(db)).resolves.toEqual([
+    const models = await getAllEnabledModels(db);
+
+    expect(models.filter((model) => model.id === 'gpt-4o')).toHaveLength(1);
+    expect(models).toEqual([
       expect.objectContaining({
         groupKey: 'basic',
         id: 'gpt-4o',
         instanceName: 'Basic Gateway',
       }),
       expect.objectContaining({
-        groupKey: 'pro',
-        id: 'gpt-4o',
-        instanceName: 'Pro Gateway',
+        id: 'sora-2',
+        type: 'video',
       }),
     ]);
   });

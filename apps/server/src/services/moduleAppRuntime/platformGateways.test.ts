@@ -24,9 +24,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/business/server/module-apps/payments/service', () => ({
-  ModuleAppPaymentService: vi
-    .fn()
-    .mockImplementation(() => ({ createPayment: mocks.createPayment })),
+  ModuleAppPaymentService: class {
+    constructor() {
+      return { createPayment: mocks.createPayment };
+    }
+  },
 }));
 
 vi.mock('@/business/server/planModelRules', () => ({
@@ -35,14 +37,22 @@ vi.mock('@/business/server/planModelRules', () => ({
 }));
 
 vi.mock('@/database/models/moduleAppCommerce', () => ({
-  ModuleAppCommerceModel: vi.fn().mockImplementation(() => ({
-    createOrder: mocks.createOrder,
-    listCatalog: mocks.listCatalog,
-  })),
+  ModuleAppCommerceModel: class {
+    constructor() {
+      return {
+        createOrder: mocks.createOrder,
+        listCatalog: mocks.listCatalog,
+      };
+    }
+  },
 }));
 
 vi.mock('@/database/models/moduleAppPayment', () => ({
-  ModuleAppPaymentModel: vi.fn(),
+  ModuleAppPaymentModel: class {
+    constructor() {
+      return {};
+    }
+  },
 }));
 
 vi.mock('@/server/services/moduleAppAi', () => ({
