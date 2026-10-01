@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   getBusinessModelRuntimeHooks: vi.fn(),
   createLLMGenerationTracingHook: vi.fn(),
   initializeWithProvider: vi.fn(),
+  markNewapiInstanceFailed: vi.fn(),
   mergeModelRuntimeHooks: vi.fn((...hooks: any[]) => Object.assign({}, ...hooks.filter(Boolean))),
   resolveDefaultNewapiInstance: vi.fn(),
   resolveNewapiInstanceByProviderId: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock('@/server/services/llmGenerationTracing/hook', () => ({
 
 vi.mock('@/server/services/newapiInstance', () => ({
   buildNewapiRouteMetadata: mocks.buildNewapiRouteMetadata,
+  markNewapiInstanceFailed: mocks.markNewapiInstanceFailed,
   resolveDefaultNewapiInstance: mocks.resolveDefaultNewapiInstance,
   resolveNewapiInstanceByProviderId: mocks.resolveNewapiInstanceByProviderId,
   resolveNewapiInstancesForModel: mocks.resolveNewapiInstancesForModel,
@@ -478,6 +480,66 @@ describe('initModelRuntimeFromDB newapi routing', () => {
         beforeChat: expect.any(Function),
         routeMetadata: expect.objectContaining({ instanceId: 'instance-fallback' }),
       }),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('marks the primary and failed fallbacks into rotation cooldown on retriable errors', async () => {
+    const db = { id: 'db' } as any;
+    const onRouteResolved = vi.fn();
+    const primaryChat = vi.fn().mockRejectedValue({ statusCode: 502 });
+    const fallbackChat = vi.fn().mockRejectedValue({ errorType: 'NetworkError' });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mocks.getBusinessModelRuntimeHooks.mockReturnValue({ beforeChat: vi.fn() });
+    mocks.createLLMGenerationTracingHook.mockReturnValue({ afterChat: vi.fn() });
+    mocks.initializeWithProvider
+      .mockReturnValueOnce({ chat: primaryChat })
+      .mockReturnValueOnce({ chat: fallbackChat });
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([
+      {
+        apiKey: 'sk-primary',
+        baseUrl: 'https://primary.example.com/v1',
+        groupKey: 'primary',
+        instanceId: 'instance-primary',
+        instanceName: 'Primary',
+        priority: 1,
+        providerType: 'newapi',
+        source: 'instance' as const,
+      },
+      {
+        apiKey: 'sk-fallback',
+        baseUrl: 'https://fallback.example.com/v1',
+        groupKey: 'primary',
+        instanceId: 'instance-fallback',
+        instanceName: 'Fallback',
+        priority: 2,
+        providerType: 'newapi',
+        source: 'instance' as const,
+      },
+    ]);
+
+    const runtime = await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'gpt-test',
+      modelType: 'chat',
+      onRouteResolved,
+    });
+
+    await expect(
+      runtime.chat({ messages: [{ content: 'hello', role: 'user' }], model: 'gpt-test' } as any),
+    ).rejects.toEqual({ statusCode: 502 });
+
+    expect(mocks.markNewapiInstanceFailed).toHaveBeenCalledTimes(2);
+    expect(mocks.markNewapiInstanceFailed).toHaveBeenNthCalledWith(
+      1,
+      'instance-primary',
+      'gpt-test',
+    );
+    expect(mocks.markNewapiInstanceFailed).toHaveBeenNthCalledWith(
+      2,
+      'instance-fallback',
+      'gpt-test',
     );
 
     warnSpy.mockRestore();
