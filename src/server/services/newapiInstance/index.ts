@@ -196,25 +196,77 @@ const usageScopeAllows = (
   return usageScope.some((type) => compatibleTypes.includes(type));
 };
 
+const ROUND_ROBIN_COUNTER_LIMIT = 1_000;
+
 const roundRobinCounters = new Map<string, number>();
 
-/** Exposed for tests only: reset every per-model round-robin cursor. */
+/**
+ * Process-local cooldowns keyed by `${instanceId}:${modelId}`. When failover
+ * observes a retriable failure on an instance, that (instance, model) pair is
+ * skipped by the rotation for a short window so live traffic stops being spent
+ * on a gateway that just failed. Entries expire on read; the map self-cleans.
+ */
+const ROUND_ROBIN_COOLDOWN_MS = 60_000;
+
+const instanceCooldowns = new Map<string, number>();
+
+const cooldownKey = (instanceId: string, modelId: string) => `${instanceId}:${modelId}`;
+
+const pruneExpiredCooldowns = (now: number) => {
+  for (const [key, expiresAt] of instanceCooldowns) {
+    if (expiresAt <= now) instanceCooldowns.delete(key);
+  }
+};
+
+/**
+ * Exposed for tests only: reset every per-model round-robin cursor and clear
+ * all failure cooldowns.
+ */
 export const resetRoundRobinCounters = () => {
   roundRobinCounters.clear();
+  instanceCooldowns.clear();
 };
+
+export const markNewapiInstanceFailed = (instanceId: string, modelId: string) => {
+  instanceCooldowns.set(cooldownKey(instanceId, modelId), Date.now() + ROUND_ROBIN_COOLDOWN_MS);
+};
+
+/** Exposed for tests only. */
+export const getInstanceCooldownCount = () => instanceCooldowns.size;
 
 /**
  * Rotate the candidate list for a model so the start index advances on every
  * call (round-robin load spreading). With a single candidate this is a no-op.
+ * Instances in failure cooldown are pushed to the back (still available as a
+ * last-resort failover) instead of being dropped.
  */
-const rotateRoundRobin = <T>(modelId: string, candidates: T[]): T[] => {
+const rotateRoundRobin = <T extends { instanceId: string }>(
+  modelId: string,
+  candidates: T[],
+): T[] => {
   if (candidates.length <= 1) return candidates;
 
-  const previous = roundRobinCounters.get(modelId) ?? 0;
-  roundRobinCounters.set(modelId, previous + 1);
-  const offset = previous % candidates.length;
+  const now = Date.now();
+  pruneExpiredCooldowns(now);
 
-  return [...candidates.slice(offset), ...candidates.slice(0, offset)];
+  const healthy = candidates.filter(
+    (candidate) => (instanceCooldowns.get(cooldownKey(candidate.instanceId, modelId)) ?? 0) <= now,
+  );
+  const cooling = candidates.filter((candidate) => !healthy.includes(candidate));
+  const ordered = [...healthy, ...cooling];
+  if (healthy.length === 0) return ordered;
+
+  const previous = roundRobinCounters.get(modelId) ?? 0;
+  // Bound the per-model counters: reset the cursor once the map grows past the
+  // limit (module identity churn); skew for one request is acceptable.
+  if (roundRobinCounters.size >= ROUND_ROBIN_COUNTER_LIMIT) {
+    roundRobinCounters.clear();
+  }
+  roundRobinCounters.set(modelId, previous + 1);
+  const offset = previous % healthy.length;
+  const first = healthy[offset];
+
+  return [...ordered.slice(ordered.indexOf(first)), ...ordered.slice(0, ordered.indexOf(first))];
 };
 
 /**

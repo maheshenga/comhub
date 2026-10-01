@@ -5,7 +5,9 @@ import { resolvePlanModelRules } from '@/business/server/planModelRules';
 
 import {
   getAllEnabledModels,
+  getInstanceCooldownCount,
   invalidateNewapiInstancesCache,
+  markNewapiInstanceFailed,
   resetRoundRobinCounters,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
@@ -394,6 +396,90 @@ describe('NewAPI instance resolver', () => {
     expect((await resolveModel('m2')).map((r) => r.instanceId)).toEqual(['a-1', 'b-1']);
     expect((await resolveModel('m1')).map((r) => r.instanceId)).toEqual(['b-1', 'a-1']);
     expect((await resolveModel('m2')).map((r) => r.instanceId)).toEqual(['b-1', 'a-1']);
+  });
+
+  it('pushes a cooling instance to the back while keeping it as last-resort failover', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-a',
+        baseUrl: 'https://a.example.com',
+        groupKey: 'default',
+        id: 'a-1',
+        name: 'A',
+        priority: 0,
+      },
+      {
+        apiKey: 'sk-b',
+        baseUrl: 'https://b.example.com',
+        groupKey: 'default',
+        id: 'b-1',
+        name: 'B',
+        priority: 1,
+      },
+      {
+        apiKey: 'sk-c',
+        baseUrl: 'https://c.example.com',
+        groupKey: 'default',
+        id: 'c-1',
+        name: 'C',
+        priority: 2,
+      },
+    ]);
+
+    markNewapiInstanceFailed('a-1', 'gpt-4o');
+
+    expect(
+      (await resolveNewapiInstancesForModel(db, { modelId: 'gpt-4o', modelType: 'chat' })).map(
+        (route) => route.instanceId,
+      ),
+    ).toEqual(['b-1', 'c-1', 'a-1']);
+
+    // Cooldown is scoped per (instance, model): other models still start at a-1.
+    expect(
+      (await resolveNewapiInstancesForModel(db, { modelId: 'gpt-4o-mini', modelType: 'chat' })).map(
+        (route) => route.instanceId,
+      ),
+    ).toEqual(['a-1', 'b-1', 'c-1']);
+  });
+
+  it('keeps at least one rotation target even when every instance is cooling', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-a',
+        baseUrl: 'https://a.example.com',
+        groupKey: 'default',
+        id: 'a-1',
+        name: 'A',
+        priority: 0,
+      },
+      {
+        apiKey: 'sk-b',
+        baseUrl: 'https://b.example.com',
+        groupKey: 'default',
+        id: 'b-1',
+        name: 'B',
+        priority: 1,
+      },
+    ]);
+
+    markNewapiInstanceFailed('a-1', 'gpt-4o');
+    markNewapiInstanceFailed('b-1', 'gpt-4o');
+
+    const routes = await resolveNewapiInstancesForModel(db, {
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+    });
+
+    // All cooling: never drop instances, keep priority order as the failover chain.
+    expect(routes.map((route) => route.instanceId)).toEqual(['a-1', 'b-1']);
+  });
+
+  it('tracks and clears cooldown state', () => {
+    expect(getInstanceCooldownCount()).toBe(0);
+    markNewapiInstanceFailed('a-1', 'm1');
+    expect(getInstanceCooldownCount()).toBe(1);
+    resetRoundRobinCounters();
+    expect(getInstanceCooldownCount()).toBe(0);
   });
 
   it('does not rotate when a preferred instance is pinned', async () => {

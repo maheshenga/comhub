@@ -10,6 +10,7 @@ import { createLLMGenerationTracingHook } from '@/server/services/llmGenerationT
 import {
   type AdminModelApiProviderType,
   buildNewapiRouteMetadata,
+  markNewapiInstanceFailed,
   type NewapiModelType,
   resolveDefaultNewapiInstance,
   type ResolvedNewapiInstance,
@@ -86,10 +87,13 @@ const wrapNewapiRuntimeWithFailover = (
   provider: string,
   workspaceId?: string,
   onRouteResolved?: (routeMetadata: AiUsageRouteMetadata | undefined) => void,
+  routeModelId?: string,
+  primaryInstance?: ResolvedNewapiInstance,
 ): ModelRuntime => {
   const originalChat = runtime.chat.bind(runtime);
 
   runtime.chat = async function (chatPayload, options?) {
+    const modelId = routeModelId ?? (chatPayload as { model?: string } | undefined)?.model;
     try {
       return await originalChat(chatPayload, options);
     } catch (primaryError) {
@@ -100,6 +104,12 @@ const wrapNewapiRuntimeWithFailover = (
       );
 
       if (!is5xx && !isNetwork) throw primaryError;
+
+      // Cool the failing primary down so the rotation stops spending live
+      // traffic on it while it is broken (expires after the cooldown window).
+      if (modelId && primaryInstance) {
+        markNewapiInstanceFailed(primaryInstance.instanceId, modelId);
+      }
 
       // Try fallback instances in order. The final successful runtime still needs
       // billing/tracing hooks; ledger writes are idempotent by billing reference.
@@ -135,8 +145,14 @@ const wrapNewapiRuntimeWithFailover = (
           );
           onRouteResolved?.(buildNewapiRouteMetadata(instance));
           return await fallbackRuntime.chat(chatPayload, options);
-        } catch {
-          // Continue to next fallback
+        } catch (fallbackError) {
+          // Cool this fallback down too, then continue to the next one.
+          if (modelId) markNewapiInstanceFailed(instance.instanceId, modelId);
+          console.warn(
+            `[newapi-failover] fallback "${instance.instanceName}" also failed: ${
+              fallbackError instanceof Error ? fallbackError.message : fallbackError
+            }`,
+          );
         }
       }
 
@@ -245,6 +261,8 @@ export const initModelRuntimeFromNewapiRoute = async (params: {
       provider,
       workspaceId,
       params.options.onRouteResolved,
+      params.options.model ?? undefined,
+      primary,
     );
   }
 
