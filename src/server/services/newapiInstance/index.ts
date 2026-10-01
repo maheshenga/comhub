@@ -196,11 +196,35 @@ const usageScopeAllows = (
   return usageScope.some((type) => compatibleTypes.includes(type));
 };
 
+const roundRobinCounters = new Map<string, number>();
+
+/** Exposed for tests only: reset every per-model round-robin cursor. */
+export const resetRoundRobinCounters = () => {
+  roundRobinCounters.clear();
+};
+
+/**
+ * Rotate the candidate list for a model so the start index advances on every
+ * call (round-robin load spreading). With a single candidate this is a no-op.
+ */
+const rotateRoundRobin = <T>(modelId: string, candidates: T[]): T[] => {
+  if (candidates.length <= 1) return candidates;
+
+  const previous = roundRobinCounters.get(modelId) ?? 0;
+  roundRobinCounters.set(modelId, previous + 1);
+  const offset = previous % candidates.length;
+
+  return [...candidates.slice(offset), ...candidates.slice(0, offset)];
+};
+
 /**
  * Resolve the NewAPI instances that can serve a given model.
  *
  * Selection order: enabled instance(s) that have the (modelId, modelType)
  * registered and enabled, sorted by ascending priority (lower wins) for failover.
+ * When multiple instances serve the same model (and no preferred instance is
+ * pinned), the candidate list rotates round-robin per model so load spreads
+ * across instances; the failover order rotates with it.
  */
 export const resolveNewapiInstancesForModel = async (
   db: LobeChatDatabase,
@@ -263,9 +287,15 @@ export const resolveNewapiInstancesForModel = async (
       });
 
       const selectedGroupKey = preferredGroupKey || allowedRows[0]?.groupKey || 'default';
-      return allowedRows
+      const candidates = allowedRows
         .filter((row) => (row.groupKey || 'default') === selectedGroupKey)
         .map(toResolvedInstance);
+
+      // Round-robin: rotate candidates per model so consecutive requests spread
+      // across enabled instances instead of always hitting the highest-priority
+      // one. Failover order (rest of the list) rotates with it.
+      if (preferredInstanceId) return candidates;
+      return rotateRoundRobin(trimmedModel, candidates);
     }
   }
 
@@ -599,11 +629,15 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
       .where(
         and(eq(adminNewapiInstances.enabled, true), eq(adminNewapiInstanceModels.enabled, true)),
       )
-      .orderBy(asc(adminNewapiInstanceModels.sortOrder));
+      .orderBy(asc(adminNewapiInstanceModels.sortOrder), asc(adminNewapiInstances.priority));
 
+    // Same model registered on several instances must surface once in the UI:
+    // keep the first row per modelId+modelType (rows come from instances whose
+    // priority order already led the query), and let request routing decide
+    // which instance actually serves it (see resolveNewapiInstancesForModel).
     const seen = new Set<string>();
     const uniqueRows = rows.filter((row) => {
-      const key = `${row.instanceId}:${row.modelId}:${row.modelType}`;
+      const key = `${row.modelId}:${row.modelType}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

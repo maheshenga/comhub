@@ -9,7 +9,7 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 
 | Module                                                      | Sync strategy                | Owned files | Upstream files | Description                                                                                                                                                                                                                                                          |
 | ----------------------------------------------------------- | ---------------------------- | ----------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commercial billing closure (`commercial-billing`)           | merge _(planned extraction)_ | 90          | 315            | Credit ledger, workspace/personal payer resolution, image/video pre/post charge, model pricing, plan model rules, OpenAPI operation ids. Hooks ride the upstream ModelRuntimeHooks architecture.                                                                     |
+| Commercial billing closure (`commercial-billing`)           | merge _(planned extraction)_ | 101         | 315            | Credit ledger, workspace/personal payer resolution, image/video pre/post charge, model pricing, plan model rules, OpenAPI operation ids. Hooks ride the upstream ModelRuntimeHooks architecture.                                                                     |
 | UI integration points (`ui-integration`)                    | merge _(planned extraction)_ | 139         | 252            | Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + brand defaults, settings categories, provider visibility filter, model switcher, home layout, chat input flags, store slices.                                                         |
 | Admin console (`admin-console`)                             | verify-only                  | 265         | 12             | Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries.                                                                                                                                                           |
 | Module App platform (`module-app-platform`)                 | verify-only                  | 215         | 6              | Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifecycle governance, artifact cleanup, scheduled dispatch, S3 gate replacement.                                                                                                          |
@@ -17,21 +17,21 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | Mobile workspace parity (`mobile-workspace`)                | merge                        | 60          | 39             | DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parity), shared route generators, workspace settings category gating.                                                                                                                     |
 | Runtime quality patches (`runtime-quality`)                 | merge                        | 3           | 88             | Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand platform paths, llm error classifier, memory extraction config, qstash otel caching, SSRF-safe fetch, internal error sanitization, DB indexes, SDK regen, openapi operationId util. |
 | Migration chain (`database-migrations`)                     | verify-only                  | 78          | 4              | ComHub-owned migrations (0100-0122 commercial, 0168-0177), repair migration 0178, renumbered upstream 0123-0128, journal invariants.                                                                                                                                 |
-| Auth fork (parallel Next.js auth tree) (`auth-fork`)        | verify-only                  | 69          | 10             | ComHub-owned src/app/\[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.                                                                                                       |
+| Auth fork (parallel Next.js auth tree) (`auth-fork`)        | verify-only                  | 69          | 10             | ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.                                                                                                        |
 | Brand embed (XuanguoAI) (`branding`)                        | re-apply                     | 56          | 14             | XuanguoAI brand across web + desktop: static assets, runtime brand seam (app_settings → getServerBrand → BrandProvider), upstream component hooks.                                                                                                                   |
-| SPA HTML / static shell (`spa-html`)                        | re-apply                     | 42          | 5              | Server-rendered SPA HTML with runtime brand/analytics/S3 config, build scripts, spaServerConfig types.                                                                                                                                                               |
 | CI / deploy workflows (`ci-deploy`)                         | re-apply                     | 11          | 35             | ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.                                                                                          |
 | Admin app settings runtime config (`admin-app-settings`)    | verify-only                  | 11          | 29             | app_settings key/value store + typed registry + CAS revisions + per-section readers (brand, S3, composio, model policy, defaults) + newapi instance management.                                                                                                      |
-| Locale additions (`locales`)                                | merge                        | 0           | 31             | ComHub locale keys (admin.\*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults.                                                                                                                                  |
-| Desktop release pipeline (`desktop-release-pipeline`)       | re-apply                     | 24          | 6              | GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions.                                                                                                                                              |
+| SPA HTML / static shell (`spa-html`)                        | re-apply                     | 31          | 5              | Server-rendered SPA HTML with runtime brand/analytics/S3 config, build scripts, spaServerConfig types.                                                                                                                                                               |
+| Desktop release pipeline (`desktop-release-pipeline`)       | re-apply                     | 26          | 6              | GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions.                                                                                                                                              |
+| Locale additions (`locales`)                                | merge                        | 0           | 31             | ComHub locale keys (admin.*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults.                                                                                                                                   |
 | Onboarding & community (`onboarding-community`)             | re-apply                     | 4           | 26             | Local onboarding agent templates, fork-and-chat community flow, market/discover services, expert plaza entries.                                                                                                                                                      |
 | Desktop main process patches (`desktop-main-patches`)       | re-apply                     | 8           | 21             | Electron main-process behavior: OFFICIAL_CLOUD_SERVER default, updater remote config, gateway/webview partitions, splash, Browser subscription partition, ComHub feature UI.                                                                                         |
 | Desktop build profile pipeline (`desktop-build-profile`)    | verify-only                  | 27          | 0              | Runtime installer branding: admin-authored profile → DB revisions → CI staging → electron-builder overrides (appId, icons, NSIS, protocol schemes).                                                                                                                  |
+| Admin-managed S3 routing (`server-storage-s3`)              | re-apply                     | 5           | 3              | FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.                                                                                                                                        |
 | Dependency pins (`deps-pins`)                               | verify-only                  | 1           | 7              | pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps.                                                                                                                                                                   |
 | Usage ledger reconciliation (`server-usage-ledger`)         | re-apply                     | 0           | 5              | Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output).                                                                                                                         |
-| Admin-managed S3 routing (`server-storage-s3`)              | re-apply                     | 2           | 3              | FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.                                                                                                                                        |
 | Desktop deep-link scheme (comhub://) (`desktop-deep-links`) | re-apply                     | 0           | 3              | comhub:// protocol scheme detection + whitelist extension in the desktop main process.                                                                                                                                                                               |
-| PostgreSQL pool guardrails (`db-pool-guardrails`)           | re-apply                     | 0           | 3              | DATABASE_POOL\_\* / statement & idle-in-transaction timeouts for Node pg pools.                                                                                                                                                                                      |
+| PostgreSQL pool guardrails (`db-pool-guardrails`)           | re-apply                     | 0           | 3              | DATABASE_POOL_* / statement & idle-in-transaction timeouts for Node pg pools.                                                                                                                                                                                        |
 | Agent inbox/default-model guard (`server-agent-guard`)      | re-apply                     | 0           | 3              | Admin default-agent settings layer + inbox runtime model preservation (user-updated inbox model/provider survives hydrate).                                                                                                                                          |
 
 ## Migration chain (`database-migrations`)
@@ -42,11 +42,11 @@ ComHub-owned migrations (0100-0122 commercial, 0168-0177), repair migration 0178
 - Tests: `packages/database/src/models/__tests__/migrationChain.test.ts`
 - Notes: Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations.
 
-| Rule                                   | Ownership | Covers                                      | vs baseline |
-| -------------------------------------- | --------- | ------------------------------------------- | ----------- |
-| `p:packages/database/migrations/meta/` | upstream  | \_journal.json + snapshots (0103/0107/0149) | 4           |
-| `p:packages/database/migrations/`      | owned     | ComHub SQL files                            | 78          |
-| `p:scripts/verifyMigrationChain.mjs`   | owned     | static chain check                          | 78          |
+| Rule                                   | Ownership | Covers                                     | vs baseline |
+| -------------------------------------- | --------- | ------------------------------------------ | ----------- |
+| `p:packages/database/migrations/meta/` | upstream  | _journal.json + snapshots (0103/0107/0149) | 4           |
+| `p:packages/database/migrations/`      | owned     | ComHub SQL files                           | 78          |
+| `p:scripts/verifyMigrationChain.mjs`   | owned     | static chain check                         | 78          |
 
 ## Brand embed (XuanguoAI) (`branding`)
 
@@ -62,7 +62,7 @@ XuanguoAI brand across web + desktop: static assets, runtime brand seam (app_set
 | `p:apps/desktop/build/`                           | owned     | installer icon.ico/png + NSIS artwork                     | 56          |
 | `p:apps/desktop/resources/`                       | owned     | tray, dmg, splash, error page art                         | 56          |
 | `p:apps/desktop/src/main/core/browser/splash.ts`  | upstream  | branded splash content                                    | 14          |
-| `p:src/const/brand.ts`                            | owned     | DEFAULT_RUNTIME_BRAND (玄果 AI / #12b981)                 | 56          |
+| `p:src/const/brand.ts`                            | owned     | DEFAULT_RUNTIME_BRAND (玄果AI / #12b981)                  | 56          |
 | `p:src/features/Brand/`                           | owned     | BrandProvider, brandText, loadingBrand, useBrandName      | 56          |
 | `p:src/server/services/brand/`                    | owned     | getServerBrand (30s TTL, app_settings)                    | 56          |
 | `p:src/server/metadata.ts`                        | owned     | APP_URL metadataBase (also serves SPA HTML)               | 56          |
@@ -139,24 +139,24 @@ GH desktop release workflow, release callback API, GitHub release health service
 
 | Rule                                             | Ownership | Covers                                                                                                                                      | vs baseline |
 | ------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `p:.github/workflows/comhub-desktop-release.yml` | owned     | release workflow                                                                                                                            | 24          |
-| `p:.github/workflows/comhub-manual-desktop.yml`  | owned     | manual dispatch workflow                                                                                                                    | 24          |
+| `p:.github/workflows/comhub-desktop-release.yml` | owned     | release workflow                                                                                                                            | 26          |
+| `p:.github/workflows/comhub-manual-desktop.yml`  | owned     | manual dispatch workflow                                                                                                                    | 26          |
 | `p:.github/actions/desktop-publish-s3/`          | upstream  | OTA publish action + mainhash inputs                                                                                                        | 6           |
 | `p:.github/actions/desktop-upload-artifacts/`    | upstream  | artifact upload incl. renderer mainhash                                                                                                     | 6           |
-| `p:src/app/(backend)/api/admin/desktop-release/` | owned     | callback + profile API routes                                                                                                               | 24          |
-| `p:src/app/(backend)/api/admin/maintenance/`     | owned     | admin maintenance route                                                                                                                     | 24          |
-| `p:src/app/(backend)/api/webhooks/`              | owned     | payment/module-app webhook routes                                                                                                           | 24          |
-| `p:src/app/(backend)/api/workflows/`             | owned     | module-app run workflow route                                                                                                               | 24          |
-| `p:apps/server/src/services/desktopRelease/`     | owned     | index.ts = upstream resolvers + delegation; diagnostics.ts (SSRF/zod/timeout/channel health), downloadTypes.ts (matchers), github.ts health | 24          |
+| `p:src/app/(backend)/api/admin/desktop-release/` | owned     | callback + profile API routes                                                                                                               | 26          |
+| `p:src/app/(backend)/api/admin/maintenance/`     | owned     | admin maintenance route                                                                                                                     | 26          |
+| `p:src/app/(backend)/api/webhooks/`              | owned     | payment/module-app webhook routes                                                                                                           | 26          |
+| `p:src/app/(backend)/api/workflows/`             | owned     | module-app run workflow route                                                                                                               | 26          |
+| `p:apps/server/src/services/desktopRelease/`     | owned     | index.ts = upstream resolvers + delegation; diagnostics.ts (SSRF/zod/timeout/channel health), downloadTypes.ts (matchers), github.ts health | 26          |
 | `p:apps/desktop/scripts/update-test/`            | upstream  | file-mode only changes                                                                                                                      | 6           |
 | `p:scripts/electronWorkflow/`                    | upstream  | setDesktopVersion + remaining scripts                                                                                                       | 6           |
 
 ## PostgreSQL pool guardrails (`db-pool-guardrails`)
 
-DATABASE_POOL\_\* / statement & idle-in-transaction timeouts for Node pg pools.
+DATABASE_POOL_* / statement & idle-in-transaction timeouts for Node pg pools.
 
 - Sync strategy: **re-apply**
-- Notes: Tuning knobs surface as DATABASE\_\* env vars; production pool sizing depends on them.
+- Notes: Tuning knobs surface as DATABASE_* env vars; production pool sizing depends on them.
 
 | Rule                              | Ownership | Covers                   | vs baseline |
 | --------------------------------- | --------- | ------------------------ | ----------- |
@@ -183,6 +183,7 @@ Credit ledger, workspace/personal payer resolution, image/video pre/post charge,
 | `p:packages/const/src/fetch.ts`                                     | upstream  | request id headers                                                                                                                                    | 315         |
 | `p:packages/types/src/usage/`                                       | upstream  | usage record types                                                                                                                                    | 315         |
 | `p:packages/trpc/src/client/`                                       | upstream  | lambda/async client surface                                                                                                                           | 315         |
+| `p:src/server/services/newapiInstance/`                             | owned     | instance registry: resolver + round-robin, catalog, credentials, pricing                                                                              | 101         |
 | `p:apps/server/src/modules/ModelRuntime/`                           | upstream  | initModelRuntimeFromDB + newapi route metadata                                                                                                        | 315         |
 | `p:apps/server/src/services/generation/`                            | upstream  | videoBackgroundPolling settle                                                                                                                         | 315         |
 | `p:apps/server/src/router-hono/webhooks/`                           | upstream  | video webhook route metadata                                                                                                                          | 315         |
@@ -192,18 +193,18 @@ Credit ledger, workspace/personal payer resolution, image/video pre/post charge,
 | `p:src/app/(backend)/webapi/`                                       | upstream  | chat route metadata headers, pricing route, lobehub-model-ratings                                                                                     | 315         |
 | `p:src/business/client/BusinessSettingPages/`                       | upstream  | billing/credits/plans/usage/referral pages                                                                                                            | 315         |
 | `p:src/business/client/`                                            | upstream  | business hooks (pricing/rating/guard/signup), model catalog merge                                                                                     | 315         |
-| `p:src/business/`                                                   | owned     | server billing core (commercialBilling, generationBilling, serverModelPricing, planModelRules, resourceQuota, modelPolicy)                            | 90          |
+| `p:src/business/`                                                   | owned     | server billing core (commercialBilling, generationBilling, serverModelPricing, planModelRules, resourceQuota, modelPolicy)                            | 101         |
 | `p:src/services/chat/`                                              | upstream  | request metadata pass-through                                                                                                                         | 315         |
 | `p:src/features/Settings/stats/`                                    | upstream  | UsageTable ledger-aware columns                                                                                                                       | 315         |
-| `p:src/features/ModelSwitchPanel/components/List/ModelPriceSummary` | owned     | price display in model switcher                                                                                                                       | 90          |
-| `p:src/features/TopUp/`                                             | owned     | top-up flow                                                                                                                                           | 90          |
-| `p:src/features/Payments/`                                          | owned     | payment flows                                                                                                                                         | 90          |
-| `p:src/features/PlanIcon/`                                          | owned     | plan icons                                                                                                                                            | 90          |
-| `p:packages/database/src/models/commercial`                         | owned     | commercial models                                                                                                                                     | 90          |
-| `p:packages/database/src/schemas/commercial.ts`                     | owned     | commercial schema                                                                                                                                     | 90          |
+| `p:src/features/ModelSwitchPanel/components/List/ModelPriceSummary` | owned     | price display in model switcher                                                                                                                       | 101         |
+| `p:src/features/TopUp/`                                             | owned     | top-up flow                                                                                                                                           | 101         |
+| `p:src/features/Payments/`                                          | owned     | payment flows                                                                                                                                         | 101         |
+| `p:src/features/PlanIcon/`                                          | owned     | plan icons                                                                                                                                            | 101         |
+| `p:packages/database/src/models/commercial`                         | owned     | commercial models                                                                                                                                     | 101         |
+| `p:packages/database/src/schemas/commercial.ts`                     | owned     | commercial schema                                                                                                                                     | 101         |
 | `p:packages/database/src/schemas/index.ts`                          | upstream  | re-exports commercial/desktopBuild/moduleApp/newapiInstance                                                                                           | 315         |
 | `p:packages/database/src/repositories/`                             | upstream  | aiInfra pricing resolution + tests                                                                                                                    | 315         |
-| `p:packages/database/`                                              | owned     | new commercial models/schemas added under database/                                                                                                   | 90          |
+| `p:packages/database/`                                              | owned     | new commercial models/schemas added under database/                                                                                                   | 101         |
 
 ## Usage ledger reconciliation (`server-usage-ledger`)
 
@@ -229,7 +230,7 @@ FileS3 routes runtime methods through getRuntimeS3() built from admin app_settin
 
 | Rule                                        | Ownership | Covers                                                                                                                               | vs baseline |
 | ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| `p:apps/server/src/modules/S3/`             | owned     | index.ts = upstream barrel; s3Client.ts (upstream base + fork methods), fileS3Runtime.ts (FileS3 override + TTL cache), envFileS3.ts | 2           |
+| `p:apps/server/src/modules/S3/`             | owned     | index.ts = upstream barrel; s3Client.ts (upstream base + fork methods), fileS3Runtime.ts (FileS3 override + TTL cache), envFileS3.ts | 5           |
 | `p:apps/server/src/services/file/`          | upstream  | s3.ts impl reads config via getConfig()                                                                                              | 3           |
 | `p:apps/server/src/services/connectorData/` | upstream  | S3 config usage                                                                                                                      | 3           |
 | `p:src/services/upload.ts`                  | upstream  | client S3 path from server config                                                                                                    | 3           |
@@ -311,7 +312,7 @@ Full admin surface: features (237 files), routes, business-server admin routers,
 
 ## Auth fork (parallel Next.js auth tree) (`auth-fork`)
 
-ComHub-owned src/app/\[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.
+ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.
 
 - Sync strategy: **verify-only**
 - Tests: `src/libs/better-auth/define-config.test.ts`
@@ -380,7 +381,7 @@ Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifec
 
 - Sync strategy: **verify-only**
 - Tests: `apps/module-worker/src/integration.test.ts`, `src/features/ModuleAppMarket/`, `apps/server/src/services/moduleApp`
-- Notes: module-app-s3-init uses digest-pinned public.ecr.aws/aws-cli (Quay minio/\* went private 2026-09). Never revert to minio/mc. Cleanup only accepts generated module-apps/<app>/<run>/ keys.
+- Notes: module-app-s3-init uses digest-pinned public.ecr.aws/aws-cli (Quay minio/* went private 2026-09). Never revert to minio/mc. Cleanup only accepts generated module-apps/<app>/<run>/ keys.
 
 | Rule                                            | Ownership | Covers                                                        | vs baseline |
 | ----------------------------------------------- | --------- | ------------------------------------------------------------- | ----------- |
@@ -473,7 +474,7 @@ Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + b
 
 ## Locale additions (`locales`)
 
-ComHub locale keys (admin.\*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults.
+ComHub locale keys (admin.*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults.
 
 - Sync strategy: **merge**
 - Notes: Merge-friendly (append-only keys). Keep zh-CN and en-US in sync.
@@ -481,7 +482,7 @@ ComHub locale keys (admin.\*, subscription, messenger banner, experts/ppt cmdk, 
 | Rule                  | Ownership | Covers                                           | vs baseline |
 | --------------------- | --------- | ------------------------------------------------ | ----------- |
 | `p:locales/`          | upstream  | en-US/zh-CN JSON (subscription +904 lines zh-CN) | 31          |
-| `p:packages/locales/` | upstream  | 12 default/\*.ts files (+2921 lines)             | 31          |
+| `p:packages/locales/` | upstream  | 12 default/*.ts files (+2921 lines)              | 31          |
 
 ## SPA HTML / static shell (`spa-html`)
 
@@ -493,12 +494,12 @@ Server-rendered SPA HTML with runtime brand/analytics/S3 config, build scripts, 
 
 | Rule                                 | Ownership | Covers                                  | vs baseline |
 | ------------------------------------ | --------- | --------------------------------------- | ----------- |
-| `p:src/server/`                      | owned     | spaHtml.ts, translation.ts, metadata.ts | 42          |
+| `p:src/server/`                      | owned     | spaHtml.ts, translation.ts, metadata.ts | 31          |
 | `p:src/libs/spaHtml/`                | upstream  | shared HTML builder                     | 5           |
 | `p:src/app/spa/`                     | upstream  | SPA route with brand injection          | 5           |
 | `p:src/types/spaServerConfig`        | upstream  | SPABrandConfig types                    | 5           |
-| `p:scripts/copySpaBuildCore.ts`      | owned     | build copy logic                        | 42          |
-| `p:scripts/generateSpaTemplates.mts` | owned     | template generation                     | 42          |
+| `p:scripts/copySpaBuildCore.ts`      | owned     | build copy logic                        | 31          |
+| `p:scripts/generateSpaTemplates.mts` | owned     | template generation                     | 31          |
 | `p:vite.config.ts`                   | upstream  | mobile html fallback + dedupe aliases   | 5           |
 
 ## CI / deploy workflows (`ci-deploy`)
@@ -518,7 +519,7 @@ ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret
 | `p:scripts/comhub-upstream-sync/`            | owned     | sync tooling                                                                             | 11          |
 | `p:scripts/dockerWorkspaceManifests.test.ts` | upstream  | compose manifest contract test                                                           | 35          |
 | `p:docker-compose/`                          | upstream  | grafana/prometheus templates (dead minio known)                                          | 35          |
-| `p:Dockerfile`                               | upstream  | COMHUB\_\* build args                                                                    | 35          |
+| `p:Dockerfile`                               | upstream  | COMHUB_* build args                                                                      | 35          |
 | `p:src/app/(backend)/api/version/`           | upstream  | deployment metadata route                                                                | 35          |
 | `p:docs/development/upstream-sync-reports/`  | owned     | generated sync reports                                                                   | 11          |
 
@@ -554,7 +555,7 @@ Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand
 | `p:packages/agent-runtime/`                    | upstream  | llmErrorClassifier code precedence                                                          | 88          |
 | `p:packages/memory-user-memory/`               | upstream  | structured result parsing                                                                   | 88          |
 | `p:packages/web-crawler/`                      | upstream  | mode change only                                                                            | 88          |
-| `p:packages/builtin-tool-calculator/`          | upstream  | executor tweaks (representative; sibling builtin-tool-\* follow the same rule)              | 88          |
+| `p:packages/builtin-tool-calculator/`          | upstream  | executor tweaks (representative; sibling builtin-tool-* follow the same rule)               | 88          |
 | `p:packages/trpc/src/lambda/`                  | upstream  | clientIp extraction, middleware ordering                                                    | 88          |
 | `p:packages/utils/`                            | upstream  | apiKey prefix fallback, url sanitization, responsive                                        | 88          |
 | `p:packages/const/src/settings/`               | upstream  | autoCreateTopic settings                                                                    | 88          |
