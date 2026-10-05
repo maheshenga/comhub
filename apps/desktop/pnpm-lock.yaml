@@ -315,7 +315,7 @@ importers:
         version: link:../../apps/desktop/stubs/business-const
       '@lobehub/ui':
         specifier: ^5
-        version: 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.18.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
+        version: 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.21.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       query-string:
         specifier: ^9.4.1
         version: 9.5.1
@@ -503,8 +503,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@lobehub/icons':
-        specifier: ^5.15.0
-        version: 5.18.0(@lobehub/ui@5.20.0)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
+        specifier: 5.21.0
+        version: 5.21.0(@lobehub/ui@5.20.0)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(supports-color@9.4.0)(zod@4.5.4)
@@ -659,7 +659,7 @@ importers:
         version: 1.17.1
       '@lobehub/ui':
         specifier: ^5
-        version: 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.18.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
+        version: 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.21.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -2194,8 +2194,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@lobehub/icons@5.18.0':
-    resolution: {integrity: sha512-DIIdEYJfyJ93v1/OrsR7NVU0LGcoHh07I5tHx/HTFuBcYEiOJ/aUQwbnNXwVAhoXBWSSOwmmuFrF4UoNcQ0qnw==}
+  '@lobehub/icons@5.21.0':
+    resolution: {integrity: sha512-cp5us20CKCD5BGdlOCF6erLY70mEtDOgan46Zsjnq9hqY2kNZ1WvWgM4uKi8TcLndmNSvNR4hUIeXf7hoYgtKw==}
     peerDependencies:
       '@lobehub/ui': ^5.0.0
       antd: ^6.1.1
@@ -5960,8 +5960,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.28:
-    resolution: {integrity: sha512-YwUvVpSF7m1yOblFPrU3Hbo8XhPheBoiyfGuII6z19LnOr6JpDnyyp7LFNrfV56wS8tpvtBFGRISHN02pDdLOA==}
+  hono@4.13.13:
+    resolution: {integrity: sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -10350,9 +10350,9 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
-  '@hono/node-server@1.19.14(hono@4.12.28)':
+  '@hono/node-server@1.19.14(hono@4.13.13)':
     dependencies:
-      hono: 4.12.28
+      hono: 4.13.13
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -10501,9 +10501,9 @@ snapshots:
       - ws
       - zod
 
-  '@lobehub/icons@5.18.0(@lobehub/ui@5.20.0)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)':
+  '@lobehub/icons@5.21.0(@lobehub/ui@5.20.0)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)':
     dependencies:
-      '@lobehub/ui': 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.18.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
+      '@lobehub/ui': 5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.21.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       antd: 6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       antd-style: 4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       es-toolkit: 1.52.0
@@ -10529,7 +10529,7 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@lobehub/ui@5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.18.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)':
+  '@lobehub/ui@5.20.0(@lobehub/fluent-emoji@4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0))(@lobehub/icons@5.21.0)(@types/mdast@4.0.4)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(date-fns@4.4.0)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(motion@12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)':
     dependencies:
       '@ant-design/cssinjs': 2.1.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@base-ui/react': 1.7.0(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -10543,7 +10543,7 @@ snapshots:
       '@floating-ui/react': 0.27.20(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@giscus/react': 3.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@lobehub/fluent-emoji': 4.1.0(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
-      '@lobehub/icons': 5.18.0(@lobehub/ui@5.20.0)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
+      '@lobehub/icons': 5.21.0(@lobehub/ui@5.20.0)(@types/react@19.2.17)(antd@6.5.0(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(supports-color@9.4.0)
       '@mdx-js/mdx': 3.1.1(supports-color@9.4.0)
       '@mdx-js/react': 3.1.1(@types/react@19.2.17)(react@19.2.7)
       '@pierre/diffs': 1.2.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -10720,7 +10720,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.29.0(supports-color@9.4.0)(zod@4.5.4)':
     dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.28)
+      '@hono/node-server': 1.19.14(hono@4.13.13)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -10730,7 +10730,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1(supports-color@9.4.0)
       express-rate-limit: 8.5.2(express@5.2.1(supports-color@9.4.0))
-      hono: 4.12.28
+      hono: 4.13.13
       jose: 6.2.3
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -14715,7 +14715,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.12.28: {}
+  hono@4.13.13: {}
 
   hookable@6.1.1: {}
 
