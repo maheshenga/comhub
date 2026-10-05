@@ -62,12 +62,7 @@ const shouldSkipCommercialBilling = (metadata?: Record<string, unknown>) =>
 
 const createBillingOperationId = (
   usageType: 'asr' | 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
-) =>
-  [
-    usageType,
-    globalThis.crypto?.randomUUID?.() ??
-      [Date.now(), Math.random().toString(36).slice(2)].join('-'),
-  ].join(':');
+) => [usageType, globalThis.crypto.randomUUID()].join(':');
 
 const COMMERCIAL_RESERVATION_ID_KEY = 'commercialCreditReservationId';
 const COMMERCIAL_RESERVATION_ESTIMATE_KEY = 'commercialEstimatedCredits';
