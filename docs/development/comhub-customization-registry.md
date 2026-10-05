@@ -255,35 +255,37 @@ app_settings key/value store + typed registry + CAS revisions + per-section read
 - Tests: `src/server/services/appSettings/__tests__/`, `packages/business-server/src/appSettings/**/*.test.ts`
 - Notes: All runtime config flows app_settings → readers → tRPC/React. Admin writes require monotonic revisions (compare-and-swap).
 
-| Rule                                                | Ownership | Covers                                              | vs baseline |
-| --------------------------------------------------- | --------- | --------------------------------------------------- | ----------- |
-| `p:src/const/appSettingsRegistry.ts`                | owned     | APP_SETTING_KEYS registry                           | 11          |
-| `p:src/server/services/appSettings/`                | owned     | readers + 30s TTL cache + invalidation              | 11          |
-| `p:src/config/`                                     | owned     | composio config helpers                             | 11          |
-| `p:packages/business-server/src/appSettings/`       | owned     | public readers + CAS write helpers                  | 11          |
-| `p:packages/builtin-tool-agent-builder/`            | upstream  | executor tweaks                                     | 29          |
-| `p:packages/builtin-tool-agent-management/`         | upstream  | executor tweaks                                     | 29          |
-| `p:packages/builtin-tool-group-agent-builder/`      | upstream  | executor tweaks                                     | 29          |
-| `p:packages/const/src/currency.test.ts`             | owned     | credit conversion tests                             | 11          |
-| `p:packages/const/src/layoutTokens.ts`              | upstream  | brand layout token adjustments                      | 29          |
-| `p:packages/const/src/url.ts`                       | upstream  | modelRatings webapi route                           | 29          |
-| `p:packages/trpc/src/utils/`                        | owned     | clientIp extraction util + tests                    | 11          |
-| `p:packages/database/src/schemas/newapiInstance.ts` | owned     | newapi instance schema                              | 11          |
-| `p:apps/server/src/globalConfig/`                   | upstream  | server global config + memory extraction config     | 29          |
-| `p:apps/server/src/routers/lambda/config`           | upstream  | config router extensions                            | 29          |
-| `p:apps/server/src/routers/lambda/aiModel`          | upstream  | admin-managed model lists                           | 29          |
-| `p:apps/server/src/routers/lambda/aiProvider`       | upstream  | admin-managed providers                             | 29          |
-| `p:apps/server/src/routers/lambda/asr.ts`           | upstream  | initModelRuntimeFromDB usage                        | 29          |
-| `p:apps/server/src/routers/lambda/chunk.ts`         | upstream  | server default embedding model                      | 29          |
-| `p:apps/server/src/routers/lambda/composio.ts`      | upstream  | runtime composio config                             | 29          |
-| `p:apps/server/src/routers/lambda/file.ts`          | upstream  | storage quota asserts                               | 29          |
-| `p:apps/server/src/routers/tools/`                  | upstream  | composio tool router                                | 29          |
-| `p:apps/server/src/services/composio/`              | upstream  | runtime-configured client                           | 29          |
-| `p:packages/app-config/src/composio.ts`             | upstream  | env fallback helpers                                | 29          |
-| `p:packages/types/src/serverConfig.ts`              | upstream  | PublicCustomizationConfig + generation model config | 29          |
-| `p:packages/types/src/user/preference.ts`           | upstream  | role exposure                                       | 29          |
-| `p:src/business/server/`                            | owned     | lambda settings router + admin service              | 11          |
-| `p:src/features/User/`                              | upstream  | help menu items from admin config                   | 29          |
+| Rule                                                      | Ownership | Covers                                                                                                                | vs baseline |
+| --------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `p:src/const/appSettingsRegistry.ts`                      | owned     | APP_SETTING_KEYS registry                                                                                             | 11          |
+| `p:src/server/services/appSettings/`                      | owned     | readers + 30s TTL cache + invalidation                                                                                | 11          |
+| `p:src/config/`                                           | owned     | composio config helpers                                                                                               | 11          |
+| `p:packages/business-server/src/appSettings/`             | owned     | public readers + CAS write helpers                                                                                    | 11          |
+| `p:packages/builtin-tool-agent-builder/`                  | upstream  | executor tweaks                                                                                                       | 29          |
+| `p:packages/builtin-tool-agent-management/`               | upstream  | executor tweaks                                                                                                       | 29          |
+| `p:packages/builtin-tool-group-agent-builder/`            | upstream  | executor tweaks                                                                                                       | 29          |
+| `p:packages/const/src/currency.test.ts`                   | owned     | credit conversion tests                                                                                               | 11          |
+| `p:packages/const/src/layoutTokens.ts`                    | upstream  | brand layout token adjustments                                                                                        | 29          |
+| `p:packages/const/src/url.ts`                             | upstream  | modelRatings webapi route                                                                                             | 29          |
+| `p:packages/trpc/src/utils/`                              | owned     | clientIp extraction util + tests                                                                                      | 11          |
+| `p:packages/database/src/schemas/newapiInstance.ts`       | owned     | newapi instance schema                                                                                                | 11          |
+| `p:apps/server/src/globalConfig/adminManagedProviders.ts` | owned     | extracted: admin-managed provider assembly (types, generic newapi params, uniqueModelIds, applyAdminManagedProviders) | 11          |
+| `p:apps/server/src/globalConfig/index.ts`                 | upstream  | delegates business-mode provider assembly to adminManagedProviders.ts (hookExtracted)                                 | 29          |
+| `p:apps/server/src/globalConfig/`                         | upstream  | server global config + memory extraction config                                                                       | 29          |
+| `p:apps/server/src/routers/lambda/config`                 | upstream  | config router extensions                                                                                              | 29          |
+| `p:apps/server/src/routers/lambda/aiModel`                | upstream  | admin-managed model lists                                                                                             | 29          |
+| `p:apps/server/src/routers/lambda/aiProvider`             | upstream  | admin-managed providers                                                                                               | 29          |
+| `p:apps/server/src/routers/lambda/asr.ts`                 | upstream  | initModelRuntimeFromDB usage                                                                                          | 29          |
+| `p:apps/server/src/routers/lambda/chunk.ts`               | upstream  | server default embedding model                                                                                        | 29          |
+| `p:apps/server/src/routers/lambda/composio.ts`            | upstream  | runtime composio config                                                                                               | 29          |
+| `p:apps/server/src/routers/lambda/file.ts`                | upstream  | storage quota asserts                                                                                                 | 29          |
+| `p:apps/server/src/routers/tools/`                        | upstream  | composio tool router                                                                                                  | 29          |
+| `p:apps/server/src/services/composio/`                    | upstream  | runtime-configured client                                                                                             | 29          |
+| `p:packages/app-config/src/composio.ts`                   | upstream  | env fallback helpers                                                                                                  | 29          |
+| `p:packages/types/src/serverConfig.ts`                    | upstream  | PublicCustomizationConfig + generation model config                                                                   | 29          |
+| `p:packages/types/src/user/preference.ts`                 | upstream  | role exposure                                                                                                         | 29          |
+| `p:src/business/server/`                                  | owned     | lambda settings router + admin service                                                                                | 11          |
+| `p:src/features/User/`                                    | upstream  | help menu items from admin config                                                                                     | 29          |
 
 ## Admin console (`admin-console`)
 

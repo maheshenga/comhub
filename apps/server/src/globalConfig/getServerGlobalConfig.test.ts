@@ -1,6 +1,11 @@
 import { ModelProvider } from 'model-bank';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Each test calls `vi.resetModules()` and re-imports the full provider-config
+// module chain, so the first import per test costs several seconds — well over
+// the default 5s timeout on slower CI runners.
+vi.setConfig({ testTimeout: 30_000 });
+
 interface CapturedProviderConfig {
   enabled?: boolean;
   enabledKey?: string;
@@ -25,7 +30,8 @@ const mockGlobalConfigDependencies = (
   enableBusinessFeatures: boolean,
   options: MockGlobalConfigOptions = {},
 ) => {
-  vi.doMock('@lobechat/business-const', () => ({
+  vi.doMock('@lobechat/business-const', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@lobechat/business-const')>()),
     ENABLE_BUSINESS_FEATURES: enableBusinessFeatures,
   }));
 
@@ -96,6 +102,35 @@ const mockGlobalConfigDependencies = (
     cleanObject: vi.fn((object) => object),
   }));
 
+  vi.doMock('@/server/services/appSettings', () => ({
+    getServerComposioConfig: vi.fn(async () => ({ enabled: false, apiKey: undefined })),
+    getServerDefaultAgentSettingOverrides: vi.fn(async () => ({})),
+    getServerDefaultGenerationModelSettingOverrides: vi.fn(async () => ({})),
+    getServerFileS3Config: vi.fn(async () => ({
+      accessKeyId: undefined,
+      bucket: undefined,
+      enablePathStyle: false,
+      endpoint: undefined,
+      filePath: 'files',
+      previewUrlExpireIn: 7200,
+      publicDomain: undefined,
+      region: undefined,
+      secretAccessKey: undefined,
+      setAcl: false,
+    })),
+    getServerPublicCustomizationConfig: vi.fn(async () => ({})),
+    getServerUserGlobalSettingsDefaults: vi.fn(async () => ({})),
+    getServerVectorSettingOverrides: vi.fn(async () => ({})),
+  }));
+
+  vi.doMock('@/server/services/newapiInstance', () => ({
+    getAllEnabledModels: vi.fn(async () => []),
+  }));
+
+  vi.doMock('./adminManagedProviders', () => ({
+    applyAdminManagedProviders: vi.fn(),
+  }));
+
   vi.doMock('./genServerAiProviderConfig', () => ({
     genServerAiProvidersConfig: mocks.genServerAiProvidersConfig,
   }));
@@ -110,6 +145,7 @@ const mockGlobalConfigDependencies = (
 
   vi.doMock('./parseMemoryExtractionConfig', () => ({
     getPublicMemoryExtractionConfig: vi.fn(() => ({})),
+    getResolvedPublicMemoryExtractionConfig: vi.fn(async () => ({})),
   }));
 };
 

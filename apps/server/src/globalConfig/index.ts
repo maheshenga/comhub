@@ -1,9 +1,6 @@
 import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { parseToolNameMaxLength } from '@lobechat/const/plugin';
-import { type ProviderConfig } from '@lobechat/types';
 import { merge } from '@lobechat/utils';
-import { type AiFullModelCard, ModelProvider } from 'model-bank';
-import { gptImage1Schema, seedance15ProParams } from 'model-bank/lobehub';
 
 import { isDesktop } from '@/const/version';
 import { type LobeChatDatabase } from '@/database/type';
@@ -24,7 +21,7 @@ import {
   getServerUserGlobalSettingsDefaults,
   getServerVectorSettingOverrides,
 } from '@/server/services/appSettings';
-import { getAllEnabledModels, toAiModelType } from '@/server/services/newapiInstance';
+import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
 
@@ -32,7 +29,11 @@ import { genServerAiProvidersConfig } from './genServerAiProviderConfig';
 import { parseAgentConfig } from './parseDefaultAgent';
 import { parseFilesConfig } from './parseFilesConfig';
 import { getResolvedPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
-import { ADMIN_MANAGED_AI_PROVIDER, getProviderSpecificConfig } from './providerSpecificConfig';
+import {
+  applyAdminManagedProviders,
+  type AdminManagedProviderConfig,
+} from './adminManagedProviders';
+import { getProviderSpecificConfig } from './providerSpecificConfig';
 
 /**
  * Get Better-Auth SSO providers list
@@ -41,30 +42,6 @@ import { ADMIN_MANAGED_AI_PROVIDER, getProviderSpecificConfig } from './provider
 const getBetterAuthSSOProviders = () => {
   return parseSSOProviders(authEnv.AUTH_SSO_PROVIDERS);
 };
-
-const getGenericNewapiParameters = (type: string) => {
-  if (type === 'image') return gptImage1Schema;
-  if (type === 'video') return seedance15ProParams;
-  return undefined;
-};
-
-type AdminManagedServerModelCard = AiFullModelCard & {
-  groupKey?: string | null;
-  groupName?: string | null;
-  instanceId?: string | null;
-  instanceName?: string | null;
-  providerId?: string | null;
-  providerType?: string | null;
-};
-
-type AdminManagedProviderConfig = ProviderConfig & {
-  logo?: string;
-  name?: string;
-  parentProviderId?: string;
-};
-
-const uniqueModelIds = (models: AdminManagedServerModelCard[]) =>
-  Array.from(new Set(models.map((m) => m.id)));
 
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
@@ -86,72 +63,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   )) as Record<string, AdminManagedProviderConfig>;
 
   if (ENABLE_BUSINESS_FEATURES) {
-    // ComHub business mode: backend admin provider settings are authoritative.
-    // Upstream/env built-in providers may still exist in generated config, but
-    // users must not see or call them unless ComHub explicitly opts them in.
-    for (const [providerId, providerConfig] of Object.entries(aiProvider)) {
-      if (providerId !== ADMIN_MANAGED_AI_PROVIDER) {
-        aiProvider[providerId] = { ...providerConfig, enabled: false };
-      }
-    }
-
-    const instanceModels = await getAllEnabledModels(db);
-    const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
-
-    if (managedNewApiModelIds.length > 0) {
-      const serverModelLists: AdminManagedServerModelCard[] = instanceModels.map((m) => {
-        const modelType = toAiModelType(m.type);
-        const parameters = getGenericNewapiParameters(modelType);
-
-        return {
-          ...(m.abilities ? { abilities: m.abilities } : {}),
-          displayName: m.displayName || m.id,
-          enabled: true,
-          groupKey: m.groupKey,
-          groupName: m.groupName,
-          id: m.id,
-          instanceId: m.instanceId,
-          instanceName: m.instanceName,
-          ...(parameters ? { parameters } : {}),
-          ...(m.pricing ? { pricing: m.pricing } : {}),
-          providerId: m.providerId,
-          providerType: m.providerType,
-          type: modelType,
-        };
-      });
-
-      const groupedProviderModels = new Map<string, AdminManagedServerModelCard[]>();
-      for (const model of serverModelLists) {
-        const providerId = model.providerId || ADMIN_MANAGED_AI_PROVIDER;
-        groupedProviderModels.set(providerId, [
-          ...(groupedProviderModels.get(providerId) ?? []),
-          model,
-        ]);
-      }
-      const virtualProviderIds = Array.from(groupedProviderModels.keys()).filter(
-        (providerId) => providerId !== ADMIN_MANAGED_AI_PROVIDER,
-      );
-
-      aiProvider[ADMIN_MANAGED_AI_PROVIDER] = {
-        ...aiProvider[ADMIN_MANAGED_AI_PROVIDER],
-        enabled: virtualProviderIds.length > 0 ? false : aiProvider[ADMIN_MANAGED_AI_PROVIDER]?.enabled,
-        enabledModels: managedNewApiModelIds,
-        serverModelLists,
-      };
-
-      for (const providerId of virtualProviderIds) {
-        const models = groupedProviderModels.get(providerId) ?? [];
-        const first = models[0];
-
-        aiProvider[providerId] = {
-          enabled: true,
-          enabledModels: uniqueModelIds(models),
-          name: first?.instanceName || first?.groupName || providerId,
-          parentProviderId: ADMIN_MANAGED_AI_PROVIDER,
-          serverModelLists: models,
-        };
-      }
-    }
+    applyAdminManagedProviders(aiProvider, await getAllEnabledModels(db));
   }
 
   const config: GlobalServerConfig = {
