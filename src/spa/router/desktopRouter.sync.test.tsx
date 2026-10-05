@@ -226,6 +226,31 @@ describe('desktop router shared definition', () => {
     },
   );
 
+  // `/settings/admin` must match the dedicated admin route (registered via
+  // BusinessDesktopRoutesWithSettingsLayout), not the `:tab` catch-all — the
+  // personal settings componentMap has no `admin` entry, so the catch-all
+  // renders a blank workspace. Regression: the route wiring was dropped in the
+  // v2.2.18 router rewrite.
+  it.each(mainAreaVariants)('%s /settings/admin matches the admin route, not the :tab catch-all', (_, factory) => {
+    const matches = matchRoutes(createMainAreaRoutes(factory), '/settings/admin');
+    const paths = matches?.map((match) => match.route.path);
+
+    expect(paths).toContain('settings');
+    expect(paths).not.toContain(':tab');
+    expect(paths).toContain('admin');
+  });
+
+  it.each(mainAreaVariants)(
+    '%s /settings/admin/<segment> matches a nested admin route, not :tab/:sub',
+    (_, factory) => {
+      const matches = matchRoutes(createMainAreaRoutes(factory), '/settings/admin/users');
+      const paths = matches?.map((match) => match.route.path);
+
+      expect(paths).not.toContain(':tab');
+      expect(paths).toContain('users');
+    },
+  );
+
   it('generates identical main-area path and nesting behavior for Web and Electron', () => {
     expect(routeShape(createElectronMainAreaChildren())).toEqual(
       routeShape(createWebMainAreaChildren()),
