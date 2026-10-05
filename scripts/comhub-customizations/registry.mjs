@@ -799,6 +799,16 @@ const MODULES = [
       ['p:packages/database/src/schemas/workspace.ts', 'upstream', 'comment cleanup'],
       ['p:packages/database/src/models/__tests__/', 'upstream', 'model test updates'],
       ['p:packages/agent-tracing/', 'upstream', 'cli error surface'],
+      [
+        'p:apps/server/src/services/memory/userMemory/memoryRuntimeTargets.ts',
+        'owned',
+        'extracted: memory runtime target resolution + init (resolveMemoryRuntimeTargets, initMemoryRuntimeFromTarget, getMemoryRuntimeCacheKey, ADMIN_MANAGED_AI_PROVIDER)',
+      ],
+      [
+        'p:apps/server/src/services/memory/userMemory/extract.ts',
+        'upstream',
+        'delegates runtime targets/init/cache-key to memoryRuntimeTargets.ts (hookExtracted)',
+      ],
       ['p:apps/server/src/services/memory/', 'upstream', 'extraction config + runtime targets'],
       ['p:apps/server/src/services/taskTemplate/', 'upstream', 'task template tweaks'],
       ['p:apps/server/src/services/toolExecution/', 'upstream', 'memory server runtime'],

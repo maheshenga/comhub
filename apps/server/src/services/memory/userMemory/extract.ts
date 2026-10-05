@@ -55,7 +55,6 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { join } from 'pathe';
 import { z } from 'zod';
 
-import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import {
   AsyncTaskModel,
   initHourlyUserMemoryExtractionMetadata,
@@ -83,8 +82,14 @@ import {
   parseMemoryExtractionConfig,
 } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
-import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { S3 } from '@/server/modules/S3';
+import {
+  type MemoryRuntimeModelType,
+  type MemoryRuntimeTargets,
+  getMemoryRuntimeCacheKey,
+  initMemoryRuntimeFromTarget,
+  resolveMemoryRuntimeTargets,
+} from './memoryRuntimeTargets';
 import { getUserScopedAiProviderRuntimeState } from '@/server/services/aiProviderAccess';
 import { createFtsSearchRepo } from '@/server/services/ftsSearch';
 import { recordUserMemoryLexicalSearchDecision } from '@/server/services/ftsSearch/observability';
@@ -620,19 +625,6 @@ type RuntimeBundle = {
   gatekeeper: ModelRuntime;
   layerExtractor: ModelRuntime;
 };
-
-type MemoryRuntimeModelType = 'chat' | 'embedding';
-
-interface MemoryRuntimeTargets {
-  keyVaults: ProviderKeyVaultMap;
-  providers: {
-    embedding: string;
-    gatekeeper: string;
-    layerExtractor: string;
-  };
-}
-
-const ADMIN_MANAGED_AI_PROVIDER = 'newapi';
 
 interface MemoryExtractionModelConfig {
   embeddingsModel: string;
@@ -2423,77 +2415,14 @@ export class MemoryExtractionExecutor {
     runtimeState: AiProviderRuntimeState,
     memoryServiceConfig: ResolvedMemoryServiceConfig,
   ): Promise<MemoryRuntimeTargets> {
-    const normalizedRuntimeConfig = Object.fromEntries(
-      Object.entries(runtimeState.runtimeConfig || {}).map(([providerId, config]) => [
-        normalizeProvider(providerId),
-        config,
-      ]),
-    );
-
-    const keyVaults: ProviderKeyVaultMap = {};
-    const appendKeyVaults = (providerId: string) => {
-      const runtime = normalizedRuntimeConfig[providerId];
-      if (runtime?.keyVaults) {
-        keyVaults[providerId] = runtime.keyVaults;
-      }
-    };
-
-    const gatekeeperProvider = await AiInfraRepos.tryMatchingProviderFrom(runtimeState, {
-      fallbackProvider: memoryServiceConfig.agents.gatekeeper.provider,
-      label: 'gatekeeper',
-      modelId: memoryServiceConfig.modelConfig.gateModel,
-      preferredModels: memoryServiceConfig.overrides.gatekeeper.model
-        ? undefined
-        : this.gatekeeperPreferredModels,
-      preferredProviders: memoryServiceConfig.overrides.gatekeeper.provider
-        ? undefined
-        : this.gatekeeperPreferredProviders,
+    return resolveMemoryRuntimeTargets(runtimeState, memoryServiceConfig, {
+      embeddingPreferredModels: this.embeddingPreferredModels,
+      embeddingPreferredProviders: this.embeddingPreferredProviders,
+      gatekeeperPreferredModels: this.gatekeeperPreferredModels,
+      gatekeeperPreferredProviders: this.gatekeeperPreferredProviders,
+      layerPreferredModels: this.layerPreferredModels,
+      layerPreferredProviders: this.layerPreferredProviders,
     });
-    appendKeyVaults(gatekeeperProvider);
-
-    const embeddingProvider = await AiInfraRepos.tryMatchingProviderFrom(runtimeState, {
-      fallbackProvider: memoryServiceConfig.agents.embedding.provider,
-      label: 'embedding',
-      modelId: memoryServiceConfig.modelConfig.embeddingsModel,
-      preferredModels: memoryServiceConfig.overrides.embedding.model
-        ? undefined
-        : this.embeddingPreferredModels,
-      preferredProviders: memoryServiceConfig.overrides.embedding.provider
-        ? undefined
-        : this.embeddingPreferredProviders,
-    });
-    appendKeyVaults(embeddingProvider);
-
-    const layerProviders: string[] = [];
-    for (const model of Object.values(memoryServiceConfig.modelConfig.layerModels)) {
-      if (!model) continue;
-      const providerId = await AiInfraRepos.tryMatchingProviderFrom(runtimeState, {
-        fallbackProvider: memoryServiceConfig.agents.layerExtractor.provider,
-        label: 'layer extractor',
-        modelId: model,
-        preferredModels: memoryServiceConfig.overrides.layerExtractor.model
-          ? undefined
-          : this.layerPreferredModels,
-        preferredProviders: memoryServiceConfig.overrides.layerExtractor.provider
-          ? undefined
-          : this.layerPreferredProviders,
-      });
-      layerProviders.push(providerId);
-      appendKeyVaults(providerId);
-    }
-
-    const layerExtractorProvider =
-      layerProviders[0] ||
-      normalizeProvider(memoryServiceConfig.agents.layerExtractor.provider || 'openai');
-
-    return {
-      keyVaults,
-      providers: {
-        embedding: embeddingProvider,
-        gatekeeper: gatekeeperProvider,
-        layerExtractor: layerExtractorProvider,
-      },
-    };
   }
 
   private async initRuntimeFromTarget({
@@ -2513,30 +2442,17 @@ export class MemoryExtractionExecutor {
     targetProvider: string;
     userId: string;
   }) {
-    const provider = normalizeProvider(targetProvider || agent.provider || 'openai');
-
-    if (provider === ADMIN_MANAGED_AI_PROVIDER) {
-      const db = await this.db;
-
-      return initModelRuntimeFromDB(db, userId, provider, { model, modelType });
-    }
-
-    const preferredProviderIds = Array.from(new Set([provider, ...(preferredProviders || [])]));
-    const hooks = getBusinessModelRuntimeHooks(userId, provider);
-
-    return resolveRuntimeAgentConfig(
-      { ...agent, provider },
+    return initMemoryRuntimeFromTarget({
+      agent,
+      dbPromise: this.db,
       keyVaults,
-      {
-        fallback: {
-          apiKey: agent.apiKey,
-          baseURL: agent.baseURL,
-        },
-        preferred: { providerIds: preferredProviderIds },
-        userId,
-      },
-      hooks,
-    );
+      model,
+      modelType,
+      preferredProviders,
+      resolveRuntimeAgentConfig,
+      targetProvider,
+      userId,
+    });
   }
 
   private getRuntimeCacheKey(
@@ -2544,15 +2460,7 @@ export class MemoryExtractionExecutor {
     memoryServiceConfig: ResolvedMemoryServiceConfig,
     targets: MemoryRuntimeTargets,
   ) {
-    return [
-      userId,
-      targets.providers.embedding,
-      targets.providers.gatekeeper,
-      targets.providers.layerExtractor,
-      memoryServiceConfig.modelConfig.embeddingsModel,
-      memoryServiceConfig.modelConfig.gateModel,
-      ...Object.values(memoryServiceConfig.modelConfig.layerModels).filter(Boolean),
-    ].join(':');
+    return getMemoryRuntimeCacheKey(userId, memoryServiceConfig, targets);
   }
 
   private async getRuntime(
