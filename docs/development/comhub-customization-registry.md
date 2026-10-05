@@ -339,19 +339,20 @@ DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parit
 - Tests: `src/features/MobileWorkspace/**/*.test.*`, `src/spa/router/mobileRouter.test.tsx`
 - Notes: Add feature routes to the shared generator (mobileWorkspaceRoutes), never two copies. Reserved roots before /:workspaceSlug.
 
-| Rule                                          | Ownership | Covers                                 | vs baseline |
-| --------------------------------------------- | --------- | -------------------------------------- | ----------- |
-| `p:src/features/MobileWorkspace/`             | owned     | 54-file feature + tests                | 60          |
-| `p:src/features/MobileHome/`                  | owned     | mobile home layouts                    | 60          |
-| `p:src/const/mobileConfig.ts`                 | owned     | mobile config                          | 60          |
-| `p:src/spa/router/`                           | upstream  | mobileRouter.config + workspace routes | 39          |
-| `p:src/routes/(mobile)/`                      | upstream  | 16+ mobile pages                       | 39          |
-| `p:src/features/WorkspaceSetting/`            | upstream  | category gating (Devices default)      | 39          |
-| `p:src/components/server/MobileNavLayout.tsx` | upstream  | mobile nav layout                      | 39          |
-| `p:packages/database/src/models/`             | upstream  | recent.ts MobileWorkspace query API    | 39          |
-| `p:apps/server/src/routers/lambda/recent.ts`  | upstream  | mobile workspace recent endpoint       | 39          |
-| `p:src/services/recent/`                      | upstream  | recent service                         | 39          |
-| `p:src/types/workspaceSettings`               | upstream  | workspace settings types               | 39          |
+| Rule                                                      | Ownership | Covers                                                                                                           | vs baseline |
+| --------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------- | ----------- |
+| `p:src/features/MobileWorkspace/`                         | owned     | 54-file feature + tests                                                                                          | 60          |
+| `p:src/features/MobileHome/`                              | owned     | mobile home layouts                                                                                              | 60          |
+| `p:src/const/mobileConfig.ts`                             | owned     | mobile config                                                                                                    | 60          |
+| `p:src/spa/router/`                                       | upstream  | mobileRouter.config + workspace routes                                                                           | 39          |
+| `p:src/routes/(mobile)/`                                  | upstream  | 16+ mobile pages                                                                                                 | 39          |
+| `p:src/features/WorkspaceSetting/`                        | upstream  | category gating (Devices default)                                                                                | 39          |
+| `p:src/components/server/MobileNavLayout.tsx`             | upstream  | mobile nav layout                                                                                                | 39          |
+| `p:packages/database/src/models/recentMobileWorkspace.ts` | owned     | extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS) | 60          |
+| `p:packages/database/src/models/`                         | upstream  | recent.ts MobileWorkspace query API                                                                              | 39          |
+| `p:apps/server/src/routers/lambda/recent.ts`              | upstream  | mobile workspace recent endpoint                                                                                 | 39          |
+| `p:src/services/recent/`                                  | upstream  | recent service                                                                                                   | 39          |
+| `p:src/types/workspaceSettings`                           | upstream  | workspace settings types                                                                                         | 39          |
 
 ## Onboarding & community (`onboarding-community`)
 
