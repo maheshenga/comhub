@@ -29,6 +29,7 @@ import type { RouteObject } from 'react-router';
 import {
   BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
+  BusinessDesktopRoutesWithSettingsLayout,
   BusinessResourceRoutes,
 } from '@/business/client/BusinessDesktopRoutes';
 import BrandTextLoading from '@/components/Loading/BrandTextLoading';
@@ -1156,6 +1157,10 @@ const createMainAreaChildrenDefinition = (options: MainAreaRouteOptions = {}): R
         element: redirectElement('/settings/profile'),
         index: true,
       },
+      // Admin console (`/settings/admin/*`) — direct child of the settings
+      // layout so the personal sidebar is hidden for admin paths. Must precede
+      // the `:tab` catch-all or it never matches.
+      ...BusinessDesktopRoutesWithSettingsLayout,
       // Provider routes with nested structure
       {
         children: [
