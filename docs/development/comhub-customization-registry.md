@@ -13,9 +13,9 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | UI integration points (`ui-integration`)                    | merge _(planned extraction)_ | 139         | 252            | Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + brand defaults, settings categories, provider visibility filter, model switcher, home layout, chat input flags, store slices.                                                         |
 | Admin console (`admin-console`)                             | verify-only                  | 265         | 12             | Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries.                                                                                                                                                           |
 | Module App platform (`module-app-platform`)                 | verify-only                  | 215         | 6              | Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifecycle governance, artifact cleanup, scheduled dispatch, S3 gate replacement.                                                                                                          |
-| Repo infrastructure (`repo-infra`)                          | annotate-only                | 137         | 75             | Root configs, agent skills, docs, workspace packaging, FTS repo governance — repo-level plumbing that upstream also evolves.                                                                                                                                         |
+| Repo infrastructure (`repo-infra`)                          | annotate-only                | 137         | 74             | Root configs, agent skills, docs, workspace packaging, FTS repo governance — repo-level plumbing that upstream also evolves.                                                                                                                                         |
 | Mobile workspace parity (`mobile-workspace`)                | merge                        | 60          | 39             | DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parity), shared route generators, workspace settings category gating.                                                                                                                     |
-| Runtime quality patches (`runtime-quality`)                 | merge                        | 3           | 88             | Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand platform paths, llm error classifier, memory extraction config, qstash otel caching, SSRF-safe fetch, internal error sanitization, DB indexes, SDK regen, openapi operationId util. |
+| Runtime quality patches (`runtime-quality`)                 | merge                        | 3           | 87             | Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand platform paths, llm error classifier, memory extraction config, qstash otel caching, SSRF-safe fetch, internal error sanitization, DB indexes, SDK regen, openapi operationId util. |
 | Migration chain (`database-migrations`)                     | verify-only                  | 78          | 4              | ComHub-owned migrations (0100-0122 commercial, 0168-0177), repair migration 0178, renumbered upstream 0123-0128, journal invariants.                                                                                                                                 |
 | Auth fork (parallel Next.js auth tree) (`auth-fork`)        | verify-only                  | 69          | 10             | ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.                                                                                                        |
 | Brand embed (XuanguoAI) (`branding`)                        | re-apply                     | 56          | 14             | XuanguoAI brand across web + desktop: static assets, runtime brand seam (app_settings → getServerBrand → BrandProvider), upstream component hooks.                                                                                                                   |
@@ -27,8 +27,8 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | Onboarding & community (`onboarding-community`)             | re-apply                     | 4           | 26             | Local onboarding agent templates, fork-and-chat community flow, market/discover services, expert plaza entries.                                                                                                                                                      |
 | Desktop main process patches (`desktop-main-patches`)       | re-apply                     | 8           | 21             | Electron main-process behavior: OFFICIAL_CLOUD_SERVER default, updater remote config, gateway/webview partitions, splash, Browser subscription partition, ComHub feature UI.                                                                                         |
 | Desktop build profile pipeline (`desktop-build-profile`)    | verify-only                  | 27          | 0              | Runtime installer branding: admin-authored profile → DB revisions → CI staging → electron-builder overrides (appId, icons, NSIS, protocol schemes).                                                                                                                  |
+| Dependency pins (`deps-pins`)                               | verify-only                  | 1           | 12             | pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps.                                                                                                                                                                   |
 | Admin-managed S3 routing (`server-storage-s3`)              | re-apply                     | 5           | 3              | FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.                                                                                                                                        |
-| Dependency pins (`deps-pins`)                               | verify-only                  | 1           | 7              | pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps.                                                                                                                                                                   |
 | Usage ledger reconciliation (`server-usage-ledger`)         | re-apply                     | 0           | 5              | Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output).                                                                                                                         |
 | Desktop deep-link scheme (comhub://) (`desktop-deep-links`) | re-apply                     | 0           | 3              | comhub:// protocol scheme detection + whitelist extension in the desktop main process.                                                                                                                                                                               |
 | PostgreSQL pool guardrails (`db-pool-guardrails`)           | re-apply                     | 0           | 3              | DATABASE_POOL_* / statement & idle-in-transaction timeouts for Node pg pools.                                                                                                                                                                                        |
@@ -531,17 +531,22 @@ ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret
 pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps.
 
 - Sync strategy: **verify-only**
-- Notes: Do not remove the @lobehub/ui pin without pnpm run build:docker + pnpm type-check (5.51.2 removed NeuralNetworkLoading / Empty padding props).
+- Notes: Do not remove the @lobehub/ui pin without pnpm run build:docker + pnpm type-check (5.51.2 removed NeuralNetworkLoading / Empty padding props). @lobehub/editor 4.28+ and @lobehub/icons 5.23+ require ui ^5.54 (fork pins 5.48.2) — editor pinned 4.27.3, icons 5.21.0; re-evaluate pins when the ui pin moves.
 
-| Rule                                 | Ownership | Covers                         | vs baseline |
-| ------------------------------------ | --------- | ------------------------------ | ----------- |
-| `p:pnpm-workspace.yaml`              | upstream  | @lobehub/ui override pin       | 7           |
-| `p:.pnpmfile.cjs`                    | owned     | better-call zod4 alignment     | 1           |
-| `p:apps/desktop/package.json`        | upstream  | electron 43.5                  | 7           |
-| `p:apps/desktop/pnpm-lock.yaml`      | upstream  | desktop lockfile               | 7           |
-| `p:packages/model-bank/package.json` | upstream  | export map + observability dep | 7           |
-| `p:packages/observability-otel/`     | upstream  | electron dep bump              | 7           |
-| `p:packages/electron-client-ipc/`    | upstream  | electron dep bump + execa      | 7           |
+| Rule                                              | Ownership | Covers                                        | vs baseline |
+| ------------------------------------------------- | --------- | --------------------------------------------- | ----------- |
+| `p:pnpm-workspace.yaml`                           | upstream  | @lobehub/ui override pin                      | 12          |
+| `p:.pnpmfile.cjs`                                 | owned     | better-call zod4 alignment                    | 1           |
+| `p:apps/desktop/package.json`                     | upstream  | electron 43.5                                 | 12          |
+| `p:apps/desktop/pnpm-lock.yaml`                   | upstream  | desktop lockfile                              | 12          |
+| `p:package.json`                                  | upstream  | root overrides: @lobehub/ui/editor/icons pins | 12          |
+| `p:packages/editor-runtime/package.json`          | upstream  | @lobehub/editor pin 4.27.3                    | 12          |
+| `p:packages/builtin-tool-lobe-agent/package.json` | upstream  | @lobehub/editor pin 4.27.3                    | 12          |
+| `p:packages/builtin-tools/package.json`           | upstream  | @lobehub/icons pin 5.21.0                     | 12          |
+| `p:packages/heterogeneous-agents/package.json`    | upstream  | @lobehub/icons pin 5.21.0                     | 12          |
+| `p:packages/model-bank/package.json`              | upstream  | export map + observability dep                | 12          |
+| `p:packages/observability-otel/`                  | upstream  | electron dep bump                             | 12          |
+| `p:packages/electron-client-ipc/`                 | upstream  | electron dep bump + execa                     | 12          |
 
 ## Runtime quality patches (`runtime-quality`)
 
@@ -553,38 +558,38 @@ Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand
 
 | Rule                                           | Ownership | Covers                                                                                      | vs baseline |
 | ---------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- | ----------- |
-| `p:packages/heterogeneous-agents/`             | upstream  | resolveCliCommand win32 paths, builtin MCP error surface                                    | 88          |
-| `p:packages/local-file-shell/`                 | upstream  | windows content search argv                                                                 | 88          |
-| `p:packages/agent-runtime/`                    | upstream  | llmErrorClassifier code precedence                                                          | 88          |
-| `p:packages/memory-user-memory/`               | upstream  | structured result parsing                                                                   | 88          |
-| `p:packages/web-crawler/`                      | upstream  | mode change only                                                                            | 88          |
-| `p:packages/builtin-tool-calculator/`          | upstream  | executor tweaks (representative; sibling builtin-tool-* follow the same rule)               | 88          |
-| `p:packages/trpc/src/lambda/`                  | upstream  | clientIp extraction, middleware ordering                                                    | 88          |
-| `p:packages/utils/`                            | upstream  | apiKey prefix fallback, url sanitization, responsive                                        | 88          |
-| `p:packages/const/src/settings/`               | upstream  | autoCreateTopic settings                                                                    | 88          |
-| `p:packages/const/src/protocol.ts`             | upstream  | electron protocol const                                                                     | 88          |
-| `p:packages/openapi/`                          | upstream  | operationId util + chat metadata                                                            | 88          |
-| `p:packages/sdk/`                              | upstream  | regenerated client                                                                          | 88          |
-| `p:packages/env/`                              | upstream  | APP_URL precedence                                                                          | 88          |
-| `p:packages/app-config/`                       | upstream  | db env schema                                                                               | 88          |
-| `p:packages/types/`                            | upstream  | agent chatConfig, fetch, error codes                                                        | 88          |
-| `p:packages/database/src/schemas/message.ts`   | upstream  | topic/user/workspace updated_at indexes                                                     | 88          |
-| `p:packages/database/src/schemas/topic.ts`     | upstream  | workspace agent/group indexes                                                               | 88          |
-| `p:packages/database/src/schemas/workspace.ts` | upstream  | comment cleanup                                                                             | 88          |
-| `p:packages/database/src/models/__tests__/`    | upstream  | model test updates                                                                          | 88          |
-| `p:packages/agent-tracing/`                    | upstream  | cli error surface                                                                           | 88          |
-| `p:apps/server/src/services/memory/`           | upstream  | extraction config + runtime targets                                                         | 88          |
-| `p:apps/server/src/services/taskTemplate/`     | upstream  | task template tweaks                                                                        | 88          |
-| `p:apps/server/src/services/toolExecution/`    | upstream  | memory server runtime                                                                       | 88          |
-| `p:apps/server/src/services/mcp/`              | upstream  | content processor                                                                           | 88          |
-| `p:apps/server/src/router-hono/workflows/`     | upstream  | qstash client availability guards                                                           | 88          |
-| `p:apps/server/src/routers/`                   | upstream  | routers not covered elsewhere                                                               | 88          |
-| `p:apps/server/src/`                           | upstream  | catch-all for remaining server files                                                        | 88          |
-| `p:patches/`                                   | upstream  | qstash patch (otel caching + error logging); watch for @upstash/qstash floating-resolve rot | 88          |
-| `p:src/libs/qstash/`                           | upstream  | otel client caching                                                                         | 88          |
+| `p:packages/heterogeneous-agents/`             | upstream  | resolveCliCommand win32 paths, builtin MCP error surface                                    | 87          |
+| `p:packages/local-file-shell/`                 | upstream  | windows content search argv                                                                 | 87          |
+| `p:packages/agent-runtime/`                    | upstream  | llmErrorClassifier code precedence                                                          | 87          |
+| `p:packages/memory-user-memory/`               | upstream  | structured result parsing                                                                   | 87          |
+| `p:packages/web-crawler/`                      | upstream  | mode change only                                                                            | 87          |
+| `p:packages/builtin-tool-calculator/`          | upstream  | executor tweaks (representative; sibling builtin-tool-* follow the same rule)               | 87          |
+| `p:packages/trpc/src/lambda/`                  | upstream  | clientIp extraction, middleware ordering                                                    | 87          |
+| `p:packages/utils/`                            | upstream  | apiKey prefix fallback, url sanitization, responsive                                        | 87          |
+| `p:packages/const/src/settings/`               | upstream  | autoCreateTopic settings                                                                    | 87          |
+| `p:packages/const/src/protocol.ts`             | upstream  | electron protocol const                                                                     | 87          |
+| `p:packages/openapi/`                          | upstream  | operationId util + chat metadata                                                            | 87          |
+| `p:packages/sdk/`                              | upstream  | regenerated client                                                                          | 87          |
+| `p:packages/env/`                              | upstream  | APP_URL precedence                                                                          | 87          |
+| `p:packages/app-config/`                       | upstream  | db env schema                                                                               | 87          |
+| `p:packages/types/`                            | upstream  | agent chatConfig, fetch, error codes                                                        | 87          |
+| `p:packages/database/src/schemas/message.ts`   | upstream  | topic/user/workspace updated_at indexes                                                     | 87          |
+| `p:packages/database/src/schemas/topic.ts`     | upstream  | workspace agent/group indexes                                                               | 87          |
+| `p:packages/database/src/schemas/workspace.ts` | upstream  | comment cleanup                                                                             | 87          |
+| `p:packages/database/src/models/__tests__/`    | upstream  | model test updates                                                                          | 87          |
+| `p:packages/agent-tracing/`                    | upstream  | cli error surface                                                                           | 87          |
+| `p:apps/server/src/services/memory/`           | upstream  | extraction config + runtime targets                                                         | 87          |
+| `p:apps/server/src/services/taskTemplate/`     | upstream  | task template tweaks                                                                        | 87          |
+| `p:apps/server/src/services/toolExecution/`    | upstream  | memory server runtime                                                                       | 87          |
+| `p:apps/server/src/services/mcp/`              | upstream  | content processor                                                                           | 87          |
+| `p:apps/server/src/router-hono/workflows/`     | upstream  | qstash client availability guards                                                           | 87          |
+| `p:apps/server/src/routers/`                   | upstream  | routers not covered elsewhere                                                               | 87          |
+| `p:apps/server/src/`                           | upstream  | catch-all for remaining server files                                                        | 87          |
+| `p:patches/`                                   | upstream  | qstash patch (otel caching + error logging); watch for @upstash/qstash floating-resolve rot | 87          |
+| `p:src/libs/qstash/`                           | upstream  | otel client caching                                                                         | 87          |
 | `p:src/libs/`                                  | owned     | fork libs not covered elsewhere                                                             | 3           |
-| `p:src/utils/errorResponse`                    | upstream  | internal error sanitization                                                                 | 88          |
-| `p:packages/model-runtime/`                    | upstream  | see commercial-billing (hooks live there)                                                   | 88          |
+| `p:src/utils/errorResponse`                    | upstream  | internal error sanitization                                                                 | 87          |
+| `p:packages/model-runtime/`                    | upstream  | see commercial-billing (hooks live there)                                                   | 87          |
 
 ## Repo infrastructure (`repo-infra`)
 
@@ -595,39 +600,39 @@ Root configs, agent skills, docs, workspace packaging, FTS repo governance — r
 
 | Rule                                           | Ownership | Covers                                       | vs baseline |
 | ---------------------------------------------- | --------- | -------------------------------------------- | ----------- |
-| `p:.agents/`                                   | upstream  | agent skill scripts + skills symlinks        | 75          |
-| `p:.claude/`                                   | upstream  | skills symlink                               | 75          |
-| `p:.codex/`                                    | upstream  | skills symlink                               | 75          |
-| `p:.cursor/`                                   | upstream  | skills symlink                               | 75          |
-| `p:.conductor/`                                | upstream  | setup script                                 | 75          |
-| `p:.githooks/`                                 | upstream  | pre-commit mode                              | 75          |
+| `p:.agents/`                                   | upstream  | agent skill scripts + skills symlinks        | 74          |
+| `p:.claude/`                                   | upstream  | skills symlink                               | 74          |
+| `p:.codex/`                                    | upstream  | skills symlink                               | 74          |
+| `p:.cursor/`                                   | upstream  | skills symlink                               | 74          |
+| `p:.conductor/`                                | upstream  | setup script                                 | 74          |
+| `p:.githooks/`                                 | upstream  | pre-commit mode                              | 74          |
 | `p:.superpowers/`                              | owned     | sdd reports                                  | 137         |
-| `p:.github/`                                   | upstream  | CODEOWNERS + repo meta                       | 75          |
-| `p:package.json`                               | upstream  | root scripts/deps                            | 75          |
-| `p:tsconfig.json`                              | upstream  | paths block                                  | 75          |
-| `p:vitest.config.mts`                          | upstream  | aliases + excludes                           | 75          |
-| `p:drizzle.config.ts`                          | upstream  | drizzle config                               | 75          |
-| `p:plugins/vite/`                              | upstream  | node module stub                             | 75          |
-| `p:packages/database/vitest.config.mts`        | upstream  | db test aliases                              | 75          |
-| `p:packages/database/package.json`             | upstream  | exports                                      | 75          |
-| `p:packages/types/src/index.ts`                | upstream  | type re-exports                              | 75          |
-| `p:packages/business-server/package.json`      | upstream  | test scripts + deps                          | 75          |
+| `p:.github/`                                   | upstream  | CODEOWNERS + repo meta                       | 74          |
+| `p:package.json`                               | upstream  | root scripts/deps                            | 74          |
+| `p:tsconfig.json`                              | upstream  | paths block                                  | 74          |
+| `p:vitest.config.mts`                          | upstream  | aliases + excludes                           | 74          |
+| `p:drizzle.config.ts`                          | upstream  | drizzle config                               | 74          |
+| `p:plugins/vite/`                              | upstream  | node module stub                             | 74          |
+| `p:packages/database/vitest.config.mts`        | upstream  | db test aliases                              | 74          |
+| `p:packages/database/package.json`             | upstream  | exports                                      | 74          |
+| `p:packages/types/src/index.ts`                | upstream  | type re-exports                              | 74          |
+| `p:packages/business-server/package.json`      | upstream  | test scripts + deps                          | 74          |
 | `p:packages/business-server/vitest.config.mts` | owned     | business-server tests                        | 137         |
 | `p:pnpm-lock.yaml`                             | owned     | root lockfile                                | 137         |
 | `p:tests/`                                     | owned     | shared test mocks/utils                      | 137         |
 | `p:docs/`                                      | owned     | fork docs (ledger lives in repo-infra entry) | 137         |
-| `p:scripts/`                                   | upstream  | root scripts not covered elsewhere           | 75          |
+| `p:scripts/`                                   | upstream  | root scripts not covered elsewhere           | 74          |
 | `p:apps/server/`                               | owned     | server app shell files                       | 137         |
 | `p:apps/auth/`                                 | owned     | auth app scripts                             | 137         |
 | `p:apps/cli/`                                  | owned     | cli app                                      | 137         |
 | `p:apps/share/`                                | owned     | share app                                    | 137         |
 | `p:apps/workbench/`                            | owned     | workbench app                                | 137         |
-| `p:README.md`                                  | upstream  | fork readme rewrite                          | 75          |
-| `p:SECURITY.md`                                | upstream  | fork security policy                         | 75          |
-| `p:CONTRIBUTING.md`                            | upstream  | fork contributing                            | 75          |
-| `p:AGENTS.md`                                  | upstream  | agent instructions                           | 75          |
-| `p:CLAUDE.md`                                  | upstream  | claude instructions                          | 75          |
-| `p:.dockerignore`                              | upstream  | docker ignore list                           | 75          |
-| `p:.gitignore`                                 | upstream  | ignore list                                  | 75          |
-| `p:.env.example`                               | upstream  | env docs                                     | 75          |
-| `p:.env.desktop`                               | upstream  | desktop env                                  | 75          |
+| `p:README.md`                                  | upstream  | fork readme rewrite                          | 74          |
+| `p:SECURITY.md`                                | upstream  | fork security policy                         | 74          |
+| `p:CONTRIBUTING.md`                            | upstream  | fork contributing                            | 74          |
+| `p:AGENTS.md`                                  | upstream  | agent instructions                           | 74          |
+| `p:CLAUDE.md`                                  | upstream  | claude instructions                          | 74          |
+| `p:.dockerignore`                              | upstream  | docker ignore list                           | 74          |
+| `p:.gitignore`                                 | upstream  | ignore list                                  | 74          |
+| `p:.env.example`                               | upstream  | env docs                                     | 74          |
+| `p:.env.desktop`                               | upstream  | desktop env                                  | 74          |
