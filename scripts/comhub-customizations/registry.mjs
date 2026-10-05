@@ -398,6 +398,16 @@ const MODULES = [
       ['p:packages/trpc/src/utils/', 'owned', 'clientIp extraction util + tests'],
       ['p:packages/database/src/schemas/newapiInstance.ts', 'owned', 'newapi instance schema'],
       [
+        'p:apps/server/src/globalConfig/adminManagedProviders.ts',
+        'owned',
+        'extracted: admin-managed provider assembly (types, generic newapi params, uniqueModelIds, applyAdminManagedProviders)',
+      ],
+      [
+        'p:apps/server/src/globalConfig/index.ts',
+        'upstream',
+        'delegates business-mode provider assembly to adminManagedProviders.ts (hookExtracted)',
+      ],
+      [
         'p:apps/server/src/globalConfig/',
         'upstream',
         'server global config + memory extraction config',
