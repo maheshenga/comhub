@@ -1,4 +1,3 @@
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { getModelPropertyWithFallback } from '@lobechat/model-runtime/getModelPropertyWithFallback';
 import { resolveImageSinglePrice } from '@lobechat/model-runtime/resolveImageSinglePrice';
 import { resolveVideoSinglePrice } from '@lobechat/model-runtime/resolveVideoSinglePrice';
@@ -32,6 +31,12 @@ import { AiProviderSourceEnum } from '@/types/aiProvider';
 import { filterEnabledProvidersByModelType, filterHiddenBuiltinModels } from '@/utils/aiProvider';
 
 import type { AiInfraStore } from '../../store';
+import {
+  getAiProviderService,
+  getModelProperty as getModelPropertyWithInline,
+  resolveChatModelCatalogFallbacks,
+  resolveOfflineEnabledProviders,
+} from './sliceHelpers';
 
 export { filterEnabledProvidersByModelType, filterHiddenBuiltinModels } from '@/utils/aiProvider';
 
@@ -86,15 +91,7 @@ export type ProviderModelListItem = {
 
 type ModelNormalizer = (model: EnabledAiModel) => Promise<ProviderModelListItem>;
 
-const getModelProperty = async <T>(
-  model: EnabledAiModel,
-  propertyName: keyof AiFullModelCard,
-): Promise<T | undefined> => {
-  const inlineValue = (model as Partial<AiFullModelCard>)[propertyName];
-  if (inlineValue !== undefined) return inlineValue as T;
-
-  return getModelPropertyWithFallback<T | undefined>(model.id, propertyName, model.providerId);
-};
+const getModelProperty = getModelPropertyWithInline;
 
 const hasParameters = (parameters?: ModelParamsSchema): parameters is ModelParamsSchema =>
   !!parameters && Object.keys(parameters).length > 0;
@@ -134,26 +131,16 @@ const createProviderModelCollector = (
 };
 
 export const normalizeChatModel = async (model: EnabledAiModel): Promise<ProviderModelListItem> => {
-  const abilitiesPromise = Object.keys(model.abilities ?? {}).length
-    ? Promise.resolve(model.abilities)
-    : getModelPropertyWithFallback<ModelAbilities | undefined>(
-        model.id,
-        'abilities',
-        model.providerId,
-      );
-
-  const [abilities, contextWindowTokens, description, knowledgeCutoff, pricing] = await Promise.all(
-    [
-      abilitiesPromise,
-      getModelProperty<number>(model, 'contextWindowTokens'),
-      getModelProperty<string>(model, 'description'),
-      getModelProperty<string>(model, 'knowledgeCutoff'),
-      getModelProperty<Pricing>(model, 'pricing'),
-    ],
-  );
+  const [catalog, description, knowledgeCutoff, pricing] = await Promise.all([
+    resolveChatModelCatalogFallbacks(model, getModelProperty),
+    getModelProperty<string>(model, 'description'),
+    getModelProperty<string>(model, 'knowledgeCutoff'),
+    getModelProperty<Pricing>(model, 'pricing'),
+  ]);
+  const { abilities, contextWindowTokens } = catalog;
 
   return {
-    abilities: abilities || {},
+    abilities,
     contextWindowTokens,
     displayName: model.displayName ?? '',
     id: model.id,
@@ -325,8 +312,6 @@ type AiProviderRuntimeStateWithBuiltinModels = AiProviderRuntimeState & {
 type Setter = StoreSetter<AiInfraStore>;
 export const createAiProviderSlice = (set: Setter, get: () => AiInfraStore, _api?: unknown) =>
   new AiProviderActionImpl(set, get, _api);
-
-const getAiProviderService = async () => (await import('@/services/aiProvider')).aiProviderService;
 
 export class AiProviderActionImpl {
   readonly #get: () => AiInfraStore;
@@ -664,11 +649,7 @@ export class AiProviderActionImpl {
           allBuiltinAiModels,
           defaultHiddenBuiltinModels,
         );
-        const enabledAiProviders: EnabledProvider[] = (
-          ENABLE_BUSINESS_FEATURES ? [] : DEFAULT_MODEL_PROVIDER_LIST
-        )
-          .filter((provider) => provider.enabled)
-          .map((item) => ({ id: item.id, name: item.name, source: AiProviderSourceEnum.Builtin }));
+        const enabledAiProviders: EnabledProvider[] = resolveOfflineEnabledProviders();
 
         const enabledChatAiProviders = enabledAiProviders.filter((provider) => {
           return builtinAiModelList.some(
