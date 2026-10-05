@@ -156,6 +156,11 @@ jobs:
           SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
           SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+          # Seconds for the GHCR->production image stream. The `${VAR:-1800}`
+          # below reads the shell environment, so the knob must be exported
+          # here; without this line every relay is hard-capped at 1800s and a
+          # slow cross-border link fails the deploy (seen 2026-10-05).
+          COMHUB_IMAGE_RELAY_TIMEOUT: ${{ vars.COMHUB_IMAGE_RELAY_TIMEOUT || '1800' }}
         run: |
           set -euo pipefail
 
