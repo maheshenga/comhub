@@ -242,6 +242,16 @@ const MODULES = [
         'newapi provider card, siliconcloud/volcengine catalog, module-app export',
       ],
       [
+        'p:packages/business-server/src/commercialModelRuntimeHooks.ts',
+        'owned',
+        'extracted: commercial model-runtime hooks (policy/plan asserts, reservation release/settle lifecycle, pricing-quote metadata passthrough)',
+      ],
+      [
+        'p:packages/business-server/src/model-runtime.ts',
+        'upstream',
+        'delegates getBusinessModelRuntimeHooks to commercialModelRuntimeHooks.ts (hookExtracted)',
+      ],
+      [
         'p:packages/business-server/src/',
         'upstream',
         'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares',
