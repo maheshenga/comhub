@@ -1,6 +1,8 @@
 import { type RouteObject } from 'react-router';
 
+import RouteSegmentSkeleton from '@/components/Skeleton/RouteSegment';
 import { dynamicElement, dynamicLayout, ErrorBoundary } from '@/utils/router';
+import { routeMeta } from '@/spa/router/routeMeta';
 
 import {
   ADMIN_SETTINGS_ROUTE_REGISTRY,
@@ -41,6 +43,7 @@ const settingsAdminRoute: RouteObject = {
 export const BusinessDesktopRoutesWithMainLayout: RouteObject[] = [
   {
     element: dynamicElement(() => import('@/routes/(main)/topup'), 'Desktop > TopUp'),
+    handle: { meta: routeMeta({ Skeleton: RouteSegmentSkeleton }) },
     path: 'topup',
   },
 ];
