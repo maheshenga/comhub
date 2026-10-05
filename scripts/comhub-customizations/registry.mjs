@@ -321,6 +321,16 @@ const MODULES = [
         'upstream',
         're-exports commercial/desktopBuild/moduleApp/newapiInstance',
       ],
+      [
+        'p:packages/database/src/repositories/aiInfra/managedProviders.ts',
+        'owned',
+        'extracted: admin-managed provider list assembly (business enabled gating, virtual parentProviderId providers, mergeArrayById composition)',
+      ],
+      [
+        'p:packages/database/src/repositories/aiInfra/index.ts',
+        'upstream',
+        'delegates getAiProviderList assembly to managedProviders.ts (hookExtracted); keeps BRANDING filters + parameters/pricing override',
+      ],
       ['p:packages/database/src/repositories/', 'upstream', 'aiInfra pricing resolution + tests'],
       ['p:packages/database/', 'owned', 'new commercial models/schemas added under database/'],
     ],
@@ -667,6 +677,16 @@ const MODULES = [
       ['p:src/proxy.test.ts', 'upstream', 'proxy route tests'],
       ['p:src/routes/(main)/', 'upstream', 'home/group/apps/create/memory routes'],
       ['p:src/routes/', 'owned', 'route files not under (main)/(mobile)'],
+      [
+        'p:src/store/aiInfra/slices/aiProvider/sliceHelpers.ts',
+        'owned',
+        'extracted: aiProvider slice fork helpers (lazy aiProviderService import vs circular dep, chat model catalog fallbacks, business offline provider list)',
+      ],
+      [
+        'p:src/store/aiInfra/slices/aiProvider/action.ts',
+        'upstream',
+        'delegates helpers to sliceHelpers.ts (hookExtracted); per-callsite getAiProviderService() lines remain',
+      ],
       ['p:src/store/', 'upstream', 'global/aiInfra/discover/user/image/video/tree/utils slices'],
       ['p:src/hooks/', 'upstream', 'useNavLayout brand entries, useFetchAgentList'],
       [

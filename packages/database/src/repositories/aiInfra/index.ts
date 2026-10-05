@@ -1,4 +1,4 @@
-import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { loadModels } from '@lobechat/business-model-bank/model-config';
 import type {
   AiProviderDetailItem,
@@ -23,13 +23,10 @@ import { merge, mergeArrayById } from '@/utils/merge';
 import { AiModelModel } from '../../models/aiModel';
 import { AiProviderModel } from '../../models/aiProvider';
 import type { LobeChatDatabase } from '../../type';
+import { type ServerManagedProviderConfig, resolveManagedProviderList } from './managedProviders';
 
 type RuntimeAiModel = EnabledAiModel & Partial<AiProviderModelListItem>;
-type ServerProviderConfig = ProviderConfig & {
-  logo?: string;
-  name?: string;
-  parentProviderId?: string;
-};
+type ServerProviderConfig = ServerManagedProviderConfig;
 
 type DecryptUserKeyVaults = (encryptKeyVaultsStr: string | null) => Promise<any>;
 
@@ -103,57 +100,14 @@ export class AiInfraRepos {
    */
   getAiProviderList = async () => {
     const userProviders = await this.aiProviderModel.getAiProviderList();
-    const isProviderEnabledByServer = (id: string) => Boolean(this.providerConfigs[id]?.enabled);
-    const isServerManagedProvider = (id: string) => Boolean(this.providerConfigs[id]?.parentProviderId);
+
+    const mergedProviders = resolveManagedProviderList({
+      providerConfigs: this.providerConfigs,
+      userProviders,
+    });
 
     // 1. First create a mapping based on DEFAULT_MODEL_PROVIDER_LIST id order
     const orderMap = new Map(DEFAULT_MODEL_PROVIDER_LIST.map((item, index) => [item.id, index]));
-
-    const builtinProviders = DEFAULT_MODEL_PROVIDER_LIST.map((item) => ({
-      description: item.description,
-      enabled:
-        isProviderEnabledByServer(item.id) ||
-        (!ENABLE_BUSINESS_FEATURES &&
-          userProviders.some((provider) => provider.id === item.id && provider.enabled)),
-      id: item.id,
-      name: item.name,
-      source: 'builtin',
-    })) as AiProviderListItem[];
-
-    // ComHub business mode is admin-managed: user toggles must not resurrect
-    // built-in providers that are not enabled in backend AI service settings.
-    const normalizedUserProviders = ENABLE_BUSINESS_FEATURES
-      ? userProviders.map((provider) =>
-          provider.source === 'builtin' || orderMap.has(provider.id) || isServerManagedProvider(provider.id)
-            ? {
-                ...provider,
-                enabled: isProviderEnabledByServer(provider.id),
-                name: this.providerConfigs[provider.id]?.name ?? provider.name,
-              }
-            : { ...provider, enabled: false },
-        )
-      : userProviders;
-
-    const knownProviderIds = new Set([
-      ...builtinProviders.map((provider) => provider.id),
-      ...normalizedUserProviders.map((provider) => provider.id),
-    ]);
-    const serverManagedProviders = Object.entries(this.providerConfigs)
-      .filter(([id, config]) => config.enabled && config.parentProviderId && !knownProviderIds.has(id))
-      .map(
-        ([id, config]): AiProviderListItem => ({
-          enabled: true,
-          id,
-          logo: config.logo,
-          name: config.name || id,
-          source: 'builtin',
-        }),
-      );
-
-    const mergedProviders = [
-      ...mergeArrayById(builtinProviders, normalizedUserProviders),
-      ...serverManagedProviders,
-    ];
 
     // 3. Sort based on orderMap
     return mergedProviders.sort((a, b) => {
