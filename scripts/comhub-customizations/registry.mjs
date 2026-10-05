@@ -509,6 +509,11 @@ const MODULES = [
       ['p:src/routes/(mobile)/', 'upstream', '16+ mobile pages'],
       ['p:src/features/WorkspaceSetting/', 'upstream', 'category gating (Devices default)'],
       ['p:src/components/server/MobileNavLayout.tsx', 'upstream', 'mobile nav layout'],
+      [
+        'p:packages/database/src/models/recentMobileWorkspace.ts',
+        'owned',
+        'extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS)',
+      ],
       ['p:packages/database/src/models/', 'upstream', 'recent.ts MobileWorkspace query API'],
       [
         'p:apps/server/src/routers/lambda/recent.ts',
