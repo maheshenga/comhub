@@ -20,7 +20,7 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | Auth fork (parallel Next.js auth tree) (`auth-fork`)        | verify-only                  | 69          | 10             | ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.                                                                                                        |
 | Brand embed (XuanguoAI) (`branding`)                        | re-apply                     | 56          | 14             | XuanguoAI brand across web + desktop: static assets, runtime brand seam (app_settings → getServerBrand → BrandProvider), upstream component hooks.                                                                                                                   |
 | CI / deploy workflows (`ci-deploy`)                         | re-apply                     | 11          | 35             | ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.                                                                                          |
-| Admin app settings runtime config (`admin-app-settings`)    | verify-only                  | 11          | 29             | app_settings key/value store + typed registry + CAS revisions + per-section readers (brand, S3, composio, model policy, defaults) + newapi instance management.                                                                                                      |
+| Admin app settings runtime config (`admin-app-settings`)    | verify-only                  | 12          | 29             | app_settings key/value store + typed registry + CAS revisions + per-section readers (brand, S3, composio, model policy, defaults) + newapi instance management.                                                                                                      |
 | SPA HTML / static shell (`spa-html`)                        | re-apply                     | 31          | 5              | Server-rendered SPA HTML with runtime brand/analytics/S3 config, build scripts, spaServerConfig types.                                                                                                                                                               |
 | Desktop release pipeline (`desktop-release-pipeline`)       | re-apply                     | 26          | 6              | GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions.                                                                                                                                              |
 | Locale additions (`locales`)                                | merge                        | 0           | 31             | ComHub locale keys (admin.*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults.                                                                                                                                   |
@@ -257,19 +257,19 @@ app_settings key/value store + typed registry + CAS revisions + per-section read
 
 | Rule                                                      | Ownership | Covers                                                                                                                | vs baseline |
 | --------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `p:src/const/appSettingsRegistry.ts`                      | owned     | APP_SETTING_KEYS registry                                                                                             | 11          |
-| `p:src/server/services/appSettings/`                      | owned     | readers + 30s TTL cache + invalidation                                                                                | 11          |
-| `p:src/config/`                                           | owned     | composio config helpers                                                                                               | 11          |
-| `p:packages/business-server/src/appSettings/`             | owned     | public readers + CAS write helpers                                                                                    | 11          |
+| `p:src/const/appSettingsRegistry.ts`                      | owned     | APP_SETTING_KEYS registry                                                                                             | 12          |
+| `p:src/server/services/appSettings/`                      | owned     | readers + 30s TTL cache + invalidation                                                                                | 12          |
+| `p:src/config/`                                           | owned     | composio config helpers                                                                                               | 12          |
+| `p:packages/business-server/src/appSettings/`             | owned     | public readers + CAS write helpers                                                                                    | 12          |
 | `p:packages/builtin-tool-agent-builder/`                  | upstream  | executor tweaks                                                                                                       | 29          |
 | `p:packages/builtin-tool-agent-management/`               | upstream  | executor tweaks                                                                                                       | 29          |
 | `p:packages/builtin-tool-group-agent-builder/`            | upstream  | executor tweaks                                                                                                       | 29          |
-| `p:packages/const/src/currency.test.ts`                   | owned     | credit conversion tests                                                                                               | 11          |
+| `p:packages/const/src/currency.test.ts`                   | owned     | credit conversion tests                                                                                               | 12          |
 | `p:packages/const/src/layoutTokens.ts`                    | upstream  | brand layout token adjustments                                                                                        | 29          |
 | `p:packages/const/src/url.ts`                             | upstream  | modelRatings webapi route                                                                                             | 29          |
-| `p:packages/trpc/src/utils/`                              | owned     | clientIp extraction util + tests                                                                                      | 11          |
-| `p:packages/database/src/schemas/newapiInstance.ts`       | owned     | newapi instance schema                                                                                                | 11          |
-| `p:apps/server/src/globalConfig/adminManagedProviders.ts` | owned     | extracted: admin-managed provider assembly (types, generic newapi params, uniqueModelIds, applyAdminManagedProviders) | 11          |
+| `p:packages/trpc/src/utils/`                              | owned     | clientIp extraction util + tests                                                                                      | 12          |
+| `p:packages/database/src/schemas/newapiInstance.ts`       | owned     | newapi instance schema                                                                                                | 12          |
+| `p:apps/server/src/globalConfig/adminManagedProviders.ts` | owned     | extracted: admin-managed provider assembly (types, generic newapi params, uniqueModelIds, applyAdminManagedProviders) | 12          |
 | `p:apps/server/src/globalConfig/index.ts`                 | upstream  | delegates business-mode provider assembly to adminManagedProviders.ts (hookExtracted)                                 | 29          |
 | `p:apps/server/src/globalConfig/`                         | upstream  | server global config + memory extraction config                                                                       | 29          |
 | `p:apps/server/src/routers/lambda/config`                 | upstream  | config router extensions                                                                                              | 29          |
@@ -284,7 +284,7 @@ app_settings key/value store + typed registry + CAS revisions + per-section read
 | `p:packages/app-config/src/composio.ts`                   | upstream  | env fallback helpers                                                                                                  | 29          |
 | `p:packages/types/src/serverConfig.ts`                    | upstream  | PublicCustomizationConfig + generation model config                                                                   | 29          |
 | `p:packages/types/src/user/preference.ts`                 | upstream  | role exposure                                                                                                         | 29          |
-| `p:src/business/server/`                                  | owned     | lambda settings router + admin service                                                                                | 11          |
+| `p:src/business/server/`                                  | owned     | lambda settings router + admin service                                                                                | 12          |
 | `p:src/features/User/`                                    | upstream  | help menu items from admin config                                                                                     | 29          |
 
 ## Admin console (`admin-console`)
@@ -339,19 +339,20 @@ DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parit
 - Tests: `src/features/MobileWorkspace/**/*.test.*`, `src/spa/router/mobileRouter.test.tsx`
 - Notes: Add feature routes to the shared generator (mobileWorkspaceRoutes), never two copies. Reserved roots before /:workspaceSlug.
 
-| Rule                                          | Ownership | Covers                                 | vs baseline |
-| --------------------------------------------- | --------- | -------------------------------------- | ----------- |
-| `p:src/features/MobileWorkspace/`             | owned     | 54-file feature + tests                | 60          |
-| `p:src/features/MobileHome/`                  | owned     | mobile home layouts                    | 60          |
-| `p:src/const/mobileConfig.ts`                 | owned     | mobile config                          | 60          |
-| `p:src/spa/router/`                           | upstream  | mobileRouter.config + workspace routes | 39          |
-| `p:src/routes/(mobile)/`                      | upstream  | 16+ mobile pages                       | 39          |
-| `p:src/features/WorkspaceSetting/`            | upstream  | category gating (Devices default)      | 39          |
-| `p:src/components/server/MobileNavLayout.tsx` | upstream  | mobile nav layout                      | 39          |
-| `p:packages/database/src/models/`             | upstream  | recent.ts MobileWorkspace query API    | 39          |
-| `p:apps/server/src/routers/lambda/recent.ts`  | upstream  | mobile workspace recent endpoint       | 39          |
-| `p:src/services/recent/`                      | upstream  | recent service                         | 39          |
-| `p:src/types/workspaceSettings`               | upstream  | workspace settings types               | 39          |
+| Rule                                                      | Ownership | Covers                                                                                                           | vs baseline |
+| --------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------- | ----------- |
+| `p:src/features/MobileWorkspace/`                         | owned     | 54-file feature + tests                                                                                          | 60          |
+| `p:src/features/MobileHome/`                              | owned     | mobile home layouts                                                                                              | 60          |
+| `p:src/const/mobileConfig.ts`                             | owned     | mobile config                                                                                                    | 60          |
+| `p:src/spa/router/`                                       | upstream  | mobileRouter.config + workspace routes                                                                           | 39          |
+| `p:src/routes/(mobile)/`                                  | upstream  | 16+ mobile pages                                                                                                 | 39          |
+| `p:src/features/WorkspaceSetting/`                        | upstream  | category gating (Devices default)                                                                                | 39          |
+| `p:src/components/server/MobileNavLayout.tsx`             | upstream  | mobile nav layout                                                                                                | 39          |
+| `p:packages/database/src/models/recentMobileWorkspace.ts` | owned     | extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS) | 60          |
+| `p:packages/database/src/models/`                         | upstream  | recent.ts MobileWorkspace query API                                                                              | 39          |
+| `p:apps/server/src/routers/lambda/recent.ts`              | upstream  | mobile workspace recent endpoint                                                                                 | 39          |
+| `p:src/services/recent/`                                  | upstream  | recent service                                                                                                   | 39          |
+| `p:src/types/workspaceSettings`                           | upstream  | workspace settings types                                                                                         | 39          |
 
 ## Onboarding & community (`onboarding-community`)
 
