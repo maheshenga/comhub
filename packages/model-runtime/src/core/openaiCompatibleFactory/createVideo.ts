@@ -8,6 +8,15 @@ import type {
 } from '../../types/video';
 import { resolveMappedModelId } from '../../utils/modelIdMapping';
 import type { CreateVideoOptions } from '../openaiCompatibleFactory';
+import {
+  createVideoError,
+  isOpenAICompatibleVideoError,
+  normalizeBaseURL,
+  parseOpenAIV2VideoStatus,
+  queryOpenAIV2VideoGenerationStatus,
+  toV2BaseURL,
+  type OpenAIV2VideoTaskResponse,
+} from './openaiVideoV2Task';
 
 const log = createDebug('lobe-video:openai-compatible');
 
@@ -33,40 +42,6 @@ interface OpenAIVideoStatusResponse {
   url?: string;
   width?: number;
 }
-
-interface OpenAICompatibleVideoError extends Error {
-  status?: number;
-}
-
-interface OpenAIV2VideoTaskResponse {
-  data?: {
-    error?: string;
-    output?: string;
-    usage?: {
-      completion_tokens?: number;
-      total_tokens?: number;
-    };
-  };
-  error?: {
-    message?: string;
-  };
-  id?: string;
-  status?: string;
-  task_id?: string;
-}
-
-const createVideoError = (message: string, status?: number): OpenAICompatibleVideoError => {
-  const error = new Error(message) as OpenAICompatibleVideoError;
-  error.status = status;
-  return error;
-};
-
-const normalizeBaseURL = (baseURL: string) => baseURL.replace(/\/$/, '');
-
-const toV2BaseURL = (baseURL: string) => {
-  const normalized = normalizeBaseURL(baseURL || 'https://api.openai.com/v1');
-  return normalized.endsWith('/v1') ? normalized.slice(0, -3) : normalized;
-};
 
 /**
  * Query the status of a video generation task
@@ -102,60 +77,6 @@ export async function queryOpenAICompatibleVideoStatus(
   return data;
 }
 
-async function queryOpenAIV2VideoGenerationStatus(
-  inferenceId: string,
-  options: { apiKey: string; baseURL: string },
-): Promise<OpenAIV2VideoTaskResponse> {
-  const statusUrl = `${toV2BaseURL(options.baseURL)}/v2/videos/generations/${inferenceId}`;
-
-  const response = await fetch(statusUrl, {
-    headers: {
-      'Authorization': `Bearer ${options.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    method: 'GET',
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw createVideoError(
-      `OpenAI-compatible video v2 status API error: ${response.status} ${errorText}`,
-      response.status,
-    );
-  }
-
-  return (await response.json()) as OpenAIV2VideoTaskResponse;
-}
-
-function parseOpenAIV2VideoStatus(response: OpenAIV2VideoTaskResponse): PollVideoStatusResult {
-  const status = response.status?.toLowerCase();
-
-  if (['success', 'succeeded', 'completed'].includes(status || '')) {
-    const videoUrl = response.data?.output;
-    if (!videoUrl) return { error: 'Task succeeded but no video URL found', status: 'failed' };
-
-    return {
-      status: 'success',
-      ...(response.data?.usage && {
-        usage: {
-          completionTokens: response.data.usage.completion_tokens ?? 0,
-          totalTokens: response.data.usage.total_tokens ?? 0,
-        },
-      }),
-      videoUrl,
-    };
-  }
-
-  if (['failed', 'failure', 'error'].includes(status || '')) {
-    return {
-      error: response.data?.error || response.error?.message || 'Video generation failed',
-      status: 'failed',
-    };
-  }
-
-  return { status: 'pending' };
-}
-
 /**
  * Poll video status and return standardized result
  * Compatible with OpenAI Sora API
@@ -168,7 +89,7 @@ export async function pollOpenAICompatibleVideoStatus(
   try {
     response = await queryOpenAICompatibleVideoStatus(inferenceId, options);
   } catch (error) {
-    if ((error as OpenAICompatibleVideoError).status === 404) {
+    if (isOpenAICompatibleVideoError(error, 404)) {
       return parseOpenAIV2VideoStatus(
         await queryOpenAIV2VideoGenerationStatus(inferenceId, options),
       );

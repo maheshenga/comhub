@@ -232,6 +232,16 @@ const MODULES = [
     plannedExtraction: true,
     ownershipRules: [
       [
+        'p:packages/model-runtime/src/core/openaiCompatibleFactory/openaiVideoV2Task.ts',
+        'owned',
+        'extracted: OpenAI V2 video-task fallback (types, createVideoError, base-URL normalization, v2 status query + parse)',
+      ],
+      [
+        'p:packages/model-runtime/src/core/openaiCompatibleFactory/structuredJson.ts',
+        'owned',
+        'extracted: structured-output JSON parsing with markdown-fence stripping (parseStructuredJson)',
+      ],
+      [
         'p:packages/model-runtime/',
         'upstream',
         'lifecycle hooks (ASR/embeddings/generateObject), image/video adapters, currency-aware computeImageCost, ollama/google fixes',
