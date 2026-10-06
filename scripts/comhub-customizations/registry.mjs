@@ -289,11 +289,20 @@ const MODULES = [
       ['p:apps/server/src/router-hono/webhooks/', 'upstream', 'video webhook route metadata'],
       ['p:apps/server/src/routers/async/', 'upstream', 'image/video/file async routers'],
       [
+        'p:apps/server/src/routers/lambda/generationBillingGuard.ts',
+        'owned',
+        'shared generation billing guard: policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile',
+      ],
+      [
         'p:apps/server/src/routers/lambda/image',
         'upstream',
-        'policy/plan asserts + newapi metadata',
+        'delegates gates + record transaction + reservation release to generationBillingGuard.ts (hookExtracted); per-task compensation call sites remain',
       ],
-      ['p:apps/server/src/routers/lambda/video', 'upstream', 'same as image'],
+      [
+        'p:apps/server/src/routers/lambda/video',
+        'upstream',
+        'delegates gates + record transaction + reservation release to generationBillingGuard.ts (hookExtracted)',
+      ],
       [
         'p:src/app/(backend)/webapi/',
         'upstream',

@@ -4,13 +4,10 @@ import { resolveBusinessModelMapping } from '@lobechat/business-model-runtime';
 import { ChatErrorType } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import debug from 'debug';
-import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { chargeAfterGenerate } from '@/business/server/image-generation/chargeAfterGenerate';
 import { chargeBeforeGenerate } from '@/business/server/image-generation/chargeBeforeGenerate';
-import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
-import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { checkFileStorageUsage } from '@/business/server/trpc-middlewares/lambda';
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
@@ -18,20 +15,24 @@ import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationTopicModel } from '@/database/models/generationTopic';
 import { UserModel } from '@/database/models/user';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
-import { asyncTasks, generationBatches, generations } from '@/database/schemas';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { createAsyncCaller } from '@/server/routers/async/caller';
 import { FileService } from '@/server/services/file';
-import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import {
   AsyncTaskError,
   AsyncTaskErrorType,
   AsyncTaskStatus,
   AsyncTaskType,
 } from '@/types/asyncTask';
-import { generateUniqueSeeds } from '@/utils/number';
 
+import {
+  assertGenerationModelAllowed,
+  createImageGenerationRecords,
+  reconcileGenerationReservations,
+  releaseGenerationReservation,
+  resolveGenerationRouteMetadata,
+} from '../generationBillingGuard';
 import { validateNoUrlsInConfig } from './utils';
 
 const log = debug('lobe-image:lambda');
@@ -119,16 +120,11 @@ export const imageRouter = router({
         });
       }
 
-      await assertModelPolicyAllowed({
+      await assertGenerationModelAllowed({
         db: serverDB,
-        model: resolvedModelId,
-        provider,
-        usageType: 'image',
-      });
-      await assertPlanModelAllowed({
-        db: serverDB,
-        model: resolvedModelId,
         modelType: 'image',
+        provider,
+        resolvedModelId,
         userId,
       });
 
@@ -212,14 +208,13 @@ export const imageRouter = router({
       if (!generationTopic) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Invalid generation topic' });
       }
-      const routeMetadata =
-        provider === 'newapi'
-          ? await resolveNewapiRouteMetadataForModel(serverDB, {
-              modelId: resolvedModelId,
-              modelType: 'image',
-              userId,
-            })
-          : undefined;
+      const routeMetadata = await resolveGenerationRouteMetadata({
+        db: serverDB,
+        modelType: 'image',
+        provider,
+        resolvedModelId,
+        userId,
+      });
 
       const chargeResult = await chargeBeforeGenerate({
         clientIp: ctx.clientIp,
@@ -245,132 +240,55 @@ export const imageRouter = router({
       const prechargeItems =
         chargeResult && 'prechargeItems' in chargeResult ? chargeResult.prechargeItems : undefined;
 
-      // Step 1: Atomically create all database records in a transaction
-      const { batch: createdBatch, generationsWithTasks } = await serverDB
-        .transaction(async (tx) => {
-          log('Starting database transaction for image generation');
-
-          // 1. Create generationBatch
-          const newBatch: NewGenerationBatch = {
-            config: configForDatabase,
-            generationTopicId,
-            height: params.height,
-            model,
-            prompt: params.prompt,
-            provider,
-            userId,
-            workspaceId: wsId,
-            width: params.width, // Use converted config for database storage
-          };
-          log('Creating generation batch: %O', newBatch);
-          const [batch] = await tx.insert(generationBatches).values(newBatch).returning();
-          log('Generation batch created successfully: %s', batch.id);
-
-          // 2. Create generations
-          const seeds =
-            'seed' in params
-              ? generateUniqueSeeds(imageNum)
-              : Array.from({ length: imageNum }, () => null);
-          const newGenerations: NewGeneration[] = Array.from({ length: imageNum }, (_, index) => {
-            return {
-              generationBatchId: batch.id,
-              seed: seeds[index],
-              userId,
-              workspaceId: wsId,
-            };
-          });
-
-          log('Creating %d generations for batch: %s', newGenerations.length, batch.id);
-          const createdGenerations = await tx
-            .insert(generations)
-            .values(newGenerations)
-            .returning();
-          log(
-            'Generations created successfully: %O',
-            createdGenerations.map((g) => g.id),
-          );
-
-          // 3. Concurrently create asyncTask for each generation (within transaction)
-          log('Creating async tasks for generations');
-          const generationsWithTasks = await Promise.all(
-            createdGenerations.map(async (generation, index) => {
-              // Create asyncTask directly in transaction, carrying this
-              // generation's billing handle (if any) for the completion charge.
-              // Presence check (not truthiness): handles are opaque, so falsy
-              // values like 0 or '' must still be stored verbatim.
-              const prechargeItem = prechargeItems?.[index];
-              // The completion charge runs in the async router, which no longer
-              // sees this request; carry the origin attribution on the task so
-              // it can still be stamped on the spend log. Stored independently
-              // of `precharge` because paths without a billing handle (free /
-              // unpriced models) still charge at completion.
-              const taskMetadata = {
-                ...(prechargeItem === undefined ? {} : { precharge: prechargeItem }),
-                ...(ctx.spendOrigin ? { spendOrigin: ctx.spendOrigin } : {}),
-              };
-              const [createdAsyncTask] = await tx
-                .insert(asyncTasks)
-                .values({
-                  metadata: Object.keys(taskMetadata).length === 0 ? undefined : taskMetadata,
-                  status: AsyncTaskStatus.Pending,
-                  type: AsyncTaskType.ImageGeneration,
-                  userId,
-                  workspaceId: wsId,
-                })
-                .returning();
-
-              const asyncTaskId = createdAsyncTask.id;
-              log('Created async task %s for generation %s', asyncTaskId, generation.id);
-
-              // Update generation's asyncTaskId
-              await tx
-                .update(generations)
-                .set({ asyncTaskId })
-                .where(and(eq(generations.id, generation.id), eq(generations.userId, userId)));
-
-              return { asyncTaskId, generation };
-            }),
-          );
-          log('All async tasks created in transaction');
-
-          return {
-            batch,
-            generationsWithTasks,
-          };
-        })
-        .catch(async (error) => {
-          if (prechargeItems?.length) {
-            const releaseResults = await Promise.allSettled(
-              prechargeItems.map((prechargeItem, index) =>
-                chargeAfterGenerate({
-                  db: serverDB,
-                  isError: true,
-                  metadata: {
-                    asyncTaskId: `image-reservation:${index}`,
-                    generationBatchId: generationTopicId,
-                    modelId: resolvedModelId,
-                    ...(routeMetadata ? { routeMetadata } : {}),
-                    topicId: generationTopicId,
-                  },
-                  prechargeResult: prechargeItem,
-                  provider,
-                  userId,
-                  workspaceId: wsId,
-                }),
-              ),
-            );
-            releaseResults.forEach((result, index) => {
-              if (result.status === 'rejected') {
-                log(
-                  'Failed to release image reservation %d after transaction error: %O',
-                  index,
-                  result.reason,
-                );
-              }
-            });
-          }
-          throw error;
+      // Step 1: Atomically create all database records in a transaction.
+      // Release every billing handle when record creation failed — otherwise
+      // the reservations would dangle until they expire.
+      let transactionResult;
+      try {
+        transactionResult = await createImageGenerationRecords(serverDB, {
+          configForDatabase,
+          generationTopicId,
+          height: params.height,
+          imageNum,
+          model,
+          prechargeItems,
+          prompt: params.prompt,
+          provider,
+          spendOrigin: ctx.spendOrigin,
+          userId,
+          width: params.width,
+          workspaceId: wsId,
         });
+      } catch (error) {
+        if (prechargeItems?.length) {
+          const releaseResults = await Promise.allSettled(
+            prechargeItems.map((prechargeItem, index) =>
+              releaseGenerationReservation(chargeAfterGenerate, {
+                db: serverDB,
+                asyncTaskId: `image-reservation:${index}`,
+                generationBatchId: generationTopicId,
+                modelId: resolvedModelId,
+                prechargeResult: prechargeItem as Record<string, unknown>,
+                provider,
+                routeMetadata,
+                userId,
+                workspaceId: wsId,
+              }),
+            ),
+          );
+          releaseResults.forEach((result, index) => {
+            if (result.status === 'rejected') {
+              log(
+                'Failed to release image reservation %d after transaction error: %O',
+                index,
+                result.reason,
+              );
+            }
+          });
+        }
+        throw error;
+      }
+      const { batch: createdBatch, generationsWithTasks } = transactionResult;
 
       log('Database transaction completed successfully. Starting async task triggers directly.');
 
@@ -407,6 +325,8 @@ export const imageRouter = router({
               workspaceId: wsId,
             })
             .catch(async (error) => {
+              // Compensate: mark the task failed and release its billing
+              // handle so nothing dangles when startup broke after precharge.
               const compensationResults = await Promise.allSettled([
                 asyncTaskModel.update(asyncTaskId, {
                   error: new AsyncTaskError(
@@ -418,18 +338,14 @@ export const imageRouter = router({
                 }),
                 prechargeItem === undefined
                   ? Promise.resolve()
-                  : chargeAfterGenerate({
+                  : releaseGenerationReservation(chargeAfterGenerate, {
                       db: serverDB,
-                      isError: true,
-                      metadata: {
-                        asyncTaskId,
-                        generationBatchId: createdBatch.id,
-                        modelId: resolvedModelId,
-                        ...(routeMetadata ? { routeMetadata } : {}),
-                        topicId: generationTopicId,
-                      },
-                      prechargeResult: prechargeItem,
+                      asyncTaskId,
+                      generationBatchId: createdBatch.id,
+                      modelId: resolvedModelId,
+                      prechargeResult: prechargeItem as Record<string, unknown>,
                       provider,
+                      routeMetadata,
                       userId,
                       workspaceId: wsId,
                     }),
@@ -473,32 +389,18 @@ export const imageRouter = router({
         // reconciliation cannot fire — reconcile each generation's billing
         // handle here instead of leaving it dangling.
         if (ENABLE_BUSINESS_FEATURES && prechargeItems?.length) {
-          await Promise.allSettled(
-            generationsWithTasks.map(async ({ asyncTaskId }, index) => {
-              const prechargeItem = prechargeItems[index];
-              if (prechargeItem === undefined) return;
-              try {
-                await chargeAfterGenerate({
-                  isError: true,
-                  metadata: {
-                    ...ctx.spendOrigin,
-                    asyncTaskId,
-                    generationBatchId: createdBatch.id,
-                    modelId: model,
-                    ...(routeMetadata ? { routeMetadata } : {}),
-                    topicId: generationTopicId,
-                  },
-                  prechargeResult: prechargeItem,
-                  provider,
-                  db: serverDB,
-                  userId,
-                  workspaceId: wsId,
-                });
-              } catch (chargeError) {
-                console.error('Failed to reconcile billing for failed task:', chargeError);
-              }
-            }),
-          );
+          await reconcileGenerationReservations(chargeAfterGenerate, {
+            db: serverDB,
+            asyncTaskIds: generationsWithTasks.map(({ asyncTaskId }) => asyncTaskId),
+            generationBatchId: createdBatch.id,
+            modelId: model,
+            prechargeItems,
+            provider,
+            routeMetadata,
+            spendOrigin: ctx.spendOrigin,
+            userId,
+            workspaceId: wsId,
+          });
         }
       }
 

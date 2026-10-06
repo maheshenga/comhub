@@ -23,7 +23,7 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | SPA HTML / static shell (`spa-html`) | re-apply | 31 | 5 | Server-rendered SPA HTML with runtime brand/analytics/S3 config, build scripts, spaServerConfig types. |
 | Locale additions (`locales`) | merge | 0 | 34 | ComHub locale keys (admin.*, subscription, messenger banner, experts/ppt cmdk, electron) in root JSON + packages/locales defaults. |
 | Desktop release pipeline (`desktop-release-pipeline`) | re-apply | 26 | 6 | GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions. |
-| Onboarding & community (`onboarding-community`) | re-apply | 4 | 26 | Local onboarding agent templates, fork-and-chat community flow, market/discover services, expert plaza entries. |
+| Onboarding & community (`onboarding-community`) | re-apply | 5 | 26 | Local onboarding agent templates, fork-and-chat community flow, market/discover services, expert plaza entries. |
 | Desktop main process patches (`desktop-main-patches`) | re-apply | 8 | 21 | Electron main-process behavior: OFFICIAL_CLOUD_SERVER default, updater remote config, gateway/webview partitions, splash, Browser subscription partition, ComHub feature UI. |
 | Desktop build profile pipeline (`desktop-build-profile`) | verify-only | 27 | 0 | Runtime installer branding: admin-authored profile → DB revisions → CI staging → electron-builder overrides (appId, icons, NSIS, protocol schemes). |
 | Dependency pins (`deps-pins`) | verify-only | 1 | 12 | pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps. |
@@ -191,8 +191,9 @@ Credit ledger, workspace/personal payer resolution, image/video pre/post charge,
 | `p:apps/server/src/services/generation/` | upstream | videoBackgroundPolling settle | 316 |
 | `p:apps/server/src/router-hono/webhooks/` | upstream | video webhook route metadata | 316 |
 | `p:apps/server/src/routers/async/` | upstream | image/video/file async routers | 316 |
-| `p:apps/server/src/routers/lambda/image` | upstream | policy/plan asserts + newapi metadata | 316 |
-| `p:apps/server/src/routers/lambda/video` | upstream | same as image | 316 |
+| `p:apps/server/src/routers/lambda/generationBillingGuard.ts` | owned | shared generation billing guard: policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile | 105 |
+| `p:apps/server/src/routers/lambda/image` | upstream | delegates gates + record transaction + reservation release to generationBillingGuard.ts (hookExtracted); per-task compensation call sites remain | 316 |
+| `p:apps/server/src/routers/lambda/video` | upstream | delegates gates + record transaction + reservation release to generationBillingGuard.ts (hookExtracted) | 316 |
 | `p:src/app/(backend)/webapi/` | upstream | chat route metadata headers, pricing route, lobehub-model-ratings | 316 |
 | `p:src/business/client/BusinessSettingPages/` | upstream | billing/credits/plans/usage/referral pages | 316 |
 | `p:src/business/client/` | upstream | business hooks (pricing/rating/guard/signup), model catalog merge | 316 |
@@ -369,13 +370,13 @@ Local onboarding agent templates, fork-and-chat community flow, market/discover 
 
 | Rule | Ownership | Covers | vs baseline |
 | --- | --- | --- | --- |
-| `p:src/const/onboardingAgentTemplates.ts` | owned | local agent templates | 4 |
-| `p:packages/const/src/onboardingAgentTemplates.ts` | owned | const package copy | 4 |
-| `p:src/features/DesktopOnboarding/` | owned | desktop onboarding | 4 |
+| `p:src/const/onboardingAgentTemplates.ts` | owned | local agent templates | 5 |
+| `p:packages/const/src/onboardingAgentTemplates.ts` | owned | const package copy | 5 |
+| `p:src/features/DesktopOnboarding/` | owned | desktop onboarding | 5 |
 | `p:src/features/Onboarding/` | upstream | agent picker + telemetry brand | 26 |
 | `p:src/features/CommunitySkillDetail/` | upstream | skill platform labels | 26 |
 | `p:src/routes/(main)/community/` | upstream | fork-and-chat buttons, mcp/skill detail pages | 26 |
-| `p:apps/server/src/services/market/marketSkillFallback.ts` | owned | skill auth-error fallback + public sitemap + placeholder normalization | 4 |
+| `p:apps/server/src/services/market/marketSkillFallback.ts` | owned | skill auth-error fallback + public sitemap + placeholder normalization | 5 |
 | `p:apps/server/src/services/market/index.ts` | upstream | delegates searchSkill/getSkillDetail fallbacks to marketSkillFallback.ts (hookExtracted) | 26 |
 | `p:apps/server/src/services/market/` | upstream | market SDK service | 26 |
 | `p:apps/server/src/services/discover/` | upstream | placeholder-description fallbacks | 26 |
