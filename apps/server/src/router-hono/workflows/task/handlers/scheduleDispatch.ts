@@ -7,7 +7,8 @@ import { getServerDB } from '@/database/server';
 import { appEnv } from '@/envs/app';
 import { qstashClient } from '@/libs/qstash';
 import { runScheduleTick } from '@/server/services/taskRunner/scheduleTick';
-import { dispatchDueModuleAppSchedules } from '@/server/workflows/moduleApp/scheduleDispatcher';
+
+import { dispatchModuleAppSchedules } from './moduleAppScheduleHook';
 
 const log = debug('lobe-server:workflows:task:schedule-dispatch');
 
@@ -25,50 +26,6 @@ interface DueTask {
   timezone: string | null;
   userId: string;
 }
-
-type ModuleAppDispatchStatus = 'completed' | 'disabled' | 'failed' | 'skipped';
-
-interface ModuleAppDispatchSummary {
-  bookkeepingFailed: number;
-  claimed: number;
-  dispatched: number;
-  error?: string;
-  failed: number;
-  reason?: 'dry-run';
-  status: ModuleAppDispatchStatus;
-}
-
-const emptyModuleAppDispatchSummary = (
-  status: ModuleAppDispatchStatus,
-  extra: Pick<ModuleAppDispatchSummary, 'error' | 'reason'> = {},
-): ModuleAppDispatchSummary => ({
-  bookkeepingFailed: 0,
-  claimed: 0,
-  dispatched: 0,
-  failed: 0,
-  status,
-  ...extra,
-});
-
-const dispatchModuleAppSchedules = async (
-  db: Awaited<ReturnType<typeof getServerDB>>,
-  dryRun: boolean,
-): Promise<ModuleAppDispatchSummary> => {
-  if (dryRun) return emptyModuleAppDispatchSummary('skipped', { reason: 'dry-run' });
-
-  try {
-    const result = await dispatchDueModuleAppSchedules({ db });
-    return { ...result, status: 'completed' };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal error';
-    if (message === 'MODULE_APP_SCHEDULE_DISPATCH_DISABLED') {
-      return emptyModuleAppDispatchSummary('disabled');
-    }
-
-    console.error('[task/schedule-dispatch] Module App dispatch failed:', error);
-    return emptyModuleAppDispatchSummary('failed', { error: message });
-  }
-};
 
 /**
  * Cron-style central dispatcher. Registered as a QStash Schedule (e.g.

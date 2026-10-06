@@ -677,9 +677,14 @@ const MODULES = [
       ['p:src/features/Fleet/', 'owned', 'fleet UI'],
       ['p:docker-compose/deploy/module-runtime.yml', 'owned', 'deploy compose (aws-cli init)'],
       [
+        'p:apps/server/src/router-hono/workflows/task/handlers/moduleAppScheduleHook.ts',
+        'owned',
+        'extracted: moduleApp schedule dispatch hook for the central cron tick (never-failing summary)',
+      ],
+      [
         'p:apps/server/src/router-hono/workflows/task/',
         'upstream',
-        'scheduleDispatch moduleApp hook',
+        'scheduleDispatch delegates moduleApp hook to moduleAppScheduleHook.ts (hookExtracted)',
       ],
       ['p:apps/server/package.json', 'upstream', 'module-app-build dependency'],
       ['p:apps/desktop/pnpm-workspace.yaml', 'upstream', 'module-app-build workspace entry'],
