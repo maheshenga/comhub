@@ -555,9 +555,14 @@ const MODULES = [
       ],
       ['p:packages/database/src/models/', 'upstream', 'recent.ts MobileWorkspace query API'],
       [
+        'p:apps/server/src/routers/lambda/recentMobileWorkspaceEndpoint.ts',
+        'owned',
+        'extracted: mobile workspace recent mappers + response types (toRecentItem/toMobileWorkspaceRecentItem)',
+      ],
+      [
         'p:apps/server/src/routers/lambda/recent.ts',
         'upstream',
-        'mobile workspace recent endpoint',
+        'delegates recent mappers + types to recentMobileWorkspaceEndpoint.ts (hookExtracted); getMobileWorkspace endpoint wiring remains',
       ],
       ['p:src/services/recent/', 'upstream', 'recent service'],
       ['p:src/types/workspaceSettings', 'upstream', 'workspace settings types'],
@@ -680,6 +685,16 @@ const MODULES = [
       ],
       ['p:src/features/ModelSelect/', 'upstream', 'selectedValue normalization'],
       ['p:src/features/Conversation/', 'upstream', 'agent meta default name, usage token progress'],
+      [
+        'p:src/features/ChatInput/InputEditor/InputFloatMenu.tsx',
+        'owned',
+        'extracted: portal float menu for editor autocomplete popups (math/slash)',
+      ],
+      [
+        'p:src/features/ChatInput/InputEditor/index.tsx',
+        'upstream',
+        'delegates InputFloatMenu to InputFloatMenu.tsx (hookExtracted); math plugin renderComp wiring remains',
+      ],
       ['p:src/features/ChatInput/', 'upstream', 'disableMention/disableSlash flags'],
       ['p:src/features/SkillStore/', 'upstream', 'market items normalization + default skill name'],
       ['p:src/features/MCP/', 'upstream', 'mcp detail via discover service'],

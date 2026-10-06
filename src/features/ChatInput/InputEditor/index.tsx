@@ -10,20 +10,11 @@ import { isCommandPressed } from '@lobechat/utils';
 import type { IEditor, ISlashMenuOption, ISlashSectionOption } from '@lobehub/editor';
 import { INSERT_MENTION_COMMAND, ReactAutoCompletePlugin, ReactMathPlugin } from '@lobehub/editor';
 import { Editor, useEditorState } from '@lobehub/editor/react';
-import { Block, combineKeys, Flexbox } from '@lobehub/ui';
+import { combineKeys } from '@lobehub/ui';
 import { css, cx } from 'antd-style';
 import Fuse from 'fuse.js';
 import { KEY_ESCAPE_COMMAND } from 'lexical';
-import {
-  type CSSProperties,
-  memo,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
-import { createPortal } from 'react-dom';
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 
@@ -65,6 +56,7 @@ import { CHAT_INPUT_EMBED_PLUGINS, createChatInputRichPlugins } from './plugins'
 import { INSERT_REFER_TOPIC_COMMAND } from './ReferTopic';
 import { useLocalFileTag } from './useLocalFileTag';
 import { useMentionCategories } from './useMentionCategories';
+import InputFloatMenu from './InputFloatMenu';
 
 const className = cx(
   css`
@@ -74,86 +66,6 @@ const className = cx(
   `,
   mentionFilledClassName,
 );
-
-type InputFloatMenuProps = {
-  children?: ReactNode;
-  className?: string;
-  classNames?: {
-    container?: string;
-    root?: string;
-  };
-  getPopupContainer: () => HTMLDivElement | null;
-  maxHeight?: number | string;
-  open?: boolean;
-  placement?: 'bottom' | 'top';
-  style?: CSSProperties;
-  styles?: {
-    container?: CSSProperties;
-    root?: CSSProperties;
-  };
-};
-
-const InputFloatMenu = memo<InputFloatMenuProps>(
-  ({
-    children,
-    className,
-    classNames,
-    getPopupContainer,
-    maxHeight = 'min(50vh, 640px)',
-    open,
-    placement = 'top',
-    style,
-    styles,
-  }) => {
-    const parent = getPopupContainer();
-    if (!parent || !open) return null;
-
-    return createPortal(
-      <Flexbox
-        className={cx(
-          placement === 'bottom' ? menuRootBottomClassName : menuRootTopClassName,
-          classNames?.root,
-        )}
-        paddingInline={8}
-        style={styles?.root}
-        width="100%"
-      >
-        <Block
-          className={cx(menuContainerClassName, className, classNames?.container)}
-          shadow
-          style={{ maxHeight, ...style, ...styles?.container }}
-          variant="outlined"
-        >
-          {children}
-        </Block>
-      </Flexbox>,
-      parent,
-    );
-  },
-);
-
-InputFloatMenu.displayName = 'InputFloatMenu';
-
-const menuRootTopClassName = css`
-  position: absolute;
-  inset-block-start: -8px;
-  inset-inline-start: 0;
-  transform: translateY(-100%);
-`;
-
-const menuRootBottomClassName = css`
-  position: absolute;
-  z-index: 9999;
-  inset-block-start: 100%;
-  inset-inline-start: 0;
-
-  padding-block-start: 8px;
-`;
-
-const menuContainerClassName = css`
-  position: relative;
-  overflow: hidden auto;
-`;
 
 // Single-line dimmed preview of the highlighted history entry, shown through the
 // editor's placeholder slot while the input is empty (history popup open).
