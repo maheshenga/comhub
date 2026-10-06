@@ -8,11 +8,14 @@ import {
 
 import debug from 'debug';
 
+import {
+  normalizeCatalogItem,
+  normalizeCatalogListResponse,
+} from '@/server/services/placeholderNormalization';
+
 const log = debug('lobe-server:market-skill-fallback');
 
 export const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
-
-const EMPTY_DESCRIPTION_FALLBACK = '内容暂不可用';
 
 const MARKET_SKILL_AUTH_ERROR_CODES = new Set(['invalid_token', 'unauthorized']);
 
@@ -51,75 +54,11 @@ const fetchPublicMarketJson = async <T>(path: string, params: object = {}) => {
   return response.json() as Promise<T>;
 };
 
-const isPlaceholderText = (text: string) => text.toUpperCase() === 'UN';
+export const normalizeSkillListItem = (item: unknown, fallbackIdentifier?: unknown) =>
+  normalizeCatalogItem(item, { fallbackIdentifier });
 
-const firstText = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const text = value.trim();
-    if (isPlaceholderText(text)) continue;
-    if (text) return text;
-  }
-};
-
-export const normalizeSkillListItem = (item: unknown, fallbackIdentifier?: unknown) => {
-  if (!item || typeof item !== 'object') return;
-
-  const skill = item as Record<string, unknown>;
-  const identifier = firstText(skill.identifier, skill.slug, fallbackIdentifier);
-  if (!identifier) return;
-
-  const hasPlaceholderLabel = [skill.name, skill.title, skill.displayName].some(
-    (value) => typeof value === 'string' && isPlaceholderText(value.trim()),
-  );
-  const hasDescriptionField = 'description' in skill || 'summary' in skill;
-  const name = firstText(skill.name, skill.title, skill.displayName, identifier);
-  const title = firstText(skill.title, skill.displayName);
-  const description =
-    firstText(skill.description, skill.summary) ||
-    (hasDescriptionField || hasPlaceholderLabel ? EMPTY_DESCRIPTION_FALLBACK : undefined);
-  const icon = firstText(skill.icon, skill.avatar);
-
-  if (
-    identifier === skill.identifier &&
-    name === skill.name &&
-    (title === undefined || title === skill.title) &&
-    (description === undefined || description === skill.description) &&
-    (icon === undefined || icon === skill.icon)
-  ) {
-    return item;
-  }
-
-  return {
-    ...skill,
-    ...(description ? { description } : {}),
-    identifier,
-    ...(icon ? { icon } : {}),
-    name,
-    ...(title ? { title } : {}),
-  };
-};
-
-export const normalizeSkillListResponse = (
-  response: MarketSkillListResponse,
-): MarketSkillListResponse => {
-  const items = Array.isArray(response.items) ? response.items : [];
-  let changed = !Array.isArray(response.items);
-  const normalizedItems: unknown[] = [];
-
-  for (const item of items) {
-    const normalized = normalizeSkillListItem(item);
-    if (!normalized) {
-      changed = true;
-      continue;
-    }
-
-    normalizedItems.push(normalized);
-    if (normalized !== item) changed = true;
-  }
-
-  return changed ? ({ ...response, items: normalizedItems } as MarketSkillListResponse) : response;
-};
+export const normalizeSkillListResponse = (response: MarketSkillListResponse) =>
+  normalizeCatalogListResponse(response, (item) => normalizeSkillListItem(item));
 
 /**
  * Search skill catalogue with a public-endpoint fallback: when the SDK call

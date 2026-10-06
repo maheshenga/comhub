@@ -598,8 +598,17 @@ const MODULES = [
         'upstream',
         'delegates searchSkill/getSkillDetail fallbacks to marketSkillFallback.ts (hookExtracted)',
       ],
+      [
+        'p:apps/server/src/services/placeholderNormalization.ts',
+        'owned',
+        'shared placeholder cleanup for market/discover catalogue items (normalizeCatalogItem/ListResponse)',
+      ],
       ['p:apps/server/src/services/market/', 'upstream', 'market SDK service'],
-      ['p:apps/server/src/services/discover/', 'upstream', 'placeholder-description fallbacks'],
+      [
+        'p:apps/server/src/services/discover/',
+        'upstream',
+        'delegates placeholder cleanup to placeholderNormalization.ts (hookExtracted)',
+      ],
       ['p:apps/server/src/routers/lambda/market', 'upstream', 'market endpoints'],
       ['p:src/services/discover.ts', 'upstream', 'discover client'],
       ['p:src/services/installMarketplaceAgents', 'upstream', 'local template install path'],

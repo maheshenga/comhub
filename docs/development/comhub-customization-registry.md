@@ -9,11 +9,11 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | Module | Sync strategy | Owned files | Upstream files | Description |
 | --- | --- | --- | --- | --- |
 | Commercial billing closure (`commercial-billing`) | merge *(planned extraction)* | 106 | 316 | Credit ledger, workspace/personal payer resolution, image/video pre/post charge, model pricing, plan model rules, OpenAPI operation ids. Hooks ride the upstream ModelRuntimeHooks architecture. |
-| UI integration points (`ui-integration`) | merge *(planned extraction)* | 140 | 262 | Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + brand defaults, settings categories, provider visibility filter, model switcher, home layout, chat input flags, store slices. |
+| UI integration points (`ui-integration`) | merge *(planned extraction)* | 141 | 262 | Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + brand defaults, settings categories, provider visibility filter, model switcher, home layout, chat input flags, store slices. |
 | Admin console (`admin-console`) | verify-only | 265 | 12 | Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries. |
 | Module App platform (`module-app-platform`) | verify-only | 215 | 6 | Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifecycle governance, artifact cleanup, scheduled dispatch, S3 gate replacement. |
 | Repo infrastructure (`repo-infra`) | annotate-only | 137 | 74 | Root configs, agent skills, docs, workspace packaging, FTS repo governance — repo-level plumbing that upstream also evolves. |
-| Mobile workspace parity (`mobile-workspace`) | merge | 60 | 41 | DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parity), shared route generators, workspace settings category gating. |
+| Mobile workspace parity (`mobile-workspace`) | merge | 61 | 41 | DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parity), shared route generators, workspace settings category gating. |
 | Runtime quality patches (`runtime-quality`) | merge | 4 | 87 | Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand platform paths, llm error classifier, memory extraction config, qstash otel caching, SSRF-safe fetch, internal error sanitization, DB indexes, SDK regen, openapi operationId util. |
 | Migration chain (`database-migrations`) | verify-only | 78 | 4 | ComHub-owned migrations (0100-0122 commercial, 0168-0177), repair migration 0178, renumbered upstream 0123-0128, journal invariants. |
 | Auth fork (parallel Next.js auth tree) (`auth-fork`) | verify-only | 69 | 10 | ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers. |
@@ -347,16 +347,16 @@ DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parit
 
 | Rule | Ownership | Covers | vs baseline |
 | --- | --- | --- | --- |
-| `p:src/features/MobileWorkspace/` | owned | 54-file feature + tests | 60 |
-| `p:src/features/MobileHome/` | owned | mobile home layouts | 60 |
-| `p:src/const/mobileConfig.ts` | owned | mobile config | 60 |
+| `p:src/features/MobileWorkspace/` | owned | 54-file feature + tests | 61 |
+| `p:src/features/MobileHome/` | owned | mobile home layouts | 61 |
+| `p:src/const/mobileConfig.ts` | owned | mobile config | 61 |
 | `p:src/spa/router/` | upstream | mobileRouter.config + workspace routes | 41 |
 | `p:src/routes/(mobile)/` | upstream | 16+ mobile pages | 41 |
 | `p:src/features/WorkspaceSetting/` | upstream | category gating (Devices default) | 41 |
 | `p:src/components/server/MobileNavLayout.tsx` | upstream | mobile nav layout | 41 |
-| `p:packages/database/src/models/recentMobileWorkspace.ts` | owned | extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS) | 60 |
+| `p:packages/database/src/models/recentMobileWorkspace.ts` | owned | extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS) | 61 |
 | `p:packages/database/src/models/` | upstream | recent.ts MobileWorkspace query API | 41 |
-| `p:apps/server/src/routers/lambda/recentMobileWorkspaceEndpoint.ts` | owned | extracted: mobile workspace recent mappers + response types (toRecentItem/toMobileWorkspaceRecentItem) | 60 |
+| `p:apps/server/src/routers/lambda/recentMobileWorkspaceEndpoint.ts` | owned | extracted: mobile workspace recent mappers + response types (toRecentItem/toMobileWorkspaceRecentItem) | 61 |
 | `p:apps/server/src/routers/lambda/recent.ts` | upstream | delegates recent mappers + types to recentMobileWorkspaceEndpoint.ts (hookExtracted); getMobileWorkspace endpoint wiring remains | 41 |
 | `p:src/services/recent/` | upstream | recent service | 41 |
 | `p:src/types/workspaceSettings` | upstream | workspace settings types | 41 |
@@ -379,8 +379,9 @@ Local onboarding agent templates, fork-and-chat community flow, market/discover 
 | `p:src/routes/(main)/community/` | upstream | fork-and-chat buttons, mcp/skill detail pages | 26 |
 | `p:apps/server/src/services/market/marketSkillFallback.ts` | owned | skill auth-error fallback + public sitemap + placeholder normalization | 5 |
 | `p:apps/server/src/services/market/index.ts` | upstream | delegates searchSkill/getSkillDetail fallbacks to marketSkillFallback.ts (hookExtracted) | 26 |
+| `p:apps/server/src/services/placeholderNormalization.ts` | owned | shared placeholder cleanup for market/discover catalogue items (normalizeCatalogItem/ListResponse) | 5 |
 | `p:apps/server/src/services/market/` | upstream | market SDK service | 26 |
-| `p:apps/server/src/services/discover/` | upstream | placeholder-description fallbacks | 26 |
+| `p:apps/server/src/services/discover/` | upstream | delegates placeholder cleanup to placeholderNormalization.ts (hookExtracted) | 26 |
 | `p:apps/server/src/routers/lambda/market` | upstream | market endpoints | 26 |
 | `p:src/services/discover.ts` | upstream | discover client | 26 |
 | `p:src/services/installMarketplaceAgents` | upstream | local template install path | 26 |
@@ -445,7 +446,7 @@ Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + b
 | `p:src/features/ModelSwitchPanel/` | upstream | multi-provider dedup + price summary + business rating prefetch | 262 |
 | `p:src/features/ModelSelect/` | upstream | selectedValue normalization | 262 |
 | `p:src/features/Conversation/` | upstream | agent meta default name, usage token progress | 262 |
-| `p:src/features/ChatInput/InputEditor/InputFloatMenu.tsx` | owned | extracted: portal float menu for editor autocomplete popups (math/slash) | 140 |
+| `p:src/features/ChatInput/InputEditor/InputFloatMenu.tsx` | owned | extracted: portal float menu for editor autocomplete popups (math/slash) | 141 |
 | `p:src/features/ChatInput/InputEditor/index.tsx` | upstream | delegates InputFloatMenu to InputFloatMenu.tsx (hookExtracted); math plugin renderComp wiring remains | 262 |
 | `p:src/features/ChatInput/` | upstream | disableMention/disableSlash flags | 262 |
 | `p:src/features/SkillStore/` | upstream | market items normalization + default skill name | 262 |
@@ -459,29 +460,29 @@ Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + b
 | `p:src/features/Recommendations/` | upstream | visibility test | 262 |
 | `p:src/features/Acceptance/` | upstream | report viewer layout | 262 |
 | `p:src/features/Setting/` | upstream | footer brand name | 262 |
-| `p:src/services/adminCommercial` | owned | admin commercial client service | 140 |
-| `p:src/services/agentCronJob.ts` | owned | agent cron job client | 140 |
-| `p:src/services/commercial.ts` | owned | commercial client service | 140 |
-| `p:src/services/discover.test.ts` | owned | discover client tests | 140 |
-| `p:src/services/docmee.ts` | owned | docmee PPT client | 140 |
-| `p:src/services/mobileDesign` | owned | mobile design client + tests | 140 |
-| `p:src/services/moduleApp` | owned | module app client + tests | 140 |
-| `p:src/services/redemption.ts` | owned | redemption client | 140 |
-| `p:src/services/usage.test.ts` | owned | usage client tests | 140 |
+| `p:src/services/adminCommercial` | owned | admin commercial client service | 141 |
+| `p:src/services/agentCronJob.ts` | owned | agent cron job client | 141 |
+| `p:src/services/commercial.ts` | owned | commercial client service | 141 |
+| `p:src/services/discover.test.ts` | owned | discover client tests | 141 |
+| `p:src/services/docmee.ts` | owned | docmee PPT client | 141 |
+| `p:src/services/mobileDesign` | owned | mobile design client + tests | 141 |
+| `p:src/services/moduleApp` | owned | module app client + tests | 141 |
+| `p:src/services/redemption.ts` | owned | redemption client | 141 |
+| `p:src/services/usage.test.ts` | owned | usage client tests | 141 |
 | `p:src/services/thread/index.ts` | upstream | thread service tweaks | 262 |
 | `p:src/spa/entry.web.tsx` | upstream | SPA web entry adjustments | 262 |
 | `p:src/proxy.test.ts` | upstream | proxy route tests | 262 |
 | `p:src/routes/(main)/` | upstream | home/group/apps/create/memory routes | 262 |
-| `p:src/routes/` | owned | route files not under (main)/(mobile) | 140 |
-| `p:src/store/aiInfra/slices/aiProvider/sliceHelpers.ts` | owned | extracted: aiProvider slice fork helpers (lazy aiProviderService import vs circular dep, chat model catalog fallbacks, business offline provider list) | 140 |
+| `p:src/routes/` | owned | route files not under (main)/(mobile) | 141 |
+| `p:src/store/aiInfra/slices/aiProvider/sliceHelpers.ts` | owned | extracted: aiProvider slice fork helpers (lazy aiProviderService import vs circular dep, chat model catalog fallbacks, business offline provider list) | 141 |
 | `p:src/store/aiInfra/slices/aiProvider/action.ts` | upstream | delegates helpers to sliceHelpers.ts (hookExtracted); per-callsite getAiProviderService() lines remain | 262 |
 | `p:src/store/` | upstream | global/aiInfra/discover/user/image/video/tree/utils slices | 262 |
 | `p:src/hooks/` | upstream | useNavLayout brand entries, useFetchAgentList | 262 |
 | `p:src/components/` | upstream | ModelSelect priceLabel, StatisticCard, StreamingMarkdown, mdx Image, errorResponse consumers | 262 |
 | `p:src/libs/swr/keys.ts` | upstream | SWR keys | 262 |
-| `p:src/const/` | owned | fork consts not covered elsewhere | 140 |
-| `p:src/types/` | owned | fork types not covered elsewhere | 140 |
-| `p:src/utils/` | owned | fork utils (navigation, errorResponse is upstream) | 140 |
+| `p:src/const/` | owned | fork consts not covered elsewhere | 141 |
+| `p:src/types/` | owned | fork types not covered elsewhere | 141 |
+| `p:src/utils/` | owned | fork utils (navigation, errorResponse is upstream) | 141 |
 | `p:src/proxy.ts` | upstream | SPA route list | 262 |
 | `p:packages/app-config/src/routes/` | upstream | nav route catalog (experts/ppt) | 262 |
 | `p:packages/types/src/user/settings/` | upstream | image settings defaults | 262 |
