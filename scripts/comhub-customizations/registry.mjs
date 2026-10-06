@@ -285,7 +285,16 @@ const MODULES = [
         'upstream',
         'initModelRuntimeFromDB + newapi route metadata',
       ],
-      ['p:apps/server/src/services/generation/', 'upstream', 'videoBackgroundPolling settle'],
+      [
+        'p:apps/server/src/services/generation/videoPollingBilling.ts',
+        'owned',
+        'extracted: video background-polling billing settle/release wrappers around chargeAfterGenerate',
+      ],
+      [
+        'p:apps/server/src/services/generation/',
+        'upstream',
+        'videoBackgroundPolling delegates billing settle/release to videoPollingBilling.ts (hookExtracted); model-mapping runtime init remains',
+      ],
       ['p:apps/server/src/router-hono/webhooks/', 'upstream', 'video webhook route metadata'],
       ['p:apps/server/src/routers/async/', 'upstream', 'image/video/file async routers'],
       [

@@ -14,7 +14,7 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | Module App platform (`module-app-platform`) | verify-only | 215 | 6 | Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifecycle governance, artifact cleanup, scheduled dispatch, S3 gate replacement. |
 | Repo infrastructure (`repo-infra`) | annotate-only | 137 | 74 | Root configs, agent skills, docs, workspace packaging, FTS repo governance — repo-level plumbing that upstream also evolves. |
 | Mobile workspace parity (`mobile-workspace`) | merge | 61 | 41 | DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parity), shared route generators, workspace settings category gating. |
-| Runtime quality patches (`runtime-quality`) | merge | 4 | 88 | Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand platform paths, llm error classifier, memory extraction config, qstash otel caching, SSRF-safe fetch, internal error sanitization, DB indexes, SDK regen, openapi operationId util. |
+| Runtime quality patches (`runtime-quality`) | merge | 5 | 88 | Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand platform paths, llm error classifier, memory extraction config, qstash otel caching, SSRF-safe fetch, internal error sanitization, DB indexes, SDK regen, openapi operationId util. |
 | Migration chain (`database-migrations`) | verify-only | 78 | 4 | ComHub-owned migrations (0100-0122 commercial, 0168-0177), repair migration 0178, renumbered upstream 0123-0128, journal invariants. |
 | Auth fork (parallel Next.js auth tree) (`auth-fork`) | verify-only | 69 | 10 | ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers. |
 | Brand embed (XuanguoAI) (`branding`) | re-apply | 56 | 14 | XuanguoAI brand across web + desktop: static assets, runtime brand seam (app_settings → getServerBrand → BrandProvider), upstream component hooks. |
@@ -188,7 +188,8 @@ Credit ledger, workspace/personal payer resolution, image/video pre/post charge,
 | `p:packages/trpc/src/client/` | upstream | lambda/async client surface | 316 |
 | `p:src/server/services/newapiInstance/` | owned | instance registry: resolver + round-robin, catalog, credentials, pricing | 106 |
 | `p:apps/server/src/modules/ModelRuntime/` | upstream | initModelRuntimeFromDB + newapi route metadata | 316 |
-| `p:apps/server/src/services/generation/` | upstream | videoBackgroundPolling settle | 316 |
+| `p:apps/server/src/services/generation/videoPollingBilling.ts` | owned | extracted: video background-polling billing settle/release wrappers around chargeAfterGenerate | 106 |
+| `p:apps/server/src/services/generation/` | upstream | videoBackgroundPolling delegates billing settle/release to videoPollingBilling.ts (hookExtracted); model-mapping runtime init remains | 316 |
 | `p:apps/server/src/router-hono/webhooks/` | upstream | video webhook route metadata | 316 |
 | `p:apps/server/src/routers/async/` | upstream | image/video/file async routers | 316 |
 | `p:apps/server/src/routers/lambda/generationBillingGuard.ts` | owned | shared generation billing guard: policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile | 106 |
@@ -592,9 +593,9 @@ Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand
 | `p:packages/database/src/schemas/workspace.ts` | upstream | comment cleanup | 88 |
 | `p:packages/database/src/models/__tests__/` | upstream | model test updates | 88 |
 | `p:packages/agent-tracing/` | upstream | cli error surface | 88 |
-| `p:apps/server/src/routers/lambda/userMemoryTrigger.ts` | owned | extracted: memory extraction trigger-mode resolution + direct (QStash-less) execution scheduler | 4 |
+| `p:apps/server/src/routers/lambda/userMemoryTrigger.ts` | owned | extracted: memory extraction trigger-mode resolution + direct (QStash-less) execution scheduler | 5 |
 | `p:apps/server/src/routers/lambda/userMemory.ts` | upstream | delegates trigger mode + direct extraction scheduling to userMemoryTrigger.ts (hookExtracted); endpoint wiring remains | 88 |
-| `p:apps/server/src/services/memory/userMemory/memoryRuntimeTargets.ts` | owned | extracted: memory runtime target resolution + init (resolveMemoryRuntimeTargets, initMemoryRuntimeFromTarget, getMemoryRuntimeCacheKey, ADMIN_MANAGED_AI_PROVIDER) | 4 |
+| `p:apps/server/src/services/memory/userMemory/memoryRuntimeTargets.ts` | owned | extracted: memory runtime target resolution + init (resolveMemoryRuntimeTargets, initMemoryRuntimeFromTarget, getMemoryRuntimeCacheKey, ADMIN_MANAGED_AI_PROVIDER) | 5 |
 | `p:apps/server/src/services/memory/userMemory/extract.ts` | upstream | delegates runtime targets/init/cache-key to memoryRuntimeTargets.ts (hookExtracted) | 88 |
 | `p:apps/server/src/services/memory/` | upstream | extraction config + runtime targets | 88 |
 | `p:apps/server/src/services/taskTemplate/` | upstream | task template tweaks | 88 |
@@ -605,7 +606,7 @@ Upstream-file fixes carried by the fork: windows findstr argv, resolveCliCommand
 | `p:apps/server/src/` | upstream | catch-all for remaining server files | 88 |
 | `p:patches/` | upstream | qstash patch (otel caching + error logging); watch for @upstash/qstash floating-resolve rot | 88 |
 | `p:src/libs/qstash/` | upstream | otel client caching | 88 |
-| `p:src/libs/` | owned | fork libs not covered elsewhere | 4 |
+| `p:src/libs/` | owned | fork libs not covered elsewhere | 5 |
 | `p:src/utils/errorResponse` | upstream | internal error sanitization | 88 |
 | `p:packages/model-runtime/` | upstream | see commercial-billing (hooks live there) | 88 |
 
