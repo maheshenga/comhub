@@ -4,7 +4,6 @@ import debug from 'debug';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
 import { trackProviderContentPolicyViolation } from '@/business/server/trackProviderContentPolicyViolation';
-import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import { GenerationModel } from '@/database/models/generation';
@@ -12,6 +11,10 @@ import type { LobeChatDatabase } from '@/database/type';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { VideoGenerationService } from '@/server/services/generation/video';
 import { buildVideoGenerationFilePayload } from '@/server/services/generation/videoFile';
+import {
+  releaseVideoPollingCharge,
+  settleVideoPollingCharge,
+} from '@/server/services/generation/videoPollingBilling';
 import { AsyncTaskError, AsyncTaskErrorType, AsyncTaskStatus } from '@/types/asyncTask';
 import { FileSource } from '@/types/files';
 import type { VideoGenerationAsset } from '@/types/generation';
@@ -116,31 +119,21 @@ export async function processBackgroundVideoPolling(
     });
 
     if (prechargeResult) {
-      try {
-        await chargeAfterGenerate({
-          computePriceParams: {
-            generateAudio: (batch?.config as any)?.generateAudio,
-            resolution: (batch?.config as any)?.resolution,
-          },
-          db,
-          latency: duration,
-          metadata: {
-            asyncTaskId,
-            generationBatchId,
-            modelId: resolvedModelId,
-            ...(routeMetadata ? { routeMetadata } : {}),
-            topicId: generationTopicId,
-          },
-          model: resolvedModelId,
-          prechargeResult,
-          provider,
-          usage: pollResult.usage,
-          userId,
-          workspaceId,
-        });
-      } catch (chargeError) {
-        log('Failed to settle generation billing: %O', chargeError);
-      }
+      await settleVideoPollingCharge({
+        asyncTaskId,
+        batchConfig: batch?.config,
+        db,
+        durationMs: duration,
+        generationBatchId,
+        generationTopicId,
+        modelId: resolvedModelId,
+        prechargeResult,
+        provider,
+        routeMetadata,
+        usage: pollResult.usage,
+        userId,
+        workspaceId,
+      });
     }
 
     log('Video processing completed successfully for task: %s', asyncTaskId);
@@ -180,26 +173,18 @@ export async function processBackgroundVideoPolling(
     });
 
     if (prechargeResult) {
-      try {
-        await chargeAfterGenerate({
-          db,
-          isError: true,
-          metadata: {
-            asyncTaskId,
-            generationBatchId,
-            modelId: model,
-            ...(routeMetadata ? { routeMetadata } : {}),
-            topicId: generationTopicId,
-          },
-          model,
-          prechargeResult,
-          provider,
-          userId,
-          workspaceId,
-        });
-      } catch (chargeError) {
-        log('Failed to release generation billing: %O', chargeError);
-      }
+      await releaseVideoPollingCharge({
+        asyncTaskId,
+        db,
+        generationBatchId,
+        generationTopicId,
+        modelId: model,
+        prechargeResult,
+        provider,
+        routeMetadata,
+        userId,
+        workspaceId,
+      });
     }
   }
 }
