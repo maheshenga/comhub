@@ -574,6 +574,16 @@ const MODULES = [
         'upstream',
         'fork-and-chat buttons, mcp/skill detail pages',
       ],
+      [
+        'p:apps/server/src/services/market/marketSkillFallback.ts',
+        'owned',
+        'skill auth-error fallback + public sitemap + placeholder normalization',
+      ],
+      [
+        'p:apps/server/src/services/market/index.ts',
+        'upstream',
+        'delegates searchSkill/getSkillDetail fallbacks to marketSkillFallback.ts (hookExtracted)',
+      ],
       ['p:apps/server/src/services/market/', 'upstream', 'market SDK service'],
       ['p:apps/server/src/services/discover/', 'upstream', 'placeholder-description fallbacks'],
       ['p:apps/server/src/routers/lambda/market', 'upstream', 'market endpoints'],
