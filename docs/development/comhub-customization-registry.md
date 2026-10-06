@@ -8,7 +8,7 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 
 | Module | Sync strategy | Owned files | Upstream files | Description |
 | --- | --- | --- | --- | --- |
-| Commercial billing closure (`commercial-billing`) | merge *(planned extraction)* | 105 | 316 | Credit ledger, workspace/personal payer resolution, image/video pre/post charge, model pricing, plan model rules, OpenAPI operation ids. Hooks ride the upstream ModelRuntimeHooks architecture. |
+| Commercial billing closure (`commercial-billing`) | merge *(planned extraction)* | 106 | 316 | Credit ledger, workspace/personal payer resolution, image/video pre/post charge, model pricing, plan model rules, OpenAPI operation ids. Hooks ride the upstream ModelRuntimeHooks architecture. |
 | UI integration points (`ui-integration`) | merge *(planned extraction)* | 140 | 262 | Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + brand defaults, settings categories, provider visibility filter, model switcher, home layout, chat input flags, store slices. |
 | Admin console (`admin-console`) | verify-only | 265 | 12 | Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries. |
 | Module App platform (`module-app-platform`) | verify-only | 215 | 6 | Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifecycle governance, artifact cleanup, scheduled dispatch, S3 gate replacement. |
@@ -174,11 +174,11 @@ Credit ledger, workspace/personal payer resolution, image/video pre/post charge,
 
 | Rule | Ownership | Covers | vs baseline |
 | --- | --- | --- | --- |
-| `p:packages/model-runtime/src/core/openaiCompatibleFactory/openaiVideoV2Task.ts` | owned | extracted: OpenAI V2 video-task fallback (types, createVideoError, base-URL normalization, v2 status query + parse) | 105 |
-| `p:packages/model-runtime/src/core/openaiCompatibleFactory/structuredJson.ts` | owned | extracted: structured-output JSON parsing with markdown-fence stripping (parseStructuredJson) | 105 |
+| `p:packages/model-runtime/src/core/openaiCompatibleFactory/openaiVideoV2Task.ts` | owned | extracted: OpenAI V2 video-task fallback (types, createVideoError, base-URL normalization, v2 status query + parse) | 106 |
+| `p:packages/model-runtime/src/core/openaiCompatibleFactory/structuredJson.ts` | owned | extracted: structured-output JSON parsing with markdown-fence stripping (parseStructuredJson) | 106 |
 | `p:packages/model-runtime/` | upstream | lifecycle hooks (ASR/embeddings/generateObject), image/video adapters, currency-aware computeImageCost, ollama/google fixes | 316 |
 | `p:packages/model-bank/` | upstream | newapi provider card, siliconcloud/volcengine catalog, module-app export | 316 |
-| `p:packages/business-server/src/commercialModelRuntimeHooks.ts` | owned | extracted: commercial model-runtime hooks (policy/plan asserts, reservation release/settle lifecycle, pricing-quote metadata passthrough) | 105 |
+| `p:packages/business-server/src/commercialModelRuntimeHooks.ts` | owned | extracted: commercial model-runtime hooks (policy/plan asserts, reservation release/settle lifecycle, pricing-quote metadata passthrough) | 106 |
 | `p:packages/business-server/src/model-runtime.ts` | upstream | delegates getBusinessModelRuntimeHooks to commercialModelRuntimeHooks.ts (hookExtracted) | 316 |
 | `p:packages/business-server/src/` | upstream | model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares | 316 |
 | `p:packages/business/` | upstream | const index ENABLE_BUSINESS_FEATURES (see branding); business/model-runtime, business/model-bank | 316 |
@@ -186,31 +186,31 @@ Credit ledger, workspace/personal payer resolution, image/video pre/post charge,
 | `p:packages/const/src/fetch.ts` | upstream | request id headers | 316 |
 | `p:packages/types/src/usage/` | upstream | usage record types | 316 |
 | `p:packages/trpc/src/client/` | upstream | lambda/async client surface | 316 |
-| `p:src/server/services/newapiInstance/` | owned | instance registry: resolver + round-robin, catalog, credentials, pricing | 105 |
+| `p:src/server/services/newapiInstance/` | owned | instance registry: resolver + round-robin, catalog, credentials, pricing | 106 |
 | `p:apps/server/src/modules/ModelRuntime/` | upstream | initModelRuntimeFromDB + newapi route metadata | 316 |
 | `p:apps/server/src/services/generation/` | upstream | videoBackgroundPolling settle | 316 |
 | `p:apps/server/src/router-hono/webhooks/` | upstream | video webhook route metadata | 316 |
 | `p:apps/server/src/routers/async/` | upstream | image/video/file async routers | 316 |
-| `p:apps/server/src/routers/lambda/generationBillingGuard.ts` | owned | shared generation billing guard: policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile | 105 |
+| `p:apps/server/src/routers/lambda/generationBillingGuard.ts` | owned | shared generation billing guard: policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile | 106 |
 | `p:apps/server/src/routers/lambda/image` | upstream | delegates gates + record transaction + reservation release to generationBillingGuard.ts (hookExtracted); per-task compensation call sites remain | 316 |
 | `p:apps/server/src/routers/lambda/video` | upstream | delegates gates + record transaction + reservation release to generationBillingGuard.ts (hookExtracted) | 316 |
 | `p:src/app/(backend)/webapi/` | upstream | chat route metadata headers, pricing route, lobehub-model-ratings | 316 |
 | `p:src/business/client/BusinessSettingPages/` | upstream | billing/credits/plans/usage/referral pages | 316 |
 | `p:src/business/client/` | upstream | business hooks (pricing/rating/guard/signup), model catalog merge | 316 |
-| `p:src/business/` | owned | server billing core (commercialBilling, generationBilling, serverModelPricing, planModelRules, resourceQuota, modelPolicy) | 105 |
+| `p:src/business/` | owned | server billing core (commercialBilling, generationBilling, serverModelPricing, planModelRules, resourceQuota, modelPolicy) | 106 |
 | `p:src/services/chat/` | upstream | request metadata pass-through | 316 |
 | `p:src/features/Settings/stats/` | upstream | UsageTable ledger-aware columns | 316 |
-| `p:src/features/ModelSwitchPanel/components/List/ModelPriceSummary` | owned | price display in model switcher | 105 |
-| `p:src/features/TopUp/` | owned | top-up flow | 105 |
-| `p:src/features/Payments/` | owned | payment flows | 105 |
-| `p:src/features/PlanIcon/` | owned | plan icons | 105 |
-| `p:packages/database/src/models/commercial` | owned | commercial models | 105 |
-| `p:packages/database/src/schemas/commercial.ts` | owned | commercial schema | 105 |
+| `p:src/features/ModelSwitchPanel/components/List/ModelPriceSummary` | owned | price display in model switcher | 106 |
+| `p:src/features/TopUp/` | owned | top-up flow | 106 |
+| `p:src/features/Payments/` | owned | payment flows | 106 |
+| `p:src/features/PlanIcon/` | owned | plan icons | 106 |
+| `p:packages/database/src/models/commercial` | owned | commercial models | 106 |
+| `p:packages/database/src/schemas/commercial.ts` | owned | commercial schema | 106 |
 | `p:packages/database/src/schemas/index.ts` | upstream | re-exports commercial/desktopBuild/moduleApp/newapiInstance | 316 |
-| `p:packages/database/src/repositories/aiInfra/managedProviders.ts` | owned | extracted: admin-managed provider list assembly (business enabled gating, virtual parentProviderId providers, mergeArrayById composition) | 105 |
+| `p:packages/database/src/repositories/aiInfra/managedProviders.ts` | owned | extracted: admin-managed provider list assembly (business enabled gating, virtual parentProviderId providers, mergeArrayById composition) | 106 |
 | `p:packages/database/src/repositories/aiInfra/index.ts` | upstream | delegates getAiProviderList assembly to managedProviders.ts (hookExtracted); keeps BRANDING filters + parameters/pricing override | 316 |
 | `p:packages/database/src/repositories/` | upstream | aiInfra pricing resolution + tests | 316 |
-| `p:packages/database/` | owned | new commercial models/schemas added under database/ | 105 |
+| `p:packages/database/` | owned | new commercial models/schemas added under database/ | 106 |
 
 ## Usage ledger reconciliation (`server-usage-ledger`)
 
@@ -356,7 +356,8 @@ DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parit
 | `p:src/components/server/MobileNavLayout.tsx` | upstream | mobile nav layout | 41 |
 | `p:packages/database/src/models/recentMobileWorkspace.ts` | owned | extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS) | 60 |
 | `p:packages/database/src/models/` | upstream | recent.ts MobileWorkspace query API | 41 |
-| `p:apps/server/src/routers/lambda/recent.ts` | upstream | mobile workspace recent endpoint | 41 |
+| `p:apps/server/src/routers/lambda/recentMobileWorkspaceEndpoint.ts` | owned | extracted: mobile workspace recent mappers + response types (toRecentItem/toMobileWorkspaceRecentItem) | 60 |
+| `p:apps/server/src/routers/lambda/recent.ts` | upstream | delegates recent mappers + types to recentMobileWorkspaceEndpoint.ts (hookExtracted); getMobileWorkspace endpoint wiring remains | 41 |
 | `p:src/services/recent/` | upstream | recent service | 41 |
 | `p:src/types/workspaceSettings` | upstream | workspace settings types | 41 |
 
@@ -444,6 +445,8 @@ Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + b
 | `p:src/features/ModelSwitchPanel/` | upstream | multi-provider dedup + price summary + business rating prefetch | 262 |
 | `p:src/features/ModelSelect/` | upstream | selectedValue normalization | 262 |
 | `p:src/features/Conversation/` | upstream | agent meta default name, usage token progress | 262 |
+| `p:src/features/ChatInput/InputEditor/InputFloatMenu.tsx` | owned | extracted: portal float menu for editor autocomplete popups (math/slash) | 140 |
+| `p:src/features/ChatInput/InputEditor/index.tsx` | upstream | delegates InputFloatMenu to InputFloatMenu.tsx (hookExtracted); math plugin renderComp wiring remains | 262 |
 | `p:src/features/ChatInput/` | upstream | disableMention/disableSlash flags | 262 |
 | `p:src/features/SkillStore/` | upstream | market items normalization + default skill name | 262 |
 | `p:src/features/MCP/` | upstream | mcp detail via discover service | 262 |
