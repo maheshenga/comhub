@@ -378,7 +378,16 @@ const MODULES = [
       'Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output).',
     ownershipRules: [
       ['p:apps/server/src/services/usage/', 'upstream', 'ledger merge in index.ts + cost.ts split'],
-      ['p:apps/server/src/routers/lambda/usage.ts', 'upstream', 'date-range validation + endpoint'],
+      [
+        'p:apps/server/src/routers/lambda/usageInputSchemas.ts',
+        'owned',
+        'extracted: usage date-range validation schemas (usageDateRangeInput/agentUsageStatsInput)',
+      ],
+      [
+        'p:apps/server/src/routers/lambda/usage.ts',
+        'upstream',
+        'delegates input schemas to usageInputSchemas.ts (hookExtracted); endpoints remain',
+      ],
       ['p:src/services/usage.ts', 'upstream', 'findByDateRange client'],
     ],
     tests: ['apps/server/src/services/usage/index.test.ts'],
