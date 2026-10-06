@@ -28,7 +28,7 @@ PR gate: `node scripts/comhub-customizations/verify.mjs` — every file changed 
 | Desktop build profile pipeline (`desktop-build-profile`) | verify-only | 27 | 0 | Runtime installer branding: admin-authored profile → DB revisions → CI staging → electron-builder overrides (appId, icons, NSIS, protocol schemes). |
 | Dependency pins (`deps-pins`) | verify-only | 1 | 12 | pnpm overrides (@lobehub/ui 5.48.2), electron 43.5, better-call zod4 pnpmfile, observability deps. |
 | Admin-managed S3 routing (`server-storage-s3`) | re-apply | 5 | 3 | FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config. |
-| Usage ledger reconciliation (`server-usage-ledger`) | re-apply | 0 | 5 | Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output). |
+| Usage ledger reconciliation (`server-usage-ledger`) | re-apply | 1 | 5 | Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output). |
 | Desktop deep-link scheme (comhub://) (`desktop-deep-links`) | re-apply | 0 | 3 | comhub:// protocol scheme detection + whitelist extension in the desktop main process. |
 | PostgreSQL pool guardrails (`db-pool-guardrails`) | re-apply | 0 | 3 | DATABASE_POOL_* / statement & idle-in-transaction timeouts for Node pg pools. |
 | Agent inbox/default-model guard (`server-agent-guard`) | re-apply | 0 | 3 | Admin default-agent settings layer + inbox runtime model preservation (user-updated inbox model/provider survives hydrate). |
@@ -224,7 +224,7 @@ Usage service merges upstream message usage with credit_ledger_entries for non-c
 | Rule | Ownership | Covers | vs baseline |
 | --- | --- | --- | --- |
 | `p:apps/server/src/services/usage/` | upstream | ledger merge in index.ts + cost.ts split | 5 |
-| `p:apps/server/src/routers/lambda/usageInputSchemas.ts` | owned | extracted: usage date-range validation schemas (usageDateRangeInput/agentUsageStatsInput) | 0 |
+| `p:apps/server/src/routers/lambda/usageInputSchemas.ts` | owned | extracted: usage date-range validation schemas (usageDateRangeInput/agentUsageStatsInput) | 1 |
 | `p:apps/server/src/routers/lambda/usage.ts` | upstream | delegates input schemas to usageInputSchemas.ts (hookExtracted); endpoints remain | 5 |
 | `p:src/services/usage.ts` | upstream | findByDateRange client | 5 |
 
@@ -424,7 +424,8 @@ Module runtime/worker apps, module-app-build/sdk packages, marketplace UI, lifec
 | `p:src/helpers/` | owned | resolveEnabledChatModel | 215 |
 | `p:src/features/Fleet/` | owned | fleet UI | 215 |
 | `p:docker-compose/deploy/module-runtime.yml` | owned | deploy compose (aws-cli init) | 215 |
-| `p:apps/server/src/router-hono/workflows/task/` | upstream | scheduleDispatch moduleApp hook | 6 |
+| `p:apps/server/src/router-hono/workflows/task/handlers/moduleAppScheduleHook.ts` | owned | extracted: moduleApp schedule dispatch hook for the central cron tick (never-failing summary) | 215 |
+| `p:apps/server/src/router-hono/workflows/task/` | upstream | scheduleDispatch delegates moduleApp hook to moduleAppScheduleHook.ts (hookExtracted) | 6 |
 | `p:apps/server/package.json` | upstream | module-app-build dependency | 6 |
 | `p:apps/desktop/pnpm-workspace.yaml` | upstream | module-app-build workspace entry | 6 |
 | `p:src/routes/(main)/apps/index.tsx` | upstream | apps route → ModuleAppMarket | 6 |
