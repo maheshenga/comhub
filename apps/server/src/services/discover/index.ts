@@ -74,83 +74,23 @@ import { normalizeLocale } from '@/locales/resources';
 import { AssistantStore } from '@/server/modules/AssistantStore';
 import { PluginStore } from '@/server/modules/PluginStore';
 import { MarketService } from '@/server/services/market';
+import {
+  normalizeCatalogItem,
+  normalizeCatalogListResponse,
+} from '@/server/services/placeholderNormalization';
 
 const log = debug('lobe-server:discover');
-
-const EMPTY_DESCRIPTION_FALLBACK = '内容暂不可用';
 
 const loadBuiltinModels = async () => {
   const { loadModels } = await import('@/business/client/model-bank/loadModels');
   return loadModels();
 };
 
-const isPlaceholderText = (text: string) => text.toUpperCase() === 'UN';
+const normalizeMcpListItem = (item: unknown, fallbackIdentifier?: unknown) =>
+  normalizeCatalogItem(item, { fallbackIdentifier });
 
-const firstText = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const text = value.trim();
-    if (isPlaceholderText(text)) continue;
-    if (text) return text;
-  }
-};
-
-const normalizeMcpListItem = (item: unknown, fallbackIdentifier?: unknown) => {
-  if (!item || typeof item !== 'object') return;
-
-  const mcp = item as Record<string, unknown>;
-  const identifier = firstText(mcp.identifier, mcp.slug, fallbackIdentifier);
-  if (!identifier) return;
-
-  const hasPlaceholderLabel = [mcp.name, mcp.title, mcp.displayName].some(
-    (value) => typeof value === 'string' && isPlaceholderText(value.trim()),
-  );
-  const hasDescriptionField = 'description' in mcp || 'summary' in mcp;
-  const name = firstText(mcp.name, mcp.title, mcp.displayName, identifier);
-  const title = firstText(mcp.title, mcp.displayName);
-  const description =
-    firstText(mcp.description, mcp.summary) ||
-    (hasDescriptionField || hasPlaceholderLabel ? EMPTY_DESCRIPTION_FALLBACK : undefined);
-  const icon = firstText(mcp.icon, mcp.avatar);
-
-  if (
-    identifier === mcp.identifier &&
-    name === mcp.name &&
-    (title === undefined || title === mcp.title) &&
-    (description === undefined || description === mcp.description) &&
-    (icon === undefined || icon === mcp.icon)
-  ) {
-    return item;
-  }
-
-  return {
-    ...mcp,
-    ...(description ? { description } : {}),
-    identifier,
-    ...(icon ? { icon } : {}),
-    name,
-    ...(title ? { title } : {}),
-  };
-};
-
-const normalizeMcpListResponse = (response: McpListResponse): McpListResponse => {
-  const items = Array.isArray(response.items) ? response.items : [];
-  let changed = !Array.isArray(response.items);
-  const normalizedItems: unknown[] = [];
-
-  for (const item of items) {
-    const normalized = normalizeMcpListItem(item);
-    if (!normalized) {
-      changed = true;
-      continue;
-    }
-
-    normalizedItems.push(normalized);
-    if (normalized !== item) changed = true;
-  }
-
-  return changed ? ({ ...response, items: normalizedItems } as McpListResponse) : response;
-};
+const normalizeMcpListResponse = (response: McpListResponse) =>
+  normalizeCatalogListResponse(response, (item) => normalizeMcpListItem(item));
 
 export interface DiscoverServiceOptions {
   /** Access token from OIDC flow (legacy) */
