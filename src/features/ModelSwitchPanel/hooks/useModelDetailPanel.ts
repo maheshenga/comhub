@@ -42,7 +42,7 @@ export interface FormattedUnitPrice {
   original?: string;
 }
 
-export interface TextPriceSummary {
+interface TextPriceSummary {
   cachedInput: FormattedUnitPrice;
   input: FormattedUnitPrice;
   output: FormattedUnitPrice;
@@ -98,16 +98,7 @@ const getFormattedUnitPrice = (
   };
 };
 
-export const getTextPriceSummary = (
-  pricing: Pricing,
-  isCreditPricing: boolean,
-): TextPriceSummary | undefined => {
-  const hasCachedInput = typeof getCachedTextInputUnitRate(pricing) === 'number';
-  const hasInput = typeof getUnitRateByName(pricing, 'textInput') === 'number';
-  const hasOutput = typeof getUnitRateByName(pricing, 'textOutput') === 'number';
-
-  if (!hasCachedInput && !hasInput && !hasOutput) return undefined;
-
+export const getPrice = (pricing: Pricing, isCreditPricing: boolean): TextPriceSummary => {
   return {
     cachedInput: getFormattedUnitPrice(pricing, 'textInput_cacheRead', isCreditPricing),
     input: getFormattedUnitPrice(pricing, 'textInput', isCreditPricing),
@@ -327,9 +318,7 @@ export const useModelDetailPanel = ({
   );
   const isCreditPricing = provider === BRANDING_PROVIDER;
   const hasPricing = !!displayPricing;
-  const formatPrice = displayPricing
-    ? getTextPriceSummary(displayPricing, isCreditPricing)
-    : undefined;
+  const formatPrice = displayPricing ? getPrice(displayPricing, isCreditPricing) : null;
   const hasCachedInputPricing = displayPricing
     ? !!getCachedTextInputUnitRate(displayPricing)
     : false;
