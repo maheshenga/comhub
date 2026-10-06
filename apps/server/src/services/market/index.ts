@@ -1,5 +1,4 @@
 import { type LobeToolManifest } from '@lobechat/context-engine';
-import { CacheRevalidate, CacheTag } from '@lobechat/types';
 import {
   MarketSDK,
   type MarketSkillDetail,
@@ -16,13 +15,17 @@ import { generateTrustedClientToken, getTrustedClientTokenForSession } from '@/l
 import { getToolAccessDeniedError } from '@/server/services/toolExecution/errorClassification';
 
 import {
+  getSkillDetailWithFallback,
+  MARKET_BASE_URL,
+  searchSkillWithFallback,
+} from './marketSkillFallback';
+import {
   listSkillToolsWithLiveFallback,
   type SkillToolsClient,
 } from './listSkillToolsWithLiveFallback';
 
 const log = debug('lobe-server:market-service');
 
-const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
 /** Applies to `listConnections` and to each provider's tool-list request. */
 export const LOBEHUB_SKILL_DISCOVERY_TIMEOUT_MS = 3_000;
 /** Max providers whose tool lists are fetched at once during discovery. */
@@ -46,113 +49,6 @@ const LOBEHUB_SKILL_PROVIDER_LABELS: Record<string, string> = {
 };
 
 // ============================== Helper Functions ==============================
-
-const EMPTY_DESCRIPTION_FALLBACK = '内容暂不可用';
-
-const MARKET_SKILL_AUTH_ERROR_CODES = new Set(['invalid_token', 'unauthorized']);
-
-const isMarketAuthError = (error: unknown) => {
-  const err = error as {
-    code?: string;
-    errorBody?: { error?: { code?: string } | string };
-    status?: number;
-  };
-  const bodyError = err.errorBody?.error;
-  const bodyCode = typeof bodyError === 'string' ? bodyError : bodyError?.code;
-
-  return err.status === 401 || MARKET_SKILL_AUTH_ERROR_CODES.has(err.code || bodyCode || '');
-};
-
-const appendDefinedSearchParams = (url: URL, params: Record<string, unknown>) => {
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === '') continue;
-    url.searchParams.set(key, String(value));
-  }
-};
-
-const fetchPublicMarketJson = async <T>(path: string, params: Record<string, unknown> = {}) => {
-  const url = new URL(path, MARKET_BASE_URL);
-  appendDefinedSearchParams(url, params);
-
-  const response = await fetch(url.toString(), { method: 'GET' });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.message || `Market public endpoint failed with status ${response.status}`,
-    );
-  }
-
-  return response.json() as Promise<T>;
-};
-
-const isPlaceholderText = (text: string) => text.toUpperCase() === 'UN';
-
-const firstText = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const text = value.trim();
-    if (isPlaceholderText(text)) continue;
-    if (text) return text;
-  }
-};
-
-const normalizeSkillListItem = (item: unknown, fallbackIdentifier?: unknown) => {
-  if (!item || typeof item !== 'object') return;
-
-  const skill = item as Record<string, unknown>;
-  const identifier = firstText(skill.identifier, skill.slug, fallbackIdentifier);
-  if (!identifier) return;
-
-  const hasPlaceholderLabel = [skill.name, skill.title, skill.displayName].some(
-    (value) => typeof value === 'string' && isPlaceholderText(value.trim()),
-  );
-  const hasDescriptionField = 'description' in skill || 'summary' in skill;
-  const name = firstText(skill.name, skill.title, skill.displayName, identifier);
-  const title = firstText(skill.title, skill.displayName);
-  const description =
-    firstText(skill.description, skill.summary) ||
-    (hasDescriptionField || hasPlaceholderLabel ? EMPTY_DESCRIPTION_FALLBACK : undefined);
-  const icon = firstText(skill.icon, skill.avatar);
-
-  if (
-    identifier === skill.identifier &&
-    name === skill.name &&
-    (title === undefined || title === skill.title) &&
-    (description === undefined || description === skill.description) &&
-    (icon === undefined || icon === skill.icon)
-  ) {
-    return item;
-  }
-
-  return {
-    ...skill,
-    ...(description ? { description } : {}),
-    identifier,
-    ...(icon ? { icon } : {}),
-    name,
-    ...(title ? { title } : {}),
-  };
-};
-
-const normalizeSkillListResponse = (response: MarketSkillListResponse): MarketSkillListResponse => {
-  const items = Array.isArray(response.items) ? response.items : [];
-  let changed = !Array.isArray(response.items);
-  const normalizedItems: unknown[] = [];
-
-  for (const item of items) {
-    const normalized = normalizeSkillListItem(item);
-    if (!normalized) {
-      changed = true;
-      continue;
-    }
-
-    normalizedItems.push(normalized);
-    if (normalized !== item) changed = true;
-  }
-
-  return changed ? ({ ...response, items: normalizedItems } as MarketSkillListResponse) : response;
-};
 
 /**
  * Extract access token from Authorization header
@@ -691,28 +587,10 @@ export class MarketService {
   }): Promise<MarketSkillListResponse> {
     log('searchSkill: %O', params);
 
-    try {
-      const result = await this.market.marketSkills.getSkillList(params, {
-        next: {
-          revalidate: CacheRevalidate.List,
-          tags: [CacheTag.Discover, CacheTag.Skills],
-        },
-      });
-
-      log('searchSkill response: %O', result);
-
-      return normalizeSkillListResponse(result);
-    } catch (error) {
-      if (!isMarketAuthError(error)) throw error;
-
-      log('searchSkill SDK auth failed, falling back to public sitemap: %O', error);
-
-      const result = await fetchPublicMarketJson<MarketSkillListResponse>(
-        '/api/v1/skills/sitemap',
-        params,
-      );
-      return normalizeSkillListResponse(result);
-    }
+    return searchSkillWithFallback(
+      (listParams, options) => this.market.marketSkills.getSkillList(listParams, options),
+      params,
+    );
   }
 
   /**
@@ -724,24 +602,11 @@ export class MarketService {
   ): Promise<MarketSkillDetail> {
     log('getSkillDetail: %s, options: %O', identifier, options);
 
-    try {
-      const result = await this.market.marketSkills.getSkillDetail(identifier, options);
-
-      log('getSkillDetail response: %O', result);
-
-      return (normalizeSkillListItem(result, identifier) || result) as MarketSkillDetail;
-    } catch (error) {
-      if (!isMarketAuthError(error)) throw error;
-
-      log('getSkillDetail SDK auth failed, falling back to public detail: %O', error);
-
-      const result = await fetchPublicMarketJson<MarketSkillDetail>(
-        `/api/v1/skills/${encodeURIComponent(identifier)}`,
-        options,
-      );
-
-      return (normalizeSkillListItem(result, identifier) || result) as MarketSkillDetail;
-    }
+    return getSkillDetailWithFallback(
+      (id, detailParams) => this.market.marketSkills.getSkillDetail(id, detailParams),
+      identifier,
+      options,
+    );
   }
 
   /**
