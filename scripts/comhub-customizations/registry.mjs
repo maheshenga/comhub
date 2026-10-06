@@ -883,6 +883,16 @@ const MODULES = [
       ['p:packages/database/src/models/__tests__/', 'upstream', 'model test updates'],
       ['p:packages/agent-tracing/', 'upstream', 'cli error surface'],
       [
+        'p:apps/server/src/routers/lambda/userMemoryTrigger.ts',
+        'owned',
+        'extracted: memory extraction trigger-mode resolution + direct (QStash-less) execution scheduler',
+      ],
+      [
+        'p:apps/server/src/routers/lambda/userMemory.ts',
+        'upstream',
+        'delegates trigger mode + direct extraction scheduling to userMemoryTrigger.ts (hookExtracted); endpoint wiring remains',
+      ],
+      [
         'p:apps/server/src/services/memory/userMemory/memoryRuntimeTargets.ts',
         'owned',
         'extracted: memory runtime target resolution + init (resolveMemoryRuntimeTargets, initMemoryRuntimeFromTarget, getMemoryRuntimeCacheKey, ADMIN_MANAGED_AI_PROVIDER)',
