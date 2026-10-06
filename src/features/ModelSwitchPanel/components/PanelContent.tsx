@@ -1,5 +1,5 @@
 import { Flexbox } from '@lobehub/ui';
-import { type ComponentType, type FC } from 'react';
+import { type ComponentType, type FC, type ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { Rnd } from 'react-rnd';
 
@@ -20,9 +20,12 @@ import type { PricingMode } from './ModelDetailPanel';
 import { Toolbar } from './Toolbar';
 
 interface PanelContentProps {
+  /** Muted text shown after the active model's name, e.g. its reasoning effort */
+  activeSecondaryText?: string;
   enabledList?: EnabledProviderWithModels[];
   model?: string;
   ModelItemComponent?: ComponentType<any>;
+  notice?: ReactNode;
   onModelChange?: (params: { model: string; provider: string }) => Promise<void>;
   onOpenChange?: (open: boolean) => void;
   pricingMode?: PricingMode;
@@ -31,8 +34,10 @@ interface PanelContentProps {
 
 export const PanelContent: FC<PanelContentProps> = ({
   ModelItemComponent,
+  activeSecondaryText,
   enabledList: enabledListProp,
   model: modelProp,
+  notice,
   onModelChange: onModelChangeProp,
   onOpenChange,
   pricingMode,
@@ -55,6 +60,11 @@ export const PanelContent: FC<PanelContentProps> = ({
 
   const content = (
     <>
+      {notice && (
+        <Flexbox padding={8} style={{ flexShrink: 0 }}>
+          {notice}
+        </Flexbox>
+      )}
       <Toolbar
         groupMode={groupMode}
         searchKeyword={searchKeyword}
@@ -64,6 +74,7 @@ export const PanelContent: FC<PanelContentProps> = ({
       />
       <List
         ModelItemComponent={ModelItemComponent}
+        activeSecondaryText={activeSecondaryText}
         enabledList={enabledList}
         groupMode={groupMode}
         model={modelProp}

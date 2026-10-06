@@ -18,16 +18,19 @@ import { Check } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ModelItemRender, ProviderItemRender } from '@/components/ModelSelect';
+import { ProviderItemRender } from '@/components/ModelSelect';
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
 import { styles } from '../../styles';
 import { type ModelWithProviders } from '../../types';
 import { menuKey } from '../../utils';
 import ModelDetailPanel from '../ModelDetailPanel';
+import { ModelRowRender } from './ModelRowRender';
 
 interface MultipleProvidersModelItemProps {
   activeKey: string;
+  /** Muted text shown after the name when this model is the active one */
+  activeSecondaryText?: string;
   data: ModelWithProviders;
   defaultProviderId?: string;
   enabledList: EnabledProviderWithModels[];
@@ -44,6 +47,7 @@ interface MultipleProvidersModelItemProps {
 export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
   ({
     activeKey,
+    activeSecondaryText,
     data,
     enabledList,
     isModelPro,
@@ -106,12 +110,13 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
             void selectModel(defaultProvider.id);
           }}
         >
-          <ModelItemRender
-            {...data.model}
-            {...data.model.abilities}
-            wrapInfo
-            newBadgeLabel={newLabel}
+          <ModelRowRender
+            activeEffortLabel={activeSecondaryText}
+            isActive={isActive}
+            model={data.model}
+            newLabel={newLabel}
             proBadgeLabel={defaultProviderPro ? proLabel : undefined}
+            provider={(activeProvider ?? defaultProvider)?.id ?? ''}
           />
         </DropdownMenuSubmenuTrigger>
         <DropdownMenuPortal>

@@ -4,6 +4,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useBusinessModelListGuard } from '@/business/client/hooks/useBusinessModelListGuard';
+import { useBusinessModelPricing } from '@/business/client/hooks/useBusinessModelPricing';
+import { useBusinessModelRating } from '@/business/client/hooks/useBusinessModelRating';
 import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
 import { useSingleton } from '@/hooks/useSingleton';
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
@@ -18,8 +20,11 @@ import { getListItemKey, menuKey } from '../../utils';
 import type { PricingMode } from '../ModelDetailPanel';
 import GenerationListItemRenderer from './GenerationListItemRenderer';
 import { ListItemRenderer } from './ListItemRenderer';
+import { MetaColumnsContext, resolveMetaColumns } from './metaColumns';
 
 interface ListProps {
+  /** Muted text shown after the active model's name, e.g. its reasoning effort */
+  activeSecondaryText?: string;
   enabledList?: EnabledProviderWithModels[];
   groupMode: GroupMode;
   model?: string;
@@ -33,6 +38,7 @@ interface ListProps {
 
 export const List: FC<ListProps> = ({
   ModelItemComponent,
+  activeSecondaryText,
   enabledList: enabledListProp,
   groupMode,
   model: modelProp,
@@ -61,6 +67,13 @@ export const List: FC<ListProps> = ({
     onOpenChange,
   });
   const listItems = useBuildListItems(enabledList, groupMode, searchKeyword, sortModelLast);
+
+  const resolvePricing = useBusinessModelPricing();
+  const resolveRating = useBusinessModelRating();
+  const metaColumns = useMemo(
+    () => resolveMetaColumns(listItems, resolvePricing, resolveRating),
+    [listItems, resolvePricing, resolveRating],
+  );
 
   const panelHeight = useMemo(
     () =>
@@ -120,54 +133,57 @@ export const List: FC<ListProps> = ({
       style={{ minHeight: 0 }}
       onScroll={handleListScroll}
     >
-      {listItems.map((item) => {
-        const itemKey = getListItemKey(item);
-        const isActive =
-          (item.type === 'provider-model-item' &&
-            menuKey(item.provider.id, item.model.id) === activeKey) ||
-          (item.type === 'model-item-single' &&
-            menuKey(item.data.providers[0].id, item.data.model.id) === activeKey) ||
-          (item.type === 'model-item-multiple' &&
-            item.data.providers.some((p) => menuKey(p.id, item.data.model.id) === activeKey));
+      <MetaColumnsContext value={metaColumns}>
+        {listItems.map((item) => {
+          const itemKey = getListItemKey(item);
+          const isActive =
+            (item.type === 'provider-model-item' &&
+              menuKey(item.provider.id, item.model.id) === activeKey) ||
+            (item.type === 'model-item-single' &&
+              menuKey(item.data.providers[0].id, item.data.model.id) === activeKey) ||
+            (item.type === 'model-item-multiple' &&
+              item.data.providers.some((p) => menuKey(p.id, item.data.model.id) === activeKey));
 
-        const renderItem = (key?: string) =>
-          ModelItemComponent ? (
-            <GenerationListItemRenderer
-              ModelItemComponent={ModelItemComponent}
-              activeKey={activeKey}
-              enabledList={enabledList}
-              item={item}
-              key={key}
-              pricingMode={pricingMode}
-              onClose={handleClose}
-              onModelChange={handleModelChange}
-            />
+          const renderItem = (key?: string) =>
+            ModelItemComponent ? (
+              <GenerationListItemRenderer
+                ModelItemComponent={ModelItemComponent}
+                activeKey={activeKey}
+                enabledList={enabledList}
+                item={item}
+                key={key}
+                pricingMode={pricingMode}
+                onClose={handleClose}
+                onModelChange={handleModelChange}
+              />
+            ) : (
+              <ListItemRenderer
+                activeKey={activeKey}
+                activeSecondaryText={activeSecondaryText}
+                enabledList={enabledList}
+                isModelPro={isModelPro}
+                isModelRestricted={isModelRestricted}
+                item={item}
+                key={key}
+                newLabel={newLabel}
+                proLabel={proLabel}
+                subscribeScroll={subscribeScroll}
+                onBeforeModelSelect={onBeforeModelSelect}
+                onClose={handleClose}
+                onModelChange={handleModelChange}
+                onRestrictedModelClick={onRestrictedModelClick}
+              />
+            );
+
+          return isActive ? (
+            <div key={itemKey} ref={activeItemRef}>
+              {renderItem()}
+            </div>
           ) : (
-            <ListItemRenderer
-              activeKey={activeKey}
-              enabledList={enabledList}
-              isModelPro={isModelPro}
-              isModelRestricted={isModelRestricted}
-              item={item}
-              key={key}
-              newLabel={newLabel}
-              proLabel={proLabel}
-              subscribeScroll={subscribeScroll}
-              onBeforeModelSelect={onBeforeModelSelect}
-              onClose={handleClose}
-              onModelChange={handleModelChange}
-              onRestrictedModelClick={onRestrictedModelClick}
-            />
+            renderItem(itemKey)
           );
-
-        return isActive ? (
-          <div key={itemKey} ref={activeItemRef}>
-            {renderItem()}
-          </div>
-        ) : (
-          renderItem(itemKey)
-        );
-      })}
+        })}
+      </MetaColumnsContext>
     </Flexbox>
   );
 };

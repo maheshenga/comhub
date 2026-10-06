@@ -14,7 +14,7 @@ import {
   Video,
   Wrench,
 } from 'lucide-react';
-import { type AiModelForSelect, type ModelAbilities } from 'model-bank';
+import { type ModelAbilities } from 'model-bank';
 import numeral from 'numeral';
 import { type CSSProperties, type FC, type ReactNode } from 'react';
 import { memo } from 'react';
@@ -248,34 +248,34 @@ export const ModelInfoTags = memo<ModelInfoTagsProps>(
   },
 );
 
-type ModelItemRenderProps = ChatModelCard &
-  Partial<AiModelForSelect> &
-  Partial<ModelAbilities> &
-  Pick<FlexboxProps, 'className' | 'style'> & {
-    abilities?: ModelAbilities;
-    label?: ReactNode;
-    newBadgeLabel?: string;
-    priceLabel?: ReactNode;
-    proBadgeLabel?: string;
-    provider?: string;
-    showInfoTag?: boolean;
-    wrapInfo?: boolean;
-    value?: string;
-  };
+interface ModelItemRenderProps extends ChatModelCard, Pick<FlexboxProps, 'className' | 'style'> {
+  abilities?: ModelAbilities;
+  audio?: boolean;
+  /** Replaces the default ability tags on the right side of the row */
+  extra?: ReactNode;
+  /** Inline marker after the name (and secondary text), e.g. an image-output icon */
+  nameSuffix?: ReactNode;
+  newBadgeLabel?: string;
+  proBadgeLabel?: string;
+  /** Muted text right after the model name, e.g. the current reasoning effort */
+  secondaryText?: string;
+  showInfoTag?: boolean;
+}
 
 export const ModelItemRender = memo<ModelItemRenderProps>(
   ({
     showInfoTag = true,
-    wrapInfo = false,
     abilities,
     audio,
     contextWindowTokens,
+    extra,
     files,
     functionCall,
     imageOutput,
+    nameSuffix,
     newBadgeLabel,
-    priceLabel,
     proBadgeLabel,
+    secondaryText,
     video,
     vision,
     id,
@@ -292,11 +292,10 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
         horizontal
         align={'center'}
         className={className}
-        gap={wrapInfo ? 8 : 32}
+        gap={32}
         justify={'space-between'}
-        wrap={wrapInfo ? 'wrap' : undefined}
         style={{
-          overflow: wrapInfo ? 'visible' : 'hidden',
+          overflow: 'hidden',
           position: 'relative',
           width: '100%',
           ...style,
@@ -306,42 +305,24 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
           horizontal
           align={'center'}
           gap={8}
-          style={
-            wrapInfo
-              ? {
-                  flex: '1 1 240px',
-                  minWidth: 'min(240px, 100%)',
-                  overflow: 'visible',
-                }
-              : { flexShrink: 1, minWidth: 0, overflow: 'hidden' }
-          }
+          style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden' }}
         >
           <ModelIcon model={id} size={20} />
           <Text
-            title={wrapInfo ? displayNameOrId : undefined}
-            ellipsis={
-              wrapInfo
-                ? undefined
-                : {
-                    tooltip: displayNameOrId,
-                    tooltipWhenOverflow: true,
-                  }
-            }
-            style={
-              wrapInfo
-                ? {
-                    flex: 1,
-                    minWidth: 0,
-                    overflowWrap: 'anywhere',
-                    whiteSpace: 'normal',
-                  }
-                : mobile
-                  ? { maxWidth: '60vw' }
-                  : { minWidth: 0, overflow: 'hidden' }
-            }
+            style={mobile ? { maxWidth: '60vw' } : { minWidth: 0, overflow: 'hidden' }}
+            ellipsis={{
+              tooltip: displayNameOrId,
+              tooltipWhenOverflow: true,
+            }}
           >
             {displayNameOrId}
           </Text>
+          {secondaryText && (
+            <Text style={{ flex: 'none' }} type={'secondary'}>
+              {secondaryText}
+            </Text>
+          )}
+          {nameSuffix}
           {newBadgeLabel ? (
             <NewModelBadgeCore label={newBadgeLabel} releasedAt={releasedAt} />
           ) : (
@@ -353,30 +334,19 @@ export const ModelItemRender = memo<ModelItemRenderProps>(
             </Tag>
           )}
         </Flexbox>
-        {(priceLabel || showInfoTag) && (
-          <Flexbox
-            horizontal
-            align="center"
-            gap={8}
-            justify={wrapInfo ? 'end' : undefined}
-            style={wrapInfo ? { flex: '1 1 auto', minWidth: 0 } : { flexShrink: 0 }}
-            wrap={wrapInfo ? 'wrap' : undefined}
-          >
-            {priceLabel}
-            {showInfoTag && (
-              <ModelInfoTags
-                audio={audio ?? abilities?.audio}
-                contextWindowTokens={contextWindowTokens}
-                files={files ?? abilities?.files}
-                functionCall={functionCall ?? abilities?.functionCall}
-                imageOutput={imageOutput ?? abilities?.imageOutput}
-                style={{ zoom: 0.9 }}
-                video={video ?? abilities?.video}
-                vision={vision ?? abilities?.vision}
-              />
-            )}
-          </Flexbox>
-        )}
+        {extra ??
+          (showInfoTag && (
+            <ModelInfoTags
+              audio={audio ?? abilities?.audio}
+              contextWindowTokens={contextWindowTokens}
+              files={files ?? abilities?.files}
+              functionCall={functionCall ?? abilities?.functionCall}
+              imageOutput={imageOutput ?? abilities?.imageOutput}
+              style={{ zoom: 0.9 }}
+              video={video ?? abilities?.video}
+              vision={vision ?? abilities?.vision}
+            />
+          ))}
       </Flexbox>
     );
   },

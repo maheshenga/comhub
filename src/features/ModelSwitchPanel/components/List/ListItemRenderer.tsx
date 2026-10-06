@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import urlJoin from 'url-join';
 
 import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
-import { ModelItemRender, ProviderItemRender } from '@/components/ModelSelect';
+import { ProviderItemRender } from '@/components/ModelSelect';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { buildWorkspaceAwarePath } from '@/features/Workspace/workspaceAwarePath';
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
@@ -26,12 +26,13 @@ import { styles } from '../../styles';
 import { type ListItem } from '../../types';
 import { menuKey } from '../../utils';
 import ModelDetailPanel from '../ModelDetailPanel';
-import ModelPriceSummary from './ModelPriceSummary';
+import { ModelRowRender } from './ModelRowRender';
 import { MultipleProvidersModelItem } from './MultipleProvidersModelItem';
-import { SingleProviderModelItem } from './SingleProviderModelItem';
 
 interface ListItemRendererProps {
   activeKey: string;
+  /** Muted text shown after the active model's name, e.g. its reasoning effort */
+  activeSecondaryText?: string;
   enabledList: EnabledProviderWithModels[];
   isModelPro?: (modelId: string, providerId: string) => boolean;
   isModelRestricted?: (modelId: string, providerId: string) => boolean;
@@ -48,6 +49,7 @@ interface ListItemRendererProps {
 export const ListItemRenderer = memo<ListItemRendererProps>(
   ({
     activeKey,
+    activeSecondaryText,
     enabledList,
     isModelPro,
     isModelRestricted,
@@ -177,19 +179,13 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                   void selectModel(item.model.id, item.provider.id);
                 }}
               >
-                <ModelItemRender
-                  {...item.model}
-                  {...item.model.abilities}
-                  wrapInfo
-                  newBadgeLabel={newLabel}
+                <ModelRowRender
+                  activeEffortLabel={activeSecondaryText}
+                  isActive={isActive}
+                  model={item.model}
+                  newLabel={newLabel}
                   proBadgeLabel={pro ? proLabel : undefined}
-                  priceLabel={
-                    <ModelPriceSummary
-                      modelId={item.model.id}
-                      pricing={item.model.pricing}
-                      provider={item.provider.id}
-                    />
-                  }
+                  provider={item.provider.id}
                 />
               </DropdownMenuSubmenuTrigger>
               <DropdownMenuPortal>
@@ -232,10 +228,13 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
                   void selectModel(item.data.model.id, singleProvider.id);
                 }}
               >
-                <SingleProviderModelItem
-                  data={item.data}
+                <ModelRowRender
+                  activeEffortLabel={activeSecondaryText}
+                  isActive={isActive}
+                  model={item.data.model}
                   newLabel={newLabel}
                   proBadgeLabel={pro ? proLabel : undefined}
+                  provider={singleProvider.id}
                 />
               </DropdownMenuSubmenuTrigger>
               <DropdownMenuPortal>
@@ -259,6 +258,7 @@ export const ListItemRenderer = memo<ListItemRendererProps>(
           <Flexbox key={item.data.displayName} style={{ marginBlock: 1, marginInline: 4 }}>
             <MultipleProvidersModelItem
               activeKey={activeKey}
+              activeSecondaryText={activeSecondaryText}
               data={item.data}
               enabledList={enabledList}
               isModelPro={isModelPro}
