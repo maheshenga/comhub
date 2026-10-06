@@ -78,6 +78,7 @@ import { convertOpenAIResponseUsage, convertOpenAIUsage } from '../usageConverte
 import { OpenAICompatibleClient } from './client';
 import { createOpenAICompatibleImage } from './createImage';
 import { createOpenAICompatibleVideo, pollOpenAICompatibleVideoStatus } from './createVideo';
+import { parseStructuredJson } from './structuredJson';
 import { transformResponseAPIToStream, transformResponseToStream } from './nonStreamToStream';
 import {
   initializeOpenAIDiagnostics,
@@ -121,41 +122,6 @@ export const CHAT_MODELS_BLOCK_LIST = [
   'whisper',
   'dall-e',
 ];
-
-const stripJsonMarkdownFence = (text: string) => {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('```')) return text;
-
-  const firstLineEnd = trimmed.indexOf('\n');
-  if (firstLineEnd < 0) return text;
-
-  const language = trimmed.slice(3, firstLineEnd).trim().toLowerCase();
-  if (language && language !== 'json') return text;
-
-  const closingFenceStart = trimmed.lastIndexOf('```');
-  if (closingFenceStart <= firstLineEnd) return text;
-
-  const trailing = trimmed.slice(closingFenceStart + 3).trim();
-  if (trailing) return text;
-
-  return trimmed.slice(firstLineEnd + 1, closingFenceStart).trim();
-};
-
-const parseStructuredJson = (text?: string) => {
-  if (typeof text !== 'string') return undefined;
-
-  const candidates = [text, stripJsonMarkdownFence(text)];
-
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      // Try the next candidate; callers log the original text once parsing fails.
-    }
-  }
-
-  return undefined;
-};
 
 // OpenAI SDK v6 widened `apiKey` to `string | ApiKeySetter`; lobehub only ever
 // passes a plain string, so narrow it back to keep `.trim()` / string assignments valid.
