@@ -51,7 +51,7 @@ describe('admin settings procedure ownership', () => {
     expect(adminReads).toContain('...(await buildAdminSettingsReadModel(');
     expect(adminReads).not.toContain('...buildAdminSettingsSectionReadModel(');
     expect(adminReads).not.toContain('...buildAdminSettingsReadModel(');
-    expect(adminWrites).toContain('setAppSettingsBatch: settingsWriteProcedure');
+    expect(adminWrites).toContain('setAppSettingsBatch: systemWriteProcedure');
     expect(runtimeWrites).toContain('testS3Storage: systemWriteProcedure');
     expect(runtimeWrites).toContain('runMaintenance: systemWriteProcedure');
 
@@ -92,6 +92,7 @@ describe('admin settings procedure ownership', () => {
         'saveMobileConfigDraft',
         'setAppSetting',
         'setAppSettingsBatch',
+        'setModuleAppRuntimeSettings',
         'syncRuntimeMemoryModelsToUsers',
         'syncUserGlobalSettingsDefaultsToUsers',
         'testS3Storage',

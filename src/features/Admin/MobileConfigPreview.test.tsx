@@ -249,7 +249,7 @@ describe('MobileConfigPreview', () => {
     const modules = within(screen.getByTestId('mobile-preview-apps-modules')).getAllByTestId(
       'mobile-preview-grid-item',
     );
-    expect(builtins.map((app) => app.textContent)).toEqual(['Settings', 'Tasks']);
+    expect(builtins.map((app) => app.textContent)).toEqual(['Settings', 'Tasks', 'Skills']);
     expect(modules.map((app) => app.textContent)).toEqual(['design-kit', 'copy-kit']);
     for (const app of [...builtins, ...modules]) {
       expect(app).toHaveAttribute('data-preview-cell-height', '104');

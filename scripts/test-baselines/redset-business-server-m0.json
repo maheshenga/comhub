@@ -1,0 +1,81 @@
+{
+  "deterministic": [
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract accepts a prerelease with build metadata"
+    },
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract accepts and trims a stable SemVer 2.0 release"
+    },
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract allows empty trimmed release notes"
+    },
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract trims a SemVer at the exact 64-character limit"
+    },
+    {
+      "file": "packages/business-server/src/image-generation/chargeAfterGenerate.test.ts",
+      "test": "image chargeAfterGenerate applies NewAPI route metadata to image pricing multiplier"
+    },
+    {
+      "file": "packages/business-server/src/image-generation/chargeAfterGenerate.test.ts",
+      "test": "image chargeAfterGenerate charges the actual image usage cost with the configured multiplier"
+    },
+    {
+      "file": "packages/business-server/src/module-apps/revenue.test.ts",
+      "test": "module app revenue accrues once, appends a reversal, and rejects non-settleable entries"
+    },
+    {
+      "file": "packages/business-server/src/module-apps/revenue.test.ts",
+      "test": "module app revenue rejects duplicate revenue entry ids in one settlement batch"
+    },
+    {
+      "file": "packages/business-server/src/module-apps/revenue.test.ts",
+      "test": "module app revenue snapshots the stable assigned publisher even after suspension"
+    },
+    {
+      "file": "packages/business-server/src/serverModelPricing.test.ts",
+      "test": "getServerModelPricing prefers request database pricing for admin-managed generation models"
+    },
+    {
+      "file": "packages/business-server/src/serverModelPricing.test.ts",
+      "test": "getServerModelPricing returns a database pricing snapshot when admin-managed pricing is available"
+    },
+    {
+      "file": "packages/business-server/src/serverModelPricing.test.ts",
+      "test": "getServerModelPricing returns a model-bank pricing snapshot when database pricing is unavailable"
+    },
+    {
+      "file": "packages/business-server/src/video-generation/chargeAfterGenerate.test.ts",
+      "test": "video chargeAfterGenerate applies NewAPI route metadata to video pricing multiplier"
+    },
+    {
+      "file": "packages/business-server/src/video-generation/chargeAfterGenerate.test.ts",
+      "test": "video chargeAfterGenerate charges the actual video usage cost on successful generation"
+    },
+    {
+      "file": "packages/business-server/src/video-generation/chargeAfterGenerate.test.ts",
+      "test": "video chargeAfterGenerate falls back to the precharge amount when usage is unavailable"
+    }
+  ],
+  "errors": [],
+  "flaky": [],
+  "meta": {
+    "suite": "business-server",
+    "runner": "vitest 5.0.0 (win32-x64, node v24.19.0)",
+    "capturedAt": "2026-10-08T02:21:52+08:00",
+    "baselineRef": "uncommitted working tree on 7af8c1946c (24 modified + 4 untracked files at capture time); not a tagged baseline",
+    "runs": [null, null],
+    "runsNote": "raw per-run vitest JSON reports (app-full-1/2.json, bs-full-1/2.json) were not archived; per-run counts unknown — fill on the next scheduled re-capture",
+    "generatedVia": "double-run",
+    "counts": {
+      "deterministic": 15,
+      "flaky": 0,
+      "errors": 0
+    },
+    "note": "由两跑 vitest JSON 报告按蓝图 §7.3-3 构建：两跑均红->deterministic；恰单跑红->flaky(watchlist)；文件级加载/收集错误(无 assertionResults 或 message 含 Unhandled)两跑均现->errors(errorType 为按首行启发式分类, firstLine 为报告 message 首行)。"
+  }
+}

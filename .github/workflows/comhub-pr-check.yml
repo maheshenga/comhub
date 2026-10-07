@@ -51,6 +51,16 @@ jobs:
       - name: Verify database migration chain
         run: pnpm verify:database-migrations
 
+      # The Admin suite is collected only by the root `app` project; the
+      # business-server suite lives behind its own vitest.config.mts, so the
+      # root projects collect 0 files from packages/** (see blueprint §7.3-2).
+      - name: Run Admin feature tests
+        run: npx vitest run --project app src/features/Admin
+
+      - name: Run business-server admin tests
+        working-directory: packages/business-server
+        run: npx vitest run src/lambda-routers/admin src/appSettings
+
       # tsgo peaks past the 7 GB hosted runner's RAM and the kernel reaps it
       # (job dies with a shutdown signal ~2.5 min into `tsgo --noEmit`). A
       # swap file absorbs the peak; this step is cheap when there is headroom.

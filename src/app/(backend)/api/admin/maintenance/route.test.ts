@@ -25,11 +25,15 @@ vi.mock('@/business/server/subscriptionMaintenance', () => ({
 }));
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
-  ModuleAppPackageLifecycleService: vi.fn(() => cleanupMocks),
+  ModuleAppPackageLifecycleService: vi.fn(function () {
+    return cleanupMocks;
+  }),
 }));
 
 vi.mock('@/server/services/moduleAppArtifactCleanup', () => ({
-  ModuleAppArtifactCleanupService: vi.fn(() => cleanupMocks),
+  ModuleAppArtifactCleanupService: vi.fn(function () {
+    return cleanupMocks;
+  }),
 }));
 
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 15).toString('base64');

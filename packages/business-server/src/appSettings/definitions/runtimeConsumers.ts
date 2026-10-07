@@ -243,7 +243,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     id: 'user-memory-trigger-runtime',
     keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: [APP_SETTING_KEYS.memoryUserMemoryTriggerMode],
-    sourcePath: 'apps/server/src/routers/lambda/userMemory.ts',
+    sourcePath: 'apps/server/src/routers/lambda/userMemoryTrigger.ts',
     symbol: 'resolveUserMemoryTriggerMode',
   },
   {

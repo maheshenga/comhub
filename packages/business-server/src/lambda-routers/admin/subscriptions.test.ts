@@ -74,9 +74,9 @@ describe('adminSubscriptionsRouter bulk commands', () => {
 
   it('keeps bulk approval behavior behind a valid shared command envelope', async () => {
     const activateSubscriptionChangeRequest = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(CommercialModel).mockImplementation(
-      () => ({ activateSubscriptionChangeRequest }) as any,
-    );
+    vi.mocked(CommercialModel).mockImplementation(function () {
+      return { activateSubscriptionChangeRequest } as any;
+    });
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
 
@@ -146,9 +146,9 @@ describe('adminSubscriptionsRouter bulk commands', () => {
 
   it('rolls back the whole approval batch when any request is missing', async () => {
     const activateSubscriptionChangeRequest = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(CommercialModel).mockImplementation(
-      () => ({ activateSubscriptionChangeRequest }) as any,
-    );
+    vi.mocked(CommercialModel).mockImplementation(function () {
+      return { activateSubscriptionChangeRequest } as any;
+    });
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
 

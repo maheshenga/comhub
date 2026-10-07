@@ -857,7 +857,7 @@ describe('admin settings default model validation', () => {
       section: 'module-runtime',
     });
     await expect(
-      caller.setAppSettingsBatch(
+      caller.setModuleAppRuntimeSettings(
         withExpectedRevisions({
           updates: [{ key: APP_SETTING_KEYS.moduleAppExecutionEnabled, value: false }],
         }),
@@ -870,10 +870,43 @@ describe('admin settings default model validation', () => {
     await expect(
       caller.setAppSettingsBatch(
         withExpectedRevisions({
+          updates: [{ key: APP_SETTING_KEYS.moduleAppExecutionEnabled, value: false }],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.setAppSettingsBatch(
+        withExpectedRevisions({
           updates: [{ key: APP_SETTING_KEYS.brandName, value: 'Denied' }],
         }),
       ),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('rejects out-of-domain and mixed keys at the module runtime command schema', async () => {
+    const db = createDb({ role: 'module_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    const caller = adminSettingsRouter.createCaller({ userId: 'module-admin-user' } as any);
+
+    await expect(
+      (caller as any).setModuleAppRuntimeSettings(
+        withExpectedRevisions({
+          updates: [{ key: APP_SETTING_KEYS.brandName, value: 'Escalated' }],
+        }) as any,
+      ),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      (caller as any).setModuleAppRuntimeSettings(
+        withExpectedRevisions({
+          updates: [
+            { key: APP_SETTING_KEYS.moduleAppExecutionEnabled, value: true },
+            { key: APP_SETTING_KEYS.brandName, value: 'Escalated' },
+          ],
+        }) as any,
+      ),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it('distinguishes missing and explicitly empty public help menu settings', async () => {

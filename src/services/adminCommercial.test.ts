@@ -50,6 +50,7 @@ vi.mock('@/libs/trpc/client', () => ({
         saveMobileConfigDraft: { mutate: vi.fn() },
         setAppSetting: { mutate: vi.fn() },
         setAppSettingsBatch: { mutate: vi.fn() },
+        setModuleAppRuntimeSettings: { mutate: vi.fn() },
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
       moduleApps: {
@@ -813,6 +814,40 @@ describe('adminCommercialService NewAPI helpers', () => {
       ADMIN_SETTINGS_SWR_KEY,
     ]);
     expect(mutate).not.toHaveBeenCalledWith(ADMIN_SETTINGS_SECTION_SWR_KEY('operations'));
+  });
+
+  it('routes module runtime settings writes through the typed moduleApp command endpoint', async () => {
+    vi.mocked(lambdaClient.admin.settings.getSection.query).mockResolvedValue({
+      __revision: 2,
+      section: 'module-runtime',
+    } as any);
+    vi.mocked(lambdaClient.admin.settings.setModuleAppRuntimeSettings.mutate).mockResolvedValue({
+      count: 2,
+      ok: true,
+      revisions: { 'module-runtime': 3 },
+    } as any);
+
+    await adminCommercialService.getSettingsSection('module-runtime');
+    const result = await adminCommercialService.setModuleAppRuntimeSettings({
+      updates: [
+        { key: 'moduleApp.runtime.execution.enabled', value: true },
+        { key: 'moduleApp.runtime.internalUrl', value: 'http://127.0.0.1:3010' },
+      ],
+    });
+
+    expect(lambdaClient.admin.settings.setModuleAppRuntimeSettings.mutate).toHaveBeenCalledWith({
+      expectedRevisions: { 'module-runtime': 2 },
+      updates: [
+        { key: 'moduleApp.runtime.execution.enabled', value: true },
+        { key: 'moduleApp.runtime.internalUrl', value: 'http://127.0.0.1:3010' },
+      ],
+    });
+    expect(lambdaClient.admin.settings.setAppSettingsBatch.mutate).not.toHaveBeenCalled();
+    expect(result).toEqual({ count: 2, ok: true, revisions: { 'module-runtime': 3 } });
+    expect(vi.mocked(mutate).mock.calls.map(([key]) => key)).toEqual([
+      ADMIN_SETTINGS_SECTION_SWR_KEY('module-runtime'),
+      ADMIN_SETTINGS_SWR_KEY,
+    ]);
   });
 
   it('invalidates desktop settings and release diagnostics after desktop writes', async () => {

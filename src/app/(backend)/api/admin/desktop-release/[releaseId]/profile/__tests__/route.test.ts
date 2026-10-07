@@ -16,9 +16,15 @@ const { mockGetServerDB, mockModel, mockS3 } = vi.hoisted(() => ({
 
 vi.mock('@/database/server', () => ({ getServerDB: mockGetServerDB }));
 vi.mock('@/database/models/desktopBuild', () => ({
-  DesktopBuildModel: vi.fn(() => mockModel),
+  DesktopBuildModel: vi.fn(function () {
+    return mockModel;
+  }),
 }));
-vi.mock('@/server/modules/S3', () => ({ FileS3: vi.fn(() => mockS3) }));
+vi.mock('@/server/modules/S3', () => ({
+  FileS3: vi.fn(function () {
+    return mockS3;
+  }),
+}));
 
 const request = (releaseId: string, token = 'dedicated-secret') =>
   new Request(`https://chat.qingyouai.com/api/admin/desktop-release/${releaseId}/profile`, {

@@ -34,12 +34,9 @@ describe('adminOrdersRouter', () => {
     orderOverrides: Record<string, unknown> = {},
   ) => {
     const settleTopUpOrder = vi.fn().mockResolvedValue({ status: 'paid' });
-    vi.mocked(CommercialModel).mockImplementation(
-      () =>
-        ({
-          settleTopUpOrder,
-        }) as any,
-    );
+    vi.mocked(CommercialModel).mockImplementation(function () {
+      return { settleTopUpOrder } as any;
+    });
 
     const db = {
       query: {

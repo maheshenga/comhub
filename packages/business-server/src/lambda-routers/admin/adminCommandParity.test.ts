@@ -53,6 +53,8 @@ const getProcedureSource = (procedurePath: string) => {
   const settingsProcedureSources: Record<string, string> = {
     runMaintenance: '../../appSettings/writers/runtimeProcedures.ts',
     setAppSetting: '../../appSettings/writers/adminProcedures.ts',
+    setModuleAppRuntimeSettings: '../../appSettings/writers/adminProcedures.ts',
+    setAppSettingsBatch: '../../appSettings/writers/adminProcedures.ts',
   };
   const sourcePath =
     routerName === 'settings' && settingsProcedureSources[procedureName]

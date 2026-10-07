@@ -369,9 +369,24 @@ const MODULES = [
         'fork-new billing core: model policy (incl. co-located tests)',
       ],
       [
+        'p:packages/business-server/src/appSettings/writers/adminProcedures.ts',
+        'owned',
+        'fork-new: admin app_settings write procedures (per-section CAS revisions, assertSettingsWriteAccess single-key + batch call sites) — admin console service surface maintained for the admin-console redesign (parity 方案 A main battlefield)',
+      ],
+      [
+        'p:packages/business-server/src/appSettings/moduleRuntimeValidation.ts',
+        'owned',
+        'fork-new: admin moduleApps runtime setting-key validation (runtimeSettingKeys) — admin console service surface maintained for the admin-console redesign',
+      ],
+      [
+        'p:packages/business-server/src/appSettings/definitions/',
+        'owned',
+        'fork-new: appSettings definition face (metadata, valueDefinitions, runtimeConsumers key-evidence + sourcePath contracts) — admin console service surface maintained for the admin-console redesign',
+      ],
+      [
         'p:packages/business-server/src/',
         'upstream',
-        'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares; conservative over-cover: also claims fork-new files (appSettings/, lambda-routers/admin/, module-apps/, adminImpact/, desktopBuild/, subscriptionMaintenance, adminNewapiPricing, __tests__)',
+        'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares; conservative over-cover: also claims fork-new files (appSettings/ residual — writers/adminProcedures.ts + moduleRuntimeValidation.ts + definitions/ precisely claimed above; lambda-routers/admin/, module-apps/, adminImpact/, desktopBuild/, subscriptionMaintenance, adminNewapiPricing, __tests__)',
       ],
       [
         'p:packages/business/',
@@ -1027,6 +1042,11 @@ const MODULES = [
       ['p:packages/types/src/user/settings/', 'upstream', 'image settings defaults'],
       ['p:apps/server/src/routers/lambda/user.ts', 'upstream', 'avatar preset whitelist'],
       [
+        'p:packages/types/src/adminCommand.ts',
+        'owned',
+        'fork-new: admin command catalog types (171-command catalog, capability matrix) — maintained for the admin-console redesign; co-located adminCommand.test.ts rides the ui-integration package over-cover below',
+      ],
+      [
         'p:packages/types/src/',
         'upstream',
         'types not covered elsewhere; conservative over-cover: also claims fork-new files (admin*/moduleApp*/payment/business types)',
@@ -1346,6 +1366,11 @@ const MODULES = [
         'p:docs/',
         'upstream',
         'upstream docs (database-schema.dbml fork-modified); conservative over-cover: also claims fork-new files (fork docs at docs/ root, docs/superpowers/specs, etc.)',
+      ],
+      [
+        'p:scripts/test-baselines/',
+        'owned',
+        'fork-new red-set snapshot baselines for the dual-suite red governance (snapshot format + classification protocol in scripts/test-baselines/README.md); repo-infra hosts the plumbing but the admin-console workstream maintains it',
       ],
       [
         'p:scripts/',

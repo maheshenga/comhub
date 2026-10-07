@@ -11,7 +11,9 @@ vi.mock('@/server/services/appSettings/secrets', () => ({
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
-  ModuleAppRuntimeClient: vi.fn(() => ({ healthCheck })),
+  ModuleAppRuntimeClient: vi.fn(function () {
+    return { healthCheck };
+  }),
 }));
 
 const createDb = (rows: Array<{ key: string; value: unknown }> = []) =>

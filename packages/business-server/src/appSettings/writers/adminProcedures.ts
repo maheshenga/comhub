@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { hasAdminCapability } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -13,7 +12,7 @@ import {
 } from '@/const/appSettingsRegistry';
 import { appSettingRevisions, appSettings, users, userSettings } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
-import { ADMIN_CAPABILITIES, adminAnyCapabilityProcedure } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure } from '@/libs/trpc/lambda';
 import { invalidateFileS3RuntimeCache } from '@/server/modules/S3';
 import { invalidateServerAppSettings } from '@/server/services/appSettings';
 import { isUnknownAppSettingKey } from '@/server/services/appSettings/governance';
@@ -47,11 +46,8 @@ import {
 } from '../procedureShared';
 
 const setAppSettingCommand = createAdminCommand('setting.setAppSetting');
-const settingsWriteProcedure = adminAnyCapabilityProcedure([
-  ADMIN_CAPABILITIES.systemWrite,
-  ADMIN_CAPABILITIES.moduleAppWrite,
-]);
-const moduleRuntimeSettingKeys = new Set<string>(MODULE_APP_RUNTIME_SETTING_KEYS);
+const setModuleAppRuntimeSettingsCommand = createAdminCommand('moduleApp.setRuntimeSettings');
+const moduleAppWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppWrite);
 const USER_SETTINGS_SYNC_BATCH_SIZE = 500;
 const USER_SETTINGS_SYNC_KEYS = [
   'defaultAgent',
@@ -78,18 +74,6 @@ type NormalizedSettingUpdate = SettingUpdateInput & {
   shouldWrite: boolean;
 };
 
-const assertSettingsWriteAccess = (
-  adminRole: null | string | undefined,
-  keys: readonly string[],
-) => {
-  if (hasAdminCapability(adminRole, ADMIN_CAPABILITIES.systemWrite)) return;
-  if (keys.every((key) => moduleRuntimeSettingKeys.has(key))) return;
-
-  throw new TRPCError({
-    code: 'FORBIDDEN',
-    message: `${ADMIN_CAPABILITIES.systemWrite} capability required`,
-  });
-};
 type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
 type UserSettingsSyncOptions = {
   forceDefaultAgentMeta?: boolean;
@@ -103,6 +87,10 @@ type RuntimeMemoryModelSettings = {
 };
 const appSettingUpdateInputSchema = z.object({
   key: z.enum(GENERIC_WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
+  value: z.unknown(),
+});
+const moduleAppRuntimeSettingUpdateSchema = z.object({
+  key: z.enum(MODULE_APP_RUNTIME_SETTING_KEYS),
   value: z.unknown(),
 });
 const expectedSettingRevisionsSchema = z.partialRecord(
@@ -732,12 +720,11 @@ export const adminSettingsWriteProcedures = {
 
       return { deleted: deleted.length > 0, key: input.key };
     }),
-  setAppSetting: settingsWriteProcedure
+  setAppSetting: systemWriteProcedure
     .input(
       appSettingUpdateInputSchema.extend({ expectedRevisions: expectedSettingRevisionsSchema }),
     )
     .mutation(async ({ ctx, input }) => {
-      assertSettingsWriteAccess(ctx.adminRole, [input.key]);
       const correlationId = randomUUID();
       const update = await normalizeAppSettingUpdate(ctx.serverDB, input);
       if (!update.shouldWrite) return { ok: true, revisions: input.expectedRevisions };
@@ -768,7 +755,7 @@ export const adminSettingsWriteProcedures = {
 
       return { ok: true, revisions };
     }),
-  setAppSettingsBatch: settingsWriteProcedure
+  setAppSettingsBatch: systemWriteProcedure
     .input(
       z.object({
         expectedRevisions: expectedSettingRevisionsSchema,
@@ -776,10 +763,6 @@ export const adminSettingsWriteProcedures = {
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      assertSettingsWriteAccess(
-        ctx.adminRole,
-        input.updates.map((update) => update.key),
-      );
       const correlationId = randomUUID();
       const normalizedUpdates = await Promise.all(
         input.updates.map((update) => normalizeAppSettingUpdate(ctx.serverDB, update)),
@@ -798,6 +781,56 @@ export const adminSettingsWriteProcedures = {
       const revisions = await runRequiredAdminAuditMutation(ctx, {
         audit: () => ({
           action: 'settings.batchSet',
+          payload: {
+            count: updates.length,
+            settings: updates.map(buildSettingAuditPayload),
+          },
+          resourceType: 'app_setting',
+        }),
+        mutation: async (tx) => {
+          const lockedRevisions = await lockSettingRevisions(
+            tx,
+            getUpdateSections(updates),
+            input.expectedRevisions,
+            correlationId,
+          );
+          for (const update of updates) {
+            await upsertAppSetting(tx, update);
+          }
+          return advanceSettingRevisions(tx, lockedRevisions);
+        },
+        correlationId,
+      });
+
+      await invalidateAppSettingsCaches(updates);
+
+      return { count: input.updates.length, ok: true, revisions };
+    }),
+  setModuleAppRuntimeSettings: moduleAppWriteProcedure
+    .input(
+      z.object({
+        expectedRevisions: expectedSettingRevisionsSchema,
+        updates: z.array(moduleAppRuntimeSettingUpdateSchema).min(1).max(100),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const correlationId = randomUUID();
+      const normalizedUpdates = await Promise.all(
+        input.updates.map((update) => normalizeAppSettingUpdate(ctx.serverDB, update)),
+      );
+      const updates = normalizedUpdates.filter((update) => update.shouldWrite);
+      if (updates.length === 0) {
+        return {
+          count: input.updates.length,
+          ok: true,
+          revisions: input.expectedRevisions,
+        };
+      }
+
+      await validateModuleAppRuntimeSettingUpdates(ctx.serverDB, updates);
+      const revisions = await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: setModuleAppRuntimeSettingsCommand.definition.auditAction,
           payload: {
             count: updates.length,
             settings: updates.map(buildSettingAuditPayload),

@@ -1,0 +1,1538 @@
+{
+  "deterministic": [
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/auditLogger.test.ts",
+      "test": "FtsSearchReindexFileLogger appends ordered JSONL events and atomically writes a private summary"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository accepts an older generation index but no newer or foreign one"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository appends a newly covered entity and reopens a ready generation"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository atomically checkpoints item failures and rejects a stale cursor"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository covers only the requested entities when creating an upgrade generation"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository creates one local v2 checkpoint and resumes it after constructing a new repository"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository does not let an operator skip an uncertain retryable failure"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository gates readiness on current generation failures while preserving superseded history"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository leaves a ready generation untouched when it already covers the requested entities"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository lets an operator skip a failed document without counting it as indexed"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository loads the exact target without parsing an unrelated corrupt checkpoint"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository pins an in-place upgraded entity to the index its alias already serves"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository records the Outbox high-water boundary when all entities are ready"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository refuses to mark a run ready while entities are incomplete"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository refuses to resume a checkpoint when capture definitions changed"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository refuses to resume a tracked entity into a different physical index"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository rejects a checkpoint that tracks one entity twice"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository rejects a checkpoint whose generation covers no entity"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository reports a corrupt checkpoint instead of silently starting over"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository resumes an in-place generation that keeps the same physical index"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/reindexService.test.ts",
+      "test": "FtsSearchReindexService backfills a pending checkpoint member when it rejoins a ready generation"
+    },
+    {
+      "file": "scripts/electronWorkflow/desktopReleaseWorkflow.test.ts",
+      "test": "desktop release workflow contract binds all shell data through env and keeps the immutable server-release lifecycle structural"
+    },
+    {
+      "file": "scripts/packageManagerPolicy.test.ts",
+      "test": "package manager policy does not restore the retired QStash debug patch"
+    },
+    {
+      "file": "scripts/packageManagerPolicy.test.ts",
+      "test": "package manager policy pins jest-dom to the supported 6.x release"
+    },
+    {
+      "file": "scripts/packageManagerPolicy.test.ts",
+      "test": "package manager policy routes app and server tests through Vitest projects"
+    },
+    {
+      "file": "src/app/[variants]/metadata.test.ts",
+      "test": "generateMetadata uses the backend brand name for page titles and SEO metadata"
+    },
+    {
+      "file": "src/app/spa/[variants]/[[...path]]/route.test.ts",
+      "test": "SPA route brand boot config includes the mobile app banner while keeping the configured brand metadata"
+    },
+    {
+      "file": "src/app/spa/[variants]/[[...path]]/route.test.ts",
+      "test": "SPA route brand boot config injects the server brand into SPA config and renders only the dedicated loading text"
+    },
+    {
+      "file": "src/app/spa/[variants]/[[...path]]/route.test.ts",
+      "test": "SPA route brand boot config keeps the upstream loading SVG when no admin loading SVG URL is configured"
+    },
+    {
+      "file": "src/business/client/BusinessSettingPages/Notification.test.tsx",
+      "test": "Notification renders managed notification settings and announcement action on web"
+    },
+    {
+      "file": "src/business/client/BusinessSettingPages/mobilePresentation.test.ts",
+      "test": "mobile business settings presentation matches the upstream usage information architecture without legacy charts"
+    },
+    {
+      "file": "src/components/StatisticCard/TitleWithPercentage.test.tsx",
+      "test": "TitleWithPercentage uses a native title without creating an ellipsis tooltip"
+    },
+    {
+      "file": "src/features/Acceptance/CriterionList/CriterionEditModal.test.ts",
+      "test": "criterion modal persistence keeps the editor open until saving succeeds"
+    },
+    {
+      "file": "src/features/Acceptance/Viewer/Evidence/attachments.test.tsx",
+      "test": "AttachmentThumbs does not trigger the host row while zooming a thumbnail"
+    },
+    {
+      "file": "src/features/Admin/mobileSettingsI18n.test.ts",
+      "test": "admin mobile settings maintenance contract keeps the editor split below the project size threshold"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance aborts removal without deleting the aggregate when the config clear fails"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance groups a checklist only after it exceeds ten checks"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance groups a checklist with more than 10 checks"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance hides the remove button when the viewer does not own the acceptance"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance keeps the Acceptance cross-round union visible in Task detail"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance keeps the report link reachable from the inventory toolbar in the result panel"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance mounts the live Acceptance checklist and decision bar in the task result panel"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance opens the acceptance report in the panel rather than navigating away"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance opens the selected check and expands its Acceptance panel from Task detail"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskAcceptance.test.tsx",
+      "test": "TaskAcceptance removes the acceptance and clears the task verify config from the header delete button"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions hides \"make private\" from a workspace owner who is not the creator "
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions hides \"make private\" from non-creator members"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions hides \"make private\" on private tasks"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions hides \"publish to workspace\" in personal mode (no workspace)"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions hides \"publish to workspace\" once the task is already public"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions includes task transfer and copy actions in the detail menu"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions make-private action opens a destructive confirmation and updates visibility"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions publish action opens a one-way confirmation modal"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions shows \"make private\" on public tasks for the creator"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskDetailHeaderActions.test.tsx",
+      "test": "TaskDetailHeaderActions shows \"publish to workspace\" only for private tasks inside a workspace"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks falls back to the global task route when the selected subtask has no assignee"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks forwards a member assignee to both subtask context-menu actions"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks keeps an existing responsible assignee visible in personal mode"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks opens a selected subtask using the subtask's assignee agent"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks routes right-click on a subtask through @/libs/contextMenu"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks shows the responsible assignee on an automated subtask"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TaskSubtasks.test.tsx",
+      "test": "TaskSubtasks uses the running topic status icon when a subtask has an active topic run"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskDetail/TopicCard.test.tsx",
+      "test": "TopicCard leaves links in the run output clickable"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry captures Cmd+Enter before the editor inserts a newline and submits the task"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry clears the private-agent visibility lock when switching to the all-tasks create form"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry confirms every creation path, not only the straight-through one"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry confirms the task exists once it is created, and offers a way to open it"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry drops a restored member who is no longer assignable in the workspace"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry drops an incompatible restored member when the assigned agent is private"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition creates an unambiguous draft straight through, named by the reading"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition falls back to appending the answers when the second reading fails"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition has no confirmation step between the last answer and the task"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition holds a draft with an open question and folds the answer into the brief"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition names the last step \"create\", answered or not"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition offers the goal handoff only for a request read as a standing goal"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition reads the draft on every submit — there is no setting to turn it on"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition runs the second reading only once the answers are all in"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition sends no stale mirror alongside a rewritten brief"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry intent recognition still creates the task when the reading itself fails"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry persisted draft across a create puts the draft back when the create fails"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry persisted draft across a create takes the draft off disk before the create resolves, not after"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry persists the responsible member when the scoped agent is locked"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry renders the task editor as disabled when the user cannot create content"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry resets member assignment and draft persistence when the workspace changes"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry submits agent and member assignments together"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/CreateTaskInlineEntry.test.tsx",
+      "test": "CreateTaskInlineEntry uses compact editor padding and aligned action controls"
+    },
+    {
+      "file": "src/features/AgentTasks/AgentTaskList/TaskListVisibilityFilter.test.tsx",
+      "test": "TaskListVisibilityFilter shows a trailing checkmark only for the active visibility option"
+    },
+    {
+      "file": "src/features/ChatInput/ChatInputNotice/useChatInputNotice.test.tsx",
+      "test": "useChatInputNotice does not mark a uniquely available managed model as offline when the saved provider is newapi"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu auto-refreshes on the poll cadence while the tab stays visible"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu does not preserve quota data after switching Claude Code credential source"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu does not re-ingest a cached live snapshot echoed back during revalidation"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu does not reuse another device account when the newly selected device is unavailable"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu falls back to the live snapshot when a persisted account has no windows"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu falls back to the live snapshot when the account identity is unresolvable"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu ignores stale request loading updates after switching Claude Code credential source"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu ingests genuinely fresh readings surfaced by a revalidation"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu keeps cached windows visible when the main-process refresh is rate-limited"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu keeps stale data and shows a friendly prompt when manual refresh is rate-limited"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu keeps the 5-hour row on screen as refilled once its window resets"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu keeps the previous quota data when an automatic stale refresh is rate-limited"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu paints persisted windows while a stale live refresh is still in flight"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu refreshes from the live API when the newest persisted reading is stale"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu renders persisted windows without a live call while the newest reading is fresh"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu renders session, weekly, and model-scoped windows from the snapshot"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu revalidates against the live API when the window regains focus"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu samples through the device gateway RPC when a deviceId is provided"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu shows the live sample when the persisted window has already reset"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu shows the tightest global window and Fable as separate compact values"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu skips the focus revalidation while the snapshot is under a minute old"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu warns below 15 percent and keeps compact zero quota numeric"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "ClaudeCodeQuotaMenu will not paint an unattributable sample under a named account"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "CodexQuotaMenu clears refresh loading when a reset supersedes an in-flight quota request"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "CodexQuotaMenu confirms and consumes the earliest-expiring credit, then applies refreshed quota"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "CodexQuotaMenu renders every available reset with relative expiry only"
+    },
+    {
+      "file": "src/features/ChatInput/ControlBar/HeteroControlBar/QuotaMenu/QuotaMenu.test.tsx",
+      "test": "CodexQuotaMenu renders windows and the reset-credits footer"
+    },
+    {
+      "file": "src/features/ChatInput/StoreUpdater.test.tsx",
+      "test": "ChatInput StoreUpdater keeps canRecordVoiceMessage in sync when the prop changes"
+    },
+    {
+      "file": "src/features/Conversation/ChatInput/VerifyTray/GoalModal.test.tsx",
+      "test": "GoalContent delete closes only after the delete write lands"
+    },
+    {
+      "file": "src/features/Conversation/ChatInput/VerifyTray/GoalModal.test.tsx",
+      "test": "GoalContent delete keeps the modal open when the delete write fails (rolled back by the caller)"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra falls back to the raw error message instead of rendering a blank block"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra falls back to the raw message for a known error when localized content is unavailable"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra keeps localized Google block errors even when ProviderBizError carries a traceId"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra keeps the localized message for known error types even when a traceId exists"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra prefers the business message while retaining the standard error details"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra self-contained retry when no onRegenerate is supplied does not advertise a retry that could not do anything"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra self-contained retry when no onRegenerate is supplied renders a retry on a standalone message that has a parent user turn"
+    },
+    {
+      "file": "src/features/Conversation/Error/index.test.tsx",
+      "test": "ErrorMessageExtra shows the localized empty-completion message while retaining the raw error in details"
+    },
+    {
+      "file": "src/features/DailyBrief/__tests__/BriefCardSummary.test.tsx",
+      "test": "BriefCardSummary should render summary text"
+    },
+    {
+      "file": "src/features/Electron/AuthRequiredModal/index.test.tsx",
+      "test": "useAuthRequiredModal keeps the close button available while removing the Later action"
+    },
+    {
+      "file": "src/features/Electron/titlebar/NavigationBar.test.tsx",
+      "test": "NavigationBar tray broadcasts opens the existing Recently Viewed popover"
+    },
+    {
+      "file": "src/features/Electron/titlebar/NavigationBar.test.tsx",
+      "test": "NavigationBar tray broadcasts opens the workspace agent browser without creating a topic"
+    },
+    {
+      "file": "src/features/ExplorerTree/view/ExplorerTree.test.tsx",
+      "test": "DocumentExplorerTree menu ownership goes native for the folder row context menu, reached through a real contextmenu DOM event"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer does not restore default help links when the public help menu is explicitly empty"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer help menu tracking does not render the invite friend entry without business features"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer help menu tracking excludes billboard items from the opened keys to keep per-key CTR aligned"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer help menu tracking shows Get App immediately before GitHub on web"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer help menu tracking shows Get App in desktop builds too"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer help menu tracking tracks a unified click event when the invite friend entry is clicked"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer help menu tracking tracks menu open with the visible item keys"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer shows the configured membership CTA in the home sidebar footer"
+    },
+    {
+      "file": "src/features/HomeSidebar/Footer/index.test.tsx",
+      "test": "Footer uses default help links while the public help menu setting is missing"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics does not interrupt ambiguous long-term agent prompts"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics does not track group submits through the create agent event"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics does not track when telemetry is disabled"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics interrupts high-confidence skill prompts with a stronger skill recommendation"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics interrupts role-framed reusable prompts when the role maps to a skill workflow"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics keeps add skill buttons visually consistent when multiple skill suggestions are shown"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics keeps the suggestion visible when installing the recommended skill fails"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics shows a completed skill state after installing the recommended skill"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics shows an installing state while adding the suggested skill"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics tracks blank source when Start Blank succeeds"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics tracks example submit source when the user submits an example unchanged"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics tracks example_edited when an example is changed before submit"
+    },
+    {
+      "file": "src/features/HomeSidebar/hooks/useCreateModal.test.tsx",
+      "test": "CreateAgentModal analytics tracks manual submit source after successful agent creation submit"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/Wechat.test.tsx",
+      "test": "MessengerPushSection renders an always-available state for non-windowed platforms"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/Wechat.test.tsx",
+      "test": "MessengerPushSection renders the section header with the send-window description while the window is open"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/Wechat.test.tsx",
+      "test": "MessengerPushSection renders the send-window description while the window is closed"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/Wechat.test.tsx",
+      "test": "MessengerPushSection sends to the selected Slack workspace tenant"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/Wechat.test.tsx",
+      "test": "WechatQrSetup encodes the WeChat URL as the QR payload after the initial connect action"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/Wechat.test.tsx",
+      "test": "WechatQrSetup encodes the WeChat URL as the QR payload during rescan"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/shared.test.tsx",
+      "test": "Messenger UserAgentConnection defaults an agent-less personal connection to LobeAI"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/shared.test.tsx",
+      "test": "Messenger UserAgentConnection hides an opaque platform ID and exposes it through the account title tooltip"
+    },
+    {
+      "file": "src/features/Messenger/IntegrationDetail/shared.test.tsx",
+      "test": "Messenger UserAgentConnection uses the signed-in full name for the personal scope and shows the personal tag"
+    },
+    {
+      "file": "src/features/Payments/checkout.test.ts",
+      "test": "submitPaymentCheckout submits only the structured hidden fields returned by the server"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey allows a workspace admin to revoke another member key while keeping it read-only and masked"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey allows workspace members to create and manage their own keys"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey creates a key through the modal and refreshes the list"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey deletes a key from the detail drawer after Popconfirm confirmation"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey deletes a key from the row menu after confirmation"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey deletes from the drawer and closes it"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey disables create and every row action without create_content permission"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey disables member creation when the workspace policy is admins only"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey does not open the drawer when clicking inside the key cell"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey edits a key scope in place and refreshes the list"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey explains the creation restriction when a workspace member has no keys"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey hides the creator column from workspace members"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey hides the creator column in personal mode"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey opens the detail drawer from the row menu"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey opens the detail drawer on row click listing only the granted scopes"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey renames a key and refreshes the list"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey renders fetched keys with their plaintext for the owner"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey shows loading, then empty state when the first fetch returns no keys"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey shows the creator column only in workspace mode"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey shows the full-access copy instead of the grant list for a full-access key"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey shows the generic toast on other mutation errors without refreshing"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey shows the permission toast on forbidden errors without refreshing"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey shows the unavailable copy with tooltip when key decryption failed"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey summarises scopes as a compact tag — the full grant list stays in the drawer"
+    },
+    {
+      "file": "src/features/Settings/apikey/features/ApiKey.test.tsx",
+      "test": "ApiKey toggles a key off from the detail drawer and refreshes the list"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened billing"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened credits"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened plans"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened referral"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened usage"
+    },
+    {
+      "file": "src/features/Settings/provider/features/ModelList/SearchResult.test.tsx",
+      "test": "SearchResult batch-enables filtered models when provider management is allowed"
+    },
+    {
+      "file": "src/features/Settings/provider/features/ModelList/SearchResult.test.tsx",
+      "test": "SearchResult does not batch-enable models when provider management is denied"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm blocks saving when enabled proxy settings are incomplete"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm blocks saving when the proxy port is outside the valid range"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm does not convert form validation failures into a generic test toast"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm keeps enable toggle as an unsaved state when proxy config is incomplete"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm renders auth fields and blocks saving when proxy credentials are missing"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm resets unsaved proxy changes back to persisted settings"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm reverts the enable switch and shows an error when auto-saving fails"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm saves a valid proxy configuration from the save bar"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm surfaces proxy connectivity failures from the test action"
+    },
+    {
+      "file": "src/features/Settings/proxy/features/ProxyForm.test.tsx",
+      "test": "ProxyForm tests a valid proxy configuration successfully"
+    },
+    {
+      "file": "src/features/Settings/skill/features/SkillDetail/index.test.tsx",
+      "test": "SkillDetail offers a Configure migration action for an un-migrated legacy custom MCP"
+    },
+    {
+      "file": "src/features/Settings/skill/features/SkillDetail/index.test.tsx",
+      "test": "SkillDetail only leaves connector permissions detail after disconnect actually succeeds"
+    },
+    {
+      "file": "src/features/Settings/skill/features/SkillDetail/index.test.tsx",
+      "test": "SkillDetail returns to the no-permissions state after a successful disconnect"
+    },
+    {
+      "file": "src/features/Settings/skill/features/SkillDetail/index.test.tsx",
+      "test": "SkillDetail shows a disconnect action for a connected LobeHub connector without configurable tools"
+    },
+    {
+      "file": "src/features/Settings/skill/features/SkillDetail/index.test.tsx",
+      "test": "SkillDetail syncs LobeHub tools and passes the disconnect action into connector permissions detail"
+    },
+    {
+      "file": "src/features/User/__tests__/UserAvatar.test.tsx",
+      "test": "UserAvatar should show LobeChat and default avatar when the user is not logged in"
+    },
+    {
+      "file": "src/hooks/useNavLayout.test.tsx",
+      "test": "useNavLayout hides Memory in workspace mode"
+    },
+    {
+      "file": "src/hooks/useNavLayout.test.tsx",
+      "test": "useNavLayout keeps Memory visible in personal mode"
+    },
+    {
+      "file": "src/libs/oidc-provider/provider.test.ts",
+      "test": "OIDC Provider - Market Client Integration Provider Configuration should export API_AUDIENCE constant"
+    },
+    {
+      "file": "src/libs/qstash/index.test.ts",
+      "test": "qstash clients does not create QStash clients at import time when QSTASH_TOKEN is empty"
+    },
+    {
+      "file": "src/routes/(desktop)/desktop-onboarding/features/LoginStep.test.tsx",
+      "test": "Desktop onboarding LoginStep renders a focused success state and returns to login methods without duplicate auth UI"
+    },
+    {
+      "file": "src/routes/(desktop)/desktop-onboarding/features/LoginStep.test.tsx",
+      "test": "Desktop onboarding LoginStep uses public desktop login configuration for the visible login copy and logo"
+    },
+    {
+      "file": "src/routes/(main)/(create)/features/GenerationInput/UploadCard.test.tsx",
+      "test": "UploadCard keeps the local preview visible when upload does not return a file url"
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState handles historical retry time 2026-09-07T10:00:00Z"
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState handles historical retry time invalid"
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState handles historical retry time undefined"
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState localizes image cooldown details: Image generation is temporarily paused due to repeated safety rejections. Try again later with safer prompts."
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState localizes image cooldown details: response.ProviderImageContentModerationCooldown"
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState localizes the generic provider moderation fallback message: Content policy check failed. Please revise your prompt."
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState localizes the generic provider moderation fallback message: Content policy check failed. Revise your prompt and try again."
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState shows the retry time and updates when the recorded waiting period ends"
+    },
+    {
+      "file": "src/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ErrorState.test.tsx",
+      "test": "ErrorState translates provider moderation response keys before rendering"
+    },
+    {
+      "file": "src/routes/(main)/_layout/authMount.test.ts",
+      "test": "main layout (desktop) keeps auth recovery outside WorkspaceContextSlot so a blocked shell cannot hide it"
+    },
+    {
+      "file": "src/routes/(main)/_layout/authMount.test.ts",
+      "test": "main layout (web) keeps auth recovery outside WorkspaceContextSlot so a blocked shell cannot hide it"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates disables mutating channel actions when editing is denied"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates discards form edits and restores the persisted configuration"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates renders channel credentials as read-only when editing is denied"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates renders personal upgrade guidance and navigates to personal plans"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates renders the paid-feature alert with the platform name and top spacing"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates renders workspace upgrade guidance and navigates to workspace plans"
+    },
+    {
+      "file": "src/routes/(main)/agent/channel/detail/permission.test.tsx",
+      "test": "Agent channel permission gates toggles advanced settings from the full header row"
+    },
+    {
+      "file": "src/routes/(main)/agent/features/Conversation/Header/HeaderActions/index.test.tsx",
+      "test": "Conversation header actions passes the topic info header to the dropdown"
+    },
+    {
+      "file": "src/routes/(main)/agent/features/Conversation/Header/HeaderActions/index.test.tsx",
+      "test": "Conversation header actions renders the overflow actions button"
+    },
+    {
+      "file": "src/routes/(main)/agent/features/Conversation/Header/ShareButton/index.test.tsx",
+      "test": "Conversation ShareButton does not open share popover for workspace viewers"
+    },
+    {
+      "file": "src/routes/(main)/agent/features/Conversation/Header/TerminalPanelToggle/index.test.tsx",
+      "test": "TerminalPanelToggle toggles the panel and reflects its active state"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas binds a draft save to its original agent and loads the next agent content"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas converts Markdown source edits into the shared rich document and autosave payload"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas does not bubble mode-switch clicks to the click-to-focus wrapper"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas does not overwrite a local draft with a later editor-data refresh"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas does not toast on unmount when the flush succeeds"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas falls back to a global toast when an unmounted flush fails"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas hides Prompt save feedback before the first edit"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas ignores a stream inherited from the previously active agent"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas ignores source change callbacks caused by a programmatic value sync"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas ignores the editor delayed callback for a programmatic document sync"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas moves the prompt description into the title tooltip"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas passes editable=false to the editor when workspace permission blocks edits"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas replaces hydrated editor data with a later server config before local editing starts"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas seeds source mode from the persisted Markdown when editor data also exists"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas shows failed Prompt save feedback with a local Retry action"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas switches between the visual editor and Markdown source mode"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/EditorCanvas/index.test.tsx",
+      "test": "Agent profile EditorCanvas uses the rich-editor placeholder key"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry disables submission when blocked by lock"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry disables submission when blocked by resource"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry disables submission when blocked by role"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry hides submission for builtin agents"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry hides submission for heterogeneous agents"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry keeps publishing inside the collapsed actions menu, not directly in the header"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry offers submission independently of the share rollout flag"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header Market review entry replaces the unpublished status with under review after submission"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header disables the config entries when General Access is view-only"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header disables the config entries when the role cannot edit content"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header keeps the Permission entry on a private workspace agent — its model / environment policies still apply once shared"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header keeps the breadcrumb aligned with the left content inset when builder expanded is false"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header keeps the breadcrumb aligned with the left content inset when builder expanded is true"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header opens the Permission page from the menu entry"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header share entry hides the share entry while the capability is still unresolved"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header share entry navigates to the share tab"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header share entry offers no share entry by default"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header share entry offers the share entry when the deployment reports it visible"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header should export the current agent profile as markdown"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header should ignore the hidden editor when exporting heterogeneous agent markdown"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header should preserve an empty prompt from the mounted editor when exporting markdown"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header should show the markdown export action"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/Header/index.test.tsx",
+      "test": "Agent profile Header shows workspace resource permission controls for the LobeAI inbox agent"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/ProfileEditor/AgentHeader.test.tsx",
+      "test": "AgentHeader does not borrow the role for the headline"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/ProfileEditor/AgentHeader.test.tsx",
+      "test": "AgentHeader gives the headline slot to the naming prompt while unnamed"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/ProfileEditor/AgentHeader.test.tsx",
+      "test": "AgentHeader keeps an artwork update bound to the agent that started it"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/ProfileEditor/AgentHeader.test.tsx",
+      "test": "AgentHeader never renders the input placeholder as a headline"
+    },
+    {
+      "file": "src/routes/(main)/agent/profile/features/ProfileEditor/AgentHeader.test.tsx",
+      "test": "AgentHeader offers one-click naming for an agent with no name"
+    },
+    {
+      "file": "src/routes/(main)/community/(detail)/_layout/Header.test.tsx",
+      "test": "Community detail Header shows the viewed organization avatar in the right corner"
+    },
+    {
+      "file": "src/routes/(main)/community/(detail)/organization/features/Header/index.test.tsx",
+      "test": "OrganizationHeader identifies the page as an organization account and keeps follow controls separate"
+    },
+    {
+      "file": "src/routes/(main)/community/(detail)/skill/index.test.tsx",
+      "test": "SkillDetailPage decodes encoded community skill identifiers before fetching details"
+    },
+    {
+      "file": "src/routes/(main)/group/features/Conversation/Header/ShareButton/index.test.tsx",
+      "test": "Group Conversation ShareButton does not open share popover for workspace viewers"
+    },
+    {
+      "file": "src/routes/(main)/settings/_layout/index.test.tsx",
+      "test": "SettingsLayout keeps the personal sidebar on regular settings routes"
+    },
+    {
+      "file": "src/routes/(mobile)/chat/features/ChatHeader/ChatHeaderTitle.test.tsx",
+      "test": "ChatHeaderTitle uses the configured mobile brand for the inbox conversation"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header goes back to the workspace provider list from a query-selected provider"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header recognizes a query-selected workspace provider and titles it"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace billing title"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace credits title"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace devices title"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace general title"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace members title"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace plans title"
+    },
+    {
+      "file": "src/routes/(mobile)/settings/_layout/Header.test.tsx",
+      "test": "mobile settings Header resolves the workspace service-model title"
+    },
+    {
+      "file": "src/server/services/brand/__tests__/lazy-import.test.ts",
+      "test": "getServerBrand lazy database loading falls back to the default brand when the database module fails during initialization"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService automatically refunds a duplicate lifetime payment rejected during settlement"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService does not call the provider twice when subscription reversal is retried"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService does not overwrite a concurrent terminal subscription refund state"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService finishes a successful uncredited refund without resolving an adapter"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService manually confirms a pending ZPay refund before reversing subscription benefits"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService marks a verified missing ZPay refund as failed without reversing plan benefits"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService persists a failed event when subscription activation throws"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService recovers a canceled late payment through the uncredited refund state machine"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService reports the committed order state when a stale failed event loses the update race"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService reverses paid subscription benefits on a refund callback"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService settles a verified subscription success event"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService claims a canceled late payment before requesting its automatic refund"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService does not call the provider twice when local refund reversal is retried"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService does not overwrite a concurrent terminal top-up refund state"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService finishes a successful uncredited refund without resolving an adapter"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService manually confirms a pending ZPay refund before reversing credited top-up funds"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService marks a verified missing ZPay refund as failed without reversing credits"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService persists a failed event when settlement throws"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService processes a refund callback for an uncredited pending top-up"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService queries a pre-persisted refund request after an uncertain provider failure"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService queries the provider before reporting that a missing checkout still needs recovery"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService reports the committed order state when a stale failed event loses the update race"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService revalidates successful duplicate callbacks before reporting them as duplicates"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService settles a late provider success while recovering a locally failed order"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage historyCount functionality should include all messages when historyCount is disabled"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage historyCount functionality should include historyCount + 1 messages when historyCount is enabled"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage historyCount functionality should include only current message when historyCount is 0 and enabled"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage with tools messages not update system role without tool"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage with tools messages should inject a tool system role for models with tools"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage with tools messages should update the system role for models with tools"
+    },
+    {
+      "file": "src/services/electron/localFileService.test.ts",
+      "test": "localFileService fetches text local-file preview from the preview URL"
+    },
+    {
+      "file": "src/services/projectFile.test.ts",
+      "test": "projectFileService gets remote local-file preview through device RPC"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should deduplicate remote models and warn after a successful update"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should fetch remote models and batch update"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should not warn when updating deduplicated models fails"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should preserve enabled status of existing models when fetching"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction removeAiModel should delete model and refresh list"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction toggleModelEnabled should handle service errors and throw without clearing loading state"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction toggleModelEnabled should toggle model enabled state with loading indicators"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction updateAiModelsConfig should update model config and refresh list"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction updateAiModelsSort should update model sort order and refresh list"
+    },
+    {
+      "file": "src/store/home/slices/sidebarUI/action.test.ts",
+      "test": "createSidebarUISlice duplicateAgent should duplicate an agent and switch to the new agent"
+    },
+    {
+      "file": "tests/github-scripts/releaseSyncWorkflow.test.ts",
+      "test": "Release branch synchronization dispatches the post-release sync on main even when the default branch is canary"
+    }
+  ],
+  "errors": [
+    {
+      "file": "docker-compose/deploy/module-worker/compose.test.mjs",
+      "errorType": "AssertionError",
+      "firstLine": "The input did not match the regular expression /non-empty sha-\\* tag/. Input:"
+    },
+    {
+      "file": "scripts/comhub-customizations/registry.test.mjs",
+      "errorType": "NoTestSuiteFoundError",
+      "firstLine": "No test suite found in file E:/code/comhub/ci-verify-3bbf64f/scripts/comhub-customizations/registry.test.mjs"
+    },
+    {
+      "file": "scripts/dockerComposeDeploy.test.ts",
+      "errorType": "spawnSync ENOENT",
+      "firstLine": "spawnSync /bin/sh ENOENT"
+    },
+    {
+      "file": "src/features/Acceptance/Viewer/Checks/CheckList.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/AgentSidebar/Topic/TopicListContent/ByProjectMode/GroupItem.test.tsx",
+      "errorType": "VitestMockExportError",
+      "firstLine": "[vitest] No \"CURRENT_VERSION\" export is defined on the \"@/const/version\" mock. Did you forget to return it from \"vi.mock\"?"
+    },
+    {
+      "file": "src/features/Conversation/WorkingSidebar/Review/__tests__/FileItem.test.tsx",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceHome/Layout/Body/LibraryList/Item/Editing.test.tsx",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/ListView/ListItem/FileListItemActions.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/hooks/useExplorerSelection.test.tsx",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/hooks/useResetSelectionOnQueryChange.test.tsx",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/index.test.tsx",
+      "errorType": "VitestMockError",
+      "firstLine": "[vitest] There was an error when mocking a module. If you are using \"vi.mock\" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock"
+    },
+    {
+      "file": "src/features/ResourceManager/components/LibraryHierarchy/visibleNodes.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/store/action.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/store/selectors.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/WorkGallery/hooks.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/routes/(main)/settings/provider/index.test.tsx",
+      "errorType": "VitestMockExportError",
+      "firstLine": "[vitest] No \"CURRENT_VERSION\" export is defined on the \"@/const/version\" mock. Did you forget to return it from \"vi.mock\"?"
+    },
+    {
+      "file": "src/store/chat/slices/agentRun/actions/__tests__/clientToolExecution.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "ClientToolExecutionActionImpl is not a constructor"
+    },
+    {
+      "file": "src/store/chat/slices/agentRun/actions/__tests__/questionSubmission.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "QuestionSubmissionActionImpl is not a constructor"
+    },
+    {
+      "file": "src/store/chat/slices/message/selectors/messageState.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "Cannot read properties of undefined (reading 'currentDisplayChatKey')"
+    },
+    {
+      "file": "src/store/file/slices/chat/selectors.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/file/slices/fileManager/selectors.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/file/slices/resource/action.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/library/slices/content/action.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/library/slices/crud/action.test.ts",
+      "errorType": "TypeError",
+      "firstLine": "createFileSlice is not a function"
+    }
+  ],
+  "flaky": [
+    {
+      "file": "src/features/Admin/components/RuntimeModelFieldPair.test.tsx",
+      "test": "RuntimeModelFieldPair writes the selected raw pair and clears both fields together"
+    },
+    {
+      "file": "src/libs/qstash/index.test.ts",
+      "test": "qstash clients creates QStash clients lazily when a token is available"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage should process messages and call getChatCompletion with the right parameters"
+    }
+  ],
+  "meta": {
+    "suite": "app",
+    "runner": "vitest 5.0.0 (win32-x64, node v24.19.0)",
+    "capturedAt": "2026-10-08T02:21:52+08:00",
+    "baselineRef": "uncommitted working tree on 7af8c1946c (24 modified + 4 untracked files at capture time); not a tagged baseline",
+    "runs": [null, null],
+    "runsNote": "raw per-run vitest JSON reports (app-full-1/2.json, bs-full-1/2.json) were not archived; per-run counts unknown — fill on the next scheduled re-capture",
+    "generatedVia": "double-run",
+    "counts": {
+      "deterministic": 344,
+      "flaky": 3,
+      "errors": 24
+    },
+    "note": "由两跑 vitest JSON 报告按蓝图 §7.3-3 构建：两跑均红->deterministic；恰单跑红->flaky(watchlist)；文件级加载/收集错误(无 assertionResults 或 message 含 Unhandled)两跑均现->errors(errorType 为按首行启发式分类, firstLine 为报告 message 首行)。"
+  },
+  "whitelist": [
+    {
+      "file": "src/features/Admin/mobileSettingsI18n.test.ts",
+      "reason": "阈值<400 vs 恰400行",
+      "closesIn": "M3"
+    }
+  ]
+}

@@ -158,6 +158,17 @@ export const ADMIN_COMMANDS = {
     severity: 'high',
     title: 'Retry desktop release',
   },
+  'moduleApp.setRuntimeSettings': {
+    actionId: 'moduleApp.setRuntimeSettings',
+    auditAction: 'moduleApp.runtimeSettings.set',
+    capability: ADMIN_CAPABILITIES.moduleAppWrite,
+    confirmationMode: 'none',
+    description: 'Saves module app runtime settings through the shared app settings transaction.',
+    reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.settings.setModuleAppRuntimeSettings' },
+    severity: 'medium',
+    title: 'Update module runtime settings',
+  },
   'newapiProvider.deleteInstance': {
     actionId: 'newapiProvider.deleteInstance',
     auditAction: 'newapiInstance.delete',

@@ -91,7 +91,7 @@ const moduleApps = vi.hoisted(() => ({
   listRuns: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
 }));
 const getSettingsSection = vi.hoisted(() => vi.fn().mockResolvedValue({}));
-const setAppSettingsBatch = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
+const setModuleAppRuntimeSettings = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 const mutate = vi.hoisted(() => vi.fn());
 const confirmModal = vi.hoisted(() => vi.fn());
@@ -102,7 +102,7 @@ const runtimeState = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/adminCommercial', () => ({
-  adminCommercialService: { getSettingsSection, moduleApps, setAppSettingsBatch },
+  adminCommercialService: { getSettingsSection, moduleApps, setModuleAppRuntimeSettings },
 }));
 vi.mock('@/store/user', () => ({
   useUserStore: (selector: (state: { user: { role: string } }) => unknown) =>
@@ -403,7 +403,7 @@ describe('ModuleAppRuntimePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'moduleApps.admin.runtime.settings.save' }));
 
     await waitFor(() => {
-      expect(setAppSettingsBatch).toHaveBeenCalledWith({
+      expect(setModuleAppRuntimeSettings).toHaveBeenCalledWith({
         updates: expect.arrayContaining([
           { key: 'moduleApp.runtime.execution.enabled', value: false },
           { key: 'moduleApp.runtime.publicExecution.enabled', value: false },
