@@ -35,7 +35,7 @@ const MODULES = [
     name: 'Migration chain',
     sync: 'verify-only',
     description:
-      'ComHub-owned migrations (0100-0122 commercial, 0168-0177), repair migration 0178, renumbered upstream 0123-0128, journal invariants.',
+      'ComHub-owned migrations (0100-0122 commercial, 0168-0177) + repair 0178. Upstream renumbering: upstream 0111 rewritten in place as fork 0129 (carry-forward header comment); upstream 0112-0126 renumbered verbatim to 0153-0167 (blobs identical to upstream one-for-one); upstream 0110 keeps its original name.',
     ownershipRules: [
       [
         'p:packages/database/migrations/meta/',
@@ -44,10 +44,15 @@ const MODULES = [
       ],
       ['p:packages/database/migrations/', 'owned', 'ComHub SQL files'],
       ['p:scripts/verifyMigrationChain.mjs', 'owned', 'static chain check'],
+      [
+        'p:packages/database/src/models/__tests__/migrationChain.test.ts',
+        'owned',
+        'migration chain invariant test',
+      ],
     ],
     tests: ['packages/database/src/models/__tests__/migrationChain.test.ts'],
     notes:
-      'Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations.',
+      'Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations. 23 orphan original SQL files remain on disk unreferenced by _journal.json (upstream originals of 0104-0109 and 0111-0126, plus 0065_add_document_fields which is upstream-inherent); scripts/verifyMigrationChain.mjs does not detect orphans — when upstream later modifies a renumbered file the merge lands on the orphan copy and must be remapped by hand.',
   },
   {
     id: 'branding',
@@ -56,10 +61,39 @@ const MODULES = [
     description:
       'XuanguoAI brand across web + desktop: static assets, runtime brand seam (app_settings → getServerBrand → BrandProvider), upstream component hooks.',
     ownershipRules: [
-      ['p:public/', 'owned', 'favicons, app icons, in-site brand logo'],
-      ['p:apps/desktop/build/', 'owned', 'installer icon.ico/png + NSIS artwork'],
-      ['p:apps/desktop/resources/', 'owned', 'tray, dmg, splash, error page art'],
-      ['p:apps/desktop/src/main/core/browser/splash.ts', 'upstream', 'branded splash content'],
+      // precise upstream rules first: these upstream asset files are fork-rebranded (M in diff)
+      ['p:public/favicon.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-dev.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-done.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-error.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-progress.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-32x32.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-32x32-dev.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-32x32-done.ico', 'upstream', 'branded favicon'],
+      ['p:public/favicon-32x32-progress.ico', 'upstream', 'branded favicon'],
+      ['p:public/apple-touch-icon.png', 'upstream', 'branded touch icon'],
+      ['p:public/app-icons/icon-192x192.png', 'upstream', 'branded app icon'],
+      ['p:public/app-icons/icon-192x192.maskable.png', 'upstream', 'branded app icon'],
+      ['p:public/app-icons/icon-512x512.png', 'upstream', 'branded app icon'],
+      ['p:public/app-icons/icon-512x512.maskable.png', 'upstream', 'branded app icon'],
+      ['p:apps/desktop/build/icon.ico', 'upstream', 'branded installer icon'],
+      ['p:apps/desktop/build/icon.png', 'upstream', 'branded installer icon'],
+      ['p:apps/desktop/build/nsis-header.bmp', 'upstream', 'branded NSIS header'],
+      ['p:apps/desktop/build/nsis-sidebar.bmp', 'upstream', 'branded NSIS sidebar'],
+      ['p:apps/desktop/resources/dmg.png', 'upstream', 'branded dmg background'],
+      ['p:apps/desktop/resources/error.html', 'upstream', 'branded error page'],
+      ['p:apps/desktop/resources/splash.html', 'upstream', 'branded splash page'],
+      ['p:apps/desktop/resources/tray.png', 'upstream', 'branded tray icon'],
+      ['p:apps/desktop/resources/trayTemplate.png', 'upstream', 'branded tray icon'],
+      ['p:apps/desktop/resources/trayTemplate@2x.png', 'upstream', 'branded tray icon'],
+      ['p:public/', 'owned', 'fork-new favicons, app icons, in-site brand logo'],
+      ['p:apps/desktop/build/', 'owned', 'fork-new installer icon.ico/png + NSIS artwork'],
+      ['p:apps/desktop/resources/', 'owned', 'fork-new tray, dmg, splash, error page art'],
+      [
+        'p:apps/desktop/src/main/core/browser/splash.ts',
+        'owned',
+        'fork-created branded splash content (A in diff; test in desktop-main-patches)',
+      ],
       ['p:src/const/brand.ts', 'owned', 'DEFAULT_RUNTIME_BRAND (玄果AI / #12b981)'],
       ['p:src/features/Brand/', 'owned', 'BrandProvider, brandText, loadingBrand, useBrandName'],
       ['p:src/server/services/brand/', 'owned', 'getServerBrand (30s TTL, app_settings)'],
@@ -68,10 +102,14 @@ const MODULES = [
       [
         'p:src/components/Branding/',
         'upstream',
-        'ProductLogo runtime-brand hook; Custom.tsx simplification',
+        'ProductLogo runtime-brand hook; Custom.tsx simplification; conservative over-cover: also claims fork-new files (ProductLogo index.test.tsx)',
       ],
       ['p:src/components/BrandWatermark/', 'upstream', 'useBrand() attribution branch'],
-      ['p:src/components/Loading/', 'upstream', 'BrandTextLoading brand text + spinner'],
+      [
+        'p:src/components/Loading/',
+        'upstream',
+        'BrandTextLoading brand text + spinner; conservative over-cover: also claims fork-new files (BrandTextLoading index.test.tsx)',
+      ],
       [
         'p:src/app/[variants]/metadata.ts',
         'upstream',
@@ -79,7 +117,6 @@ const MODULES = [
       ],
       ['p:src/app/manifest.ts', 'upstream', 'runtime brand in PWA manifest'],
       ['p:src/app/[variants]/metadata.test.ts', 'owned', 'metadata brand tests'],
-      ['p:src/app/metadata.test.ts', 'owned', 'metadata brand tests'],
       ['p:src/app/manifest.test.ts', 'owned', 'manifest brand tests'],
       ['p:src/app/sitemap', 'owned', 'sitemap route + tests'],
       ['p:src/layout/GlobalProvider/FaviconProvider.tsx', 'upstream', 'brand.faviconUrl override'],
@@ -106,6 +143,11 @@ const MODULES = [
     description:
       'comhub:// protocol scheme detection + whitelist extension in the desktop main process.',
     ownershipRules: [
+      [
+        'p:apps/desktop/src/main/utils/comhubProtocol.ts',
+        'owned',
+        'extracted: comhub:// scheme 探测与白名单',
+      ],
       [
         'p:apps/desktop/src/main/utils/',
         'upstream',
@@ -134,13 +176,35 @@ const MODULES = [
         'cloudDesktopBusinessConstPlugin + dev minify',
       ],
       [
+        'p:apps/desktop/src/main/const/comhubServer.ts',
+        'owned',
+        'fork-new: OFFICIAL_CLOUD_SERVER default const',
+      ],
+      [
+        'p:apps/desktop/src/main/core/browser/__tests__/splash.test.ts',
+        'owned',
+        'fork-new: branded splash tests',
+      ],
+      ['p:apps/desktop/src/main/env.test.ts', 'owned', 'fork-new: env tests'],
+      [
+        'p:apps/desktop/src/main/modules/updater/remoteConfig.ts',
+        'owned',
+        'extracted: updater remote config module',
+      ],
+      [
+        'p:apps/desktop/src/main/modules/updater/__tests__/remoteConfig.test.ts',
+        'owned',
+        'remoteConfig tests',
+      ],
+      [
         'p:apps/desktop/src/main/',
         'upstream',
         'env.ts, updater, Browser, controllers, protocol.ts (see desktop-deep-links)',
       ],
       ['p:apps/desktop/src/', 'owned', 'remoteConfig module, tests, feature components'],
+      ['p:apps/desktop/scripts/update-test/', 'upstream', 'file-mode only changes'],
       ['p:apps/desktop/scripts/', 'owned', 'update-test scripts, tray generator'],
-      ['p:apps/desktop/src/main/utils/', 'upstream', 'protocol.ts (see desktop-deep-links)'],
+      ['p:src/features/Electron/titlebar/SimpleTitleBar.tsx', 'upstream', 'title prop'],
       ['p:src/features/Electron/', 'owned', 'connection mode UI'],
       ['p:src/store/electron/', 'upstream', 'sync actions'],
       ['p:src/services/electron/', 'upstream', 'remoteServer service'],
@@ -168,13 +232,13 @@ const MODULES = [
         'owned',
         'profile/revision/release state machine',
       ],
-      ['p:packages/database/src/schemas/desktopBuild.ts', 'owned', 'schema'],
+      ['p:packages/database/src/schemas/desktopBuild', 'owned', 'schema + schema test'],
       ['p:packages/types/src/desktopBuild.ts', 'owned', 'types'],
       ['p:src/features/Admin/DesktopControlCenter/', 'owned', 'admin UI'],
     ],
     tests: [
       'apps/desktop/desktop-build-profile.test.ts',
-      'packages/database/src/models/__tests__/desktopBuild',
+      'packages/database/src/models/desktopBuild.test.ts',
       'src/features/Admin/DesktopControlCenter/',
     ],
     notes:
@@ -188,7 +252,6 @@ const MODULES = [
       'GH desktop release workflow, release callback API, GitHub release health service, update-test scripts, publish actions.',
     ownershipRules: [
       ['p:.github/workflows/comhub-desktop-release.yml', 'owned', 'release workflow'],
-      ['p:.github/workflows/comhub-manual-desktop.yml', 'owned', 'manual dispatch workflow'],
       ['p:.github/actions/desktop-publish-s3/', 'upstream', 'OTA publish action + mainhash inputs'],
       [
         'p:.github/actions/desktop-upload-artifacts/',
@@ -200,12 +263,25 @@ const MODULES = [
       ['p:src/app/(backend)/api/webhooks/', 'owned', 'payment/module-app webhook routes'],
       ['p:src/app/(backend)/api/workflows/', 'owned', 'module-app run workflow route'],
       [
+        'p:apps/server/src/services/desktopRelease/index.ts',
+        'upstream',
+        'upstream resolvers rewritten as delegation into fork helpers (+45/-99)',
+      ],
+      [
+        'p:apps/server/src/services/desktopRelease/index.test.ts',
+        'upstream',
+        'index tests updated for the delegation split (+247/-3)',
+      ],
+      [
         'p:apps/server/src/services/desktopRelease/',
         'owned',
-        'index.ts = upstream resolvers + delegation; diagnostics.ts (SSRF/zod/timeout/channel health), downloadTypes.ts (matchers), github.ts health',
+        'diagnostics.ts (SSRF/zod/timeout/channel health), downloadTypes.ts (matchers), github.ts health',
       ],
-      ['p:apps/desktop/scripts/update-test/', 'upstream', 'file-mode only changes'],
-      ['p:scripts/electronWorkflow/', 'upstream', 'setDesktopVersion + remaining scripts'],
+      [
+        'p:scripts/electronWorkflow/',
+        'upstream',
+        'setDesktopVersion + remaining scripts; conservative over-cover: also claims fork-new files (desktopReleaseWorkflow/fetchDesktopBuildProfile/setDesktopVersion tests)',
+      ],
     ],
     tests: ['apps/server/src/services/desktopRelease/index.test.ts'],
     notes:
@@ -217,6 +293,7 @@ const MODULES = [
     sync: 're-apply',
     description: 'DATABASE_POOL_* / statement & idle-in-transaction timeouts for Node pg pools.',
     ownershipRules: [
+      ['p:packages/database/src/core/web-server.test.ts', 'owned', 'fork 新增测试'],
       ['p:packages/database/src/core/', 'upstream', 'web-server.ts guardrails'],
       ['p:packages/app-config/src/db.ts', 'upstream', 'env schema entries'],
     ],
@@ -244,12 +321,12 @@ const MODULES = [
       [
         'p:packages/model-runtime/',
         'upstream',
-        'lifecycle hooks (ASR/embeddings/generateObject), image/video adapters, currency-aware computeImageCost, ollama/google fixes',
+        'lifecycle hooks (ASR/embeddings/generateObject), image/video adapters, currency-aware computeImageCost, ollama/google fixes; conservative over-cover: also claims fork-new files (asyncImageTask, imageAdapter, imageRoute, deepseek tests)',
       ],
       [
         'p:packages/model-bank/',
         'upstream',
-        'newapi provider card, siliconcloud/volcengine catalog, module-app export',
+        'newapi provider card, siliconcloud/volcengine catalog, module-app export; fork 实际改动 = 新增 "./lobehub" export（无 observability dep）; conservative over-cover: also claims fork-new files (aiModels/lobehub)',
       ],
       [
         'p:packages/business-server/src/commercialModelRuntimeHooks.ts',
@@ -262,9 +339,39 @@ const MODULES = [
         'delegates getBusinessModelRuntimeHooks to commercialModelRuntimeHooks.ts (hookExtracted)',
       ],
       [
+        'p:packages/business-server/src/commercialBilling',
+        'owned',
+        'fork-new billing core: credit ledger + settlement (incl. co-located tests)',
+      ],
+      [
+        'p:packages/business-server/src/generationBilling',
+        'owned',
+        'fork-new billing core: generation charge lifecycle (incl. co-located tests)',
+      ],
+      [
+        'p:packages/business-server/src/serverModelPricing',
+        'owned',
+        'fork-new billing core: server model pricing (incl. co-located tests)',
+      ],
+      [
+        'p:packages/business-server/src/planModelRules',
+        'owned',
+        'fork-new billing core: plan model rules (incl. co-located tests)',
+      ],
+      [
+        'p:packages/business-server/src/resourceQuota',
+        'owned',
+        'fork-new billing core: resource quota (incl. co-located tests)',
+      ],
+      [
+        'p:packages/business-server/src/modelPolicy',
+        'owned',
+        'fork-new billing core: model policy (incl. co-located tests)',
+      ],
+      [
         'p:packages/business-server/src/',
         'upstream',
-        'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares',
+        'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares; conservative over-cover: also claims fork-new files (appSettings/, lambda-routers/admin/, module-apps/, adminImpact/, desktopBuild/, subscriptionMaintenance, adminNewapiPricing, __tests__)',
       ],
       [
         'p:packages/business/',
@@ -283,7 +390,7 @@ const MODULES = [
       [
         'p:apps/server/src/modules/ModelRuntime/',
         'upstream',
-        'initModelRuntimeFromDB + newapi route metadata',
+        'initModelRuntimeFromDB + newapi route metadata; conservative over-cover: also claims fork-new files (newapiRouting)',
       ],
       [
         'p:apps/server/src/services/generation/videoPollingBilling.ts',
@@ -295,12 +402,20 @@ const MODULES = [
         'upstream',
         'videoBackgroundPolling delegates billing settle/release to videoPollingBilling.ts (hookExtracted); model-mapping runtime init remains',
       ],
-      ['p:apps/server/src/router-hono/webhooks/', 'upstream', 'video webhook route metadata'],
-      ['p:apps/server/src/routers/async/', 'upstream', 'image/video/file async routers'],
+      [
+        'p:apps/server/src/router-hono/webhooks/',
+        'upstream',
+        'video webhook route metadata; conservative over-cover: also claims fork-new files (handlers __tests__/video.test.ts)',
+      ],
+      [
+        'p:apps/server/src/routers/async/',
+        'upstream',
+        'image/video/file async routers; conservative over-cover: also claims fork-new files (newapiRouting.test.ts)',
+      ],
       [
         'p:apps/server/src/routers/lambda/generationBillingGuard.ts',
         'owned',
-        'shared generation billing guard: policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile',
+        'extracted: shared generation billing guard (policy/plan asserts, newapi route metadata, record-creation transactions, reservation release/reconcile)',
       ],
       [
         'p:apps/server/src/routers/lambda/image',
@@ -315,22 +430,17 @@ const MODULES = [
       [
         'p:src/app/(backend)/webapi/',
         'upstream',
-        'chat route metadata headers, pricing route, lobehub-model-ratings',
+        'chat route metadata headers, pricing route, lobehub-model-ratings; conservative over-cover: also claims fork-new files (lobehub-model-config, lobehub-model-ratings, proxy routes)',
       ],
       [
         'p:src/business/client/BusinessSettingPages/',
         'upstream',
-        'billing/credits/plans/usage/referral pages',
+        'billing/credits/plans/usage/referral pages; conservative over-cover: also claims fork-new files (mobile pages, ledger/plan/referral display, planPurchase)',
       ],
       [
         'p:src/business/client/',
         'upstream',
-        'business hooks (pricing/rating/guard/signup), model catalog merge',
-      ],
-      [
-        'p:src/business/',
-        'owned',
-        'server billing core (commercialBilling, generationBilling, serverModelPricing, planModelRules, resourceQuota, modelPolicy)',
+        'business hooks (pricing/rating/guard/signup), model catalog merge; conservative over-cover: also claims fork-new files (adminSettingsRouteRegistry, commercialRefresh, modelCatalog/lobeHub, moduleAdminRouteImports)',
       ],
       ['p:src/services/chat/', 'upstream', 'request metadata pass-through'],
       ['p:src/features/Settings/stats/', 'upstream', 'UsageTable ledger-aware columns'],
@@ -341,7 +451,6 @@ const MODULES = [
       ],
       ['p:src/features/TopUp/', 'owned', 'top-up flow'],
       ['p:src/features/Payments/', 'owned', 'payment flows'],
-      ['p:src/features/PlanIcon/', 'owned', 'plan icons'],
       ['p:packages/database/src/models/commercial', 'owned', 'commercial models'],
       ['p:packages/database/src/schemas/commercial.ts', 'owned', 'commercial schema'],
       [
@@ -359,8 +468,27 @@ const MODULES = [
         'upstream',
         'delegates getAiProviderList assembly to managedProviders.ts (hookExtracted); keeps BRANDING filters + parameters/pricing override',
       ],
+      [
+        'p:packages/database/src/models/__tests__/commercial',
+        'owned',
+        'commercial model tests (preCharge/referralSettings/topup/commercialGrantLock/commercialPricing)',
+      ],
+      [
+        'p:packages/database/src/models/__tests__/planDeleteImpact.test.ts',
+        'owned',
+        'plan deletion impact test',
+      ],
+      [
+        'p:packages/database/src/schemas/commercialInvariants.schema.test.ts',
+        'owned',
+        'commercial invariants schema test',
+      ],
+      [
+        'p:packages/database/src/repositories/ftsSearchDocument/',
+        'owned',
+        'fork-new FTS search document schema + test',
+      ],
       ['p:packages/database/src/repositories/', 'upstream', 'aiInfra pricing resolution + tests'],
-      ['p:packages/database/', 'owned', 'new commercial models/schemas added under database/'],
     ],
     tests: [
       'packages/business-server/src/**/*.test.ts',
@@ -377,6 +505,11 @@ const MODULES = [
     description:
       'Usage service merges upstream message usage with credit_ledger_entries for non-chat billables (image/video/ppt/embedding/structured-output).',
     ownershipRules: [
+      [
+        'p:apps/server/src/services/usage/ledgerReconciliation.ts',
+        'owned',
+        'extracted: ledger reconciliation',
+      ],
       ['p:apps/server/src/services/usage/', 'upstream', 'ledger merge in index.ts + cost.ts split'],
       [
         'p:apps/server/src/routers/lambda/usageInputSchemas.ts',
@@ -402,9 +535,19 @@ const MODULES = [
       'FileS3 routes runtime methods through getRuntimeS3() built from admin app_settings; preview caches keyed by active S3 config.',
     ownershipRules: [
       [
+        'p:apps/server/src/modules/S3/index.ts',
+        'upstream',
+        'barrel已化: routes FileS3 through getRuntimeS3() (upstream file, fork-modified)',
+      ],
+      [
+        'p:apps/server/src/modules/S3/index.test.ts',
+        'upstream',
+        'barrel tests (upstream file, fork-modified)',
+      ],
+      [
         'p:apps/server/src/modules/S3/',
         'owned',
-        'index.ts = upstream barrel; s3Client.ts (upstream base + fork methods), fileS3Runtime.ts (FileS3 override + TTL cache), envFileS3.ts',
+        's3Client.ts (upstream base + fork methods), fileS3Runtime.ts (FileS3 override + TTL cache), envFileS3.ts',
       ],
       ['p:apps/server/src/services/file/', 'upstream', 's3.ts impl reads config via getConfig()'],
       ['p:apps/server/src/services/connectorData/', 'upstream', 'S3 config usage'],
@@ -421,6 +564,11 @@ const MODULES = [
     description:
       'Admin default-agent settings layer + inbox runtime model preservation (user-updated inbox model/provider survives hydrate).',
     ownershipRules: [
+      [
+        'p:apps/server/src/services/agent/inboxModelGuard.ts',
+        'owned',
+        'extracted: inbox model guard',
+      ],
       [
         'p:apps/server/src/services/agent/',
         'upstream',
@@ -440,12 +588,6 @@ const MODULES = [
     ownershipRules: [
       ['p:src/const/appSettingsRegistry.ts', 'owned', 'APP_SETTING_KEYS registry'],
       ['p:src/server/services/appSettings/', 'owned', 'readers + 30s TTL cache + invalidation'],
-      ['p:src/config/', 'owned', 'composio config helpers'],
-      [
-        'p:packages/business-server/src/appSettings/',
-        'owned',
-        'public readers + CAS write helpers',
-      ],
       ['p:packages/builtin-tool-agent-builder/', 'upstream', 'executor tweaks'],
       ['p:packages/builtin-tool-agent-management/', 'upstream', 'executor tweaks'],
       ['p:packages/builtin-tool-group-agent-builder/', 'upstream', 'executor tweaks'],
@@ -454,6 +596,11 @@ const MODULES = [
       ['p:packages/const/src/url.ts', 'upstream', 'modelRatings webapi route'],
       ['p:packages/trpc/src/utils/', 'owned', 'clientIp extraction util + tests'],
       ['p:packages/database/src/schemas/newapiInstance.ts', 'owned', 'newapi instance schema'],
+      [
+        'p:packages/database/src/schemas/appSettingRevision.schema.test.ts',
+        'owned',
+        'appSettingRevision schema test',
+      ],
       [
         'p:apps/server/src/globalConfig/adminManagedProviders.ts',
         'owned',
@@ -467,7 +614,7 @@ const MODULES = [
       [
         'p:apps/server/src/globalConfig/',
         'upstream',
-        'server global config + memory extraction config',
+        'server global config + memory extraction config; conservative over-cover: also claims fork-new files (providerSpecificConfig, getServerAuthConfig/index.business tests)',
       ],
       ['p:apps/server/src/routers/lambda/config', 'upstream', 'config router extensions'],
       ['p:apps/server/src/routers/lambda/aiModel', 'upstream', 'admin-managed model lists'],
@@ -485,11 +632,14 @@ const MODULES = [
         'PublicCustomizationConfig + generation model config',
       ],
       ['p:packages/types/src/user/preference.ts', 'upstream', 'role exposure'],
-      ['p:src/business/server/', 'owned', 'lambda settings router + admin service'],
-      ['p:src/features/User/', 'upstream', 'help menu items from admin config'],
+      [
+        'p:src/features/User/',
+        'upstream',
+        'help menu items from admin config; conservative over-cover: also claims fork-new files (helpMenuItems)',
+      ],
     ],
     tests: [
-      'src/server/services/appSettings/__tests__/',
+      'src/server/services/appSettings/*.test.ts',
       'packages/business-server/src/appSettings/**/*.test.ts',
     ],
     notes:
@@ -504,14 +654,7 @@ const MODULES = [
     ownershipRules: [
       ['p:src/features/Admin/', 'owned', 'admin feature modules + tests'],
       ['p:src/routes/(main)/admin/', 'owned', 'admin routes'],
-      ['p:src/routes/(main)/settings/admin/', 'owned', 'settings admin section'],
       ['p:src/routes/(main)/settings/_layout/index.tsx', 'upstream', 'admin entry for admins'],
-      [
-        'p:src/features/Admin/DesktopControlCenter/',
-        'owned',
-        'desktop control center (see desktop-build-profile)',
-      ],
-      ['p:packages/business-server/src/lambda-routers/admin/', 'owned', '40+ admin router files'],
       ['p:packages/types/src/admin.ts', 'owned', 'admin capability types'],
       ['p:packages/trpc/src/lambda/index.ts', 'upstream', 'admin router mounting'],
       [
@@ -519,11 +662,19 @@ const MODULES = [
         'upstream',
         'admin/redemption/payment router mounting',
       ],
-      ['p:apps/server/src/services/user/', 'upstream', 'role in user service'],
+      [
+        'p:apps/server/src/services/user/',
+        'upstream',
+        'initNewUserForBusiness adds this.db param (role 字段落点在 packages/database/src/models/user.ts)',
+      ],
+      ['p:packages/database/src/models/user.ts', 'upstream', 'role field exposure'],
       ['p:src/features/NavPanel/', 'upstream', 'admin console path awareness'],
-      ['p:src/features/Settings/about/', 'upstream', 'admin-driven about/version content'],
+      [
+        'p:src/features/Settings/about/',
+        'upstream',
+        'admin-driven about/version content; conservative over-cover: also claims fork-new files (About.test.tsx)',
+      ],
       ['p:src/features/Settings/hooks/useCategory', 'upstream', 'admin settings category'],
-      ['p:packages/types/src/user/preference.ts', 'upstream', 'role field'],
     ],
     tests: [
       'src/features/Admin/**/*.test.*',
@@ -540,11 +691,29 @@ const MODULES = [
       'ComHub-owned src/app/[variants]/(auth) tree coexisting with upstream src/routes/auth; better-auth wiring, zh-CN default public locale, market auth providers.',
     ownershipRules: [
       ['p:src/app/[variants]/(auth)/', 'owned', '59-file parallel auth tree'],
-      ['p:src/libs/better-auth/', 'owned', 'define-config + tests'],
-      ['p:src/layout/', 'owned', 'auth layouts not under MarketAuth'],
+      [
+        'p:src/libs/better-auth/',
+        'upstream',
+        'upstream better-auth wiring: 47 files verbatim, only define-config.test.ts fork-modified',
+      ],
+      [
+        'p:src/layout/AuthProvider/MarketAuth/tokenStorage',
+        'owned',
+        'fork-new market auth token storage + tests',
+      ],
+      [
+        'p:src/layout/AuthProvider/MarketAuth/',
+        'upstream',
+        'market auth provider + types (fork-modified)',
+      ],
+      ['p:src/layout/SPAGlobalProvider/', 'upstream', 'SPA locale defaults (fork-modified)'],
+      [
+        'p:src/layout/',
+        'owned',
+        'fork-new layout files outside MarketAuth//SPAGlobalProvider (AnalyticsRSCProvider, GlobalProvider/StyleRegistry, FaviconProvider.test, auth tree layouts)',
+      ],
       ['p:src/app/(backend)/api/auth/', 'upstream', 'better-auth catch-all route'],
       ['p:src/libs/next/', 'upstream', 'proxy locale default + nextjsOnlyRoutes + Link adapter'],
-      ['p:src/layout/AuthProvider/MarketAuth/', 'upstream', 'market auth provider + types'],
       ['p:src/store/user/slices/auth/', 'upstream', 'better-auth client actions'],
       ['p:packages/types/src/user/settings/index.ts', 'upstream', 'market tokens setting'],
     ],
@@ -560,10 +729,22 @@ const MODULES = [
       'DingTalk-style four-tab mobile shell, workspace continuity (Recent/Desktop parity), shared route generators, workspace settings category gating.',
     ownershipRules: [
       ['p:src/features/MobileWorkspace/', 'owned', '54-file feature + tests'],
-      ['p:src/features/MobileHome/', 'owned', 'mobile home layouts'],
+      [
+        'p:src/features/MobileHome/',
+        'upstream',
+        'mobile home layouts (upstream dir; fork modified Layout, SessionHeader, Inbox, List items)',
+      ],
       ['p:src/const/mobileConfig.ts', 'owned', 'mobile config'],
-      ['p:src/spa/router/', 'upstream', 'mobileRouter.config + workspace routes'],
-      ['p:src/routes/(mobile)/', 'upstream', '16+ mobile pages'],
+      [
+        'p:src/spa/router/',
+        'upstream',
+        'mobileRouter.config + workspace routes; conservative over-cover: also claims fork-new files (mobileWorkspaceRoutes.tsx)',
+      ],
+      [
+        'p:src/routes/(mobile)/',
+        'upstream',
+        '16+ mobile pages; conservative over-cover: also claims fork-new files (pages/tests)',
+      ],
       ['p:src/features/WorkspaceSetting/', 'upstream', 'category gating (Devices default)'],
       ['p:src/components/server/MobileNavLayout.tsx', 'upstream', 'mobile nav layout'],
       [
@@ -571,7 +752,11 @@ const MODULES = [
         'owned',
         'extracted: mobile workspace recent query + latest-topics-by-parents (types, cursor codec, SYSTEM_TOPIC_TRIGGERS)',
       ],
-      ['p:packages/database/src/models/', 'upstream', 'recent.ts MobileWorkspace query API'],
+      [
+        'p:packages/database/src/models/recent.ts',
+        'upstream',
+        'MobileWorkspace recent query API (rest of models/ claimed per-file elsewhere)',
+      ],
       [
         'p:apps/server/src/routers/lambda/recentMobileWorkspaceEndpoint.ts',
         'owned',
@@ -582,7 +767,11 @@ const MODULES = [
         'upstream',
         'delegates recent mappers + types to recentMobileWorkspaceEndpoint.ts (hookExtracted); getMobileWorkspace endpoint wiring remains',
       ],
-      ['p:src/services/recent/', 'upstream', 'recent service'],
+      [
+        'p:src/services/recent/',
+        'upstream',
+        'recent service; conservative over-cover: also claims fork-new files (index.test.ts)',
+      ],
       ['p:src/types/workspaceSettings', 'upstream', 'workspace settings types'],
     ],
     tests: ['src/features/MobileWorkspace/**/*.test.*', 'src/spa/router/mobileRouter.test.tsx'],
@@ -597,19 +786,26 @@ const MODULES = [
       'Local onboarding agent templates, fork-and-chat community flow, market/discover services, expert plaza entries.',
     ownershipRules: [
       ['p:src/const/onboardingAgentTemplates.ts', 'owned', 'local agent templates'],
-      ['p:packages/const/src/onboardingAgentTemplates.ts', 'owned', 'const package copy'],
-      ['p:src/features/DesktopOnboarding/', 'owned', 'desktop onboarding'],
+      [
+        'p:src/features/DesktopOnboarding/',
+        'upstream',
+        'desktop onboarding (upstream dir; fork modified Layout/index, LobeMessage, LoginStep)',
+      ],
       ['p:src/features/Onboarding/', 'upstream', 'agent picker + telemetry brand'],
-      ['p:src/features/CommunitySkillDetail/', 'upstream', 'skill platform labels'],
+      [
+        'p:src/features/CommunitySkillDetail/',
+        'upstream',
+        'skill platform labels; conservative over-cover: also claims fork-new files (Platform.test.tsx)',
+      ],
       [
         'p:src/routes/(main)/community/',
         'upstream',
-        'fork-and-chat buttons, mcp/skill detail pages',
+        'fork-and-chat buttons, mcp/skill detail pages; conservative over-cover: also claims fork-new files (detail tests, workspace loading)',
       ],
       [
         'p:apps/server/src/services/market/marketSkillFallback.ts',
         'owned',
-        'skill auth-error fallback + public sitemap + placeholder normalization',
+        'extracted: skill auth-error fallback + public sitemap + placeholder normalization',
       ],
       [
         'p:apps/server/src/services/market/index.ts',
@@ -617,11 +813,15 @@ const MODULES = [
         'delegates searchSkill/getSkillDetail fallbacks to marketSkillFallback.ts (hookExtracted)',
       ],
       [
+        'p:apps/server/src/services/market/',
+        'upstream',
+        'market SDK service; conservative over-cover: also claims fork-new files',
+      ],
+      [
         'p:apps/server/src/services/placeholderNormalization.ts',
         'owned',
-        'shared placeholder cleanup for market/discover catalogue items (normalizeCatalogItem/ListResponse)',
+        'extracted: shared placeholder cleanup for market/discover catalogue items (normalizeCatalogItem/ListResponse)',
       ],
-      ['p:apps/server/src/services/market/', 'upstream', 'market SDK service'],
       [
         'p:apps/server/src/services/discover/',
         'upstream',
@@ -651,9 +851,14 @@ const MODULES = [
       ['p:apps/module-runtime/', 'owned', 'module runtime app'],
       ['p:apps/module-worker/', 'owned', 'worker + integration test (aws-cli gate)'],
       ['p:packages/module-app-', 'owned', 'build + sdk packages'],
-      ['p:apps/server/src/services/moduleApp', 'owned', '8 moduleApp services'],
+      ['p:apps/server/src/services/moduleApp', 'owned', '7 moduleApp* services'],
       ['p:apps/server/src/workflows/', 'owned', 'moduleApp schedule dispatcher'],
-      ['p:packages/database/src/schemas/moduleApp.ts', 'owned', 'schema'],
+      ['p:packages/database/src/schemas/moduleApp', 'owned', 'schema + schema test'],
+      [
+        'p:packages/database/src/models/__tests__/moduleApp',
+        'owned',
+        'moduleApp model tests (marketplace/ownership/commerce/credit/payment/...)',
+      ],
       [
         'p:packages/database/src/models/moduleApp',
         'owned',
@@ -684,7 +889,7 @@ const MODULES = [
       [
         'p:apps/server/src/router-hono/workflows/task/',
         'upstream',
-        'scheduleDispatch delegates moduleApp hook to moduleAppScheduleHook.ts (hookExtracted)',
+        'scheduleDispatch delegates moduleApp hook to moduleAppScheduleHook.ts (hookExtracted); conservative over-cover: also claims fork-new files (scheduleDispatch.test.ts)',
       ],
       ['p:apps/server/package.json', 'upstream', 'module-app-build dependency'],
       ['p:apps/desktop/pnpm-workspace.yaml', 'upstream', 'module-app-build workspace entry'],
@@ -694,7 +899,7 @@ const MODULES = [
     tests: [
       'apps/module-worker/src/integration.test.ts',
       'src/features/ModuleAppMarket/',
-      'apps/server/src/services/moduleApp',
+      'apps/server/src/services/moduleApp*/',
     ],
     notes:
       'module-app-s3-init uses digest-pinned public.ecr.aws/aws-cli (Quay minio/* went private 2026-09). Never revert to minio/mc. Cleanup only accepts generated module-apps/<app>/<run>/ keys.',
@@ -707,16 +912,32 @@ const MODULES = [
       'Point-edits in upstream UI that wire ComHub features in: sidebar admin entry + brand defaults, settings categories, provider visibility filter, model switcher, home layout, chat input flags, store slices.',
     plannedExtraction: true,
     ownershipRules: [
-      ['p:src/features/HomeSidebar/', 'upstream', 'customize modal, footer, nav entries'],
-      ['p:src/features/Home/', 'upstream', 'input area banner gating, agent select defaults'],
-      ['p:src/features/Settings/', 'upstream', 'layout/categories/provider filter/SSO/profile'],
+      [
+        'p:src/features/HomeSidebar/',
+        'upstream',
+        'customize modal, footer, nav entries; conservative over-cover: also claims fork-new files (InboxEntry, helpMenuItems)',
+      ],
+      [
+        'p:src/features/Home/',
+        'upstream',
+        'input area banner gating, agent select defaults; conservative over-cover: also claims fork-new files (CommunityAgents, InputArea banners/starter list, SuggestQuestions)',
+      ],
+      [
+        'p:src/features/Settings/',
+        'upstream',
+        'layout/categories/provider filter/SSO/profile; conservative over-cover: also claims fork-new files (SettingsContent.test, filterProviders)',
+      ],
       [
         'p:src/features/ModelSwitchPanel/',
         'upstream',
-        'multi-provider dedup + price summary + business rating prefetch',
+        'multi-provider dedup + price summary + business rating prefetch; conservative over-cover: also claims fork-new files (ModelRowMeta/Render, metaColumns, useModelEffortLabel)',
       ],
       ['p:src/features/ModelSelect/', 'upstream', 'selectedValue normalization'],
-      ['p:src/features/Conversation/', 'upstream', 'agent meta default name, usage token progress'],
+      [
+        'p:src/features/Conversation/',
+        'upstream',
+        'agent meta default name, usage token progress; conservative over-cover: also claims fork-new files (installMarketplaceAgents, TokenProgress.test)',
+      ],
       [
         'p:src/features/ChatInput/InputEditor/InputFloatMenu.tsx',
         'owned',
@@ -727,8 +948,16 @@ const MODULES = [
         'upstream',
         'delegates InputFloatMenu to InputFloatMenu.tsx (hookExtracted); math plugin renderComp wiring remains',
       ],
-      ['p:src/features/ChatInput/', 'upstream', 'disableMention/disableSlash flags'],
-      ['p:src/features/SkillStore/', 'upstream', 'market items normalization + default skill name'],
+      [
+        'p:src/features/ChatInput/',
+        'upstream',
+        'disableMention/disableSlash flags; conservative over-cover: also claims fork-new files (ActionTagView, imports.test)',
+      ],
+      [
+        'p:src/features/SkillStore/',
+        'upstream',
+        'market items normalization + default skill name; conservative over-cover: also claims fork-new files (AgentSkillItem, Community, normalizeMarketItems)',
+      ],
       ['p:src/features/MCP/', 'upstream', 'mcp detail via discover service'],
       ['p:src/features/AgentHome/', 'upstream', 'agent info default name'],
       ['p:src/features/AgentSidebar/', 'upstream', 'header agent entry'],
@@ -751,7 +980,11 @@ const MODULES = [
       ['p:src/services/thread/index.ts', 'upstream', 'thread service tweaks'],
       ['p:src/spa/entry.web.tsx', 'upstream', 'SPA web entry adjustments'],
       ['p:src/proxy.test.ts', 'upstream', 'proxy route tests'],
-      ['p:src/routes/(main)/', 'upstream', 'home/group/apps/create/memory routes'],
+      [
+        'p:src/routes/(main)/',
+        'upstream',
+        'home/group/apps/create/memory routes; conservative over-cover: also claims fork-new files (create/ppt-video, agent/cron, apps subpages, downloads, experts, fleet, topup)',
+      ],
       ['p:src/routes/', 'owned', 'route files not under (main)/(mobile)'],
       [
         'p:src/store/aiInfra/slices/aiProvider/sliceHelpers.ts',
@@ -763,22 +996,41 @@ const MODULES = [
         'upstream',
         'delegates helpers to sliceHelpers.ts (hookExtracted); per-callsite getAiProviderService() lines remain',
       ],
-      ['p:src/store/', 'upstream', 'global/aiInfra/discover/user/image/video/tree/utils slices'],
-      ['p:src/hooks/', 'upstream', 'useNavLayout brand entries, useFetchAgentList'],
+      [
+        'p:src/store/',
+        'upstream',
+        'global/aiInfra/discover/user/image/video/tree/utils slices; conservative over-cover: also claims fork-new files (createAgentExecutors + fixtures, initialState.test, crud action.test)',
+      ],
+      [
+        'p:src/hooks/',
+        'upstream',
+        'useNavLayout brand entries, useFetchAgentList; conservative over-cover: also claims fork-new files (useIsCloudActive)',
+      ],
       [
         'p:src/components/',
         'upstream',
-        'ModelSelect priceLabel, StatisticCard, StreamingMarkdown, mdx Image, errorResponse consumers',
+        'ModelSelect priceLabel, StatisticCard, StreamingMarkdown, mdx Image, errorResponse consumers; conservative over-cover: also claims fork-new files (SkillSourceTag, SuspenseRouteBoundary, antd-compat, FeatureList, HtmlPreview scanner)',
       ],
       ['p:src/libs/swr/keys.ts', 'upstream', 'SWR keys'],
       ['p:src/const/', 'owned', 'fork consts not covered elsewhere'],
+      ['p:src/types/spaServerConfig', 'upstream', 'SPABrandConfig types'],
       ['p:src/types/', 'owned', 'fork types not covered elsewhere'],
-      ['p:src/utils/', 'owned', 'fork utils (navigation, errorResponse is upstream)'],
+      ['p:src/utils/errorResponse', 'upstream', 'internal error sanitization'],
+      ['p:src/utils/navigation.ts', 'upstream', 'isExternalUrl helper'],
+      ['p:src/utils/', 'owned', 'fork utils not covered elsewhere'],
       ['p:src/proxy.ts', 'upstream', 'SPA route list'],
-      ['p:packages/app-config/src/routes/', 'upstream', 'nav route catalog (experts/ppt)'],
+      [
+        'p:packages/app-config/src/routes/',
+        'upstream',
+        'nav route catalog (experts/ppt); conservative over-cover: also claims fork-new files (index.test.ts)',
+      ],
       ['p:packages/types/src/user/settings/', 'upstream', 'image settings defaults'],
       ['p:apps/server/src/routers/lambda/user.ts', 'upstream', 'avatar preset whitelist'],
-      ['p:packages/types/src/', 'upstream', 'types not covered elsewhere'],
+      [
+        'p:packages/types/src/',
+        'upstream',
+        'types not covered elsewhere; conservative over-cover: also claims fork-new files (admin*/moduleApp*/payment/business types)',
+      ],
     ],
     tests: ['co-located *.test.* files under each listed dir'],
     notes:
@@ -806,10 +1058,21 @@ const MODULES = [
     ownershipRules: [
       ['p:src/server/', 'owned', 'spaHtml.ts, translation.ts, metadata.ts'],
       ['p:src/libs/spaHtml/', 'upstream', 'shared HTML builder'],
-      ['p:src/app/spa/', 'upstream', 'SPA route with brand injection'],
-      ['p:src/types/spaServerConfig', 'upstream', 'SPABrandConfig types'],
-      ['p:scripts/copySpaBuildCore.ts', 'owned', 'build copy logic'],
-      ['p:scripts/generateSpaTemplates.mts', 'owned', 'template generation'],
+      [
+        'p:src/app/spa/',
+        'upstream',
+        'SPA route with brand injection; conservative over-cover: also claims fork-new files (route.test.ts)',
+      ],
+      [
+        'p:scripts/copySpaBuildCore.ts',
+        'upstream',
+        'build copy logic (upstream file, fork-modified)',
+      ],
+      [
+        'p:scripts/generateSpaTemplates.mts',
+        'upstream',
+        'template generation (upstream file, fork-modified)',
+      ],
       ['p:vite.config.ts', 'upstream', 'mobile html fallback + dedupe aliases'],
     ],
     tests: ['src/libs/spaHtml/index.test.ts', 'src/server/services/brand/__tests__/'],
@@ -823,18 +1086,39 @@ const MODULES = [
     description:
       'ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.',
     ownershipRules: [
-      ['p:.github/workflows/comhub-', 'owned', 'build/deploy/deploy-worker/pr-check/upstream-sync'],
+      [
+        'p:.github/workflows/comhub',
+        'owned',
+        'build/deploy/deploy-worker/pr-check/upstream-sync + comhubDeploymentWorkflows.test.mjs (upstream has no comhub* workflows)',
+      ],
+      ['p:.github/workflows/codeql.yml', 'owned', 'fork-new: codeql workflow'],
+      [
+        'p:.github/workflows/dependency-review.yml',
+        'owned',
+        'fork-new: dependency review workflow',
+      ],
       [
         'p:.github/workflows/',
         'upstream',
-        'tolerance guards in verify-share/verify-workbench/claude-pr-assign; OTA release workflow',
+        'tolerance guards in verify-share/verify-workbench/claude-pr-assign; OTA release workflow; 8 upstream workflows deleted (auto-tag-release/bundle-analyzer/e2e/pr-build-desktop/release-desktop-beta/canary/stable/test); pr-build-docker + release-docker action version upgrades; release-sdk node version upgrade; manual-build-desktop.yml unmodified',
       ],
       ['p:.github/scripts/', 'owned', 'FTS history + bundle gates'],
       ['p:.github/actions/', 'upstream', 'setup-env node pin'],
       ['p:scripts/comhub-upstream-sync/', 'owned', 'sync tooling'],
+      ['p:scripts/comhub-customizations/', 'owned', 'registry + gates'],
       ['p:scripts/dockerWorkspaceManifests.test.ts', 'upstream', 'compose manifest contract test'],
-      ['p:docker-compose/', 'upstream', 'grafana/prometheus templates (dead minio known)'],
+      [
+        'p:docker-compose/deploy/',
+        'owned',
+        'fork-new deploy composes: module-worker/ + paradedb/ (module-runtime.yml claimed by module-app-platform)',
+      ],
+      [
+        'p:docker-compose/',
+        'upstream',
+        'grafana/prometheus templates (dead minio known); conservative over-cover: also claims fork-new files (module-app-alerts.yml)',
+      ],
       ['p:Dockerfile', 'upstream', 'COMHUB_* build args'],
+      ['p:src/app/(backend)/api/version/route.test.ts', 'owned', 'deployment metadata route tests'],
       ['p:src/app/(backend)/api/version/', 'upstream', 'deployment metadata route'],
       ['p:docs/development/upstream-sync-reports/', 'owned', 'generated sync reports'],
     ],
@@ -858,9 +1142,16 @@ const MODULES = [
       ['p:packages/builtin-tool-lobe-agent/package.json', 'upstream', '@lobehub/editor pin 4.27.3'],
       ['p:packages/builtin-tools/package.json', 'upstream', '@lobehub/icons pin 5.21.0'],
       ['p:packages/heterogeneous-agents/package.json', 'upstream', '@lobehub/icons pin 5.21.0'],
-      ['p:packages/model-bank/package.json', 'upstream', 'export map + observability dep'],
-      ['p:packages/observability-otel/', 'upstream', 'electron dep bump'],
-      ['p:packages/electron-client-ipc/', 'upstream', 'electron dep bump + execa'],
+      [
+        'p:packages/observability-otel/',
+        'upstream',
+        'module-app OTel metrics（exports ./modules/module-app + 2 个新文件）；electron 依赖从未存在; conservative over-cover: also claims fork-new files',
+      ],
+      [
+        'p:packages/electron-client-ipc/',
+        'upstream',
+        'electron 43.2.0→43.5.0（execa 实际加在 packages/heterogeneous-agents）',
+      ],
     ],
     tests: [],
     notes:
@@ -878,7 +1169,11 @@ const MODULES = [
         'upstream',
         'resolveCliCommand win32 paths, builtin MCP error surface',
       ],
-      ['p:packages/local-file-shell/', 'upstream', 'windows content search argv'],
+      [
+        'p:packages/local-file-shell/',
+        'upstream',
+        'windows content search argv; conservative over-cover: also claims fork-new files (windows.test.ts)',
+      ],
       ['p:packages/agent-runtime/', 'upstream', 'llmErrorClassifier code precedence'],
       ['p:packages/memory-user-memory/', 'upstream', 'structured result parsing'],
       ['p:packages/web-crawler/', 'upstream', 'mode change only'],
@@ -887,13 +1182,46 @@ const MODULES = [
         'upstream',
         'executor tweaks (representative; sibling builtin-tool-* follow the same rule)',
       ],
+      [
+        'p:packages/trpc/src/lambda/middleware/adminPermissions.ts',
+        'owned',
+        'extracted: admin permissions middleware',
+      ],
+      [
+        'p:packages/trpc/src/lambda/middleware/requireSuperAdmin.ts',
+        'owned',
+        'extracted: super admin middleware',
+      ],
+      [
+        'p:packages/trpc/src/lambda/middleware/__tests__/adminPermissions.test.ts',
+        'owned',
+        'adminPermissions middleware tests',
+      ],
+      [
+        'p:packages/trpc/src/lambda/middleware/__tests__/requireSuperAdmin.test.ts',
+        'owned',
+        'requireSuperAdmin middleware tests',
+      ],
+      [
+        'p:packages/trpc/src/lambda/middleware/marketUserInfo.test.ts',
+        'owned',
+        'marketUserInfo middleware tests',
+      ],
       ['p:packages/trpc/src/lambda/', 'upstream', 'clientIp extraction, middleware ordering'],
       ['p:packages/utils/', 'upstream', 'apiKey prefix fallback, url sanitization, responsive'],
       ['p:packages/const/src/settings/', 'upstream', 'autoCreateTopic settings'],
       ['p:packages/const/src/protocol.ts', 'upstream', 'electron protocol const'],
-      ['p:packages/openapi/', 'upstream', 'operationId util + chat metadata'],
+      [
+        'p:packages/openapi/',
+        'upstream',
+        'operationId util + chat metadata; conservative over-cover: also claims fork-new files (operationId util + test)',
+      ],
       ['p:packages/sdk/', 'upstream', 'regenerated client'],
-      ['p:packages/env/', 'upstream', 'APP_URL precedence'],
+      [
+        'p:packages/env/',
+        'upstream',
+        'APP_URL precedence; conservative over-cover: also claims fork-new files (app.alipay, app.module-app-controls tests)',
+      ],
       ['p:packages/app-config/', 'upstream', 'db env schema'],
       ['p:packages/types/', 'upstream', 'agent chatConfig, fetch, error codes'],
       [
@@ -904,7 +1232,12 @@ const MODULES = [
       ['p:packages/database/src/schemas/topic.ts', 'upstream', 'workspace agent/group indexes'],
       ['p:packages/database/src/schemas/workspace.ts', 'upstream', 'comment cleanup'],
       ['p:packages/database/src/models/__tests__/', 'upstream', 'model test updates'],
-      ['p:packages/agent-tracing/', 'upstream', 'cli error surface'],
+      [
+        'p:packages/database/src/models/',
+        'upstream',
+        'upstream model files modified by the fork (agentShare/aiModel/embedding/generationTopic)',
+      ],
+      ['p:packages/agent-tracing/', 'upstream', 'mode change only (100755→100644)'],
       [
         'p:apps/server/src/routers/lambda/userMemoryTrigger.ts',
         'owned',
@@ -925,22 +1258,34 @@ const MODULES = [
         'upstream',
         'delegates runtime targets/init/cache-key to memoryRuntimeTargets.ts (hookExtracted)',
       ],
-      ['p:apps/server/src/services/memory/', 'upstream', 'extraction config + runtime targets'],
+      [
+        'p:apps/server/src/services/memory/',
+        'upstream',
+        'extraction config + runtime targets; conservative over-cover: also claims fork-new files (extract.progress.test.ts)',
+      ],
       ['p:apps/server/src/services/taskTemplate/', 'upstream', 'task template tweaks'],
       ['p:apps/server/src/services/toolExecution/', 'upstream', 'memory server runtime'],
       ['p:apps/server/src/services/mcp/', 'upstream', 'content processor'],
       ['p:apps/server/src/router-hono/workflows/', 'upstream', 'qstash client availability guards'],
-      ['p:apps/server/src/routers/', 'upstream', 'routers not covered elsewhere'],
-      ['p:apps/server/src/', 'upstream', 'catch-all for remaining server files'],
+      [
+        'p:apps/server/src/routers/',
+        'upstream',
+        'routers not covered elsewhere; conservative over-cover: also claims fork-new files (moduleApp routers, docmee, mobileDesign, agentCronJob, recent/usage tests)',
+      ],
+      [
+        'p:apps/server/src/',
+        'upstream',
+        'catch-all for remaining server files; conservative over-cover: also claims fork-new files (desktopBuild services, nodemailer test, placeholderNormalization.test)',
+      ],
       [
         'p:patches/',
         'upstream',
         'qstash patch (otel caching + error logging); watch for @upstash/qstash floating-resolve rot',
       ],
+      ['p:src/libs/qstash/index.test.ts', 'owned', 'fork-new qstash otel cache tests'],
       ['p:src/libs/qstash/', 'upstream', 'otel client caching'],
+      ['p:src/libs/composio/', 'upstream', 'composio client lib (fork-modified index.ts)'],
       ['p:src/libs/', 'owned', 'fork libs not covered elsewhere'],
-      ['p:src/utils/errorResponse', 'upstream', 'internal error sanitization'],
-      ['p:packages/model-runtime/', 'upstream', 'see commercial-billing (hooks live there)'],
     ],
     tests: ['co-located suites'],
     notes:
@@ -953,33 +1298,77 @@ const MODULES = [
     description:
       'Root configs, agent skills, docs, workspace packaging, FTS repo governance — repo-level plumbing that upstream also evolves.',
     ownershipRules: [
-      ['p:.agents/', 'upstream', 'agent skill scripts + skills symlinks'],
+      [
+        'p:.agents/',
+        'upstream',
+        'agent skill scripts + skills symlinks; conservative over-cover: also claims fork-new files (smoke scripts, resume/setup, skills)',
+      ],
       ['p:.claude/', 'upstream', 'skills symlink'],
       ['p:.codex/', 'upstream', 'skills symlink'],
-      ['p:.cursor/', 'upstream', 'skills symlink'],
+      [
+        'p:.cursor/',
+        'upstream',
+        'skills symlink; conservative over-cover: also claims fork-new files (project-governance.mdc)',
+      ],
       ['p:.conductor/', 'upstream', 'setup script'],
       ['p:.githooks/', 'upstream', 'pre-commit mode'],
       ['p:.superpowers/', 'owned', 'sdd reports'],
       ['p:.github/', 'upstream', 'CODEOWNERS + repo meta'],
-      ['p:package.json', 'upstream', 'root scripts/deps'],
       ['p:tsconfig.json', 'upstream', 'paths block'],
       ['p:vitest.config.mts', 'upstream', 'aliases + excludes'],
       ['p:drizzle.config.ts', 'upstream', 'drizzle config'],
-      ['p:plugins/vite/', 'upstream', 'node module stub'],
+      [
+        'p:plugins/vite/',
+        'upstream',
+        'node module stub; conservative over-cover: also claims fork-new files (mobileHtmlFallback, nodeModuleStub tests)',
+      ],
       ['p:packages/database/vitest.config.mts', 'upstream', 'db test aliases'],
       ['p:packages/database/package.json', 'upstream', 'exports'],
-      ['p:packages/types/src/index.ts', 'upstream', 'type re-exports'],
       ['p:packages/business-server/package.json', 'upstream', 'test scripts + deps'],
       ['p:packages/business-server/vitest.config.mts', 'owned', 'business-server tests'],
       ['p:pnpm-lock.yaml', 'owned', 'root lockfile'],
-      ['p:tests/', 'owned', 'shared test mocks/utils'],
-      ['p:docs/', 'owned', 'fork docs (ledger lives in repo-infra entry)'],
-      ['p:scripts/', 'upstream', 'root scripts not covered elsewhere'],
-      ['p:apps/server/', 'owned', 'server app shell files'],
-      ['p:apps/auth/', 'owned', 'auth app scripts'],
-      ['p:apps/cli/', 'owned', 'cli app'],
-      ['p:apps/share/', 'owned', 'share app'],
-      ['p:apps/workbench/', 'owned', 'workbench app'],
+      [
+        'p:tests/',
+        'upstream',
+        'shared test mocks/utils (upstream dir); conservative over-cover: also claims fork-new files (emojiMart mocks)',
+      ],
+      [
+        'p:docs/development/comhub-upstream-customizations.md',
+        'owned',
+        'fork customization ledger (historical narrative)',
+      ],
+      [
+        'p:docs/development/comhub-customization-registry.md',
+        'owned',
+        'registry human-readable report (regenerated by report.mjs)',
+      ],
+      [
+        'p:docs/',
+        'upstream',
+        'upstream docs (database-schema.dbml fork-modified); conservative over-cover: also claims fork-new files (fork docs at docs/ root, docs/superpowers/specs, etc.)',
+      ],
+      [
+        'p:scripts/',
+        'upstream',
+        'root scripts not covered elsewhere; conservative over-cover: also claims fork-new files (deploy scripts, seeds, removePaths, runDpdm, packageManagerPolicy, copySpaBuildCore.test)',
+      ],
+      [
+        'p:apps/server/',
+        'upstream',
+        'server app shell (src/ claimed by runtime-quality, package.json by module-app-platform)',
+      ],
+      [
+        'p:apps/auth/',
+        'upstream',
+        'auth app scripts (build.mjs fork-modified); conservative over-cover: also claims fork-new files (packageBin scripts)',
+      ],
+      [
+        'p:apps/cli/',
+        'upstream',
+        'cli app (package.json + program.ts fork-modified); conservative over-cover: also claims fork-new files (module-app command, moduleApp devServer/project)',
+      ],
+      ['p:apps/share/', 'upstream', 'share app (no current diff; future-proofing)'],
+      ['p:apps/workbench/', 'upstream', 'workbench app (no current diff; future-proofing)'],
       ['p:README.md', 'upstream', 'fork readme rewrite'],
       ['p:SECURITY.md', 'upstream', 'fork security policy'],
       ['p:CONTRIBUTING.md', 'upstream', 'fork contributing'],

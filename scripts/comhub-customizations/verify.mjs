@@ -28,6 +28,50 @@ const baseline =
   process.env.COMHUB_UPSTREAM_BASELINE ||
   'v2.2.18';
 
+/**
+ * Diff-line budget for every registry rule whose sync note marks an upstream
+ * file delegating logic to a fork-owned extracted module: the canonical
+ * "(hookExtracted)" tag plus the "(shared-helper extraction: …)" spelling for
+ * delegates that share one owned helper (registry.test.mjs requires only that
+ * the helper sits earlier in the same module, so tag wording may drift — both
+ * spellings are budgeted so a delegate cannot escape the gate by re-tagging).
+ * The delegation is only cheaper than keeping the logic inline while the
+ * upstream file stays slim. This gate bounds the total diff (added + deleted)
+ * vs the upstream baseline per rule path so a "delegate" cannot quietly grow
+ * back into the inlined original.
+ *
+ * Why a loose total: numstat sums churn, and a pure re-indent (e.g. wrapping a
+ * .catch block) inflates added+deleted with phantom lines, so the threshold is
+ * a forgiving total, not a tight per-line budget.
+ *
+ * Measured baseline (2026-10-07, HEAD 453e7ea5ad49, sum of
+ * `git diff --numstat v2.2.18 HEAD -- <rule path>`):
+ *   327  apps/server/src/routers/lambda/image          (index.ts 269 + fork-new index.test.ts 58)
+ *   232  apps/server/src/services/memory/userMemory/extract.ts
+ *   224  apps/server/src/router-hono/workflows/task
+ *   199  apps/server/src/services/generation
+ *   156  apps/server/src/routers/lambda/video       (shares generationBillingGuard.ts helper with image)
+ *   148  apps/server/src/globalConfig/index.ts
+ *   127  apps/server/src/services/discover
+ *    79  apps/server/src/routers/lambda/recent.ts
+ *    71  src/store/aiInfra/slices/aiProvider/action.ts
+ *    52  apps/server/src/services/market/index.ts
+ *    48  apps/server/src/routers/lambda/userMemory.ts
+ *    45  packages/database/src/repositories/aiInfra/index.ts
+ *    39  apps/server/src/routers/lambda/usage.ts
+ *    20  src/features/ChatInput/InputEditor/index.tsx
+ *    18  packages/business-server/src/model-runtime.ts
+ * max = 327 → ceil10(327 × 1.2) = 400 (never below the 300 floor).
+ */
+const HOOK_EXTRACTED_MAX_DIFF_LINES = 400;
+
+// Note markers that pull an upstream rule path into the delegate diff budget:
+// "(hookExtracted)" is the canonical tag; "(shared-helper extraction: …)" is
+// the shared-helper spelling (several upstream delegates, one owned helper —
+// routers/lambda/image and routers/lambda/video both delegate to
+// generationBillingGuard.ts). Each matched rule path is budgeted individually.
+const DELEGATE_NOTE_MARKER_RE = /\((?:hookExtracted|shared-helper extraction)\b/;
+
 const { UPSTREAM_BASELINE_TAG, registryModules, findModuleForPath } = await import(
   new URL('./registry.mjs', import.meta.url).href
 );
@@ -155,6 +199,56 @@ if (missingUpstreamPaths.length > 0) {
     `\n  Upstream deleted/renamed these paths. Update the owning module's rules\n` +
       `  (re-point to the new path, or fold into the new owner module).`,
   );
+}
+
+// Delegate diff budget: every rule noted "(hookExtracted)" or the shared-helper
+// spelling "(shared-helper extraction: …)" gets its added+deleted churn vs the
+// baseline summed (directory rules cover all files under them) and held under
+// HOOK_EXTRACTED_MAX_DIFF_LINES.
+const hookExtractedPaths = new Set();
+for (const module of registryModules) {
+  for (const [match, , note] of module.ownershipRules) {
+    if (!note || !DELEGATE_NOTE_MARKER_RE.test(note)) continue;
+    if (!match.startsWith('p:')) continue; // regex rules have no concrete path
+    hookExtractedPaths.add(match.slice(2).replace(/\/$/, ''));
+  }
+}
+const hookExtractedLines = new Map();
+for (const hookPath of hookExtractedPaths) {
+  const out = git(['diff', '--numstat', effectiveBaseline, 'HEAD', '--', hookPath]);
+  let lines = 0;
+  for (const line of out.split('\n')) {
+    if (!line.trim()) continue;
+    const [added, deleted] = line.split('\t');
+    lines += (Number(added) || 0) + (Number(deleted) || 0); // binary rows ("-") count 0
+  }
+  hookExtractedLines.set(hookPath, lines);
+}
+const hookExtractedOver = [...hookExtractedLines].filter(
+  ([, lines]) => lines > HOOK_EXTRACTED_MAX_DIFF_LINES,
+);
+if (hookExtractedOver.length > 0) {
+  failed = true;
+  console.error(
+    `\n✗ ${hookExtractedOver.length} hookExtracted delegate path(s) over the diff budget ` +
+      `(${HOOK_EXTRACTED_MAX_DIFF_LINES} added+deleted lines vs ${effectiveBaseline}):`,
+  );
+  for (const [hookPath, lines] of hookExtractedOver) {
+    console.error(`  ${String(lines).padStart(5)} / ${HOOK_EXTRACTED_MAX_DIFF_LINES}  ${hookPath}`);
+  }
+  console.error(
+    `\n  A delegate file is growing back toward the inlined original. Move the new\n` +
+      `  logic into the extracted fork-owned module, or — if the growth is genuinely\n` +
+      `  delegate-shaped — raise HOOK_EXTRACTED_MAX_DIFF_LINES in this script and\n` +
+      `  record the new per-file baseline in its comment.`,
+  );
+} else {
+  console.log(
+    `\nhookExtracted delegate diff budget (added+deleted vs ${effectiveBaseline}, max ${HOOK_EXTRACTED_MAX_DIFF_LINES}):`,
+  );
+  for (const [hookPath, lines] of [...hookExtractedLines].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${String(lines).padStart(5)}  ${hookPath}`);
+  }
 }
 
 if (failed) process.exit(1);
