@@ -1,6 +1,6 @@
 import { ConfigProvider } from '@lobehub/ui';
 import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,10 +64,12 @@ const runtimeSettings = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) =>
+    t: (key: string, fallbackOrValues?: string | Record<string, unknown>) =>
       key === 'admin.defaultSettings.aiRuntime.saveAndSync'
         ? '保存并同步记忆模型'
-        : (fallback ?? key),
+        : typeof fallbackOrValues === 'string'
+          ? fallbackOrValues
+          : key,
   }),
 }));
 
@@ -157,6 +159,12 @@ describe('AdminDefaultSettingsPage runtime models', () => {
       expect(provider).toHaveAttribute('readonly');
       await waitFor(() => expect(provider).toHaveValue(pair.value));
     }
+    // SWR-driven provider resolution can finish one tick after this test
+    // tears down; react-dom's scheduler then throws "window is not defined"
+    // as an unhandled error in a later worker and fails the whole suite.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('renders a revision conflict alert instead of hiding the save cause', async () => {
@@ -181,8 +189,14 @@ describe('AdminDefaultSettingsPage runtime models', () => {
     await waitFor(() =>
       expect(screen.getByText(/APP_SETTINGS_REVISION_CONFLICT/)).toBeInTheDocument(),
     );
+    // handleSave closes with `setSubmitting(false)` in a finally block; under
+    // suite load that state update can land after teardown, and react-dom's
+    // scheduler then throws "window is not defined" as an unhandled error in
+    // a later worker and fails the whole suite. Flush it before returning.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
-
   it('refreshes the canonical server config cache after saving runtime defaults', async () => {
     vi.mocked(mutate).mockClear();
 
@@ -195,6 +209,9 @@ describe('AdminDefaultSettingsPage runtime models', () => {
     fireEvent.click(await screen.findByRole('button', { name: '保存设置' }));
 
     await waitFor(() => expect(mutate).toHaveBeenCalledWith(serverConfigKeys.get));
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('saves and synchronizes runtime memory models after admin confirmation', async () => {
@@ -227,5 +244,8 @@ describe('AdminDefaultSettingsPage runtime models', () => {
     ).toBeLessThan(
       vi.mocked(adminCommercialService.syncRuntimeMemoryModelsToUsers).mock.invocationCallOrder[0],
     );
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 });
