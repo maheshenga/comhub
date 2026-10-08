@@ -487,6 +487,9 @@ describe('AdminMobileSettingsPage', () => {
 
     expect(await screen.findByText('Failed to save mobile settings.')).toBeInTheDocument();
     expect(refreshMobileConfig).not.toHaveBeenCalled();
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('publishes the saved draft from the current revision and refreshes public mobile config', async () => {
@@ -526,6 +529,13 @@ describe('AdminMobileSettingsPage', () => {
     );
     expect(await screen.findByText('Mobile settings published.')).toBeInTheDocument();
     expect(refreshMobileConfig).toHaveBeenCalledTimes(1);
+    // The publish/save chains close with guarded setSaving/setPublishing
+    // updates that can still land after teardown under suite load; react-dom's
+    // scheduler then throws "window is not defined" as an unhandled error in a
+    // later worker and fails the whole suite. Flush before returning.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('preserves the saved draft when publishing detects a revision conflict', async () => {
@@ -557,6 +567,9 @@ describe('AdminMobileSettingsPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Brand display name')).toHaveValue('Draft');
     expect(refreshMobileConfig).not.toHaveBeenCalled();
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('rolls a historical snapshot forward using the current published revision', async () => {
@@ -610,6 +623,9 @@ describe('AdminMobileSettingsPage', () => {
     expect(await screen.findByText('Mobile settings rolled back.')).toBeInTheDocument();
     expect(screen.getByLabelText('Brand display name')).toHaveValue('Historical');
     expect(refreshMobileConfig).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('protects dirty settings from browser unload and in-app navigation', async () => {
@@ -700,6 +716,9 @@ describe('AdminMobileSettingsPage', () => {
       }),
     );
     expect(await screen.findByText('Mobile settings published.')).toBeInTheDocument();
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('keeps a normalization-equivalent raw draft edit when an older save resolves', async () => {
