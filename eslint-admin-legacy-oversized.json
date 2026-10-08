@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Admin domain legacy >300-line tsx exemption list (blueprint §4.5 / M2). Files listed here are warned, not errored, by the eslint max-lines overrides in eslint.config.mjs. The list ONLY shrinks: entries are removed as the M3 (Admin root) and M5 (moduleApps/payments/DesktopControlCenter subdirs) split phases land; when it empties, delete the overrides block. Anything >300 lines NOT in this list is an error.",
+  "files": [
+    {
+      "path": "src/features/Admin/AdminProvidersPage.tsx",
+      "lines": 1053
+    },
+    {
+      "path": "src/features/Admin/AdminDefaultSettingsPage.tsx",
+      "lines": 895
+    },
+    {
+      "path": "src/features/Admin/AdminModelBillingMatrixPage.tsx",
+      "lines": 868
+    },
+    {
+      "path": "src/features/Admin/AdminPaymentsPage.tsx",
+      "lines": 824
+    },
+    {
+      "path": "src/features/Admin/moduleApps/apps/runtime/ModuleAppRuntimePage.tsx",
+      "lines": 750
+    },
+    {
+      "path": "src/features/Admin/payments/SubscriptionPaymentsPage.tsx",
+      "lines": 645
+    },
+    {
+      "path": "src/features/Admin/payments/TopUpPaymentsPage.tsx",
+      "lines": 634
+    },
+    {
+      "path": "src/features/Admin/MobileConfigPreview.tsx",
+      "lines": 601
+    },
+    {
+      "path": "src/features/Admin/AdminSettingsPage.tsx",
+      "lines": 586
+    },
+    {
+      "path": "src/features/Admin/AdminContentPages.tsx",
+      "lines": 530
+    },
+    {
+      "path": "src/features/Admin/moduleApps/finance/payments/ModulePaymentsPage.tsx",
+      "lines": 515
+    },
+    {
+      "path": "src/features/Admin/AdminOrdersPage.tsx",
+      "lines": 492
+    },
+    {
+      "path": "src/features/Admin/layout/AdminPage.tsx",
+      "lines": 466
+    },
+    {
+      "path": "src/features/Admin/AdminUserDetailDrawer.tsx",
+      "lines": 461
+    },
+    {
+      "path": "src/features/Admin/moduleApps/ProductManager.tsx",
+      "lines": 459
+    },
+    {
+      "path": "src/features/Admin/moduleApps/apps/ModuleAppsPage.tsx",
+      "lines": 433
+    },
+    {
+      "path": "src/features/Admin/moduleApps/reviews/ModuleReviewsPage.tsx",
+      "lines": 433
+    },
+    {
+      "path": "src/features/Admin/AdminRecommendationsPage.tsx",
+      "lines": 413
+    },
+    {
+      "path": "src/features/Admin/moduleApps/apps/runtime/ModuleAppRuntimeSettings.tsx",
+      "lines": 403
+    },
+    {
+      "path": "src/features/Admin/moduleApps/overview/ModuleOverviewPage.tsx",
+      "lines": 403
+    },
+    {
+      "path": "src/features/Admin/AdminMobileSettingsPage.tsx",
+      "lines": 401
+    },
+    {
+      "path": "src/features/Admin/AdminChangeRequestsPage.tsx",
+      "lines": 398
+    },
+    {
+      "path": "src/features/Admin/AdminOperationsPage.tsx",
+      "lines": 383
+    },
+    {
+      "path": "src/features/Admin/AdminFileStoragePage.tsx",
+      "lines": 373
+    },
+    {
+      "path": "src/features/Admin/AdminSystemMaintenancePage.tsx",
+      "lines": 370
+    },
+    {
+      "path": "src/features/Admin/MobileSettings/DesignAssistantsSections.tsx",
+      "lines": 364
+    },
+    {
+      "path": "src/features/Admin/AdminNotificationsPage.tsx",
+      "lines": 360
+    },
+    {
+      "path": "src/features/Admin/AdminTopUpPackagesPage.tsx",
+      "lines": 359
+    },
+    {
+      "path": "src/features/Admin/AdminExpertPlazaPage.tsx",
+      "lines": 340
+    },
+    {
+      "path": "src/features/Admin/AdminSubscriptionsPage.tsx",
+      "lines": 339
+    },
+    {
+      "path": "src/features/Admin/AdminModelPolicyPage.tsx",
+      "lines": 333
+    },
+    {
+      "path": "src/features/Admin/DesktopControlCenter/DistributionPage.tsx",
+      "lines": 326
+    },
+    {
+      "path": "src/features/Admin/DesktopControlCenter/BuildProfilePage.tsx",
+      "lines": 325
+    },
+    {
+      "path": "src/features/Admin/moduleApps/PaymentReconciliationTable.tsx",
+      "lines": 320
+    },
+    {
+      "path": "src/features/Admin/payments/CreditSettlementFailuresPage.tsx",
+      "lines": 318
+    },
+    {
+      "path": "src/features/Admin/AdminOverviewPage.tsx",
+      "lines": 316
+    },
+    {
+      "path": "src/features/Admin/AdminSidebar.tsx",
+      "lines": 313
+    },
+    {
+      "path": "src/features/Admin/moduleApps/publishers/ModulePublishersPage.tsx",
+      "lines": 302
+    }
+  ],
+  "measuredWith": "wc -l equivalent (LF/CRLF split), measured 2026-10-09 at HEAD 856f04a504f",
+  "threshold": 300
+}

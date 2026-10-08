@@ -667,6 +667,20 @@ const MODULES = [
     description:
       'Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries.',
     ownershipRules: [
+      // M2 design-system: the Admin max-lines gate lives in the root eslint
+      // config (upstream file) and its exemption list is a fork-new JSON —
+      // both are maintained by this module, so claim them precisely ahead of
+      // the upstream-sync-v2219 catch-all that otherwise owns eslint.config.mjs.
+      [
+        'p:eslint.config.mjs',
+        'owned',
+        'admin-console M2 max-lines gate lives here (scoped overrides + exemption list import) — upstream file maintained for the Admin lint red line',
+      ],
+      [
+        'p:eslint-admin-legacy-oversized.json',
+        'owned',
+        'fork-new: Admin >300-line legacy tsx exemption list (38 entries, warn-only, only shrinks; see blueprint §4.5) consumed by eslint.config.mjs max-lines overrides',
+      ],
       ['p:src/features/Admin/', 'owned', 'admin feature modules + tests'],
       ['p:src/routes/(main)/admin/', 'owned', 'admin routes'],
       ['p:src/routes/(main)/settings/_layout/index.tsx', 'upstream', 'admin entry for admins'],
