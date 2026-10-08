@@ -1554,6 +1554,69 @@
       "when": 1789816134383,
       "tag": "0166_device_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1789835190230,
+      "tag": "0179_user_deletion_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1789892818833,
+      "tag": "0180_scm_integration",
+      "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1790152852202,
+      "tag": "0181_works_share_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1790215059199,
+      "tag": "0182_acceptance_comment_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1790354510012,
+      "tag": "0183_expertise_lessons_order_enforcement",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1790630241509,
+      "tag": "0184_expertise_hits_source_message",
+      "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1790854414712,
+      "tag": "0185_agent_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1791109715438,
+      "tag": "0186_widgets_dashboards",
+      "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1791169090046,
+      "tag": "0187_environment_visibility_and_build_state",
+      "breakpoints": true
     }
   ],
   "version": "6"

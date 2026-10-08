@@ -243,6 +243,9 @@ export const getEmbeddingModelList = createProviderModelCollector(
   normalizeEmbeddingModel,
 );
 
+// Upstream v2.2.19: heterogeneous-agent voice messages pick a provider ASR model.
+export const getAsrModelList = createProviderModelCollector('asr', normalizeEmbeddingModel);
+
 export const getImageModelList = createProviderModelCollector('image', normalizeImageModel);
 
 export const getVideoModelList = createProviderModelCollector('video', normalizeVideoModel);

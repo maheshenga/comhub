@@ -14,12 +14,21 @@ export interface ImageGenerationParams {
 export interface ImageCostResult {
   breakdown?: {
     imageCount: number;
+    /** Number of reference images sent with each generation request */
+    inputImageCount?: number;
+    /** Input-image fee charged per generated image, in USD */
+    inputImageCost?: number;
     lookupKey?: string;
     pricePerImage: number; // Price per image in USD
   };
   totalCost: number; // Total cost in USD
   totalCredits: number; // Total credits (USD * CREDITS_PER_DOLLAR)
 }
+
+const countInputImages = (params: ImageGenerationParams): number => {
+  if (Array.isArray(params.imageUrls)) return params.imageUrls.filter(Boolean).length;
+  return params.imageUrl ? 1 : 0;
+};
 
 /**
  * Compute the cost for image generation based on pricing configuration
@@ -103,7 +112,23 @@ export const computeImageCost = (
   }
 
   const pricePerImageInUSD = currency === 'CNY' ? pricePerImage / USD_TO_CNY : pricePerImage;
-  const totalCost = pricePerImageInUSD * imageNum;
+
+  // Some providers (e.g. xAI image edits) also bill every reference image sent with a
+  // request. Each generated image is its own upstream request carrying the same
+  // references, so the input fee is added once per generated image. Input rates are
+  // quoted in USD; the per-image rate above is converted first so both are USD here.
+  const inputImageCount = countInputImages(params);
+  const inputImageUnit = pricing.units.find(
+    (unit): unit is FixedPricingUnit =>
+      unit.name === 'imageInput' && unit.strategy === 'fixed' && unit.unit === 'image',
+  );
+  const inputImageCost = inputImageUnit ? inputImageUnit.rate * inputImageCount : 0;
+  if (inputImageCost > 0) {
+    log(`Input image fee: ${inputImageCount} images × $${inputImageUnit!.rate}`);
+  }
+
+  // Calculate total cost in USD first, then convert to credits
+  const totalCost = (pricePerImageInUSD + inputImageCost) * imageNum;
   const totalCredits = Math.ceil(totalCost * CREDITS_PER_DOLLAR);
 
   log(
@@ -113,6 +138,7 @@ export const computeImageCost = (
   return {
     breakdown: {
       imageCount: imageNum,
+      ...(inputImageCost > 0 && { inputImageCost, inputImageCount }),
       lookupKey,
       pricePerImage: pricePerImageInUSD,
     },

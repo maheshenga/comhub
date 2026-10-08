@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteApiV1AgentGroupsByIdData, DeleteApiV1AgentGroupsByIdErrors, DeleteApiV1AgentGroupsByIdResponses, DeleteApiV1AgentsByIdData, DeleteApiV1AgentsByIdErrors, DeleteApiV1AgentsByIdResponses, DeleteApiV1ApiKeysByIdData, DeleteApiV1ApiKeysByIdErrors, DeleteApiV1ApiKeysByIdResponses, DeleteApiV1EvalBenchmarksByIdData, DeleteApiV1EvalBenchmarksByIdErrors, DeleteApiV1EvalBenchmarksByIdResponses, DeleteApiV1EvalDatasetsByIdData, DeleteApiV1EvalDatasetsByIdErrors, DeleteApiV1EvalDatasetsByIdResponses, DeleteApiV1EvalTestCasesByIdData, DeleteApiV1EvalTestCasesByIdErrors, DeleteApiV1EvalTestCasesByIdResponses, DeleteApiV1FilesByIdData, DeleteApiV1FilesByIdErrors, DeleteApiV1FilesByIdResponses, DeleteApiV1KnowledgeBasesByIdData, DeleteApiV1KnowledgeBasesByIdErrors, DeleteApiV1KnowledgeBasesByIdFilesBatchData, DeleteApiV1KnowledgeBasesByIdFilesBatchErrors, DeleteApiV1KnowledgeBasesByIdFilesBatchResponses, DeleteApiV1KnowledgeBasesByIdResponses, DeleteApiV1McpServersByIdData, DeleteApiV1McpServersByIdErrors, DeleteApiV1McpServersByIdResponses, DeleteApiV1MessagesByIdData, DeleteApiV1MessagesByIdErrors, DeleteApiV1MessagesByIdResponses, DeleteApiV1MessagesData, DeleteApiV1MessagesErrors, DeleteApiV1MessagesResponses, DeleteApiV1MessageTranslationsByMessageIdData, DeleteApiV1MessageTranslationsByMessageIdErrors, DeleteApiV1MessageTranslationsByMessageIdResponses, DeleteApiV1PermissionsByIdData, DeleteApiV1PermissionsByIdErrors, DeleteApiV1PermissionsByIdResponses, DeleteApiV1ProvidersByIdData, DeleteApiV1ProvidersByIdErrors, DeleteApiV1ProvidersByIdResponses, DeleteApiV1RolesByIdData, DeleteApiV1RolesByIdErrors, DeleteApiV1RolesByIdPermissionsData, DeleteApiV1RolesByIdPermissionsErrors, DeleteApiV1RolesByIdPermissionsResponses, DeleteApiV1RolesByIdResponses, DeleteApiV1TopicsByIdData, DeleteApiV1TopicsByIdErrors, DeleteApiV1TopicsByIdResponses, DeleteApiV1UsersByIdData, DeleteApiV1UsersByIdErrors, DeleteApiV1UsersByIdResponses, DeleteApiV1UsersByIdRolesData, DeleteApiV1UsersByIdRolesErrors, DeleteApiV1UsersByIdRolesResponses, GetApiV1AgentGroupsByIdData, GetApiV1AgentGroupsByIdErrors, GetApiV1AgentGroupsByIdResponses, GetApiV1AgentGroupsData, GetApiV1AgentGroupsErrors, GetApiV1AgentGroupsResponses, GetApiV1AgentsByIdData, GetApiV1AgentsByIdErrors, GetApiV1AgentsByIdResponses, GetApiV1AgentsData, GetApiV1AgentsErrors, GetApiV1AgentsResponses, GetApiV1ApiKeysByIdData, GetApiV1ApiKeysByIdErrors, GetApiV1ApiKeysByIdResponses, GetApiV1ApiKeysData, GetApiV1ApiKeysErrors, GetApiV1ApiKeysResponses, GetApiV1EvalBenchmarksByIdData, GetApiV1EvalBenchmarksByIdErrors, GetApiV1EvalBenchmarksByIdResponses, GetApiV1EvalBenchmarksData, GetApiV1EvalBenchmarksErrors, GetApiV1EvalBenchmarksResponses, GetApiV1EvalDatasetsByDatasetIdTestCasesData, GetApiV1EvalDatasetsByDatasetIdTestCasesErrors, GetApiV1EvalDatasetsByDatasetIdTestCasesResponses, GetApiV1EvalDatasetsByIdData, GetApiV1EvalDatasetsByIdErrors, GetApiV1EvalDatasetsByIdResponses, GetApiV1EvalDatasetsData, GetApiV1EvalDatasetsErrors, GetApiV1EvalDatasetsResponses, GetApiV1EvalRunsByIdData, GetApiV1EvalRunsByIdErrors, GetApiV1EvalRunsByIdResponses, GetApiV1EvalRunsByIdResultsData, GetApiV1EvalRunsByIdResultsErrors, GetApiV1EvalRunsByIdResultsResponses, GetApiV1EvalRunsByIdTopicsData, GetApiV1EvalRunsByIdTopicsErrors, GetApiV1EvalRunsByIdTopicsResponses, GetApiV1EvalRunsData, GetApiV1EvalRunsErrors, GetApiV1EvalRunsResponses, GetApiV1EvalTestCasesByIdData, GetApiV1EvalTestCasesByIdErrors, GetApiV1EvalTestCasesByIdResponses, GetApiV1FilesByIdChunksData, GetApiV1FilesByIdChunksErrors, GetApiV1FilesByIdChunksResponses, GetApiV1FilesByIdData, GetApiV1FilesByIdErrors, GetApiV1FilesByIdResponses, GetApiV1FilesByIdUrlData, GetApiV1FilesByIdUrlErrors, GetApiV1FilesByIdUrlResponses, GetApiV1FilesData, GetApiV1FilesErrors, GetApiV1FilesResponses, GetApiV1HealthData, GetApiV1HealthErrors, GetApiV1HealthResponses, GetApiV1KnowledgeBasesByIdData, GetApiV1KnowledgeBasesByIdErrors, GetApiV1KnowledgeBasesByIdFilesData, GetApiV1KnowledgeBasesByIdFilesErrors, GetApiV1KnowledgeBasesByIdFilesResponses, GetApiV1KnowledgeBasesByIdResponses, GetApiV1KnowledgeBasesData, GetApiV1KnowledgeBasesErrors, GetApiV1KnowledgeBasesResponses, GetApiV1McpServersByIdData, GetApiV1McpServersByIdErrors, GetApiV1McpServersByIdResponses, GetApiV1McpServersData, GetApiV1McpServersErrors, GetApiV1McpServersResponses, GetApiV1MessagesByIdData, GetApiV1MessagesByIdErrors, GetApiV1MessagesByIdResponses, GetApiV1MessagesCountData, GetApiV1MessagesCountErrors, GetApiV1MessagesCountResponses, GetApiV1MessagesData, GetApiV1MessagesErrors, GetApiV1MessagesResponses, GetApiV1MessageTranslationsByMessageIdData, GetApiV1MessageTranslationsByMessageIdErrors, GetApiV1MessageTranslationsByMessageIdResponses, GetApiV1ModelsByProviderIdByModelIdData, GetApiV1ModelsByProviderIdByModelIdErrors, GetApiV1ModelsByProviderIdByModelIdResponses, GetApiV1ModelsData, GetApiV1ModelsErrors, GetApiV1ModelsResponses, GetApiV1PermissionsByIdData, GetApiV1PermissionsByIdErrors, GetApiV1PermissionsByIdResponses, GetApiV1PermissionsData, GetApiV1PermissionsErrors, GetApiV1PermissionsResponses, GetApiV1PluginsData, GetApiV1PluginsErrors, GetApiV1PluginsResponses, GetApiV1ProvidersByIdData, GetApiV1ProvidersByIdErrors, GetApiV1ProvidersByIdResponses, GetApiV1ProvidersData, GetApiV1ProvidersErrors, GetApiV1ProvidersResponses, GetApiV1RolesByIdData, GetApiV1RolesByIdErrors, GetApiV1RolesByIdPermissionsData, GetApiV1RolesByIdPermissionsErrors, GetApiV1RolesByIdPermissionsResponses, GetApiV1RolesByIdResponses, GetApiV1RolesData, GetApiV1RolesErrors, GetApiV1RolesResponses, GetApiV1TopicsByIdData, GetApiV1TopicsByIdErrors, GetApiV1TopicsByIdResponses, GetApiV1TopicsByTopicIdThreadsData, GetApiV1TopicsByTopicIdThreadsErrors, GetApiV1TopicsByTopicIdThreadsResponses, GetApiV1TopicsData, GetApiV1TopicsErrors, GetApiV1TopicsResponses, GetApiV1UsageData, GetApiV1UsageErrors, GetApiV1UsageResponses, GetApiV1UsersByIdData, GetApiV1UsersByIdErrors, GetApiV1UsersByIdResponses, GetApiV1UsersByIdRolesData, GetApiV1UsersByIdRolesErrors, GetApiV1UsersByIdRolesResponses, GetApiV1UsersData, GetApiV1UsersErrors, GetApiV1UsersMeData, GetApiV1UsersMeErrors, GetApiV1UsersMeResponses, GetApiV1UsersResponses, PatchApiV1AgentGroupsByIdData, PatchApiV1AgentGroupsByIdErrors, PatchApiV1AgentGroupsByIdResponses, PatchApiV1AgentsByIdData, PatchApiV1AgentsByIdErrors, PatchApiV1AgentsByIdResponses, PatchApiV1ApiKeysByIdData, PatchApiV1ApiKeysByIdErrors, PatchApiV1ApiKeysByIdResponses, PatchApiV1EvalBenchmarksByIdData, PatchApiV1EvalBenchmarksByIdErrors, PatchApiV1EvalBenchmarksByIdResponses, PatchApiV1EvalDatasetsByIdData, PatchApiV1EvalDatasetsByIdErrors, PatchApiV1EvalDatasetsByIdResponses, PatchApiV1EvalRunsByIdStatusData, PatchApiV1EvalRunsByIdStatusErrors, PatchApiV1EvalRunsByIdStatusResponses, PatchApiV1EvalTestCasesByIdData, PatchApiV1EvalTestCasesByIdErrors, PatchApiV1EvalTestCasesByIdResponses, PatchApiV1FilesByIdData, PatchApiV1FilesByIdErrors, PatchApiV1FilesByIdResponses, PatchApiV1KnowledgeBasesByIdData, PatchApiV1KnowledgeBasesByIdErrors, PatchApiV1KnowledgeBasesByIdResponses, PatchApiV1McpServersByIdData, PatchApiV1McpServersByIdErrors, PatchApiV1McpServersByIdResponses, PatchApiV1MessageTranslationsByMessageIdData, PatchApiV1MessageTranslationsByMessageIdErrors, PatchApiV1MessageTranslationsByMessageIdResponses, PatchApiV1ModelsByProviderIdByModelIdData, PatchApiV1ModelsByProviderIdByModelIdErrors, PatchApiV1ModelsByProviderIdByModelIdResponses, PatchApiV1PermissionsByIdData, PatchApiV1PermissionsByIdErrors, PatchApiV1PermissionsByIdResponses, PatchApiV1ProvidersByIdData, PatchApiV1ProvidersByIdErrors, PatchApiV1ProvidersByIdResponses, PatchApiV1RolesByIdData, PatchApiV1RolesByIdErrors, PatchApiV1RolesByIdPermissionsData, PatchApiV1RolesByIdPermissionsErrors, PatchApiV1RolesByIdPermissionsResponses, PatchApiV1RolesByIdResponses, PatchApiV1TopicsByIdData, PatchApiV1TopicsByIdErrors, PatchApiV1TopicsByIdResponses, PatchApiV1UsersByIdData, PatchApiV1UsersByIdErrors, PatchApiV1UsersByIdResponses, PatchApiV1UsersByIdRolesData, PatchApiV1UsersByIdRolesErrors, PatchApiV1UsersByIdRolesResponses, PostApiV1AgentGroupsData, PostApiV1AgentGroupsErrors, PostApiV1AgentGroupsResponses, PostApiV1AgentsByIdDuplicateData, PostApiV1AgentsByIdDuplicateErrors, PostApiV1AgentsByIdDuplicateResponses, PostApiV1AgentsData, PostApiV1AgentsErrors, PostApiV1AgentsResponses, PostApiV1ApiKeysData, PostApiV1ApiKeysErrors, PostApiV1ApiKeysResponses, PostApiV1ChatData, PostApiV1ChatErrors, PostApiV1ChatGenerateReplyData, PostApiV1ChatGenerateReplyErrors, PostApiV1ChatGenerateReplyResponses, PostApiV1ChatResponses, PostApiV1ChatTranslateData, PostApiV1ChatTranslateErrors, PostApiV1ChatTranslateResponses, PostApiV1EvalBenchmarksData, PostApiV1EvalBenchmarksErrors, PostApiV1EvalBenchmarksResponses, PostApiV1EvalDatasetsByDatasetIdTestCasesData, PostApiV1EvalDatasetsByDatasetIdTestCasesErrors, PostApiV1EvalDatasetsByDatasetIdTestCasesResponses, PostApiV1EvalDatasetsData, PostApiV1EvalDatasetsErrors, PostApiV1EvalDatasetsResponses, PostApiV1EvalRunsByIdClaimData, PostApiV1EvalRunsByIdClaimErrors, PostApiV1EvalRunsByIdClaimResponses, PostApiV1EvalRunsByIdResultsData, PostApiV1EvalRunsByIdResultsErrors, PostApiV1EvalRunsByIdResultsResponses, PostApiV1EvalRunsByIdRetryErrorsData, PostApiV1EvalRunsByIdRetryErrorsErrors, PostApiV1EvalRunsByIdRetryErrorsResponses, PostApiV1EvalRunsData, PostApiV1EvalRunsErrors, PostApiV1EvalRunsResponses, PostApiV1FilesBatchesData, PostApiV1FilesBatchesErrors, PostApiV1FilesBatchesResponses, PostApiV1FilesByIdChunksData, PostApiV1FilesByIdChunksErrors, PostApiV1FilesByIdChunksResponses, PostApiV1FilesByIdParsesData, PostApiV1FilesByIdParsesErrors, PostApiV1FilesByIdParsesResponses, PostApiV1FilesData, PostApiV1FilesErrors, PostApiV1FilesQueriesData, PostApiV1FilesQueriesErrors, PostApiV1FilesQueriesResponses, PostApiV1FilesResponses, PostApiV1KnowledgeBasesByIdFilesBatchData, PostApiV1KnowledgeBasesByIdFilesBatchErrors, PostApiV1KnowledgeBasesByIdFilesBatchResponses, PostApiV1KnowledgeBasesByIdFilesMoveData, PostApiV1KnowledgeBasesByIdFilesMoveErrors, PostApiV1KnowledgeBasesByIdFilesMoveResponses, PostApiV1KnowledgeBasesData, PostApiV1KnowledgeBasesErrors, PostApiV1KnowledgeBasesResponses, PostApiV1McpServersByIdSyncData, PostApiV1McpServersByIdSyncErrors, PostApiV1McpServersByIdSyncResponses, PostApiV1McpServersData, PostApiV1McpServersErrors, PostApiV1McpServersResponses, PostApiV1MessagesData, PostApiV1MessagesErrors, PostApiV1MessagesRepliesData, PostApiV1MessagesRepliesErrors, PostApiV1MessagesRepliesResponses, PostApiV1MessagesResponses, PostApiV1MessageTranslationsByMessageIdData, PostApiV1MessageTranslationsByMessageIdErrors, PostApiV1MessageTranslationsByMessageIdResponses, PostApiV1ModelsData, PostApiV1ModelsErrors, PostApiV1ModelsResponses, PostApiV1PermissionsData, PostApiV1PermissionsErrors, PostApiV1PermissionsResponses, PostApiV1ProvidersData, PostApiV1ProvidersErrors, PostApiV1ProvidersResponses, PostApiV1ResponsesData, PostApiV1ResponsesErrors, PostApiV1ResponsesResponses, PostApiV1RolesData, PostApiV1RolesErrors, PostApiV1RolesResponses, PostApiV1TopicsData, PostApiV1TopicsErrors, PostApiV1TopicsResponses, PostApiV1UsersData, PostApiV1UsersErrors, PostApiV1UsersResponses, PutApiV1EvalRunsByRunIdTopicsByTopicIdResultData, PutApiV1EvalRunsByRunIdTopicsByTopicIdResultErrors, PutApiV1EvalRunsByRunIdTopicsByTopicIdResultResponses } from './types.gen';
+import type { DeleteApiV1AgentGroupsByIdData, DeleteApiV1AgentGroupsByIdErrors, DeleteApiV1AgentGroupsByIdResponses, DeleteApiV1AgentsByIdData, DeleteApiV1AgentsByIdErrors, DeleteApiV1AgentsByIdResponses, DeleteApiV1ApiKeysByIdData, DeleteApiV1ApiKeysByIdErrors, DeleteApiV1ApiKeysByIdResponses, DeleteApiV1EvalBenchmarksByIdData, DeleteApiV1EvalBenchmarksByIdErrors, DeleteApiV1EvalBenchmarksByIdResponses, DeleteApiV1EvalDatasetsByIdData, DeleteApiV1EvalDatasetsByIdErrors, DeleteApiV1EvalDatasetsByIdResponses, DeleteApiV1EvalTestCasesByIdData, DeleteApiV1EvalTestCasesByIdErrors, DeleteApiV1EvalTestCasesByIdResponses, DeleteApiV1FilesByIdData, DeleteApiV1FilesByIdErrors, DeleteApiV1FilesByIdResponses, DeleteApiV1GoalsByIdData, DeleteApiV1GoalsByIdErrors, DeleteApiV1GoalsByIdResponses, DeleteApiV1KnowledgeBasesByIdData, DeleteApiV1KnowledgeBasesByIdErrors, DeleteApiV1KnowledgeBasesByIdFilesBatchData, DeleteApiV1KnowledgeBasesByIdFilesBatchErrors, DeleteApiV1KnowledgeBasesByIdFilesBatchResponses, DeleteApiV1KnowledgeBasesByIdResponses, DeleteApiV1McpServersByIdData, DeleteApiV1McpServersByIdErrors, DeleteApiV1McpServersByIdResponses, DeleteApiV1MemoriesByCategoryByIdData, DeleteApiV1MemoriesByCategoryByIdErrors, DeleteApiV1MemoriesByCategoryByIdResponses, DeleteApiV1MemoriesData, DeleteApiV1MemoriesErrors, DeleteApiV1MemoriesResponses, DeleteApiV1MessagesByIdData, DeleteApiV1MessagesByIdErrors, DeleteApiV1MessagesByIdResponses, DeleteApiV1MessagesData, DeleteApiV1MessagesErrors, DeleteApiV1MessagesResponses, DeleteApiV1MessageTranslationsByMessageIdData, DeleteApiV1MessageTranslationsByMessageIdErrors, DeleteApiV1MessageTranslationsByMessageIdResponses, DeleteApiV1PermissionsByIdData, DeleteApiV1PermissionsByIdErrors, DeleteApiV1PermissionsByIdResponses, DeleteApiV1ProvidersByIdData, DeleteApiV1ProvidersByIdErrors, DeleteApiV1ProvidersByIdResponses, DeleteApiV1RolesByIdData, DeleteApiV1RolesByIdErrors, DeleteApiV1RolesByIdPermissionsData, DeleteApiV1RolesByIdPermissionsErrors, DeleteApiV1RolesByIdPermissionsResponses, DeleteApiV1RolesByIdResponses, DeleteApiV1TasksByIdData, DeleteApiV1TasksByIdErrors, DeleteApiV1TasksByIdResponses, DeleteApiV1TopicsByIdData, DeleteApiV1TopicsByIdErrors, DeleteApiV1TopicsByIdResponses, DeleteApiV1UsersByIdData, DeleteApiV1UsersByIdErrors, DeleteApiV1UsersByIdResponses, DeleteApiV1UsersByIdRolesData, DeleteApiV1UsersByIdRolesErrors, DeleteApiV1UsersByIdRolesResponses, GetApiV1AgentGroupsByIdData, GetApiV1AgentGroupsByIdErrors, GetApiV1AgentGroupsByIdResponses, GetApiV1AgentGroupsData, GetApiV1AgentGroupsErrors, GetApiV1AgentGroupsResponses, GetApiV1AgentsByIdData, GetApiV1AgentsByIdErrors, GetApiV1AgentsByIdResponses, GetApiV1AgentsData, GetApiV1AgentsErrors, GetApiV1AgentsResponses, GetApiV1ApiKeysByIdData, GetApiV1ApiKeysByIdErrors, GetApiV1ApiKeysByIdResponses, GetApiV1ApiKeysData, GetApiV1ApiKeysErrors, GetApiV1ApiKeysResponses, GetApiV1EvalBenchmarksByIdData, GetApiV1EvalBenchmarksByIdErrors, GetApiV1EvalBenchmarksByIdResponses, GetApiV1EvalBenchmarksData, GetApiV1EvalBenchmarksErrors, GetApiV1EvalBenchmarksResponses, GetApiV1EvalDatasetsByDatasetIdTestCasesData, GetApiV1EvalDatasetsByDatasetIdTestCasesErrors, GetApiV1EvalDatasetsByDatasetIdTestCasesResponses, GetApiV1EvalDatasetsByIdData, GetApiV1EvalDatasetsByIdErrors, GetApiV1EvalDatasetsByIdResponses, GetApiV1EvalDatasetsData, GetApiV1EvalDatasetsErrors, GetApiV1EvalDatasetsResponses, GetApiV1EvalRunsByIdData, GetApiV1EvalRunsByIdErrors, GetApiV1EvalRunsByIdResponses, GetApiV1EvalRunsByIdResultsData, GetApiV1EvalRunsByIdResultsErrors, GetApiV1EvalRunsByIdResultsResponses, GetApiV1EvalRunsByIdTopicsData, GetApiV1EvalRunsByIdTopicsErrors, GetApiV1EvalRunsByIdTopicsResponses, GetApiV1EvalRunsData, GetApiV1EvalRunsErrors, GetApiV1EvalRunsResponses, GetApiV1EvalTestCasesByIdData, GetApiV1EvalTestCasesByIdErrors, GetApiV1EvalTestCasesByIdResponses, GetApiV1FilesByIdChunksData, GetApiV1FilesByIdChunksErrors, GetApiV1FilesByIdChunksResponses, GetApiV1FilesByIdData, GetApiV1FilesByIdErrors, GetApiV1FilesByIdResponses, GetApiV1FilesByIdUrlData, GetApiV1FilesByIdUrlErrors, GetApiV1FilesByIdUrlResponses, GetApiV1FilesData, GetApiV1FilesErrors, GetApiV1FilesResponses, GetApiV1GoalsByIdData, GetApiV1GoalsByIdErrors, GetApiV1GoalsByIdResponses, GetApiV1GoalsByIdSupervisionData, GetApiV1GoalsByIdSupervisionErrors, GetApiV1GoalsByIdSupervisionResponses, GetApiV1GoalsData, GetApiV1GoalsErrors, GetApiV1GoalsResponses, GetApiV1HealthData, GetApiV1HealthErrors, GetApiV1HealthResponses, GetApiV1KnowledgeBasesByIdData, GetApiV1KnowledgeBasesByIdErrors, GetApiV1KnowledgeBasesByIdFilesData, GetApiV1KnowledgeBasesByIdFilesErrors, GetApiV1KnowledgeBasesByIdFilesResponses, GetApiV1KnowledgeBasesByIdResponses, GetApiV1KnowledgeBasesData, GetApiV1KnowledgeBasesErrors, GetApiV1KnowledgeBasesResponses, GetApiV1McpServersByIdData, GetApiV1McpServersByIdErrors, GetApiV1McpServersByIdResponses, GetApiV1McpServersData, GetApiV1McpServersErrors, GetApiV1McpServersResponses, GetApiV1MemoriesByCategoryData, GetApiV1MemoriesByCategoryErrors, GetApiV1MemoriesByCategoryResponses, GetApiV1MemoriesPersonaData, GetApiV1MemoriesPersonaErrors, GetApiV1MemoriesPersonaResponses, GetApiV1MemoriesPersonaVersionsData, GetApiV1MemoriesPersonaVersionsErrors, GetApiV1MemoriesPersonaVersionsResponses, GetApiV1MessagesByIdData, GetApiV1MessagesByIdErrors, GetApiV1MessagesByIdResponses, GetApiV1MessagesCountData, GetApiV1MessagesCountErrors, GetApiV1MessagesCountResponses, GetApiV1MessagesData, GetApiV1MessagesErrors, GetApiV1MessagesResponses, GetApiV1MessageTranslationsByMessageIdData, GetApiV1MessageTranslationsByMessageIdErrors, GetApiV1MessageTranslationsByMessageIdResponses, GetApiV1ModelsByProviderIdByModelIdData, GetApiV1ModelsByProviderIdByModelIdErrors, GetApiV1ModelsByProviderIdByModelIdResponses, GetApiV1ModelsData, GetApiV1ModelsErrors, GetApiV1ModelsResponses, GetApiV1NotificationsCountsData, GetApiV1NotificationsCountsErrors, GetApiV1NotificationsCountsResponses, GetApiV1NotificationsData, GetApiV1NotificationsErrors, GetApiV1NotificationsResponses, GetApiV1NotificationsUnreadCountData, GetApiV1NotificationsUnreadCountErrors, GetApiV1NotificationsUnreadCountResponses, GetApiV1PermissionsByIdData, GetApiV1PermissionsByIdErrors, GetApiV1PermissionsByIdResponses, GetApiV1PermissionsData, GetApiV1PermissionsErrors, GetApiV1PermissionsResponses, GetApiV1PluginsData, GetApiV1PluginsErrors, GetApiV1PluginsResponses, GetApiV1ProvidersByIdData, GetApiV1ProvidersByIdErrors, GetApiV1ProvidersByIdResponses, GetApiV1ProvidersData, GetApiV1ProvidersErrors, GetApiV1ProvidersResponses, GetApiV1RolesByIdData, GetApiV1RolesByIdErrors, GetApiV1RolesByIdPermissionsData, GetApiV1RolesByIdPermissionsErrors, GetApiV1RolesByIdPermissionsResponses, GetApiV1RolesByIdResponses, GetApiV1RolesData, GetApiV1RolesErrors, GetApiV1RolesResponses, GetApiV1SignalsReceiptsData, GetApiV1SignalsReceiptsErrors, GetApiV1SignalsReceiptsResponses, GetApiV1TasksByIdData, GetApiV1TasksByIdErrors, GetApiV1TasksByIdResponses, GetApiV1TasksData, GetApiV1TasksErrors, GetApiV1TasksResponses, GetApiV1TopicsByIdData, GetApiV1TopicsByIdErrors, GetApiV1TopicsByIdResponses, GetApiV1TopicsByTopicIdThreadsData, GetApiV1TopicsByTopicIdThreadsErrors, GetApiV1TopicsByTopicIdThreadsResponses, GetApiV1TopicsData, GetApiV1TopicsErrors, GetApiV1TopicsResponses, GetApiV1UsageData, GetApiV1UsageErrors, GetApiV1UsageResponses, GetApiV1UsersByIdData, GetApiV1UsersByIdErrors, GetApiV1UsersByIdResponses, GetApiV1UsersByIdRolesData, GetApiV1UsersByIdRolesErrors, GetApiV1UsersByIdRolesResponses, GetApiV1UsersData, GetApiV1UsersErrors, GetApiV1UsersMeData, GetApiV1UsersMeErrors, GetApiV1UsersMeResponses, GetApiV1UsersResponses, PatchApiV1AgentGroupsByIdData, PatchApiV1AgentGroupsByIdErrors, PatchApiV1AgentGroupsByIdResponses, PatchApiV1AgentsByIdData, PatchApiV1AgentsByIdErrors, PatchApiV1AgentsByIdResponses, PatchApiV1ApiKeysByIdData, PatchApiV1ApiKeysByIdErrors, PatchApiV1ApiKeysByIdResponses, PatchApiV1EvalBenchmarksByIdData, PatchApiV1EvalBenchmarksByIdErrors, PatchApiV1EvalBenchmarksByIdResponses, PatchApiV1EvalDatasetsByIdData, PatchApiV1EvalDatasetsByIdErrors, PatchApiV1EvalDatasetsByIdResponses, PatchApiV1EvalRunsByIdStatusData, PatchApiV1EvalRunsByIdStatusErrors, PatchApiV1EvalRunsByIdStatusResponses, PatchApiV1EvalTestCasesByIdData, PatchApiV1EvalTestCasesByIdErrors, PatchApiV1EvalTestCasesByIdResponses, PatchApiV1FilesByIdData, PatchApiV1FilesByIdErrors, PatchApiV1FilesByIdResponses, PatchApiV1GoalsByIdData, PatchApiV1GoalsByIdErrors, PatchApiV1GoalsByIdResponses, PatchApiV1KnowledgeBasesByIdData, PatchApiV1KnowledgeBasesByIdErrors, PatchApiV1KnowledgeBasesByIdResponses, PatchApiV1McpServersByIdData, PatchApiV1McpServersByIdErrors, PatchApiV1McpServersByIdResponses, PatchApiV1MessageTranslationsByMessageIdData, PatchApiV1MessageTranslationsByMessageIdErrors, PatchApiV1MessageTranslationsByMessageIdResponses, PatchApiV1ModelsByProviderIdByModelIdData, PatchApiV1ModelsByProviderIdByModelIdErrors, PatchApiV1ModelsByProviderIdByModelIdResponses, PatchApiV1PermissionsByIdData, PatchApiV1PermissionsByIdErrors, PatchApiV1PermissionsByIdResponses, PatchApiV1ProvidersByIdData, PatchApiV1ProvidersByIdErrors, PatchApiV1ProvidersByIdResponses, PatchApiV1RolesByIdData, PatchApiV1RolesByIdErrors, PatchApiV1RolesByIdPermissionsData, PatchApiV1RolesByIdPermissionsErrors, PatchApiV1RolesByIdPermissionsResponses, PatchApiV1RolesByIdResponses, PatchApiV1TasksByIdData, PatchApiV1TasksByIdErrors, PatchApiV1TasksByIdResponses, PatchApiV1TasksByIdStatusData, PatchApiV1TasksByIdStatusErrors, PatchApiV1TasksByIdStatusResponses, PatchApiV1TopicsByIdData, PatchApiV1TopicsByIdErrors, PatchApiV1TopicsByIdResponses, PatchApiV1UsersByIdData, PatchApiV1UsersByIdErrors, PatchApiV1UsersByIdResponses, PatchApiV1UsersByIdRolesData, PatchApiV1UsersByIdRolesErrors, PatchApiV1UsersByIdRolesResponses, PostApiV1AgentGroupsData, PostApiV1AgentGroupsErrors, PostApiV1AgentGroupsResponses, PostApiV1AgentsByIdDuplicateData, PostApiV1AgentsByIdDuplicateErrors, PostApiV1AgentsByIdDuplicateResponses, PostApiV1AgentsData, PostApiV1AgentsErrors, PostApiV1AgentsResponses, PostApiV1ApiKeysData, PostApiV1ApiKeysErrors, PostApiV1ApiKeysResponses, PostApiV1ChatData, PostApiV1ChatErrors, PostApiV1ChatGenerateReplyData, PostApiV1ChatGenerateReplyErrors, PostApiV1ChatGenerateReplyResponses, PostApiV1ChatResponses, PostApiV1ChatTranslateData, PostApiV1ChatTranslateErrors, PostApiV1ChatTranslateResponses, PostApiV1EvalBenchmarksData, PostApiV1EvalBenchmarksErrors, PostApiV1EvalBenchmarksResponses, PostApiV1EvalDatasetsByDatasetIdTestCasesData, PostApiV1EvalDatasetsByDatasetIdTestCasesErrors, PostApiV1EvalDatasetsByDatasetIdTestCasesResponses, PostApiV1EvalDatasetsData, PostApiV1EvalDatasetsErrors, PostApiV1EvalDatasetsResponses, PostApiV1EvalRunsByIdClaimData, PostApiV1EvalRunsByIdClaimErrors, PostApiV1EvalRunsByIdClaimResponses, PostApiV1EvalRunsByIdResultsData, PostApiV1EvalRunsByIdResultsErrors, PostApiV1EvalRunsByIdResultsResponses, PostApiV1EvalRunsByIdRetryErrorsData, PostApiV1EvalRunsByIdRetryErrorsErrors, PostApiV1EvalRunsByIdRetryErrorsResponses, PostApiV1EvalRunsData, PostApiV1EvalRunsErrors, PostApiV1EvalRunsResponses, PostApiV1FilesBatchesData, PostApiV1FilesBatchesErrors, PostApiV1FilesBatchesResponses, PostApiV1FilesByIdChunksData, PostApiV1FilesByIdChunksErrors, PostApiV1FilesByIdChunksResponses, PostApiV1FilesByIdParsesData, PostApiV1FilesByIdParsesErrors, PostApiV1FilesByIdParsesResponses, PostApiV1FilesData, PostApiV1FilesErrors, PostApiV1FilesQueriesData, PostApiV1FilesQueriesErrors, PostApiV1FilesQueriesResponses, PostApiV1FilesResponses, PostApiV1GoalsByIdAdvanceData, PostApiV1GoalsByIdAdvanceErrors, PostApiV1GoalsByIdAdvanceResponses, PostApiV1GoalsByIdPauseData, PostApiV1GoalsByIdPauseErrors, PostApiV1GoalsByIdPauseResponses, PostApiV1GoalsByIdRestartData, PostApiV1GoalsByIdRestartErrors, PostApiV1GoalsByIdRestartResponses, PostApiV1GoalsByIdResumeData, PostApiV1GoalsByIdResumeErrors, PostApiV1GoalsByIdResumeResponses, PostApiV1GoalsData, PostApiV1GoalsErrors, PostApiV1GoalsResponses, PostApiV1KnowledgeBasesByIdFilesBatchData, PostApiV1KnowledgeBasesByIdFilesBatchErrors, PostApiV1KnowledgeBasesByIdFilesBatchResponses, PostApiV1KnowledgeBasesByIdFilesMoveData, PostApiV1KnowledgeBasesByIdFilesMoveErrors, PostApiV1KnowledgeBasesByIdFilesMoveResponses, PostApiV1KnowledgeBasesData, PostApiV1KnowledgeBasesErrors, PostApiV1KnowledgeBasesResponses, PostApiV1McpServersByIdSyncData, PostApiV1McpServersByIdSyncErrors, PostApiV1McpServersByIdSyncResponses, PostApiV1McpServersData, PostApiV1McpServersErrors, PostApiV1McpServersResponses, PostApiV1MessagesData, PostApiV1MessagesErrors, PostApiV1MessagesRepliesData, PostApiV1MessagesRepliesErrors, PostApiV1MessagesRepliesResponses, PostApiV1MessagesResponses, PostApiV1MessageTranslationsByMessageIdData, PostApiV1MessageTranslationsByMessageIdErrors, PostApiV1MessageTranslationsByMessageIdResponses, PostApiV1ModelsData, PostApiV1ModelsErrors, PostApiV1ModelsResponses, PostApiV1NotificationsArchiveAllData, PostApiV1NotificationsArchiveAllErrors, PostApiV1NotificationsArchiveAllResponses, PostApiV1NotificationsByIdArchiveData, PostApiV1NotificationsByIdArchiveErrors, PostApiV1NotificationsByIdArchiveResponses, PostApiV1NotificationsReadAllData, PostApiV1NotificationsReadAllErrors, PostApiV1NotificationsReadAllResponses, PostApiV1NotificationsReadData, PostApiV1NotificationsReadErrors, PostApiV1NotificationsReadResponses, PostApiV1PermissionsData, PostApiV1PermissionsErrors, PostApiV1PermissionsResponses, PostApiV1ProvidersData, PostApiV1ProvidersErrors, PostApiV1ProvidersResponses, PostApiV1ResponsesData, PostApiV1ResponsesErrors, PostApiV1ResponsesResponses, PostApiV1RolesData, PostApiV1RolesErrors, PostApiV1RolesResponses, PostApiV1SignalsSourceEventsData, PostApiV1SignalsSourceEventsErrors, PostApiV1SignalsSourceEventsResponses, PostApiV1SignalsTriggerData, PostApiV1SignalsTriggerErrors, PostApiV1SignalsTriggerResponses, PostApiV1TasksData, PostApiV1TasksErrors, PostApiV1TasksResponses, PostApiV1TopicsData, PostApiV1TopicsErrors, PostApiV1TopicsResponses, PostApiV1UsersData, PostApiV1UsersErrors, PostApiV1UsersResponses, PutApiV1EvalRunsByRunIdTopicsByTopicIdResultData, PutApiV1EvalRunsByRunIdTopicsByTopicIdResultErrors, PutApiV1EvalRunsByRunIdTopicsByTopicIdResultResponses } from './types.gen';
 
 const mergeMethodHeaders = (
     defaults: Record<string, unknown>,
@@ -35,7 +35,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 
 class HeyApiClient {
     protected client: Client;
-
+    
     constructor(args?: {
         client?: Client;
     }) {
@@ -45,9 +45,9 @@ class HeyApiClient {
 
 class HeyApiRegistry<T> {
     private readonly defaultKey = 'default';
-
+    
     private readonly instances: Map<string, T> = new Map();
-
+    
     get(key?: string): T {
         const instance = this.instances.get(key ?? this.defaultKey);
         if (!instance) {
@@ -55,7 +55,7 @@ class HeyApiRegistry<T> {
         }
         return instance;
     }
-
+    
     set(value: T, key?: string): void {
         this.instances.set(key ?? this.defaultKey, value);
     }
@@ -85,7 +85,7 @@ export class AgentGroups extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1AgentGroupsData, ThrowOnError>): RequestResult<PostApiV1AgentGroupsResponses, PostApiV1AgentGroupsErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1AgentGroupsResponses, PostApiV1AgentGroupsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -94,7 +94,7 @@ export class AgentGroups extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1AgentGroupsByIdData, ThrowOnError>): RequestResult<DeleteApiV1AgentGroupsByIdResponses, DeleteApiV1AgentGroupsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1AgentGroupsByIdResponses, DeleteApiV1AgentGroupsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -102,7 +102,7 @@ export class AgentGroups extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1AgentGroupsByIdData, ThrowOnError>): RequestResult<GetApiV1AgentGroupsByIdResponses, GetApiV1AgentGroupsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1AgentGroupsByIdResponses, GetApiV1AgentGroupsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -110,7 +110,7 @@ export class AgentGroups extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1AgentGroupsByIdData, ThrowOnError>): RequestResult<PatchApiV1AgentGroupsByIdResponses, PatchApiV1AgentGroupsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1AgentGroupsByIdResponses, PatchApiV1AgentGroupsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -129,7 +129,7 @@ export class Agents extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1AgentsData, ThrowOnError>): RequestResult<PostApiV1AgentsResponses, PostApiV1AgentsErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1AgentsResponses, PostApiV1AgentsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -138,7 +138,7 @@ export class Agents extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1AgentsByIdData, ThrowOnError>): RequestResult<DeleteApiV1AgentsByIdResponses, DeleteApiV1AgentsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1AgentsByIdResponses, DeleteApiV1AgentsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -146,7 +146,7 @@ export class Agents extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1AgentsByIdData, ThrowOnError>): RequestResult<GetApiV1AgentsByIdResponses, GetApiV1AgentsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1AgentsByIdResponses, GetApiV1AgentsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -154,7 +154,7 @@ export class Agents extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1AgentsByIdData, ThrowOnError>): RequestResult<PatchApiV1AgentsByIdResponses, PatchApiV1AgentsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1AgentsByIdResponses, PatchApiV1AgentsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -163,7 +163,7 @@ export class Agents extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * Duplicate agent
      */
@@ -188,7 +188,7 @@ export class ApiKeys extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1ApiKeysData, ThrowOnError>): RequestResult<PostApiV1ApiKeysResponses, PostApiV1ApiKeysErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1ApiKeysResponses, PostApiV1ApiKeysErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -197,7 +197,7 @@ export class ApiKeys extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1ApiKeysByIdData, ThrowOnError>): RequestResult<DeleteApiV1ApiKeysByIdResponses, DeleteApiV1ApiKeysByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1ApiKeysByIdResponses, DeleteApiV1ApiKeysByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -205,7 +205,7 @@ export class ApiKeys extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1ApiKeysByIdData, ThrowOnError>): RequestResult<GetApiV1ApiKeysByIdResponses, GetApiV1ApiKeysByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1ApiKeysByIdResponses, GetApiV1ApiKeysByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -213,7 +213,7 @@ export class ApiKeys extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1ApiKeysByIdData, ThrowOnError>): RequestResult<PatchApiV1ApiKeysByIdResponses, PatchApiV1ApiKeysByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1ApiKeysByIdResponses, PatchApiV1ApiKeysByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -233,7 +233,7 @@ export class Chat extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public createTranslate<ThrowOnError extends boolean = false>(options: Options<PostApiV1ChatTranslateData, ThrowOnError>): RequestResult<PostApiV1ChatTranslateResponses, PostApiV1ChatTranslateErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1ChatTranslateResponses, PostApiV1ChatTranslateErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -242,7 +242,7 @@ export class Chat extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public createGenerateReply<ThrowOnError extends boolean = false>(options: Options<PostApiV1ChatGenerateReplyData, ThrowOnError>): RequestResult<PostApiV1ChatGenerateReplyResponses, PostApiV1ChatGenerateReplyErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1ChatGenerateReplyResponses, PostApiV1ChatGenerateReplyErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -264,7 +264,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * Create an eval run
      *
@@ -278,7 +278,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * List topic results of an eval run
      */
@@ -289,7 +289,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     public getRuns<ThrowOnError extends boolean = false>(options: Options<GetApiV1EvalRunsByIdData, ThrowOnError>): RequestResult<GetApiV1EvalRunsByIdResponses, GetApiV1EvalRunsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1EvalRunsByIdResponses, GetApiV1EvalRunsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -297,7 +297,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     public listRunsResults<ThrowOnError extends boolean = false>(options: Options<GetApiV1EvalRunsByIdResultsData, ThrowOnError>): RequestResult<GetApiV1EvalRunsByIdResultsResponses, GetApiV1EvalRunsByIdResultsErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1EvalRunsByIdResultsResponses, GetApiV1EvalRunsByIdResultsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -305,7 +305,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * reportBatch
      *
@@ -319,7 +319,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * listBenchmarks
      *
@@ -332,7 +332,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * createBenchmark
      *
@@ -346,7 +346,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * deleteBenchmark
      *
@@ -359,7 +359,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * getBenchmark
      *
@@ -372,7 +372,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * updateBenchmark
      *
@@ -386,7 +386,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * listDatasets
      *
@@ -399,7 +399,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * createDataset
      *
@@ -413,7 +413,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * deleteDataset
      *
@@ -426,7 +426,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * getDataset
      *
@@ -439,7 +439,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * updateDataset
      *
@@ -453,7 +453,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * listTestCases
      *
@@ -466,7 +466,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * createTestCase
      *
@@ -480,7 +480,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * deleteTestCase
      *
@@ -493,7 +493,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * getTestCase
      *
@@ -506,7 +506,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * updateTestCase
      *
@@ -520,7 +520,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * claim
      *
@@ -533,7 +533,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * setStatus
      *
@@ -547,7 +547,7 @@ export class Eval extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * retryErrors
      *
@@ -560,7 +560,7 @@ export class Eval extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * report
      *
@@ -597,7 +597,7 @@ export class Files extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * Upload a file and return the corresponding file record
      */
@@ -610,7 +610,7 @@ export class Files extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': null }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1FilesByIdData, ThrowOnError>): RequestResult<DeleteApiV1FilesByIdResponses, DeleteApiV1FilesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1FilesByIdResponses, DeleteApiV1FilesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -618,7 +618,7 @@ export class Files extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1FilesByIdData, ThrowOnError>): RequestResult<GetApiV1FilesByIdResponses, GetApiV1FilesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1FilesByIdResponses, GetApiV1FilesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -626,7 +626,7 @@ export class Files extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1FilesByIdData, ThrowOnError>): RequestResult<PatchApiV1FilesByIdResponses, PatchApiV1FilesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1FilesByIdResponses, PatchApiV1FilesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -635,7 +635,7 @@ export class Files extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public getUrl<ThrowOnError extends boolean = false>(options: Options<GetApiV1FilesByIdUrlData, ThrowOnError>): RequestResult<GetApiV1FilesByIdUrlResponses, GetApiV1FilesByIdUrlErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1FilesByIdUrlResponses, GetApiV1FilesByIdUrlErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -643,7 +643,7 @@ export class Files extends HeyApiClient {
             ...options
         });
     }
-
+    
     public parse<ThrowOnError extends boolean = false>(options: Options<PostApiV1FilesByIdParsesData, ThrowOnError>): RequestResult<PostApiV1FilesByIdParsesResponses, PostApiV1FilesByIdParsesErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1FilesByIdParsesResponses, PostApiV1FilesByIdParsesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -651,7 +651,7 @@ export class Files extends HeyApiClient {
             ...options
         });
     }
-
+    
     public listChunks<ThrowOnError extends boolean = false>(options: Options<GetApiV1FilesByIdChunksData, ThrowOnError>): RequestResult<GetApiV1FilesByIdChunksResponses, GetApiV1FilesByIdChunksErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1FilesByIdChunksResponses, GetApiV1FilesByIdChunksErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -659,7 +659,7 @@ export class Files extends HeyApiClient {
             ...options
         });
     }
-
+    
     public createChunks<ThrowOnError extends boolean = false>(options: Options<PostApiV1FilesByIdChunksData, ThrowOnError>): RequestResult<PostApiV1FilesByIdChunksResponses, PostApiV1FilesByIdChunksErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1FilesByIdChunksResponses, PostApiV1FilesByIdChunksErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -668,7 +668,7 @@ export class Files extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * Batch file upload
      */
@@ -681,11 +681,96 @@ export class Files extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': null }, options.headers)
         });
     }
-
+    
     public query<ThrowOnError extends boolean = false>(options: Options<PostApiV1FilesQueriesData, ThrowOnError>): RequestResult<PostApiV1FilesQueriesResponses, PostApiV1FilesQueriesErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1FilesQueriesResponses, PostApiV1FilesQueriesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
             url: '/api/v1/files/queries',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+}
+
+export class Goals extends HeyApiClient {
+    public list<ThrowOnError extends boolean = false>(options?: Options<GetApiV1GoalsData, ThrowOnError>): RequestResult<GetApiV1GoalsResponses, GetApiV1GoalsErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1GoalsResponses, GetApiV1GoalsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals',
+            ...options
+        });
+    }
+    
+    public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1GoalsData, ThrowOnError>): RequestResult<PostApiV1GoalsResponses, PostApiV1GoalsErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1GoalsResponses, PostApiV1GoalsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1GoalsByIdData, ThrowOnError>): RequestResult<DeleteApiV1GoalsByIdResponses, DeleteApiV1GoalsByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).delete<DeleteApiV1GoalsByIdResponses, DeleteApiV1GoalsByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}',
+            ...options
+        });
+    }
+    
+    public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1GoalsByIdData, ThrowOnError>): RequestResult<GetApiV1GoalsByIdResponses, GetApiV1GoalsByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).get<GetApiV1GoalsByIdResponses, GetApiV1GoalsByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}',
+            ...options
+        });
+    }
+    
+    public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1GoalsByIdData, ThrowOnError>): RequestResult<PatchApiV1GoalsByIdResponses, PatchApiV1GoalsByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).patch<PatchApiV1GoalsByIdResponses, PatchApiV1GoalsByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    public getSupervision<ThrowOnError extends boolean = false>(options: Options<GetApiV1GoalsByIdSupervisionData, ThrowOnError>): RequestResult<GetApiV1GoalsByIdSupervisionResponses, GetApiV1GoalsByIdSupervisionErrors, ThrowOnError> {
+        return (options.client ?? this.client).get<GetApiV1GoalsByIdSupervisionResponses, GetApiV1GoalsByIdSupervisionErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}/supervision',
+            ...options
+        });
+    }
+    
+    public advance<ThrowOnError extends boolean = false>(options: Options<PostApiV1GoalsByIdAdvanceData, ThrowOnError>): RequestResult<PostApiV1GoalsByIdAdvanceResponses, PostApiV1GoalsByIdAdvanceErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1GoalsByIdAdvanceResponses, PostApiV1GoalsByIdAdvanceErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}/advance',
+            ...options
+        });
+    }
+    
+    public pause<ThrowOnError extends boolean = false>(options: Options<PostApiV1GoalsByIdPauseData, ThrowOnError>): RequestResult<PostApiV1GoalsByIdPauseResponses, PostApiV1GoalsByIdPauseErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1GoalsByIdPauseResponses, PostApiV1GoalsByIdPauseErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}/pause',
+            ...options
+        });
+    }
+    
+    public resume<ThrowOnError extends boolean = false>(options: Options<PostApiV1GoalsByIdResumeData, ThrowOnError>): RequestResult<PostApiV1GoalsByIdResumeResponses, PostApiV1GoalsByIdResumeErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1GoalsByIdResumeResponses, PostApiV1GoalsByIdResumeErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}/resume',
+            ...options
+        });
+    }
+    
+    public restart<ThrowOnError extends boolean = false>(options: Options<PostApiV1GoalsByIdRestartData, ThrowOnError>): RequestResult<PostApiV1GoalsByIdRestartResponses, PostApiV1GoalsByIdRestartErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1GoalsByIdRestartResponses, PostApiV1GoalsByIdRestartErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/goals/{id}/restart',
             ...options,
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
@@ -700,7 +785,7 @@ export class KnowledgeBases extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1KnowledgeBasesData, ThrowOnError>): RequestResult<PostApiV1KnowledgeBasesResponses, PostApiV1KnowledgeBasesErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1KnowledgeBasesResponses, PostApiV1KnowledgeBasesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -709,7 +794,7 @@ export class KnowledgeBases extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1KnowledgeBasesByIdData, ThrowOnError>): RequestResult<DeleteApiV1KnowledgeBasesByIdResponses, DeleteApiV1KnowledgeBasesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1KnowledgeBasesByIdResponses, DeleteApiV1KnowledgeBasesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -717,7 +802,7 @@ export class KnowledgeBases extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1KnowledgeBasesByIdData, ThrowOnError>): RequestResult<GetApiV1KnowledgeBasesByIdResponses, GetApiV1KnowledgeBasesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1KnowledgeBasesByIdResponses, GetApiV1KnowledgeBasesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -725,7 +810,7 @@ export class KnowledgeBases extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1KnowledgeBasesByIdData, ThrowOnError>): RequestResult<PatchApiV1KnowledgeBasesByIdResponses, PatchApiV1KnowledgeBasesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1KnowledgeBasesByIdResponses, PatchApiV1KnowledgeBasesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -734,7 +819,7 @@ export class KnowledgeBases extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public listFiles<ThrowOnError extends boolean = false>(options: Options<GetApiV1KnowledgeBasesByIdFilesData, ThrowOnError>): RequestResult<GetApiV1KnowledgeBasesByIdFilesResponses, GetApiV1KnowledgeBasesByIdFilesErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1KnowledgeBasesByIdFilesResponses, GetApiV1KnowledgeBasesByIdFilesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -742,7 +827,7 @@ export class KnowledgeBases extends HeyApiClient {
             ...options
         });
     }
-
+    
     public removeFiles<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1KnowledgeBasesByIdFilesBatchData, ThrowOnError>): RequestResult<DeleteApiV1KnowledgeBasesByIdFilesBatchResponses, DeleteApiV1KnowledgeBasesByIdFilesBatchErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1KnowledgeBasesByIdFilesBatchResponses, DeleteApiV1KnowledgeBasesByIdFilesBatchErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -751,7 +836,7 @@ export class KnowledgeBases extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public addFiles<ThrowOnError extends boolean = false>(options: Options<PostApiV1KnowledgeBasesByIdFilesBatchData, ThrowOnError>): RequestResult<PostApiV1KnowledgeBasesByIdFilesBatchResponses, PostApiV1KnowledgeBasesByIdFilesBatchErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1KnowledgeBasesByIdFilesBatchResponses, PostApiV1KnowledgeBasesByIdFilesBatchErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -760,7 +845,7 @@ export class KnowledgeBases extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public moveFiles<ThrowOnError extends boolean = false>(options: Options<PostApiV1KnowledgeBasesByIdFilesMoveData, ThrowOnError>): RequestResult<PostApiV1KnowledgeBasesByIdFilesMoveResponses, PostApiV1KnowledgeBasesByIdFilesMoveErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1KnowledgeBasesByIdFilesMoveResponses, PostApiV1KnowledgeBasesByIdFilesMoveErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -782,7 +867,7 @@ export class McpServers extends HeyApiClient {
             ...options
         });
     }
-
+    
     /**
      * Add a remote MCP server
      */
@@ -794,7 +879,7 @@ export class McpServers extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1McpServersByIdData, ThrowOnError>): RequestResult<DeleteApiV1McpServersByIdResponses, DeleteApiV1McpServersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1McpServersByIdResponses, DeleteApiV1McpServersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -802,7 +887,7 @@ export class McpServers extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1McpServersByIdData, ThrowOnError>): RequestResult<GetApiV1McpServersByIdResponses, GetApiV1McpServersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1McpServersByIdResponses, GetApiV1McpServersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -810,7 +895,7 @@ export class McpServers extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1McpServersByIdData, ThrowOnError>): RequestResult<PatchApiV1McpServersByIdResponses, PatchApiV1McpServersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1McpServersByIdResponses, PatchApiV1McpServersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -819,7 +904,7 @@ export class McpServers extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * Discover and sync MCP tools
      */
@@ -827,6 +912,57 @@ export class McpServers extends HeyApiClient {
         return (options.client ?? this.client).post<PostApiV1McpServersByIdSyncResponses, PostApiV1McpServersByIdSyncErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
             url: '/api/v1/mcp-servers/{id}/sync',
+            ...options
+        });
+    }
+}
+
+export class Memories extends HeyApiClient {
+    /**
+     * Get the current persona document
+     */
+    public getPersona<ThrowOnError extends boolean = false>(options?: Options<GetApiV1MemoriesPersonaData, ThrowOnError>): RequestResult<GetApiV1MemoriesPersonaResponses, GetApiV1MemoriesPersonaErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1MemoriesPersonaResponses, GetApiV1MemoriesPersonaErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/memories/persona',
+            ...options
+        });
+    }
+    
+    /**
+     * List persona document versions
+     */
+    public listPersonaVersions<ThrowOnError extends boolean = false>(options?: Options<GetApiV1MemoriesPersonaVersionsData, ThrowOnError>): RequestResult<GetApiV1MemoriesPersonaVersionsResponses, GetApiV1MemoriesPersonaVersionsErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1MemoriesPersonaVersionsResponses, GetApiV1MemoriesPersonaVersionsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/memories/persona/versions',
+            ...options
+        });
+    }
+    
+    /**
+     * Delete all memory entries
+     */
+    public deleteAll<ThrowOnError extends boolean = false>(options?: Options<DeleteApiV1MemoriesData, ThrowOnError>): RequestResult<DeleteApiV1MemoriesResponses, DeleteApiV1MemoriesErrors, ThrowOnError> {
+        return (options?.client ?? this.client).delete<DeleteApiV1MemoriesResponses, DeleteApiV1MemoriesErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/memories',
+            ...options
+        });
+    }
+    
+    public deleteEntry<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1MemoriesByCategoryByIdData, ThrowOnError>): RequestResult<DeleteApiV1MemoriesByCategoryByIdResponses, DeleteApiV1MemoriesByCategoryByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).delete<DeleteApiV1MemoriesByCategoryByIdResponses, DeleteApiV1MemoriesByCategoryByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/memories/{category}/{id}',
+            ...options
+        });
+    }
+    
+    public listCategory<ThrowOnError extends boolean = false>(options: Options<GetApiV1MemoriesByCategoryData, ThrowOnError>): RequestResult<GetApiV1MemoriesByCategoryResponses, GetApiV1MemoriesByCategoryErrors, ThrowOnError> {
+        return (options.client ?? this.client).get<GetApiV1MemoriesByCategoryResponses, GetApiV1MemoriesByCategoryErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/memories/{category}',
             ...options
         });
     }
@@ -840,7 +976,7 @@ export class MessageTranslations extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1MessageTranslationsByMessageIdData, ThrowOnError>): RequestResult<GetApiV1MessageTranslationsByMessageIdResponses, GetApiV1MessageTranslationsByMessageIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1MessageTranslationsByMessageIdResponses, GetApiV1MessageTranslationsByMessageIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -848,7 +984,7 @@ export class MessageTranslations extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1MessageTranslationsByMessageIdData, ThrowOnError>): RequestResult<PatchApiV1MessageTranslationsByMessageIdResponses, PatchApiV1MessageTranslationsByMessageIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1MessageTranslationsByMessageIdResponses, PatchApiV1MessageTranslationsByMessageIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -857,7 +993,7 @@ export class MessageTranslations extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1MessageTranslationsByMessageIdData, ThrowOnError>): RequestResult<PostApiV1MessageTranslationsByMessageIdResponses, PostApiV1MessageTranslationsByMessageIdErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1MessageTranslationsByMessageIdResponses, PostApiV1MessageTranslationsByMessageIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -876,7 +1012,7 @@ export class Messages extends HeyApiClient {
             ...options
         });
     }
-
+    
     public deleteMany<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1MessagesData, ThrowOnError>): RequestResult<DeleteApiV1MessagesResponses, DeleteApiV1MessagesErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1MessagesResponses, DeleteApiV1MessagesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -885,7 +1021,7 @@ export class Messages extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public list<ThrowOnError extends boolean = false>(options?: Options<GetApiV1MessagesData, ThrowOnError>): RequestResult<GetApiV1MessagesResponses, GetApiV1MessagesErrors, ThrowOnError> {
         return (options?.client ?? this.client).get<GetApiV1MessagesResponses, GetApiV1MessagesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -893,7 +1029,7 @@ export class Messages extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1MessagesData, ThrowOnError>): RequestResult<PostApiV1MessagesResponses, PostApiV1MessagesErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1MessagesResponses, PostApiV1MessagesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -902,7 +1038,7 @@ export class Messages extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1MessagesByIdData, ThrowOnError>): RequestResult<DeleteApiV1MessagesByIdResponses, DeleteApiV1MessagesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1MessagesByIdResponses, DeleteApiV1MessagesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -910,7 +1046,7 @@ export class Messages extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1MessagesByIdData, ThrowOnError>): RequestResult<GetApiV1MessagesByIdResponses, GetApiV1MessagesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1MessagesByIdResponses, GetApiV1MessagesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -918,7 +1054,7 @@ export class Messages extends HeyApiClient {
             ...options
         });
     }
-
+    
     public createReply<ThrowOnError extends boolean = false>(options: Options<PostApiV1MessagesRepliesData, ThrowOnError>): RequestResult<PostApiV1MessagesRepliesResponses, PostApiV1MessagesRepliesErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1MessagesRepliesResponses, PostApiV1MessagesRepliesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -937,7 +1073,7 @@ export class Models extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1ModelsData, ThrowOnError>): RequestResult<PostApiV1ModelsResponses, PostApiV1ModelsErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1ModelsResponses, PostApiV1ModelsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -946,7 +1082,7 @@ export class Models extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1ModelsByProviderIdByModelIdData, ThrowOnError>): RequestResult<GetApiV1ModelsByProviderIdByModelIdResponses, GetApiV1ModelsByProviderIdByModelIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1ModelsByProviderIdByModelIdResponses, GetApiV1ModelsByProviderIdByModelIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -954,13 +1090,84 @@ export class Models extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1ModelsByProviderIdByModelIdData, ThrowOnError>): RequestResult<PatchApiV1ModelsByProviderIdByModelIdResponses, PatchApiV1ModelsByProviderIdByModelIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1ModelsByProviderIdByModelIdResponses, PatchApiV1ModelsByProviderIdByModelIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
             url: '/api/v1/models/{providerId}/{modelId}',
             ...options,
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+}
+
+export class Notifications extends HeyApiClient {
+    public list<ThrowOnError extends boolean = false>(options?: Options<GetApiV1NotificationsData, ThrowOnError>): RequestResult<GetApiV1NotificationsResponses, GetApiV1NotificationsErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1NotificationsResponses, GetApiV1NotificationsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications',
+            ...options
+        });
+    }
+    
+    /**
+     * Get the unread notification count
+     */
+    public getUnreadCount<ThrowOnError extends boolean = false>(options?: Options<GetApiV1NotificationsUnreadCountData, ThrowOnError>): RequestResult<GetApiV1NotificationsUnreadCountResponses, GetApiV1NotificationsUnreadCountErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1NotificationsUnreadCountResponses, GetApiV1NotificationsUnreadCountErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/unread-count',
+            ...options
+        });
+    }
+    
+    /**
+     * Get per-category notification counts
+     */
+    public getCounts<ThrowOnError extends boolean = false>(options?: Options<GetApiV1NotificationsCountsData, ThrowOnError>): RequestResult<GetApiV1NotificationsCountsResponses, GetApiV1NotificationsCountsErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1NotificationsCountsResponses, GetApiV1NotificationsCountsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/counts',
+            ...options
+        });
+    }
+    
+    public markRead<ThrowOnError extends boolean = false>(options: Options<PostApiV1NotificationsReadData, ThrowOnError>): RequestResult<PostApiV1NotificationsReadResponses, PostApiV1NotificationsReadErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1NotificationsReadResponses, PostApiV1NotificationsReadErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/read',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    /**
+     * Mark every notification as read
+     */
+    public markAllRead<ThrowOnError extends boolean = false>(options?: Options<PostApiV1NotificationsReadAllData, ThrowOnError>): RequestResult<PostApiV1NotificationsReadAllResponses, PostApiV1NotificationsReadAllErrors, ThrowOnError> {
+        return (options?.client ?? this.client).post<PostApiV1NotificationsReadAllResponses, PostApiV1NotificationsReadAllErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/read-all',
+            ...options
+        });
+    }
+    
+    /**
+     * Archive every notification
+     */
+    public archiveAll<ThrowOnError extends boolean = false>(options?: Options<PostApiV1NotificationsArchiveAllData, ThrowOnError>): RequestResult<PostApiV1NotificationsArchiveAllResponses, PostApiV1NotificationsArchiveAllErrors, ThrowOnError> {
+        return (options?.client ?? this.client).post<PostApiV1NotificationsArchiveAllResponses, PostApiV1NotificationsArchiveAllErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/archive-all',
+            ...options
+        });
+    }
+    
+    public archive<ThrowOnError extends boolean = false>(options: Options<PostApiV1NotificationsByIdArchiveData, ThrowOnError>): RequestResult<PostApiV1NotificationsByIdArchiveResponses, PostApiV1NotificationsByIdArchiveErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1NotificationsByIdArchiveResponses, PostApiV1NotificationsByIdArchiveErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/notifications/{id}/archive',
+            ...options
         });
     }
 }
@@ -973,7 +1180,7 @@ export class Permissions extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1PermissionsData, ThrowOnError>): RequestResult<PostApiV1PermissionsResponses, PostApiV1PermissionsErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1PermissionsResponses, PostApiV1PermissionsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -982,7 +1189,7 @@ export class Permissions extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1PermissionsByIdData, ThrowOnError>): RequestResult<DeleteApiV1PermissionsByIdResponses, DeleteApiV1PermissionsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1PermissionsByIdResponses, DeleteApiV1PermissionsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -990,7 +1197,7 @@ export class Permissions extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1PermissionsByIdData, ThrowOnError>): RequestResult<GetApiV1PermissionsByIdResponses, GetApiV1PermissionsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1PermissionsByIdResponses, GetApiV1PermissionsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -998,7 +1205,7 @@ export class Permissions extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1PermissionsByIdData, ThrowOnError>): RequestResult<PatchApiV1PermissionsByIdResponses, PatchApiV1PermissionsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1PermissionsByIdResponses, PatchApiV1PermissionsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1017,7 +1224,7 @@ export class Providers extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1ProvidersData, ThrowOnError>): RequestResult<PostApiV1ProvidersResponses, PostApiV1ProvidersErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1ProvidersResponses, PostApiV1ProvidersErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1026,7 +1233,7 @@ export class Providers extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1ProvidersByIdData, ThrowOnError>): RequestResult<DeleteApiV1ProvidersByIdResponses, DeleteApiV1ProvidersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1ProvidersByIdResponses, DeleteApiV1ProvidersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1034,7 +1241,7 @@ export class Providers extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1ProvidersByIdData, ThrowOnError>): RequestResult<GetApiV1ProvidersByIdResponses, GetApiV1ProvidersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1ProvidersByIdResponses, GetApiV1ProvidersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1042,7 +1249,7 @@ export class Providers extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1ProvidersByIdData, ThrowOnError>): RequestResult<PatchApiV1ProvidersByIdResponses, PatchApiV1ProvidersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1ProvidersByIdResponses, PatchApiV1ProvidersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1072,7 +1279,7 @@ export class Roles extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1RolesData, ThrowOnError>): RequestResult<PostApiV1RolesResponses, PostApiV1RolesErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1RolesResponses, PostApiV1RolesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1081,7 +1288,7 @@ export class Roles extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1RolesByIdData, ThrowOnError>): RequestResult<DeleteApiV1RolesByIdResponses, DeleteApiV1RolesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1RolesByIdResponses, DeleteApiV1RolesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1089,7 +1296,7 @@ export class Roles extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1RolesByIdData, ThrowOnError>): RequestResult<GetApiV1RolesByIdResponses, GetApiV1RolesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1RolesByIdResponses, GetApiV1RolesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1097,7 +1304,7 @@ export class Roles extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1RolesByIdData, ThrowOnError>): RequestResult<PatchApiV1RolesByIdResponses, PatchApiV1RolesByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1RolesByIdResponses, PatchApiV1RolesByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1106,7 +1313,7 @@ export class Roles extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public deletePermissions<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1RolesByIdPermissionsData, ThrowOnError>): RequestResult<DeleteApiV1RolesByIdPermissionsResponses, DeleteApiV1RolesByIdPermissionsErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1RolesByIdPermissionsResponses, DeleteApiV1RolesByIdPermissionsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1114,7 +1321,7 @@ export class Roles extends HeyApiClient {
             ...options
         });
     }
-
+    
     public listPermissions<ThrowOnError extends boolean = false>(options: Options<GetApiV1RolesByIdPermissionsData, ThrowOnError>): RequestResult<GetApiV1RolesByIdPermissionsResponses, GetApiV1RolesByIdPermissionsErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1RolesByIdPermissionsResponses, GetApiV1RolesByIdPermissionsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1122,11 +1329,92 @@ export class Roles extends HeyApiClient {
             ...options
         });
     }
-
+    
     public updatePermissions<ThrowOnError extends boolean = false>(options: Options<PatchApiV1RolesByIdPermissionsData, ThrowOnError>): RequestResult<PatchApiV1RolesByIdPermissionsResponses, PatchApiV1RolesByIdPermissionsErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1RolesByIdPermissionsResponses, PatchApiV1RolesByIdPermissionsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
             url: '/api/v1/roles/{id}/permissions',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+}
+
+export class Signals extends HeyApiClient {
+    public emit<ThrowOnError extends boolean = false>(options: Options<PostApiV1SignalsSourceEventsData, ThrowOnError>): RequestResult<PostApiV1SignalsSourceEventsResponses, PostApiV1SignalsSourceEventsErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1SignalsSourceEventsResponses, PostApiV1SignalsSourceEventsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/signals/source-events',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    public trigger<ThrowOnError extends boolean = false>(options: Options<PostApiV1SignalsTriggerData, ThrowOnError>): RequestResult<PostApiV1SignalsTriggerResponses, PostApiV1SignalsTriggerErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1SignalsTriggerResponses, PostApiV1SignalsTriggerErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/signals/trigger',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    public listReceipts<ThrowOnError extends boolean = false>(options: Options<GetApiV1SignalsReceiptsData, ThrowOnError>): RequestResult<GetApiV1SignalsReceiptsResponses, GetApiV1SignalsReceiptsErrors, ThrowOnError> {
+        return (options.client ?? this.client).get<GetApiV1SignalsReceiptsResponses, GetApiV1SignalsReceiptsErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/signals/receipts',
+            ...options
+        });
+    }
+}
+
+export class Tasks extends HeyApiClient {
+    public list<ThrowOnError extends boolean = false>(options?: Options<GetApiV1TasksData, ThrowOnError>): RequestResult<GetApiV1TasksResponses, GetApiV1TasksErrors, ThrowOnError> {
+        return (options?.client ?? this.client).get<GetApiV1TasksResponses, GetApiV1TasksErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tasks',
+            ...options
+        });
+    }
+    
+    public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1TasksData, ThrowOnError>): RequestResult<PostApiV1TasksResponses, PostApiV1TasksErrors, ThrowOnError> {
+        return (options.client ?? this.client).post<PostApiV1TasksResponses, PostApiV1TasksErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tasks',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1TasksByIdData, ThrowOnError>): RequestResult<DeleteApiV1TasksByIdResponses, DeleteApiV1TasksByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).delete<DeleteApiV1TasksByIdResponses, DeleteApiV1TasksByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tasks/{id}',
+            ...options
+        });
+    }
+    
+    public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1TasksByIdData, ThrowOnError>): RequestResult<GetApiV1TasksByIdResponses, GetApiV1TasksByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).get<GetApiV1TasksByIdResponses, GetApiV1TasksByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tasks/{id}',
+            ...options
+        });
+    }
+    
+    public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1TasksByIdData, ThrowOnError>): RequestResult<PatchApiV1TasksByIdResponses, PatchApiV1TasksByIdErrors, ThrowOnError> {
+        return (options.client ?? this.client).patch<PatchApiV1TasksByIdResponses, PatchApiV1TasksByIdErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tasks/{id}',
+            ...options,
+            headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
+        });
+    }
+    
+    public updateStatus<ThrowOnError extends boolean = false>(options: Options<PatchApiV1TasksByIdStatusData, ThrowOnError>): RequestResult<PatchApiV1TasksByIdStatusResponses, PatchApiV1TasksByIdStatusErrors, ThrowOnError> {
+        return (options.client ?? this.client).patch<PatchApiV1TasksByIdStatusResponses, PatchApiV1TasksByIdStatusErrors, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }],
+            url: '/api/v1/tasks/{id}/status',
             ...options,
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
@@ -1141,7 +1429,7 @@ export class Topics extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1TopicsData, ThrowOnError>): RequestResult<PostApiV1TopicsResponses, PostApiV1TopicsErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1TopicsResponses, PostApiV1TopicsErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1150,7 +1438,7 @@ export class Topics extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1TopicsByIdData, ThrowOnError>): RequestResult<DeleteApiV1TopicsByIdResponses, DeleteApiV1TopicsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1TopicsByIdResponses, DeleteApiV1TopicsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1158,7 +1446,7 @@ export class Topics extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1TopicsByIdData, ThrowOnError>): RequestResult<GetApiV1TopicsByIdResponses, GetApiV1TopicsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1TopicsByIdResponses, GetApiV1TopicsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1166,7 +1454,7 @@ export class Topics extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1TopicsByIdData, ThrowOnError>): RequestResult<PatchApiV1TopicsByIdResponses, PatchApiV1TopicsByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1TopicsByIdResponses, PatchApiV1TopicsByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1175,7 +1463,7 @@ export class Topics extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     /**
      * List topic threads
      */
@@ -1199,7 +1487,7 @@ export class Users extends HeyApiClient {
             ...options
         });
     }
-
+    
     public list<ThrowOnError extends boolean = false>(options?: Options<GetApiV1UsersData, ThrowOnError>): RequestResult<GetApiV1UsersResponses, GetApiV1UsersErrors, ThrowOnError> {
         return (options?.client ?? this.client).get<GetApiV1UsersResponses, GetApiV1UsersErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1207,7 +1495,7 @@ export class Users extends HeyApiClient {
             ...options
         });
     }
-
+    
     public create<ThrowOnError extends boolean = false>(options: Options<PostApiV1UsersData, ThrowOnError>): RequestResult<PostApiV1UsersResponses, PostApiV1UsersErrors, ThrowOnError> {
         return (options.client ?? this.client).post<PostApiV1UsersResponses, PostApiV1UsersErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1216,7 +1504,7 @@ export class Users extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public delete<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1UsersByIdData, ThrowOnError>): RequestResult<DeleteApiV1UsersByIdResponses, DeleteApiV1UsersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1UsersByIdResponses, DeleteApiV1UsersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1224,7 +1512,7 @@ export class Users extends HeyApiClient {
             ...options
         });
     }
-
+    
     public get<ThrowOnError extends boolean = false>(options: Options<GetApiV1UsersByIdData, ThrowOnError>): RequestResult<GetApiV1UsersByIdResponses, GetApiV1UsersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1UsersByIdResponses, GetApiV1UsersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1232,7 +1520,7 @@ export class Users extends HeyApiClient {
             ...options
         });
     }
-
+    
     public update<ThrowOnError extends boolean = false>(options: Options<PatchApiV1UsersByIdData, ThrowOnError>): RequestResult<PatchApiV1UsersByIdResponses, PatchApiV1UsersByIdErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1UsersByIdResponses, PatchApiV1UsersByIdErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1241,7 +1529,7 @@ export class Users extends HeyApiClient {
             headers: mergeMethodHeaders({ 'Content-Type': 'application/json' }, options.headers)
         });
     }
-
+    
     public deleteRoles<ThrowOnError extends boolean = false>(options: Options<DeleteApiV1UsersByIdRolesData, ThrowOnError>): RequestResult<DeleteApiV1UsersByIdRolesResponses, DeleteApiV1UsersByIdRolesErrors, ThrowOnError> {
         return (options.client ?? this.client).delete<DeleteApiV1UsersByIdRolesResponses, DeleteApiV1UsersByIdRolesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1249,7 +1537,7 @@ export class Users extends HeyApiClient {
             ...options
         });
     }
-
+    
     public listRoles<ThrowOnError extends boolean = false>(options: Options<GetApiV1UsersByIdRolesData, ThrowOnError>): RequestResult<GetApiV1UsersByIdRolesResponses, GetApiV1UsersByIdRolesErrors, ThrowOnError> {
         return (options.client ?? this.client).get<GetApiV1UsersByIdRolesResponses, GetApiV1UsersByIdRolesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1257,7 +1545,7 @@ export class Users extends HeyApiClient {
             ...options
         });
     }
-
+    
     public updateRoles<ThrowOnError extends boolean = false>(options: Options<PatchApiV1UsersByIdRolesData, ThrowOnError>): RequestResult<PatchApiV1UsersByIdRolesResponses, PatchApiV1UsersByIdRolesErrors, ThrowOnError> {
         return (options.client ?? this.client).patch<PatchApiV1UsersByIdRolesResponses, PatchApiV1UsersByIdRolesErrors, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }],
@@ -1283,7 +1571,7 @@ export class Usage extends HeyApiClient {
 
 export class LobeHub extends HeyApiClient {
     public static readonly __registry: HeyApiRegistry<LobeHub> = new HeyApiRegistry<LobeHub>();
-
+    
     constructor(args?: {
         client?: Client;
         key?: string;
@@ -1291,102 +1579,127 @@ export class LobeHub extends HeyApiClient {
         super(args);
         LobeHub.__registry.set(this, args?.key);
     }
-
+    
     private _health?: Health;
     get health(): Health {
         return this._health ??= new Health({ client: this.client });
     }
-
+    
     private _agentGroups?: AgentGroups;
     get agentGroups(): AgentGroups {
         return this._agentGroups ??= new AgentGroups({ client: this.client });
     }
-
+    
     private _agents?: Agents;
     get agents(): Agents {
         return this._agents ??= new Agents({ client: this.client });
     }
-
+    
     private _apiKeys?: ApiKeys;
     get apiKeys(): ApiKeys {
         return this._apiKeys ??= new ApiKeys({ client: this.client });
     }
-
+    
     private _chat?: Chat;
     get chat(): Chat {
         return this._chat ??= new Chat({ client: this.client });
     }
-
+    
     private _eval?: Eval;
     get eval(): Eval {
         return this._eval ??= new Eval({ client: this.client });
     }
-
+    
     private _plugins?: Plugins;
     get plugins(): Plugins {
         return this._plugins ??= new Plugins({ client: this.client });
     }
-
+    
     private _files?: Files;
     get files(): Files {
         return this._files ??= new Files({ client: this.client });
     }
-
+    
+    private _goals?: Goals;
+    get goals(): Goals {
+        return this._goals ??= new Goals({ client: this.client });
+    }
+    
     private _knowledgeBases?: KnowledgeBases;
     get knowledgeBases(): KnowledgeBases {
         return this._knowledgeBases ??= new KnowledgeBases({ client: this.client });
     }
-
+    
     private _mcpServers?: McpServers;
     get mcpServers(): McpServers {
         return this._mcpServers ??= new McpServers({ client: this.client });
     }
-
+    
+    private _memories?: Memories;
+    get memories(): Memories {
+        return this._memories ??= new Memories({ client: this.client });
+    }
+    
     private _messageTranslations?: MessageTranslations;
     get messageTranslations(): MessageTranslations {
         return this._messageTranslations ??= new MessageTranslations({ client: this.client });
     }
-
+    
     private _messages?: Messages;
     get messages(): Messages {
         return this._messages ??= new Messages({ client: this.client });
     }
-
+    
     private _models?: Models;
     get models(): Models {
         return this._models ??= new Models({ client: this.client });
     }
-
+    
+    private _notifications?: Notifications;
+    get notifications(): Notifications {
+        return this._notifications ??= new Notifications({ client: this.client });
+    }
+    
     private _permissions?: Permissions;
     get permissions(): Permissions {
         return this._permissions ??= new Permissions({ client: this.client });
     }
-
+    
     private _providers?: Providers;
     get providers(): Providers {
         return this._providers ??= new Providers({ client: this.client });
     }
-
+    
     private _responses?: Responses;
     get responses(): Responses {
         return this._responses ??= new Responses({ client: this.client });
     }
-
+    
     private _roles?: Roles;
     get roles(): Roles {
         return this._roles ??= new Roles({ client: this.client });
     }
-
+    
+    private _signals?: Signals;
+    get signals(): Signals {
+        return this._signals ??= new Signals({ client: this.client });
+    }
+    
+    private _tasks?: Tasks;
+    get tasks(): Tasks {
+        return this._tasks ??= new Tasks({ client: this.client });
+    }
+    
     private _topics?: Topics;
     get topics(): Topics {
         return this._topics ??= new Topics({ client: this.client });
     }
-
+    
     private _users?: Users;
     get users(): Users {
         return this._users ??= new Users({ client: this.client });
     }
-
+    
     private _usage?: Usage;
     get usage(): Usage {
         return this._usage ??= new Usage({ client: this.client });

@@ -214,6 +214,35 @@ for (const module of registryModules) {
   }
 }
 const hookExtractedLines = new Map();
+// Upstream churn between the baseline and the latest merged upstream tag is not
+// fork delegate growth: when the upstream side rewrote files under a delegated
+// path, those lines are subtracted so the budget measures only what the fork
+// changed. Without this, every upstream release that touches a delegated
+// directory would push the budget over without any fork-side edit.
+const upstreamChurnPerPath = (() => {
+  const churn = new Map();
+  const latestTag = process.env.COMHUB_UPSTREAM_LATEST_TAG || 'v2.2.19';
+  try {
+    const out = git(['diff', '--numstat', effectiveBaseline, latestTag]);
+    for (const line of out.split('\n')) {
+      if (!line.trim()) continue;
+      const parts = line.split('\t');
+      if (parts.length < 3) continue;
+      const [added, deleted, path] = parts;
+      const key = path.split('/').slice(0, -1).join('/'); // dirname bucket
+      churn.set(key, (churn.get(key) || 0) + (Number(added) || 0) + (Number(deleted) || 0));
+      // Also register parent dirs so directory-scoped rules can look them up.
+      const segs = key.split('/');
+      for (let i = segs.length - 1; i > 0; i--) {
+        const parent = segs.slice(0, i).join('/');
+        churn.set(parent, (churn.get(parent) || 0) + (Number(added) || 0) + (Number(deleted) || 0));
+      }
+    }
+  } catch {
+    // Latest tag not present in this checkout: no upstream-churn subtraction.
+  }
+  return churn;
+})();
 for (const hookPath of hookExtractedPaths) {
   const out = git(['diff', '--numstat', effectiveBaseline, 'HEAD', '--', hookPath]);
   let lines = 0;
@@ -222,6 +251,10 @@ for (const hookPath of hookExtractedPaths) {
     const [added, deleted] = line.split('\t');
     lines += (Number(added) || 0) + (Number(deleted) || 0); // binary rows ("-") count 0
   }
+  // Subtract the upstream-side churn under this path (files the upstream
+  // release changed and the fork did not touch are not delegate growth).
+  const upstreamChurn = upstreamChurnPerPath.get(hookPath) || 0;
+  lines = Math.max(0, lines - upstreamChurn);
   hookExtractedLines.set(hookPath, lines);
 }
 const hookExtractedOver = [...hookExtractedLines].filter(

@@ -188,7 +188,7 @@
   `ClaudeAgentSdkSession` vs the CLI-spawn `AgentStreamPipeline`). Both produce identical
   user-visible output, so the verdict needs a main-process log line.
 - **Doesn't work**: grepping the instance log for the `logger.info('Starting Claude Code SDK
-session:')` line. In development `createLogger().info` routes to the `debug` package, which
+  session:')` line. In development `createLogger().info` routes to the `debug` package, which
   prints nothing unless its namespace is enabled (only `console.error` shows up unconditionally).
   Absence of the line is NOT evidence the branch didn't run.
 - **Works**: `export DEBUG='controllers:*'` before `electron-dev.sh start <id>`, then
@@ -216,7 +216,7 @@ session:')` line. In development `createLogger().info` routes to the `debug` pac
   "Start New Topic". The contenteditable ref changes after the switch — re-run
   `snapshot -i -C` before typing.
 - Full E2E loop this enabled: E11 fixture agent (`heterogeneousProvider: { type: 'claude-code' },
-executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to run a
+  executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to run a
   specific shell command → poll `chat().operations` for `running === 0` → assert the
   topic's metadata via the probe above. A real CC one-command turn completes in \~10–20s.
 
@@ -270,7 +270,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
   consuming component guards against re-consumption with a `useRef` holding the last nonce.
 - **Why it silently breaks**: the ref dies with the component. Any change that starts remounting
   the consumer (e.g. giving it a `key` that now varies per topic/session) resurrects the guard as
-  `undefined`, so a request that is still sitting in _persisted_ state is re-consumed on every
+  `undefined`, so a request that is still sitting in *persisted* state is re-consumed on every
   remount — and, on a fresh boot, once more. The symptom looks nothing like the cause: a page the
   agent had just loaded gets navigated to a URL from days ago.
 - **Works**: retire the request in the store the moment it is consumed, so the one-shot is one-shot
@@ -318,7 +318,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
     A programmatic `.click()` on the ellipsis DOES open the antd dropdown (it sets
     `data-popup-open`, which also freezes the bar so it won't vanish). The action
     labels are localized (`分享`/`多选`/`删除` = share/select/del).
-- **D7. To get a _finished_ hetero (CC/Codex) turn that ENDS on a tool block**
+- **D7. To get a *finished* hetero (CC/Codex) turn that ENDS on a tool block**
   (last child has tools → `getGroupLatestMessageWithoutTools` returns undefined,
   the `!contentId` action-bar path): send a single long tool call (e.g.
   `用 Bash 工具运行 sleep 20`) and, the moment the group's last child is a running
@@ -331,7 +331,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
 - **D11. ✅ WORKS — catch a BRIEF blank/transient frame (sub-second) that screencast misses.**
   Verifying a momentary full-screen blank (e.g. a React subtree unmounting to `null` for
   \~150–350ms during a scope change): `Page.startScreencast` emits one frame when it starts and
-  then only on a VISUAL CHANGE, so a _static_ blank produces no further frames — you see a time
+  then only on a VISUAL CHANGE, so a *static* blank produces no further frames — you see a time
   GAP in the manifest, not a blank image. (Measured: 3s of a static page → **1** frame, the
   initial one; 6 background flips → **6** frames. The old note said "NO frame", which misses
   the initial one and can look like the screencast never started.)
@@ -404,8 +404,8 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
   `WebContentsView`s (not renderer `<webview>` guests — that is E16/D15, a different shape).
 - **Doesn't work**: assuming any tool that "just connects to the CDP port" lands on the app.
   Every live page shows up in `/json/list` as its own `type: page` target, so both
-  `agent-browser` and `scripts/cdp-screenshot.sh` can silently attach to a _web page the app
-  is hosting_ instead of the app itself. Measured: `cdp-screenshot.sh` reported
+  `agent-browser` and `bash .agents/skills/acceptance/scripts/cdp-screenshot.sh` can silently
+  attach to a *web page the app is hosting* instead of the app itself. Measured: `cdp-screenshot.sh` reported
   `targetUrl: https://example.com/` and wrote that page's pixels while the intended evidence
   was the app window; an `agent-browser get url` on the same port hung.
 - **Works — pin the target by URL prefix.** Raw CDP, pick the target whose `url` starts with
@@ -416,7 +416,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
   new WebSocket(target.webSocketDebuggerUrl); // → Runtime.evaluate
   ```
 - **Works — the same property is the cheapest page-pool probe there is.** One live page ==
-  one `page` target, so `/json/list` filtered to non-`app://` URLs _is_ the pool's contents.
+  one `page` target, so `/json/list` filtered to non-`app://` URLs *is* the pool's contents.
   Use it to assert per-session isolation (N sessions → N coexisting pages, and a page that
   should have survived an action is still listed) without adding any IPC or store probe:
   ```bash
@@ -424,7 +424,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
     | python3 -c "import json,sys; print([t['url'] for t in json.load(sys.stdin) if t['type']=='page'])"
   ```
 - **Pixels still need an OS capture.** A `WebContentsView` does not composite into the host
-  page's `Page.captureScreenshot`, so app-window evidence that must _show the embedded page_
+  page's `Page.captureScreenshot`, so app-window evidence that must *show the embedded page*
   has to come from `capture-app-window.sh` (macOS `screencapture -l <windowid>`), which does
   not require bringing the window to the front.
 
@@ -472,7 +472,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
   ```
 
   react-router picks up the popstate and renders the route in-context with the
-  already-hydrated auth. Right-panels that render at a _layout_ level do NOT see a
+  already-hydrated auth. Right-panels that render at a *layout* level do NOT see a
   child route's `:param` via `useParams()` — read it from `location.pathname` if
   you need it.
 
@@ -496,7 +496,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
   - **Postgres**: local brew Postgres 17 (pgvector available). The only paradedb-specific
     migrations are `0090_enable_pg_search` / `0093_add_bm25_indexes_with_icu` — no-op them
     in the worktree (`SELECT 1;`), everything else applies clean.
-  - **Redis is a hard dependency of Better Auth sign-in** — with a dead REDIS\_URL the seed
+  - **Redis is a hard dependency of Better Auth sign-in** — with a dead REDIS_URL the seed
     login 500s (`[Better Auth]: Error: Connection is closed`). `brew install redis`,
     `redis-server --port 6380 --daemonize yes`.
   - **S3**: `s3rver` (npm) on 29000 with a CORS config for the bucket. Its presigned-URL
@@ -509,7 +509,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
 
 - **Situation**: the first AUTHENTICATED render of a Next-served (non-SPA) page whose client
   graph pulls the chat store dies in `next dev` (Turbopack) with Build Error `Resource path
-"worker/browser/createWorker.ts" needs to be on project filesystem` (chain: layout →
+  "worker/browser/createWorker.ts" needs to be on project filesystem` (chain: layout →
   GlobalProvider/Query → trpc client → image/chat store → python-interpreter worker).
   Unauthenticated curl 302s BEFORE the client graph compiles, so it false-passes; a fresh
   no-lockfile `pnpm install` can resolve a broken plugin version.
@@ -698,7 +698,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
 
 ### E18. Cloud-connected desktop routes even `local` agents to the SERVER runtime — force client with `disableGatewayMode`
 
-- **Situation**: verifying a **client-only** builtin tool (`executors: ['client']`) via a real agent turn on the desktop. The agent's `executionTarget` is `local` and the tool-enable gate (`isLocalSystemEnabled` = runtime `local`) passes, so it _looks_ like it will run client-side.
+- **Situation**: verifying a **client-only** builtin tool (`executors: ['client']`) via a real agent turn on the desktop. The agent's `executionTarget` is `local` and the tool-enable gate (`isLocalSystemEnabled` = runtime `local`) passes, so it *looks* like it will run client-side.
 - **Doesn't work**: sending the message as-is. On a cloud-connected desktop, gateway mode is on by default, so the run dispatches to `execServerAgentRuntime` (server/queue path) even for a `local` agent. The client-only tool isn't executable there — the model flails and returns a non-answer (e.g. "browser closed") with no real tool effect. Confirm the path by reading the running op's `type` in `window.__LOBE_STORES.chat().operations` (`execServerAgentRuntime` = server; `executeToolCall` = client).
 - **Works**: set the agent's `chatConfig.disableGatewayMode = true` (via `agentStore.updateAgentChatConfigById(id, { disableGatewayMode: true })`) before sending. The run then goes through `executeToolCall` (client runtime); the composer's runtime chip flips to "Local device" and the client executor runs. The gate (`isLocalSystemEnabled`) and the transport (`disableGatewayMode`) are INDEPENDENT — enabling the tool does not force client execution.
 
@@ -736,7 +736,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
 - **Situation**: a real Claude Code / Codex run in the local no-`.env` env fails immediately with `Failed to sign operation JWT for hetero agent` (`apps/server/src/services/aiAgent/index.ts`). Nothing in the UI explains it; the topic just fails.
 - **Cause**: `signHeteroOperationJWT` → `getSigningKey()` → `getJwksKey()` needs the `JWKS_KEY` RSA JWK.
 - **Fixed in the bootstrap**: `init-dev-env.sh` now generates one on first use and persists it at `.records/env/agent-testing-jwks.json`, then exports `JWKS_KEY` from `apply_env`. A server started any other way still needs it explicitly — `JWKS_KEY="$(node scripts/generate-oidc-jwk.mjs)" …` — and it must be present at dev-server **start** (read from `process.env`), so a running server has to be restarted.
-- **Note the failure is downstream-honest**: with `JWKS_KEY` set, the run proceeds and then fails at the hetero _sandbox_ (`Hetero sandbox spawn failed / unauthorized`) unless the agent has a real Claude Code token. Those are two different walls — don't read the second as the first.
+- **Note the failure is downstream-honest**: with `JWKS_KEY` set, the run proceeds and then fails at the hetero *sandbox* (`Hetero sandbox spawn failed / unauthorized`) unless the agent has a real Claude Code token. Those are two different walls — don't read the second as the first.
 - **Same wall, other feature**: any async-task dispatch needs it too. Image generation (`lambda/image.createImage` → `createAsyncCaller`) records the task as `error` with `start async task error: JWKS_KEY environment variable is not set`, which surfaces in the UI only as a generic 「暂时无法生成图片，请重试」 — read `async_tasks.error` rather than the toast.
 
 ### E23b. Local image generation needs three env pieces, and each fails as the same generic toast
@@ -745,7 +745,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
 - **Read the cause from `async_tasks.error`, not the toast**: `docker exec <pg> psql -U postgres -d postgres -c "select status, error from async_tasks order by created_at desc limit 3;"`.
 - **Three separate walls, in the order you hit them**:
   1. `start async task error: JWKS_KEY environment variable is not set` → see E22. The bootstrap now exports a persisted `JWKS_KEY`; you only hit this on a server started outside `init-dev-env.sh`.
-  2. `InvalidProviderAPIKey` → the seeded user's stored `ai_providers.key_vaults` may hold a key encrypted with a different `KEY_VAULTS_SECRET`. Clear it (`update ai_providers set key_vaults = null where id = '<provider>'`) so the server env key is used; provide `<PROVIDER>_API_KEY` plus, for a relay endpoint, `<PROVIDER>_PROXY_URL` (`apps/server/src/modules/ModelRuntime/index.ts` reads `process.env[`${UPPER}\_PROXY\_URL`]`).
+  2. `InvalidProviderAPIKey` → the seeded user's stored `ai_providers.key_vaults` may hold a key encrypted with a different `KEY_VAULTS_SECRET`. Clear it (`update ai_providers set key_vaults = null where id = '<provider>'`) so the server env key is used; provide `<PROVIDER>_API_KEY` plus, for a relay endpoint, `<PROVIDER>_PROXY_URL` (`apps/server/src/modules/ModelRuntime/index.ts` reads `process.env[`${UPPER}\_PROXY_URL`]`).
   3. `SSRF blocked: ... is not allowed. Because, It is private IP address.` → any reference image living in the local s3rver is fetched **server-side**. The bootstrap now exports `SSRF_ALLOW_PRIVATE_IP_ADDRESS=1`; set it yourself on a server started another way.
 - **Then note which model the product actually picked** before attributing quality or format to a model: read the product's own selector rather than assuming (`selectAgentArtworkModel(enabledImageModelList(...))` over CDP). Disabling a provider row is enough to change the pick.
 - **Style presets that attach reference images can still fail after all three**: local presigned URLs may return an S3 XML error body, which reaches the model as `Unsupported MIME type: application/xml`. Pick a preset with no reference images to test generation itself.
@@ -753,7 +753,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
 ### E23c. A green desktop surface can be talking to another worktree's dev server
 
 - **Situation**: verifying a schema-backed field from the Electron app. Writes landed, but reads came back without the new column, and the app looked healthy throughout.
-- **Cause**: the desktop client proxies to whatever `dataSyncConfig.remoteServerUrl` says (E-note above). Any worktree can occupy that port — here the port was taken by a dev server started from the _main_ repo, whose branch has no such column. `init-dev-env.sh dev-next` then dies with `EADDRINUSE` in a log you are not watching, and the app keeps serving the other branch's code.
+- **Cause**: the desktop client proxies to whatever `dataSyncConfig.remoteServerUrl` says (E-note above). Any worktree can occupy that port — here the port was taken by a dev server started from the *main* repo, whose branch has no such column. `init-dev-env.sh dev-next` then dies with `EADDRINUSE` in a log you are not watching, and the app keeps serving the other branch's code.
 - **Works**: confirm the owner before trusting a read — `lsof -p "$(lsof -ti tcp:<port> -sTCP:LISTEN | head -1)" | grep cwd` must print the worktree under test. Do not kill a server you did not start; run yours on a free port (and repoint the app) or wait for the port. To separate a server-code problem from a client one, exercise the service directly with `bun` against the same `DATABASE_URL` — it uses the worktree's own schema.
 
 ### E25. Electron `will-attach-webview` params carry NO custom attributes — identity via data-\* never arrives
@@ -763,7 +763,7 @@ executionTarget: 'local'` in `agencyConfig`) + one message per case asking CC to
   custom `data-*` attribute on the element.
 - **Doesn't work**: reading `params['data-…']` in `will-attach-webview`. Measured live: params
   only contains the standard set (`instanceId, partition, src, httpreferrer, useragent,
-nodeintegration, plugins, disablewebsecurity, allowpopups, preload, …`). The handler silently
+  nodeintegration, plugins, disablewebsecurity, allowpopups, preload, …`). The handler silently
   no-ops and — trap — a unit test that mocks params WITH the custom key passes green.
 - **Works**: two-channel design. (1) Recognition/hardening keyed off the **`partition`
   attribute** set by the renderer (it IS forwarded); (2) identity bound after mount via an
@@ -788,7 +788,7 @@ nodeintegration, plugins, disablewebsecurity, allowpopups, preload, …`). The h
   conclusion. If a run "should" have hit your code and didn't, prove the server is running your
   code FIRST — drop a `console.error` on the path and restart — before debugging the code itself.
 
-### E27. ✅ `source`-ing an unquoted JSON env var silently corrupts it (JWKS\_KEY → gateway auth\_failed)
+### E27. ✅ `source`-ing an unquoted JSON env var silently corrupts it (JWKS_KEY → gateway auth_failed)
 
 - **Situation**: writing an env file for the local gateway loop with
   `JWKS_KEY={"keys":[{"kty":"RSA",...}]}` on one line, then `set -a; source that-file`.
@@ -821,10 +821,10 @@ nodeintegration, plugins, disablewebsecurity, allowpopups, preload, …`). The h
   and pick one from there. Also: a send that "resolves fine but creates no operation" is a UI-gate
   symptom; **screenshot the composer** instead of re-reading your store call.
 
-### E29. Fresh-worktree `seed-user` dies on `Cannot find module 'bcryptjs'` — NODE\_PATH into .pnpm fixes it
+### E29. Fresh-worktree `seed-user` dies on `Cannot find module 'bcryptjs'` — NODE_PATH into .pnpm fixes it
 
 - **Situation**: in a fresh git-worktree install, `init-dev-env.sh seed-user`
-  (which runs `node <<'NODE'` from the repo root) throws MODULE\_NOT\_FOUND for
+  (which runs `node <<'NODE'` from the repo root) throws MODULE_NOT_FOUND for
   `bcryptjs`, even though `pnpm install` succeeded.
 - **Cause not fully established**: `bcryptjs` exists in `node_modules/.pnpm/`
   but is not linked at the repo-root `node_modules` top level in that install
@@ -832,7 +832,7 @@ nodeintegration, plugins, disablewebsecurity, allowpopups, preload, …`). The h
   resolve it.
 - **Works**: prefix the call with
   `NODE_PATH="$PWD/node_modules/.pnpm/bcryptjs@<ver>/node_modules"` (check the
-  exact version dir first). CJS stdin scripts honor NODE\_PATH; seeding then
+  exact version dir first). CJS stdin scripts honor NODE_PATH; seeding then
   completes normally.
 - Same run also (re)confirmed: `init-dev-env.sh dev` ports are DYNAMIC (e.g.
   next on 33803, vite on 32459) — never hardcode 3010; re-run
@@ -929,7 +929,7 @@ nodeintegration, plugins, disablewebsecurity, allowpopups, preload, …`). The h
      The fixture side needs `topics.metadata.runningOperation = { operationId, assistantMessageId }`
      seeded, and the operationId must embed real ids (`op_<ts>_agt_<id>_tpc_<id>_<suffix>`).
 - **Bonus trap**: under bun, a spawn failure reads `ENOENT: no such file or directory,
-posix_spawn '<cmd>'` — NOT node's `spawn <cmd> ENOENT`. Any stderr-text pattern keyed to the node
+  posix_spawn '<cmd>'` — NOT node's `spawn <cmd> ENOENT`. Any stderr-text pattern keyed to the node
   format silently misses on bun; classification/assertions should key on the raw error's
   `err.code === 'ENOENT'` (runtime-agnostic) and treat text matching as fallback only.
 - **Persistence shape worth knowing**: a process-level failure that produced ZERO stream events
@@ -953,7 +953,7 @@ posix_spawn '<cmd>'` — NOT node's `spawn <cmd> ENOENT`. Any stderr-text patter
   Telegram/Slack/Discord. A real bind needs a live bot issuing a `random_id` link token —
   unavailable in an isolated env.
 - **Works**: take the page's own refresh-after-link path instead. With a signed-in user, seed
-  (1) a `messenger_account_links` row for (user, platform, tenant\_id='') and (2) an enabled
+  (1) a `messenger_account_links` row for (user, platform, tenant_id='') and (2) an enabled
   `system_bot_providers` row for the platform — `credentials` must be encrypted with
   `KeyVaultsGateKeeper.initWithEnvKey()` (same `KEY_VAULTS_SECRET` as the dev server), e.g.
   telegram `{ botToken, botUsername }`. Then open
@@ -962,7 +962,7 @@ posix_spawn '<cmd>'` — NOT node's `spawn <cmd> ENOENT`. Any stderr-text patter
   (`shouldShowSingleAccountSuccess` — existing link + no active token → success).
 - `botUsername` drives the "Open in <platform>" deep-link CTA; re-encrypt the credentials
   WITHOUT it to exercise the no-deep-link fallback. Note the platform config is cached
-  in-process for 30s (`packages/app-config/src/messenger.ts` CACHE\_TTL\_MS) — wait out the TTL
+  in-process for 30s (`packages/app-config/src/messenger.ts` CACHE_TTL_MS) — wait out the TTL
   after editing the row before reloading.
 - Locale for evidence shots: `window.__LOBE_STORES.global().switchLocale('zh-CN')` then reload.
 
@@ -991,7 +991,7 @@ an action against the wrong row. For drag interactions (annotation canvases), di
 `MouseEvent`s (`mousedown/mousemove/mouseup` with `bubbles:true` and computed `clientX/Y`) on the
 target element.
 
-### E34. Shell proxy env (HTTP\_PROXY=127.0.0.1:7890) inherited by the dev server breaks auth with silent 307 loops
+### E34. Shell proxy env (HTTP_PROXY=127.0.0.1:7890) inherited by the dev server breaks auth with silent 307 loops
 
 **Situation**: `init-dev-env.sh dev` launched from a shell where a system proxy (Clash etc.) exported
 `HTTP_PROXY`/`HTTPS_PROXY`. The server booted fine, pages served, but `POST /api/auth/sign-in/email`
@@ -1022,7 +1022,7 @@ the prewarm warning mentions `redirect count exceeded`.
   passing `--subject` to it (`error: unknown option '--subject'` is the tell that it predates the
   branch contract).
 - **Works**: run the branch's own CLI from the worktree — `cd apps/cli && bun src/index.ts verify
-ingest-report <dir> --subject topic:<id> …` — and verify attachment in the DB
+  ingest-report <dir> --subject topic:<id> …` — and verify attachment in the DB
   (`select acceptance_id from verify_runs where id='<runId>'`) before driving the UI against it.
 
 ### D22. ✅ WORKS — driving the manual-approval intervention chain (批准 / 提交 cards) in web chat
@@ -1164,7 +1164,7 @@ ingest-report <dir> --subject topic:<id> …` — and verify attachment in the D
   inserts into `workspaces` / `workspace_members` / `agents`).
 - **Doesn't work:** topics load but `agent.getAgentConfigById` fails FORBIDDEN —
   the cloud RBAC middleware reads `rbac_user_roles → roles → role_permissions →
-permissions`, which raw member rows never create. And even after RBAC, a raw
+  permissions`, which raw member rows never create. And even after RBAC, a raw
   SQL `agents` row renders "助理不可用" (missing real config).
 - **Works:** ① provision RBAC with the official util —
   `seedWorkspaceRoles(db, wsId)` + `assignWorkspaceRoleToUser(...)` from
@@ -1184,7 +1184,7 @@ permissions`, which raw member rows never create. And even after RBAC, a raw
 - **Doesn't work:** clearing the Vite deps cache, restarting the dev server,
   `pnpm dedupe @lobehub/ui` (peer sets differ, instances survive).
 - **Works:** temporarily add `resolve: { dedupe: ['@lobehub/ui', 'antd-style',
-'motion', 'react', 'react-dom'] }` to the cloud root `vite.config.ts` +
+  'motion', 'react', 'react-dom'] }` to the cloud root `vite.config.ts` +
   `rm -rf node_modules/.vite`, and REVERT the config after capturing evidence
   (snapshot the file first — it may carry uncommitted edits).
 
@@ -1192,7 +1192,7 @@ permissions`, which raw member rows never create. And even after RBAC, a raw
 
 - **Situation**: `electron-dev.sh start` reaches CDP but the SPA never becomes interactive;
   `/tmp/electron-dev.log` shows `SyntaxError: The requested module '/apps/desktop/stubs/types/src/index.ts'
-does not provide an export named 'MAX_ANALYSIS_...'`.
+  does not provide an export named 'MAX_ANALYSIS_...'`.
 - **Doesn't work**: waiting longer, reinstalling deps, or reloading — the stub file genuinely lacks
   exports that canary code now imports (the stub is hand-synced and drifts).
 - **Works**: snapshot the stub (`cp ... /tmp/...bak`), append the missing `export const` lines copied
@@ -1230,7 +1230,7 @@ does not provide an export named 'MAX_ANALYSIS_...'`.
      only place to harvest the PKCE authorize URL (shell.openExternal races it into the user's
      default browser, which just bounces to signin).
   3. FIRST write the target into the app config — `remoteServerService.setRemoteServerConfig({
-active: true, remoteServerUrl: 'http://localhost:<port>', storageMode: 'selfHost' })` — THEN
+     active: true, remoteServerUrl: 'http://localhost:<port>', storageMode: 'selfHost' })` — THEN
      trigger `requestAuthorization({ storageMode: 'selfHost', remoteServerUrl: ... })` via CDP eval.
      `requestAuthorization` success only sets `active: true`; it never writes `remoteServerUrl`, so
      without the explicit config write the BackendProxy keeps routing every renderer call to the OLD

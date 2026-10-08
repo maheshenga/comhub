@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { SpendOrigin } from '@lobechat/types';
+
 import { reserveCommercialAiUsage } from '@/business/server/commercialBilling';
 import { estimateVideoCharge } from '@/business/server/generationBilling';
 import { getServerModelPricing } from '@/business/server/serverModelPricing';
@@ -17,6 +19,8 @@ interface ChargeParams {
   params: CreateVideoServicePayload['params'];
   provider: string;
   routeMetadata?: AiUsageRouteMetadata;
+  /** Origin of the request, preserved for deferred video spend attribution. */
+  spendOrigin?: SpendOrigin;
   userId: string;
   workspaceId?: string;
 }

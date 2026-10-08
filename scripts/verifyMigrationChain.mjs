@@ -21,6 +21,21 @@ export const V2218_APPEND_TAGS = [
   '0166_device_architecture',
 ];
 
+// Upstream v2.2.19 shipped these as 0167-0175; the fork renumbered them to
+// 0179-0187 (SQL and snapshot contents verbatim) because 0149-0178 were
+// already taken by the fork's own migrations.
+export const V2219_APPEND_TAGS = [
+  '0179_user_deletion_fk_indexes',
+  '0180_scm_integration',
+  '0181_works_share_scope',
+  '0182_acceptance_comment_source',
+  '0183_expertise_lessons_order_enforcement',
+  '0184_expertise_hits_source_message',
+  '0185_agent_accounts',
+  '0186_widgets_dashboards',
+  '0187_environment_visibility_and_build_state',
+];
+
 const LEGACY_CUTOFF_TAG = '0177_add_subscription_payments';
 const REPAIR_MIGRATION_TAG = '0178_repair_migration_chain';
 const LATEST_MERGED_MIGRATION_TAG = '0166_device_architecture';
@@ -263,6 +278,7 @@ export const verifyMigrationChain = ({
 
   verifyAppend('v2.2.17', V2217_APPEND_TAGS);
   verifyAppend('v2.2.18', V2218_APPEND_TAGS);
+  verifyAppend('v2.2.19', V2219_APPEND_TAGS);
 
   const summary = {
     appendTags: V2217_APPEND_TAGS,
@@ -271,6 +287,7 @@ export const verifyMigrationChain = ({
     legacyDuplicateIndexCount: duplicateIndexes.length,
     migrationFiles: files,
     v2218AppendTags: V2218_APPEND_TAGS,
+    v2219AppendTags: V2219_APPEND_TAGS,
   };
 
   return { errors, warnings, summary };
@@ -289,7 +306,7 @@ if (isMainModule) {
       process.exitCode = 1;
     } else {
       console.log(
-        `[migration-check] OK: ${result.summary.entryCount} journal entries and ${result.summary.fileCount} SQL files; v2.2.17 and v2.2.18 appends verified`,
+        `[migration-check] OK: ${result.summary.entryCount} journal entries and ${result.summary.fileCount} SQL files; v2.2.17, v2.2.18 and v2.2.19 appends verified`,
       );
     }
   } catch (error) {

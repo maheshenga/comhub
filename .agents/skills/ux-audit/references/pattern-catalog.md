@@ -1,13 +1,13 @@
-# Pattern Catalog — the _Designing Interfaces_ benchmark
+# Pattern Catalog — the *Designing Interfaces* benchmark
 
-The pattern language from Jenifer Tidwell's **_Designing Interfaces_** (with a few
+The pattern language from Jenifer Tidwell's ***Designing Interfaces*** (with a few
 common web/app additions), grouped by family. Use it in **step 2** of the audit: walk
 each family and tag which patterns the surface implements — and, just as important, which
 expected ones are **absent**.
 
 This is a **checklist of names to look for**, not a spec. Naming varies across editions
 and libraries; match on intent, not the exact label. A pattern being absent isn't
-automatically a bug — but an absent pattern the surface clearly _wants_ (a data feed with
+automatically a bug — but an absent pattern the surface clearly *wants* (a data feed with
 no way to see new items; a list with no empty state) is a finding.
 
 > How to use a family: for each pattern, ask "is this here? where? used well?" Record
@@ -70,8 +70,8 @@ no way to see new items; a list with no empty state) is a finding.
 
 ## Feedback & system response
 
-- **Loading Indicator / Spinner / Skeleton** — in-flight feedback (LobeHub: skeleton /
-  `NeuralNetworkLoading`, never antd `Spin`).
+- **Loading Indicator / Spinner / Skeleton** — in-flight feedback (LobeHub: pick by the ux
+  skill's feedback §4.1 scenario table — skeleton / base-ui `Spin`, never antd `Spin`).
 - **Progress Indicator** — bounded progress for known-length work.
 - **Update Indicator** — "N new" signal for background changes.
 - **Failure + Retry** — a terminal error state with a way to recover (ux §4.2).

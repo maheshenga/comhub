@@ -1,8 +1,7 @@
 'use client';
 
-import { type FormGroupItemType } from '@lobehub/ui';
-import { Form } from '@lobehub/ui';
 import { Switch } from '@lobehub/ui/base-ui';
+import { Form, type FormGroupItem, useForm } from '@lobehub/ui/base-ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -16,8 +15,9 @@ const Analytics = memo(() => {
   const brandName = useBrandName();
   const checked = useUserStore(userGeneralSettingsSelectors.telemetry);
   const updateGeneralConfig = useUserStore((s) => s.updateGeneralConfig);
+  const form = useForm();
 
-  const items: FormGroupItemType = {
+  const items: FormGroupItem = {
     children: [
       {
         children: (
@@ -31,7 +31,6 @@ const Analytics = memo(() => {
         desc: t('analytics.telemetry.desc', { appName: brandName }),
         label: t('analytics.telemetry.title'),
         minWidth: undefined,
-        valuePropName: 'checked',
       },
     ],
     title: t('analytics.title'),
@@ -40,6 +39,7 @@ const Analytics = memo(() => {
   return (
     <Form
       collapsible={false}
+      form={form}
       items={[items]}
       itemsType={'group'}
       variant={'filled'}

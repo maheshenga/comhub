@@ -10,7 +10,6 @@ exports[`settingsSelectors > currentSettings > should merge DEFAULT_SETTINGS and
       "systemRole": "",
       "tts": {
         "showAllLocaleVoice": false,
-        "sttLocale": "auto",
         "ttsService": "openai",
         "voice": {
           "openai": "alloy",
@@ -39,11 +38,8 @@ exports[`settingsSelectors > currentSettings > should merge DEFAULT_SETTINGS and
   "themeMode": "light",
   "tts": {
     "openAI": {
-      "sttModel": "whisper-1",
       "ttsModel": "tts-1",
     },
-    "sttAutoStop": true,
-    "sttServer": "openai",
   },
 }
 `;
@@ -53,6 +49,10 @@ exports[`settingsSelectors > currentSystemAgent > should merge DEFAULT_SYSTEM_AG
   "agentMeta": {
     "model": "deepseek-v4-flash",
     "provider": "deepseek",
+  },
+  "asr": {
+    "model": "gpt-4o-mini-transcribe",
+    "provider": "openai",
   },
   "enableAutoReply": true,
   "expertise": {
@@ -130,11 +130,8 @@ exports[`settingsSelectors > currentSystemAgent > should merge DEFAULT_SYSTEM_AG
 exports[`settingsSelectors > currentTTS > should merge DEFAULT_TTS_CONFIG and s.settings.tts correctly 1`] = `
 {
   "openAI": {
-    "sttModel": "whisper-2",
-    "ttsModel": "tts-1",
+    "ttsModel": "tts-1-hd",
   },
-  "sttAutoStop": false,
-  "sttServer": "openai",
 }
 `;
 
@@ -149,6 +146,7 @@ exports[`settingsSelectors > defaultAgent > should merge DEFAULT_AGENT and s.set
       "enableContextCompression": true,
       "enableFollowUpChips": false,
       "enableHistoryCount": false,
+      "enableStaleToolResultTrim": true,
       "enableStreaming": true,
       "historyCount": 20,
       "reasoningBudgetToken": 1024,
@@ -174,7 +172,6 @@ exports[`settingsSelectors > defaultAgent > should merge DEFAULT_AGENT and s.set
     "systemRole": "user",
     "tts": {
       "showAllLocaleVoice": false,
-      "sttLocale": "auto",
       "ttsService": "openai",
       "voice": {
         "openai": "alloy",
@@ -198,6 +195,7 @@ exports[`settingsSelectors > defaultAgentConfig > should merge DEFAULT_AGENT_CON
     "enableContextCompression": true,
     "enableFollowUpChips": false,
     "enableHistoryCount": false,
+    "enableStaleToolResultTrim": true,
     "enableStreaming": true,
     "historyCount": 20,
     "reasoningBudgetToken": 1024,
@@ -223,7 +221,6 @@ exports[`settingsSelectors > defaultAgentConfig > should merge DEFAULT_AGENT_CON
   "systemRole": "custom role",
   "tts": {
     "showAllLocaleVoice": false,
-    "sttLocale": "auto",
     "ttsService": "openai",
     "voice": {
       "openai": "alloy",

@@ -151,6 +151,8 @@ export class GenerationConfigActionImpl {
 
     this.#set(
       {
+        editingDraftSnapshot: undefined,
+        editingGenerationId: undefined,
         model,
         parameters,
         parametersSchema,

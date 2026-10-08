@@ -30,12 +30,44 @@ import type {
 import type {
   CreateVideoMethodOptions,
   CreateVideoPayload,
+  CreateVideoResponse,
   HandleCreateVideoWebhookPayload,
+  VideoPollingRoute,
 } from '../types/video';
 import { AgentRuntimeError } from '../utils/createError';
+import { createVideoWithCompletionMode } from '../utils/videoCompletionMode';
 import type { LobeRuntimeAI } from './BaseAI';
 
 const { logger: timing } = createTimingHelpers('lobe-server:chat:lobehub:timing');
+
+/** Keeps one provider body out of the tracing row's way while staying diagnosable. */
+const MAX_TRACED_ERROR_DETAIL = 4000;
+
+/**
+ * Describes a failed generation for the tracing row.
+ *
+ * A provider either rethrows its own error (`.message` carries the body) or throws the
+ * normalized `ChatCompletionErrorPayload`, which has no `.message` at all — the body sits under
+ * `.error`. Reading only `.message` therefore drops exactly the cases the error refinement
+ * normalized, leaving a tracing row that names a bucket (`UpstreamHttpError`) and nothing else.
+ */
+export const describeGenerateObjectError = (error: {
+  error?: unknown;
+  message?: string;
+}): string | undefined => {
+  if (typeof error?.message === 'string' && error.message.length > 0) return error.message;
+
+  const body = error?.error;
+  if (body === undefined || body === null) return undefined;
+  if (typeof body === 'string') return body.slice(0, MAX_TRACED_ERROR_DETAIL) || undefined;
+
+  try {
+    return JSON.stringify(body).slice(0, MAX_TRACED_ERROR_DETAIL);
+  } catch {
+    // Circular or otherwise unserializable payloads still beat recording nothing.
+    return String(body).slice(0, MAX_TRACED_ERROR_DETAIL);
+  }
+};
 
 const getLobeHubTimingMetadata = (options?: {
   metadata?: Record<string, unknown>;
@@ -99,6 +131,22 @@ export interface ModelRuntimeHooks {
     context: { options?: ChatMethodOptions; payload: ChatStreamPayload },
   ) => void | Promise<void>;
 
+  /**
+   * Called when a chat stream fails after `chat()` has already returned its response: an
+   * in-band provider `error` event, or a body read failure such as every routed fallback
+   * failing mid-stream. `onChatError` never sees these. Same side-effect contract (sanitize,
+   * log, record, release held reservations).
+   *
+   * `onChatFinal` may or may not have run first: a committed attempt delivers it before the
+   * error surfaces, but a routed fallback whose earlier attempts were discarded and whose last
+   * attempt failed to start delivers none. Releases here must therefore be no-ops once
+   * `onChatFinal` has charged the request.
+   */
+  onChatStreamError?: (
+    error: unknown,
+    context: { options?: ChatMethodOptions; payload: ChatStreamPayload },
+  ) => void | Promise<void>;
+
   onEmbeddingsError?: (
     error: ChatCompletionErrorPayload,
     context: { options?: EmbeddingsOptions; payload: EmbeddingsPayload },
@@ -142,7 +190,10 @@ export interface ModelRuntimeHooks {
     context: { options?: ASROptions; payload: ASRPayload },
   ) => void | Promise<void>;
   onTranscribeFinal?: (
-    data: Awaited<ReturnType<NonNullable<LobeRuntimeAI['transcribe']>>>,
+    data: Awaited<ReturnType<NonNullable<LobeRuntimeAI['transcribe']>>> & {
+      latencyMs?: number;
+      usage?: ModelUsage;
+    },
     context: { options?: ASROptions; payload: ASRPayload },
   ) => void | Promise<void>;
 }
@@ -255,6 +306,21 @@ export class ModelRuntime {
         }
       }
       throw error;
+    }
+  }
+
+  /**
+   * Report a chat stream failure that surfaced after `chat()` returned, for callers that consume
+   * the response. Hook failures are logged so they never replace the stream error itself.
+   */
+  async handleChatStreamError(
+    error: unknown,
+    context: { options?: ChatMethodOptions; payload: ChatStreamPayload },
+  ) {
+    try {
+      await this._hooks?.onChatStreamError?.(error, context);
+    } catch (hookError) {
+      console.error('[ModelRuntime] onChatStreamError hook failed:', hookError);
     }
   }
 
@@ -415,10 +481,10 @@ export class ModelRuntime {
       // `AI_*Error` subclasses, Node Errors with `.code`, etc. Try the most
       // descriptive identifier first so the tracing row gets a usable code
       // instead of falling through to `unknown`.
-      const err = error as Error & { code?: string; errorType?: string };
+      const err = error as Error & { code?: string; error?: unknown; errorType?: string };
       const code = err?.errorType ?? err?.code ?? err?.name ?? err?.constructor?.name;
       await fireComplete({
-        error: { code, message: err?.message, stack: err?.stack },
+        error: { code, message: describeGenerateObjectError(err), stack: err?.stack },
         success: false,
       });
       throw error;
@@ -432,19 +498,24 @@ export class ModelRuntime {
     return this._runtime.createImage?.(payload, finalOptions);
   }
 
-  async createVideo(payload: CreateVideoPayload, options?: CreateVideoMethodOptions) {
+  async createVideo(
+    payload: CreateVideoPayload,
+    options?: CreateVideoMethodOptions,
+  ): Promise<CreateVideoResponse | undefined> {
     const finalOptions = this._hooks?.beforeCreateVideo && !options ? {} : options;
     await this._hooks?.beforeCreateVideo?.(payload, finalOptions);
 
-    return this._runtime.createVideo?.(payload, finalOptions);
+    if (!this._runtime.createVideo) return;
+
+    return createVideoWithCompletionMode(this._runtime, payload, finalOptions);
   }
 
   async handleCreateVideoWebhook(payload: HandleCreateVideoWebhookPayload) {
     return this._runtime.handleCreateVideoWebhook?.(payload);
   }
 
-  async handlePollVideoStatus(inferenceId: string) {
-    return this._runtime.handlePollVideoStatus?.(inferenceId);
+  async handlePollVideoStatus(inferenceId: string, model?: string, route?: VideoPollingRoute) {
+    return this._runtime.handlePollVideoStatus?.(inferenceId, model, route);
   }
 
   async models() {
@@ -499,11 +570,32 @@ export class ModelRuntime {
       const hookOptions = this._hooks?.beforeTranscribe && !options ? {} : options;
       await this._hooks?.beforeTranscribe?.(payload, hookOptions);
       lifecycleOptions = hookOptions;
-      const result = await this._runtime.transcribe?.(payload, hookOptions);
 
-      if (result && this._hooks?.onTranscribeFinal) {
+      const startTime = Date.now();
+      let reportedUsage: ModelUsage | undefined;
+      const finalOptions = this._hooks?.onTranscribeFinal
+        ? {
+            ...hookOptions,
+            onUsage: async (reported: ModelUsage) => {
+              reportedUsage = reported;
+              await hookOptions?.onUsage?.(reported);
+            },
+          }
+        : hookOptions;
+
+      const result = await this._runtime.transcribe?.(payload, finalOptions);
+
+      if (this._hooks?.onTranscribeFinal) {
         try {
-          await this._hooks.onTranscribeFinal(result, { options: hookOptions, payload });
+          // Providers that report usage inline (result.usage) win over the
+          // onUsage-callback capture; both paths funnel into the same field.
+          const usage = (result as { usage?: ModelUsage } | null)?.usage ?? reportedUsage;
+          await this._hooks.onTranscribeFinal(
+            { ...(result ?? {}), latencyMs: Date.now() - startTime, usage } as Awaited<
+              ReturnType<NonNullable<LobeRuntimeAI['transcribe']>>
+            >,
+            { options: hookOptions, payload },
+          );
         } catch (error) {
           console.error('[ModelRuntime] onTranscribeFinal hook error:', error);
         }
