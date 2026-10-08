@@ -345,6 +345,22 @@ describe('desktop router shared definition', () => {
     },
   );
 
+  // Electron renders each tab inside its own memory router that re-wraps the
+  // main-area children (tabRouter.tsx). A legacy deep link opened into a new
+  // tab must still hit the redirect and the console tree must stay reachable —
+  // a broken wrap here would blank the tab instead of redirecting.
+  it('Electron tab routers keep the admin redirect and console tree reachable', () => {
+    for (const [pathname, expectedLast] of [
+      ['/admin/users', 'admin/*'],
+      ['/settings/admin/users', 'users'],
+      ['/settings/admin/totally-unknown', '*'],
+    ] as const) {
+      const matches = matchRoutes(createTabRouter(pathname).routes, pathname);
+
+      expect(matches?.at(-1)?.route.path, pathname).toBe(expectedLast);
+    }
+  });
+
   it('generates identical main-area path and nesting behavior for Web and Electron', () => {
     expect(routeShape(createElectronMainAreaChildren())).toEqual(
       routeShape(createWebMainAreaChildren()),
