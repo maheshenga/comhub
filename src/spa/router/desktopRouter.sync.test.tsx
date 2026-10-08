@@ -231,14 +231,17 @@ describe('desktop router shared definition', () => {
   // personal settings componentMap has no `admin` entry, so the catch-all
   // renders a blank workspace. Regression: the route wiring was dropped in the
   // v2.2.18 router rewrite.
-  it.each(mainAreaVariants)('%s /settings/admin matches the admin route, not the :tab catch-all', (_, factory) => {
-    const matches = matchRoutes(createMainAreaRoutes(factory), '/settings/admin');
-    const paths = matches?.map((match) => match.route.path);
+  it.each(mainAreaVariants)(
+    '%s /settings/admin matches the admin route, not the :tab catch-all',
+    (_, factory) => {
+      const matches = matchRoutes(createMainAreaRoutes(factory), '/settings/admin');
+      const paths = matches?.map((match) => match.route.path);
 
-    expect(paths).toContain('settings');
-    expect(paths).not.toContain(':tab');
-    expect(paths).toContain('admin');
-  });
+      expect(paths).toContain('settings');
+      expect(paths).not.toContain(':tab');
+      expect(paths).toContain('admin');
+    },
+  );
 
   it.each(mainAreaVariants)(
     '%s /settings/admin/<segment> matches a nested admin route, not :tab/:sub',
@@ -248,6 +251,77 @@ describe('desktop router shared definition', () => {
 
       expect(paths).not.toContain(':tab');
       expect(paths).toContain('users');
+    },
+  );
+
+  // Legacy `/admin/*` deep links must match the dedicated redirect route
+  // instead of falling through to the root catch-all (`*` → redirect `/`) or
+  // the settings `:tab` catch-all (blank workspace). Admin console redesign
+  // §3.2 ① — regression: unhandled in the v2.2.18 router rewrite.
+  it.each(mainAreaVariants)(
+    '%s /admin deep links match the legacy admin redirect route',
+    (_, factory) => {
+      const routes = createMainAreaRoutes(factory);
+      const bare = matchRoutes(routes, '/admin');
+      const deep = matchRoutes(routes, '/admin/users');
+      const nested = matchRoutes(routes, '/admin/modules/apps/app-1/runtime');
+
+      expect(bare?.map((match) => match.route.path)).not.toContain('*');
+      expect(bare?.map((match) => match.route.path)).not.toContain(':tab');
+      expect(bare?.at(-1)?.route.path).toBe('admin/*');
+
+      expect(deep?.at(-1)?.route.path).toBe('admin/*');
+      expect(deep?.at(-1)?.params['*']).toBe('users');
+
+      expect(nested?.at(-1)?.route.path).toBe('admin/*');
+      expect(nested?.at(-1)?.params['*']).toBe('modules/apps/app-1/runtime');
+    },
+  );
+
+  // Unknown `/settings/admin/<seg>` segments must land on the admin fallback
+  // segment (`*` inside the admin subtree → AdminNotFoundPage), never on the
+  // settings `:tab`/`:tab/:sub` catch-alls (blank workspace) — the v2.2.18
+  // empty-page failure mode. Admin console redesign §3.2 ②.
+  it.each(mainAreaVariants)(
+    '%s unknown admin segments match the admin fallback, not the settings catch-all',
+    (_, factory) => {
+      const routes = createMainAreaRoutes(factory);
+      const adminRoutes = routes[0]?.children
+        ?.find((route) => route.path === 'settings')
+        ?.children?.find((route) => route.path === 'admin');
+
+      expect(adminRoutes).toBeDefined();
+
+      for (const pathname of [
+        '/settings/admin/totally-unknown',
+        '/settings/admin/users/unknown-nested',
+      ]) {
+        const matches = matchRoutes(routes, pathname);
+        const paths = matches?.map((match) => match.route.path);
+
+        expect(paths, pathname).toContain('admin');
+        expect(paths, pathname).not.toContain(':tab');
+        expect(paths?.at(-1), pathname).toBe('*');
+      }
+
+      const fallback = adminRoutes?.children?.at(-1);
+      expect(fallback?.path).toBe('*');
+      expect(fallback?.element).toBeDefined();
+    },
+  );
+
+  // Registered admin pages must keep matching real segments (redirect route
+  // must not shadow the console tree). Admin console redesign §3.2 ① — the
+  // redirect only owns the legacy `/admin` prefix.
+  it.each(mainAreaVariants)(
+    '%s legacy redirect does not shadow the /settings/admin console tree',
+    (_, factory) => {
+      const routes = createMainAreaRoutes(factory);
+      const matches = matchRoutes(routes, '/settings/admin/modules/apps/app-1/runtime');
+      const paths = matches?.map((match) => match.route.path);
+
+      expect(paths).toContain('runtime');
+      expect(paths).not.toContain('admin/*');
     },
   );
 
