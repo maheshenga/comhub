@@ -668,13 +668,13 @@ const MODULES = [
       'Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries.',
     ownershipRules: [
       // M2 design-system: the Admin max-lines gate lives in the root eslint
-      // config (upstream file) and its exemption list is a fork-new JSON —
-      // both are maintained by this module, so claim them precisely ahead of
-      // the upstream-sync-v2219 catch-all that otherwise owns eslint.config.mjs.
+      // config (upstream file, claimed upstream per the deps-pins precedent —
+      // an upstream file the fork deliberately extends) and its exemption
+      // list is a fork-new JSON claimed owned below.
       [
         'p:eslint.config.mjs',
-        'owned',
-        'admin-console M2 max-lines gate lives here (scoped overrides + exemption list import) — upstream file maintained for the Admin lint red line',
+        'upstream',
+        'admin-console M2 max-lines gate: scoped max-lines overrides + exemption-list import appended on top of the upstream config; upstream rule-set changes (alint recalibrations) must be re-merged around the appended Admin block at the tail',
       ],
       [
         'p:eslint-admin-legacy-oversized.json',
