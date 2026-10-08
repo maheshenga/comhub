@@ -278,6 +278,23 @@ describe('desktop router shared definition', () => {
     },
   );
 
+  // The legacy redirect must be a static <Navigate> element (source-locked:
+  // generation-time redirect, no admin chunk loads for an out-of-date link).
+  it('keeps the legacy admin redirect route static and manifest-free', async () => {
+    const { adminLegacyRedirectRoute } = await import('@/business/client/BusinessDesktopRoutes');
+    const source = await readFile(
+      path.join(process.cwd(), 'src/business/client/BusinessDesktopRoutes.tsx'),
+      'utf8',
+    );
+
+    expect(adminLegacyRedirectRoute.path).toBe('admin/*');
+    expect(adminLegacyRedirectRoute.children).toBeUndefined();
+    // The redirect maps through normalizeAdminPath (the single owner of the
+    // legacy mapping) — never through a manifest-derived segment list.
+    expect(source).toMatch(/normalizeAdminPath\(`\/admin\/\$\{params/);
+    expect(source).not.toMatch(/buildAdminLegacyRedirectRoutes/);
+  });
+
   // Unknown `/settings/admin/<seg>` segments must land on the admin fallback
   // segment (`*` inside the admin subtree → AdminNotFoundPage), never on the
   // settings `:tab`/`:tab/:sub` catch-alls (blank workspace) — the v2.2.18
@@ -295,6 +312,9 @@ describe('desktop router shared definition', () => {
       for (const pathname of [
         '/settings/admin/totally-unknown',
         '/settings/admin/users/unknown-nested',
+        // Unknown depth inside a registered subtree (Module Center) must also
+        // bubble past the subtree segments to the admin-level fallback.
+        '/settings/admin/modules/apps/app-1/unknown-depth',
       ]) {
         const matches = matchRoutes(routes, pathname);
         const paths = matches?.map((match) => match.route.path);
