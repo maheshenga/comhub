@@ -27,7 +27,9 @@ vi.mock('../codex/CodexAppServerClient', async (importOriginal) => {
 const options = {
   commandPath: '/custom/codex',
   cwd: '/repo',
-  env: { CODEX_HOME: '/custom/config' },
+  // The root app augments ProcessEnv with required keys; a literal env object
+  // needs the same cast every other caller in this package uses.
+  env: { CODEX_HOME: '/custom/config' } as unknown as NodeJS.ProcessEnv,
   timeoutMs: 100,
 };
 

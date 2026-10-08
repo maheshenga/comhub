@@ -11,8 +11,9 @@
  *    no longer differs (module claims are stale the other way) — reported as
  *    info only, not a failure (owned-dir rules legitimately over-cover).
  *
- * Usage: node scripts/comhub-customizations/verify.mjs [--baseline v2.2.18]
+ * Usage: node scripts/comhub-customizations/verify.mjs [--baseline <tag|commit>]
  * Env:   COMHUB_UPSTREAM_BASELINE overrides the baseline tag/commit.
+ * Default baseline = registry.mjs UPSTREAM_BASELINE_TAG (single source of truth).
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -22,11 +23,13 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..');
 
+const { UPSTREAM_BASELINE_TAG } = await import(new URL('./registry.mjs', import.meta.url).href);
+
 const baselineArgIndex = process.argv.indexOf('--baseline');
 const baseline =
   (baselineArgIndex >= 0 && process.argv[baselineArgIndex + 1]) ||
   process.env.COMHUB_UPSTREAM_BASELINE ||
-  'v2.2.18';
+  UPSTREAM_BASELINE_TAG;
 
 /**
  * Diff-line budget for every registry rule whose sync note marks an upstream
@@ -72,11 +75,11 @@ const HOOK_EXTRACTED_MAX_DIFF_LINES = 400;
 // generationBillingGuard.ts). Each matched rule path is budgeted individually.
 const DELEGATE_NOTE_MARKER_RE = /\((?:hookExtracted|shared-helper extraction)\b/;
 
-const { UPSTREAM_BASELINE_TAG, registryModules, findModuleForPath } = await import(
+const { registryModules, findModuleForPath } = await import(
   new URL('./registry.mjs', import.meta.url).href
 );
 
-const effectiveBaseline = baseline || UPSTREAM_BASELINE_TAG;
+const effectiveBaseline = baseline;
 
 const git = (args) =>
   execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

@@ -23,8 +23,23 @@ const {
   const mockTransaction = vi.fn();
   const mockServerDB = {
     query: {
+      // getServerModelPolicyConfig reads cached settings through this table on
+      // every routed request (upstream v2.2.19); tests run with default policy.
+      appSettings: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       generationBatches: {
         findFirst: vi.fn(),
+      },
+      // assertPlanModelAllowed (fork billing guard) resolves the active plan
+      // snapshot; no snapshot means the default Free-plan rules apply.
+      userPlanSnapshots: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      // resolveSnapshotModelRules falls back to the plan catalog when the
+      // snapshot carries no entitlement metadata.
+      planCatalog: {
+        findFirst: vi.fn().mockResolvedValue(null),
       },
     },
     transaction: mockTransaction,

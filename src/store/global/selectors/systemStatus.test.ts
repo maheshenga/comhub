@@ -2,20 +2,6 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/utils/localStorage', () => ({
-  AsyncLocalStorage: class {
-    getFromLocalStorage = async () => ({});
-    getFromLocalStorageSync = () => ({});
-    saveToLocalStorage = async () => {};
-  },
-}));
-
-// Mock version constants
-vi.mock('@/const/version', () => ({
-  isServerMode: false,
-  isUsePgliteDB: true,
-}));
-
 import { merge } from '@/utils/merge';
 
 import type { GlobalState } from '../initialState';
@@ -33,6 +19,20 @@ import {
   SIDEBAR_SPACER_ID,
   systemStatusSelectors,
 } from './systemStatus';
+
+vi.mock('@/utils/localStorage', () => ({
+  AsyncLocalStorage: class {
+    getFromLocalStorage = async () => ({});
+    getFromLocalStorageSync = () => ({});
+    saveToLocalStorage = async () => {};
+  },
+}));
+
+// Mock version constants
+vi.mock('@/const/version', () => ({
+  isServerMode: false,
+  isUsePgliteDB: true,
+}));
 
 describe('systemStatusSelectors', () => {
   describe('sessionGroupKeys', () => {
@@ -281,6 +281,8 @@ describe('systemStatusSelectors', () => {
         'community',
         'resource',
         'memory',
+        'ppt',
+        'experts',
       ]);
     });
 
@@ -301,7 +303,7 @@ describe('systemStatusSelectors', () => {
       const s: GlobalState = merge(initialState, {
         status: { sidebarItems: stored },
       });
-      expect(systemStatusSelectors.sidebarItems(null)(s)).toEqual(stored);
+      expect(systemStatusSelectors.sidebarItems(null)(s)).toEqual([...stored, 'ppt', 'experts']);
     });
 
     it('should re-anchor the spacer when stored above the accordion', () => {
@@ -334,6 +336,8 @@ describe('systemStatusSelectors', () => {
         'community',
         'resource',
         'memory',
+        'ppt',
+        'experts',
       ]);
     });
 
@@ -347,6 +351,8 @@ describe('systemStatusSelectors', () => {
       expect(items).toContain('pages');
       expect(items).toContain('tasks');
       expect(items).toContain('community');
+      expect(items).toContain('ppt');
+      expect(items).toContain('experts');
       expect(items).toContain('resource');
       expect(items).toContain('memory');
       // accordion block is flush against the spacer, in stored order
@@ -377,7 +383,9 @@ describe('systemStatusSelectors', () => {
         'project',
         SIDEBAR_SPACER_ID,
         'image',
+        'ppt',
         'community',
+        'experts',
         'pages',
         'memory',
       ]);
@@ -399,7 +407,9 @@ describe('systemStatusSelectors', () => {
         'agent',
         SIDEBAR_SPACER_ID,
         'image',
+        'ppt',
         'community',
+        'experts',
         'pages',
         'memory',
       ]);

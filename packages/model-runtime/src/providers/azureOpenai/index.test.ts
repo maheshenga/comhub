@@ -568,7 +568,10 @@ describe('LobeAzureOpenAI', () => {
 
       const result = await runtime.transcribe({ file, model: 'gpt-4o-transcribe' }, { onUsage });
 
-      expect(result).toEqual({ text: '你好世界' });
+      // The fork additionally attaches the normalized usage to the ASR response
+      // (ASRResponse.usage) for server-side settlement; upstream asserts text only.
+      expect(result.text).toBe('你好世界');
+      expect(result.usage).toMatchObject({ totalInputTokens: 151, totalOutputTokens: 12 });
       const [url, init] = getTranscriptionRequest(fetch);
       const requestURL = new URL(url);
       expect(requestURL.origin + requestURL.pathname).toBe(

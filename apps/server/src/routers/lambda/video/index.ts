@@ -30,13 +30,7 @@ import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import { GenerationTopicModel } from '@/database/models/generationTopic';
 import { UserModel } from '@/database/models/user';
-import {
-  asyncTasks,
-  generationBatches,
-  generations,
-  type NewGeneration,
-  type NewGenerationBatch,
-} from '@/database/schemas';
+import { generationBatches } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 import { appEnv } from '@/envs/app';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
@@ -46,7 +40,7 @@ import { FileService } from '@/server/services/file';
 import { getVideoAvgLatencies, getVideoLatencyKey } from '@/server/services/generation/latency';
 import { processBackgroundVideoPolling } from '@/server/services/generation/videoBackgroundPolling';
 import { after } from '@/server/utils/scheduleAfterResponse';
-import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
+import { AsyncTaskStatus } from '@/types/asyncTask';
 
 import {
   assertGenerationModelAllowed,
@@ -323,6 +317,7 @@ export const videoRouter = router({
           configForDatabase,
           generationTopicId,
           model,
+          ...(previousGenerationId ? { previousGenerationId } : {}),
           prechargeResult,
           prompt: params.prompt,
           provider,

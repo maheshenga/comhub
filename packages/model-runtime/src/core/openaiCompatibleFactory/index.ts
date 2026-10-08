@@ -83,7 +83,6 @@ import {
 import { OpenAICompatibleClient } from './client';
 import { createOpenAICompatibleImage } from './createImage';
 import { createOpenAICompatibleVideo, pollOpenAICompatibleVideoStatus } from './createVideo';
-import { parseStructuredJson } from './structuredJson';
 import { transformResponseAPIToStream, transformResponseToStream } from './nonStreamToStream';
 import {
   initializeOpenAIDiagnostics,
@@ -94,6 +93,7 @@ import {
   recordOpenAIResponsesResponse,
   resolveOpenAIResponseWithMetadata,
 } from './providerDiagnostics';
+import { parseStructuredJson } from './structuredJson';
 
 export type { PollVideoStatusResult };
 export * from './createVideo';
@@ -1424,13 +1424,17 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
                 : undefined;
         log('transcription completed, text length: %d', text.length);
 
-        if (options?.onUsage && usage) {
+        // Upstream v2.2.19 condition: report whenever the provider returned a
+        // structured transcription (token usage feeds convertOpenAITranscriptionUsage
+        // inside). Gating on the fork's locally-classified `usage` would drop the
+        // callback for token usages without an explicit `type` field.
+        if (options?.onUsage && typeof transcription !== 'string') {
           const pricing = await getModelPricing(payload.model, this.id, options.pricingContext);
           const costed = convertOpenAITranscriptionUsage((transcription as any).usage, pricing);
           if (costed) await options.onUsage(costed);
         }
 
-        return { text, ...(usage ? { usage } : {}) }
+        return { text, ...(usage ? { usage } : {}) };
       } catch (error) {
         throw this.handleError(error);
       }

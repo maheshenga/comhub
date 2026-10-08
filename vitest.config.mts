@@ -113,7 +113,12 @@ export default defineConfig({
       enforce: 'pre',
       name: 'stub-lobehub-ui-motion-provider',
       resolveId(id, importer) {
-        if (!importer || !importer.includes('/@lobehub/ui/')) return null;
+        // Normalize separators: on Windows the importer arrives with backslashes,
+        // so a bare '/@lobehub/ui/' probe never matches and the stub silently
+        // stops intercepting (surfaced by the upstream v2.2.19 FileViewer/Image
+        // test files whose in-file base-ui mock restores the real Button).
+        const normalizedImporter = importer?.replace(/\\/g, '/');
+        if (!normalizedImporter || !normalizedImporter.includes('/@lobehub/ui/')) return null;
         if (id.endsWith('/MotionProvider/index.mjs') || id.endsWith('/MotionProvider/index.js'))
           return resolve(__dirname, './tests/mocks/lobehubUiMotionProvider.tsx');
         return null;
@@ -222,9 +227,12 @@ export default defineConfig({
               {
                 name: 'stub-lobehub-ui-motion-provider',
                 resolveId(source: string, importer: string | undefined) {
+                  // Separator-normalized like the Vite plugin above: the dep
+                  // optimizer hands importers with Windows backslashes through.
+                  const normalizedImporter = importer?.replace(/\\/g, '/');
                   if (
                     /MotionProvider\/index\.m?js$/.test(source) &&
-                    importer?.includes('/@lobehub/ui/')
+                    normalizedImporter?.includes('/@lobehub/ui/')
                   ) {
                     return resolve(__dirname, './tests/mocks/lobehubUiMotionProvider.tsx');
                   }

@@ -13,7 +13,7 @@ import {
 } from './registry.mjs';
 
 test('registry has a fixed baseline tag', () => {
-  assert.equal(UPSTREAM_BASELINE_TAG, 'v2.2.18');
+  assert.equal(UPSTREAM_BASELINE_TAG, 'v2.2.19');
 });
 
 test('every module has required metadata', () => {
@@ -287,7 +287,10 @@ test('owned rules never claim upstream baseline paths; exact upstream rules cove
   // parent of HEAD) — HEAD already carries the upstream blob after the merge.
   const forkUntouchedUpstreamUpdate = (path, status) => {
     try {
-      const preMerge = execFileSync('git', ['rev-parse', 'HEAD^1'], { cwd: repoRoot, encoding: 'utf8' }).trim();
+      const preMerge = execFileSync('git', ['rev-parse', 'HEAD^1'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+      }).trim();
       const forkBlob = git(['rev-parse', `${preMerge}:${path}`]).trim();
       const baseBlob = git(['rev-parse', `${UPSTREAM_BASELINE_TAG}:${path}`]).trim();
       if (forkBlob !== baseBlob) return false; // fork has a real customization

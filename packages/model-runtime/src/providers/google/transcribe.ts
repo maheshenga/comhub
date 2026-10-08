@@ -157,6 +157,9 @@ export const createGoogleTranscription = async (
       }
     : undefined;
 
-  return { text, ...(usage ? { usage } : {}) };
-  return { text, usageMetadata: response.usageMetadata } as any;
+  // Upstream v2.2.19 consumes `usageMetadata` here to feed the onUsage callback
+  // (providers/google/index.ts); the fork additionally embeds the normalized
+  // `usage` on the response so server-side ASR settlement
+  // (onTranscribeFinal → resolveCommercialAsrCredits) can bill per-modality.
+  return { text, usageMetadata: response.usageMetadata, ...(usage ? { usage } : {}) };
 };

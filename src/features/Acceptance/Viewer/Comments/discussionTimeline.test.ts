@@ -225,7 +225,9 @@ describe('buildDiscussionTimeline', () => {
           ? entry.comment.id
           : entry.kind === 'approval'
             ? entry.approval.id
-            : `round-${entry.roundIndex}`,
+            : entry.kind === 'region'
+              ? `region-${entry.thread.root.id}`
+              : `round-${entry.roundIndex}`,
       ),
     ).toEqual(['first', 'round-2', 'second', 'approval', 'reply']);
   });

@@ -1133,6 +1133,12 @@ describe('ModelRuntime', () => {
       it('beforeCreateVideo is called before runtime.createVideo with mutable options', async () => {
         const beforeCreateVideo = vi.fn();
         const { runtime, mockRuntimeAI } = createMockRuntime({ beforeCreateVideo });
+        // Upstream v2.2.19 resolves the completion mode before dispatching, so the
+        // mock runtime must declare its capabilities (fork kept the plain-forward
+        // assertions; only the capability declaration is new).
+        mockRuntimeAI.getVideoGenerationCapabilities = vi.fn(() => ({
+          completionModes: ['polling'],
+        }));
         const videoResponse = { inferenceId: 'video-job-1' };
         mockRuntimeAI.createVideo.mockResolvedValue(videoResponse);
 
@@ -1140,7 +1146,7 @@ describe('ModelRuntime', () => {
 
         expect(beforeCreateVideo).toHaveBeenCalledWith(videoPayload, {});
         expect(mockRuntimeAI.createVideo).toHaveBeenCalledWith(videoPayload, {});
-        expect(result).toBe(videoResponse);
+        expect(result).toEqual({ ...videoResponse, completionMode: 'polling' });
       });
 
       it('beforeCreateVideo throwing aborts createVideo call', async () => {
@@ -1176,13 +1182,20 @@ describe('ModelRuntime', () => {
 
         await expect(runtime.transcribe(asrPayload)).resolves.toEqual(response);
 
-        expect(mockRuntimeAI.transcribe).toHaveBeenCalledWith(asrPayload, {
-          metadata: { reservationId: 'asr-reservation-1' },
-        });
-        expect(onTranscribeFinal).toHaveBeenCalledWith(response, {
-          options: { metadata: { reservationId: 'asr-reservation-1' } },
-          payload: asrPayload,
-        });
+        // Upstream v2.2.19 wraps an onUsage capture into the runtime options when
+        // onTranscribeFinal is registered; assert the mutable metadata survived
+        // that wrapping (the fork's billing-reservation channel) instead of the
+        // exact options object.
+        const runtimeOptions = mockRuntimeAI.transcribe.mock.calls[0][1];
+        expect(runtimeOptions.metadata).toEqual({ reservationId: 'asr-reservation-1' });
+        expect(typeof runtimeOptions.onUsage).toBe('function');
+        expect(onTranscribeFinal).toHaveBeenCalledWith(
+          { ...response, latencyMs: expect.any(Number) },
+          {
+            options: { metadata: { reservationId: 'asr-reservation-1' } },
+            payload: asrPayload,
+          },
+        );
       });
 
       it('calls the error hook and does not report a successful final result', async () => {

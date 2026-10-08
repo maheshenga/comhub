@@ -5,13 +5,13 @@ export {
   convertOpenAITranscriptionUsage,
   convertOpenAIUsage,
 } from './openai';
-export { computeImageCost, type ImageGenerationParams } from './utils/computeImageCost';
-export { computeVideoCost, type VideoGenerationParams } from './utils/computeVideoCost'
 export {
   computeChatCost,
   type ComputeChatCostOptions,
   type PricingComputationResult,
 } from './utils/computeChatCost';
+export { computeImageCost, type ImageGenerationParams } from './utils/computeImageCost';
+export { computeVideoCost, type VideoGenerationParams } from './utils/computeVideoCost';
 export {
   type ChatCostEstimate,
   type ChatInputTokenEstimate,

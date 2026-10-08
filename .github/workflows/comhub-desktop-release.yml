@@ -229,31 +229,17 @@ jobs:
           }
           NODE
 
-      - name: Sign renderer OTA r0 baseline
-        if: ${{ inputs.publish == 'true' }}
-        shell: bash
-        env:
-          RENDERER_OTA_PRIVATE_KEY: ${{ secrets.RENDERER_OTA_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${RENDERER_OTA_PRIVATE_KEY}" ]; then
-            echo 'Set secret RENDERER_OTA_PRIVATE_KEY (ed25519 PEM) so the updater can bootstrap renderer OTA.'
-            exit 1
-          fi
-          MAIN_HASH=$(cat apps/desktop/release/renderer-mainhash.txt)
-          node apps/desktop/scripts/buildRendererManifest.mjs \
-            --renderer=apps/desktop/dist/renderer \
-            --out=apps/desktop/release/renderer-ota \
-            --channel=${{ inputs.channel }} \
-            --version=r0 \
-            --mainHash="$MAIN_HASH"
-
+      # v2.2.19 upstream sync: renderer-OTA replaced by the signed core-OTA
+      # pipeline (shell.json + core-v4 packs). The r0 core release is built and
+      # signed inside desktop-upload-artifacts from core-signing-key, so the
+      # renderer r0 baseline step is gone — do not reintroduce it without
+      # restoring the mainHash toolchain it depended on.
       - name: Upload release artifacts
         uses: ./.github/actions/desktop-upload-artifacts
         with:
           artifact-name: merged-release
-          renderer-ota-public-key: ${{ secrets.RENDERER_OTA_PUBLIC_KEY }}
-          update-channel: ${{ inputs.channel }}
+          update-server-url: ${{ env.UPDATE_SERVER_URL }}
+          core-signing-key: ${{ secrets.RENDERER_OTA_PRIVATE_KEY }}
 
       - name: Report build failure
         if: ${{ failure() && inputs.release_id != '' && steps.reject_unpublished.outputs.reported != 'true' }}
