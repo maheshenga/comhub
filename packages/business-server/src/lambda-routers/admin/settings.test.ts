@@ -28,6 +28,7 @@ import {
 } from '@/server/services/appSettings/secrets';
 import { invalidateServerBrand } from '@/server/services/brand';
 import { loadCachedMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
+import { ModuleAppArtifactCleanupService } from '@/server/services/moduleAppArtifactCleanup';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
@@ -174,6 +175,10 @@ vi.mock('@/server/services/mobileFeaturedAssistants', () => ({
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
   ModuleAppPackageLifecycleService: vi.fn(),
+}));
+
+vi.mock('@/server/services/moduleAppArtifactCleanup', () => ({
+  ModuleAppArtifactCleanupService: vi.fn(),
 }));
 
 vi.mock('@/server/modules/S3', () => ({
@@ -352,6 +357,18 @@ describe('admin settings default model validation', () => {
       function MockModuleAppPackageLifecycleService() {
         return {
           cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 3, failed: 0 }),
+        } as any;
+      },
+    );
+    vi.mocked(ModuleAppArtifactCleanupService).mockImplementation(
+      function MockModuleAppArtifactCleanupService() {
+        return {
+          cleanupPending: vi.fn().mockResolvedValue({
+            claimed: 2,
+            failed: 0,
+            released: 1,
+            retrying: 0,
+          }),
         } as any;
       },
     );
@@ -1723,6 +1740,83 @@ describe('admin settings default model validation', () => {
 
     expect(result).not.toHaveProperty('moduleAppUploadsExpired');
     expect(ModuleAppPackageLifecycleService).not.toHaveBeenCalled();
+  });
+
+  it('runs module app artifact cleanup by default and reports partial failures as terminal failures', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .runMaintenance({
+        command: { actionId: 'setting.runMaintenance', confirmed: true },
+        skipAudit: true,
+        skipNotifications: true,
+        skipOrders: true,
+        skipSubscriptions: true,
+      });
+
+    expect(result).toMatchObject({
+      moduleAppArtifactCleanupClaimed: 2,
+      moduleAppArtifactCleanupFailed: 0,
+      moduleAppArtifactsReleased: 1,
+      moduleAppUploadsExpired: 3,
+    });
+    expect(ModuleAppArtifactCleanupService).toHaveBeenCalled();
+
+    vi.mocked(ModuleAppArtifactCleanupService).mockImplementation(
+      function MockFailingArtifactCleanup() {
+        return {
+          cleanupPending: vi.fn().mockResolvedValue({
+            claimed: 2,
+            failed: 1,
+            released: 0,
+            retrying: 1,
+          }),
+        } as any;
+      },
+    );
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'admin-user' } as any).runMaintenance({
+        command: { actionId: 'setting.runMaintenance', confirmed: true },
+        skipAudit: true,
+        skipNotifications: true,
+        skipOrders: true,
+        skipSubscriptions: true,
+      }),
+    ).resolves.toMatchObject({
+      moduleAppArtifactCleanupFailed: 1,
+      moduleAppUploadCleanupFailed: 0,
+      ok: true,
+    });
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: ADMIN_COMMANDS['setting.runMaintenance'].auditAction,
+        payload: expect.objectContaining({ terminalStatus: 'failed' }),
+      }),
+      expect.objectContaining({ status: 'failed' }),
+    );
+  });
+
+  it('can skip module app artifact cleanup during manual maintenance', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .runMaintenance({
+        command: { actionId: 'setting.runMaintenance', confirmed: true },
+        skipAudit: true,
+        skipModuleAppArtifacts: true,
+        skipModuleAppUploads: true,
+        skipNotifications: true,
+        skipOrders: true,
+      });
+
+    expect(result).not.toHaveProperty('moduleAppArtifactCleanupClaimed');
+    expect(ModuleAppArtifactCleanupService).not.toHaveBeenCalled();
   });
 
   it('returns public notification config with channel defaults and system action metadata', async () => {

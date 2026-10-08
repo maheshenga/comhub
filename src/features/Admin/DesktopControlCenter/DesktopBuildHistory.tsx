@@ -1,7 +1,7 @@
 'use client';
 
 import type { DesktopReleaseStatus } from '@lobechat/types';
-import { Button, confirmModal } from '@lobehub/ui/base-ui';
+import { Button } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
 import { message, Space, Table, Tag, Typography } from 'antd';
 import { CheckCircle2, RefreshCw, RotateCcw } from 'lucide-react';
@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminDangerousActionButton from '../AdminDangerousActionButton';
+import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
 import { desktopControlCenterStyles } from './styles';
 
 const formatDate = (value?: Date | string | null) =>
@@ -65,7 +67,10 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
     const reconcileRelease = async (releaseId: string) => {
       setReconcilingReleaseId(releaseId);
       try {
-        const result = await adminCommercialService.reconcileDesktopRelease(releaseId);
+        const result = await adminCommercialService.reconcileDesktopRelease(
+          releaseId,
+          buildAdminDangerousActionEnvelope('desktop.release.reconcile', { confirmed: true }),
+        );
         if (result.state === 'matched') {
           message.success(t('admin.desktopBuild.history.reconcileMatched'));
         } else {
@@ -77,54 +82,6 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
         await refreshReleaseData();
         setReconcilingReleaseId(undefined);
       }
-    };
-
-    const confirmRetryRelease = (release: DesktopReleaseHistoryItem) => {
-      confirmModal({
-        cancelText: t('admin.desktopBuild.history.retryCancel'),
-        content: t('admin.desktopBuild.history.retryConfirmDescription', {
-          version: release.version,
-        }),
-        okText: t('admin.desktopBuild.history.retryConfirm'),
-        title: t('admin.desktopBuild.history.retryConfirmTitle'),
-        onOk: async () => {
-          setRetryingReleaseId(release.id);
-          try {
-            await adminCommercialService.retryDesktopRelease(release.id);
-            message.success(t('admin.desktopBuild.history.retryStarted'));
-          } catch (error) {
-            message.error(t('admin.desktopBuild.history.retryFailed'));
-            throw error;
-          } finally {
-            await refreshReleaseData();
-            setRetryingReleaseId(undefined);
-          }
-        },
-      });
-    };
-
-    const confirmActivateRelease = (release: DesktopReleaseHistoryItem) => {
-      confirmModal({
-        cancelText: t('admin.desktopBuild.history.activateCancel'),
-        content: t('admin.desktopBuild.history.activateConfirmDescription', {
-          version: release.version,
-        }),
-        okText: t('admin.desktopBuild.history.activateConfirm'),
-        title: t('admin.desktopBuild.history.activateConfirmTitle'),
-        onOk: async () => {
-          setActivatingReleaseId(release.id);
-          try {
-            await adminCommercialService.activateDesktopRelease(release.id);
-            message.success(t('admin.desktopBuild.history.activateSuccess'));
-          } catch (error) {
-            message.error(t('admin.desktopBuild.history.activateFailed'));
-            throw error;
-          } finally {
-            await refreshReleaseData(true);
-            setActivatingReleaseId(undefined);
-          }
-        },
-      });
     };
 
     const columns: TableColumnsType<DesktopReleaseHistoryItem> = [
@@ -198,16 +155,29 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                 </Button>
               ) : null}
               {release.status === 'failed' ? (
-                <Button
+                <AdminDangerousActionButton
+                  actionId="desktop.release.retry"
                   disabled={actionPending}
                   icon={<RotateCcw size={14} />}
                   loading={retryingReleaseId === release.id}
                   size="small"
                   type="link"
-                  onClick={() => confirmRetryRelease(release)}
+                  onConfirm={async (envelope) => {
+                    setRetryingReleaseId(release.id);
+                    try {
+                      await adminCommercialService.retryDesktopRelease(release.id, envelope);
+                      message.success(t('admin.desktopBuild.history.retryStarted'));
+                    } catch (error) {
+                      message.error(t('admin.desktopBuild.history.retryFailed'));
+                      throw error;
+                    } finally {
+                      await refreshReleaseData();
+                      setRetryingReleaseId(undefined);
+                    }
+                  }}
                 >
                   {t('admin.desktopBuild.history.retry')}
-                </Button>
+                </AdminDangerousActionButton>
               ) : null}
               {isCurrent ? (
                 <Tag color="success" icon={<CheckCircle2 size={12} />}>
@@ -215,19 +185,30 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                 </Tag>
               ) : null}
               {release.status === 'succeeded' && !isCurrent ? (
-                <Button
+                <AdminDangerousActionButton
+                  actionId="desktop.release.activate"
                   disabled={actionPending || !hasPublication}
                   icon={<CheckCircle2 size={14} />}
                   loading={activatingReleaseId === release.id}
                   size="small"
+                  title={hasPublication ? undefined : t('admin.desktopBuild.history.activateUnavailable')}
                   type="link"
-                  title={
-                    hasPublication ? undefined : t('admin.desktopBuild.history.activateUnavailable')
-                  }
-                  onClick={() => confirmActivateRelease(release)}
+                  onConfirm={async (envelope) => {
+                    setActivatingReleaseId(release.id);
+                    try {
+                      await adminCommercialService.activateDesktopRelease(release.id, envelope);
+                      message.success(t('admin.desktopBuild.history.activateSuccess'));
+                    } catch (error) {
+                      message.error(t('admin.desktopBuild.history.activateFailed'));
+                      throw error;
+                    } finally {
+                      await refreshReleaseData(true);
+                      setActivatingReleaseId(undefined);
+                    }
+                  }}
                 >
                   {t('admin.desktopBuild.history.activate')}
-                </Button>
+                </AdminDangerousActionButton>
               ) : null}
               {!release.workflowRunUrl &&
               release.status !== 'building' &&

@@ -35,6 +35,10 @@ const visibleActionFiles = [
   'src/features/Admin/AdminProvidersPage.tsx',
   'src/features/Admin/AdminSystemMaintenancePage.tsx',
   'src/features/Admin/AdminUserDetailDrawer.tsx',
+  'src/features/Admin/DesktopControlCenter/BuildProfilePage.tsx',
+  'src/features/Admin/DesktopControlCenter/CreateDesktopReleaseModal.tsx',
+  'src/features/Admin/DesktopControlCenter/DesktopBuildAssetUpload.tsx',
+  'src/features/Admin/DesktopControlCenter/DesktopBuildHistory.tsx',
   'src/routes/(main)/admin/credits/index.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
@@ -85,7 +89,10 @@ describe('adminDangerousActions', () => {
     const repoRoot = path.resolve(__dirname, '../../..');
     const visibleActionIds = visibleActionFiles.flatMap((filePath) => {
       const source = readFileSync(path.resolve(repoRoot, filePath), 'utf8');
-      return [...source.matchAll(/actionId="([A-Za-z0-9.]+)"/g)].map((match) => match[1]);
+      return [
+        ...source.matchAll(/actionId="([A-Za-z0-9.]+)"/g),
+        ...source.matchAll(/buildAdminDangerousActionEnvelope\('([A-Za-z0-9.]+)'/g),
+      ].map((match) => match[1]);
     });
     const confirmationActionIds = Object.values(ADMIN_COMMANDS)
       .filter(({ confirmationMode }) => confirmationMode !== 'none')

@@ -71,10 +71,24 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   },
   {
     id: 'maintenance-endpoint',
-    keyEvidence: { kind: 'literal' },
-    keys: keysWithPrefixes('cron.'),
-    sourcePath: 'src/app/(backend)/api/admin/maintenance/route.ts',
-    symbol: 'POST',
+    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keys: [
+      APP_SETTING_KEYS.cronAuditRetentionDays,
+      APP_SETTING_KEYS.cronPendingOrderExpiryDays,
+      APP_SETTING_KEYS.notificationRetentionDays,
+    ],
+    sourcePath: adminSettingsRuntimeProcedures,
+    symbol: 'runMaintenance',
+  },
+  {
+    id: 'maintenance-cron-forward',
+    keyEvidence: {
+      kind: 'registry',
+      namespace: 'APP_SETTING_KEYS',
+    },
+    keys: [APP_SETTING_KEYS.cronSecret],
+    sourcePath: 'src/app/(backend)/api/admin/secretAuth.ts',
+    symbol: 'resolveCronSecret',
   },
   {
     id: 'desktop-release-legacy-authentication',
