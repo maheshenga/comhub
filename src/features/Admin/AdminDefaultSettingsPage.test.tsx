@@ -159,6 +159,12 @@ describe('AdminDefaultSettingsPage runtime models', () => {
       expect(provider).toHaveAttribute('readonly');
       await waitFor(() => expect(provider).toHaveValue(pair.value));
     }
+    // SWR-driven provider resolution can finish one tick after this test
+    // tears down; react-dom's scheduler then throws "window is not defined"
+    // as an unhandled error in a later worker and fails the whole suite.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('renders a revision conflict alert instead of hiding the save cause', async () => {
