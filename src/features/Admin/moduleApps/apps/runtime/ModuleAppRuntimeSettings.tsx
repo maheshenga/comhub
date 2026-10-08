@@ -233,7 +233,7 @@ const ModuleAppRuntimeSettings = memo<{
             ]
           : []),
       ];
-      await adminCommercialService.setAppSettingsBatch({ updates });
+      await adminCommercialService.setModuleAppRuntimeSettings({ updates });
       await Promise.all([
         mutate(ADMIN_SETTINGS_SECTION_SWR_KEY('module-runtime')),
         mutate(moduleAppCacheKeys.runtimeDiagnostics()),

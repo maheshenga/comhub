@@ -22,7 +22,9 @@ vi.mock('@/database/server', () => ({
   getServerDB: mockGetServerDB,
 }));
 vi.mock('@/database/models/desktopBuild', () => ({
-  DesktopBuildModel: vi.fn(() => mockReleaseModel),
+  DesktopBuildModel: vi.fn(function () {
+    return mockReleaseModel;
+  }),
 }));
 
 vi.mock('@/server/services/appSettings', async (importOriginal) => {

@@ -1,5 +1,5 @@
 import { ConfigProvider } from '@lobehub/ui';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -80,5 +80,12 @@ describe('AdminSystemMaintenancePage', () => {
     expect(within(dialog).getByText('模块应用上传清理失败')).toBeInTheDocument();
     expect(within(dialog).getByText('2')).toBeInTheDocument();
     expect(within(dialog).getByText('1')).toBeInTheDocument();
+    // handleRunNow closes with `setRunning(false)` in a finally block; under
+    // suite load that state update can land after teardown, and react-dom's
+    // scheduler then throws "window is not defined" as an unhandled error in
+    // a later worker and fails the whole suite. Flush it before returning.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 });

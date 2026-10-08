@@ -10,6 +10,7 @@ import {
   type Plans,
 } from '@lobechat/types';
 
+import type { ModuleAppRuntimeSettingKey } from '@/business/server/module-apps/runtimeConfig';
 import { getAdminSettingsWriteSWRKeys } from '@/const/adminCacheKeys';
 import {
   type AppSettingKey,
@@ -332,6 +333,25 @@ class AdminCommercialService {
     const expectedRevisions = await this.getExpectedAppSettingRevisions(keys);
     const result = await this.runAppSettingWrite(sections, () =>
       lambdaClient.admin.settings.setAppSettingsBatch.mutate({
+        ...params,
+        expectedRevisions,
+      } as any),
+    );
+    this.rememberAppSettingRevisions(result.revisions);
+    await invalidateAdminSettingsWrites(
+      params.updates.map((update) => getAppSettingsSectionForKey(update.key as AppSettingKey)),
+    );
+    return result;
+  };
+
+  setModuleAppRuntimeSettings = async (params: {
+    updates: Array<{ key: ModuleAppRuntimeSettingKey; value: unknown }>;
+  }) => {
+    const keys = params.updates.map(({ key }) => key);
+    const sections = this.getAppSettingSections(keys);
+    const expectedRevisions = await this.getExpectedAppSettingRevisions(keys);
+    const result = await this.runAppSettingWrite(sections, () =>
+      lambdaClient.admin.settings.setModuleAppRuntimeSettings.mutate({
         ...params,
         expectedRevisions,
       } as any),

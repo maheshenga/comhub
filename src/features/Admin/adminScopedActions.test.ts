@@ -52,9 +52,11 @@ describe('scoped model billing matrix actions', () => {
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.systemWrite)');
     expect(source).toContain('canReadModels ? MATRIX_KEY : null');
     expect(source).toContain('canReadPlans ? PLANS_KEY : null');
-    expect(source).toContain("canReadSettings ? ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix') : null");
-    expect(source).toContain('disabled={!canWriteFinance}');
-    expect(source).toContain('disabled={!canWriteSystem}');
+    expect(source).toContain(
+      "canReadSettings ? ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix') : null",
+    );
+    expect(source).toContain('disabled={!canWriteFinance || !planData || saving}');
+    expect(source).toContain('disabled={!canWriteSystem || !settings || saving}');
     expect(source).toContain(
       "!['pricingMultiplier', 'creditsPerDollar', 'actions'].includes(String(column.key))",
     );

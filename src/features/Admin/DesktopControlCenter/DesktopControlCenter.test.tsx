@@ -666,6 +666,13 @@ describe('DesktopControlCenter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.retry' }));
 
     await waitFor(() => expect(releasesMutate).toHaveBeenCalledTimes(1));
+    // The confirmModal onOk chain ends with `setRetryingReleaseId(undefined)`,
+    // a state update that can land after this test tears down. Flush it here,
+    // otherwise react-dom's scheduler throws "window is not defined" as an
+    // unhandled error in a later worker and fails the whole suite.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('disables every release mutation while one release action is pending', async () => {

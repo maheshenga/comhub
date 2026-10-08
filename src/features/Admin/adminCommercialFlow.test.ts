@@ -319,6 +319,9 @@ describe('admin commercial flow pages', () => {
     const abilitiesCell = readRepoFile('src/features/Admin/adminProviderModelAbilities.tsx');
     const runtime = readRepoFile('src/server/services/newapiInstance/index.ts');
     const globalConfig = readRepoFile('apps/server/src/globalConfig/index.ts');
+    const adminManagedProviders = readRepoFile(
+      'apps/server/src/globalConfig/adminManagedProviders.ts',
+    );
 
     expect(providersPage).toContain('AiProviderModelAbilitiesCell');
     expect(providersPage).toContain('buildManualAbilitiesMetadata');
@@ -327,9 +330,10 @@ describe('admin commercial flow pages', () => {
     expect(abilitiesCell).toContain('functionCall');
     expect(abilitiesCell).toContain('reasoning');
     expect(abilitiesCell).toContain('vision');
-    expect(runtime).toContain('resolveManualAbilities');
+    expect(runtime).toContain('resolveStoredAbilities');
     expect(runtime).toContain('metadata?.manualAbilities');
-    expect(globalConfig).toContain('m.abilities ? { abilities: m.abilities } : {}');
+    expect(globalConfig).toContain('getAllEnabledModels');
+    expect(adminManagedProviders).toContain('m.abilities ? { abilities: m.abilities } : {}');
   });
 
   it('keeps toapi as a NewAPI-compatible instance instead of a standalone provider type', () => {
@@ -487,20 +491,23 @@ describe('admin commercial flow pages', () => {
   });
 
   it('does not fall back to built-in help links when admin explicitly clears the menu', () => {
-    const footer = readRepoFile('src/routes/(main)/home/_layout/Footer/index.tsx');
+    const footer = readRepoFile('src/features/HomeSidebar/Footer/index.tsx');
+    const footerHelpMenuItems = readRepoFile('src/features/HomeSidebar/Footer/helpMenuItems.tsx');
 
     expect(footer).toContain('data: configuredHelpMenuItems');
-    expect(footer).not.toContain('configuredMenuItems.length > 0');
-    expect(footer).not.toContain('configuredHelpMenuItems.length > 0');
+    expect(footer).toContain(
+      'Array.isArray(configuredHelpMenuItems) ? configuredMenuItems : defaultHelpMenuItems',
+    );
+    expect(footerHelpMenuItems).toContain('createConfiguredHelpMenuItems');
   });
 
-  it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {
+  it('shows admin-configured top-up promotion metadata in the admin surface and keeps credit allocation copy on the credits page', () => {
     const topupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
 
     expect(topupPage).toContain('normalizeTopUpPackagePromotion(row.metadata)');
     expect(topupPage).toContain('admin.topup.col.promotion');
-    expect(creditsPage).toContain('限时优惠');
+    expect(topupPage).toContain("promotion.label || '限时优惠'");
     expect(creditsPage).toContain('优先使用订阅积分，其次使用充值积分');
   });
 
@@ -517,13 +524,15 @@ describe('admin commercial flow pages', () => {
 
   it('keeps credits top-up purchase state honest while online payment is unavailable', () => {
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
+    const topUpPurchase = readRepoFile('src/features/TopUp/TopUpPurchase.tsx');
     const adminTopupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
     const adminPlansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
 
     expect(creditsPage).toContain('isPaidPlan(currentPlan)');
-    expect(creditsPage).toContain("href={canPurchaseTopUp ? undefined : '/settings/plans'}");
-    expect(creditsPage).toContain('在线支付暂未接入');
-    expect(adminTopupPage).toContain("currency: 'USD'");
+    expect(creditsPage).toContain('<TopUpPurchase />');
+    expect(topUpPurchase).toContain("t('topup.online.unavailable', '在线支付暂未开放')");
+    expect(topUpPurchase).toContain('methodOptions.length === 0');
+    expect(adminTopupPage).toContain("currency: 'CNY'");
     expect(adminTopupPage).toContain("values.currency || 'USD'");
     expect(adminPlansPage).toContain('留空时前台不展示');
   });
@@ -787,7 +796,7 @@ describe('admin commercial flow pages', () => {
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const auditPage = readRepoFile('src/routes/(main)/admin/audit/index.tsx');
 
-    expect(ordersPage).toContain("import { Link } from 'react-router'");
+    expect(ordersPage).toContain("import { Link, useNavigate } from 'react-router'");
     expect(ordersPage).toContain('const buildOrderAuditUrl = (orderId: string) => {');
     expect(ordersPage).toContain("searchParams.set('resourceType', 'top_up_order')");
     expect(ordersPage).toContain("searchParams.set('resourceId', orderId)");

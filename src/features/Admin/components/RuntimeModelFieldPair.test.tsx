@@ -115,7 +115,12 @@ describe('RuntimeModelFieldPair', () => {
       });
     });
 
-    expect(screen.getByLabelText('供应商')).toHaveValue('opencode-go / OpenCode Go');
+    // The provider display value resolves asynchronously from the provider
+    // list; assert through waitFor so the test does not race its own render
+    // under suite load (flaky in the full Admin run, green standalone).
+    await waitFor(() => {
+      expect(screen.getByLabelText('供应商')).toHaveValue('opencode-go / OpenCode Go');
+    });
 
     fireEvent.change(model, { target: { value: '' } });
 

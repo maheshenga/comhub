@@ -127,23 +127,33 @@ vi.mock('@/database/core/db-adaptor', () => ({
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
-  ModuleAppModel: vi.fn(() => moduleAppModelMocks),
+  ModuleAppModel: vi.fn(function () {
+    return moduleAppModelMocks;
+  }),
 }));
 
 vi.mock('@/database/models/moduleAppPayment', () => ({
-  ModuleAppPaymentModel: vi.fn(() => moduleAppPaymentModelMocks),
+  ModuleAppPaymentModel: vi.fn(function () {
+    return moduleAppPaymentModelMocks;
+  }),
 }));
 
 vi.mock('@/database/models/moduleAppPublisher', () => ({
-  ModuleAppPublisherModel: vi.fn(() => moduleAppPublisherMocks),
+  ModuleAppPublisherModel: vi.fn(function () {
+    return moduleAppPublisherMocks;
+  }),
 }));
 
 vi.mock('@/database/models/moduleAppPayout', () => ({
-  ModuleAppPayoutModel: vi.fn(() => moduleAppPayoutMocks),
+  ModuleAppPayoutModel: vi.fn(function () {
+    return moduleAppPayoutMocks;
+  }),
 }));
 
 vi.mock('./moduleApps.readModels', () => ({
-  ModuleAppAdminReadModel: vi.fn(() => moduleAppReadModelMocks),
+  ModuleAppAdminReadModel: vi.fn(function () {
+    return moduleAppReadModelMocks;
+  }),
 }));
 
 vi.mock('@/envs/app', () => ({ appEnv: mockAppEnv }));
@@ -171,28 +181,42 @@ vi.mock('@/server/services/payments/factory', () => ({
 }));
 
 vi.mock('../../module-apps/payments/service', () => ({
-  ModuleAppPaymentService: vi.fn(() => moduleAppPaymentMocks),
+  ModuleAppPaymentService: vi.fn(function () {
+    return moduleAppPaymentMocks;
+  }),
 }));
 
 vi.mock('@/database/models/moduleAppCommerce', () => ({
-  ModuleAppCommerceModel: vi.fn(() => moduleAppCommerceMocks),
+  ModuleAppCommerceModel: vi.fn(function () {
+    return moduleAppCommerceMocks;
+  }),
 }));
 
 vi.mock('../../module-apps/revenue', () => ({
-  ModuleAppRevenueService: vi.fn(() => moduleAppRevenueMocks),
-  ModuleAppOrderRevenueService: vi.fn(() => moduleAppOrderRevenueMocks),
+  ModuleAppRevenueService: vi.fn(function () {
+    return moduleAppRevenueMocks;
+  }),
+  ModuleAppOrderRevenueService: vi.fn(function () {
+    return moduleAppOrderRevenueMocks;
+  }),
 }));
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
-  ModuleAppPackageLifecycleService: vi.fn(() => lifecycleMocks),
+  ModuleAppPackageLifecycleService: vi.fn(function () {
+    return lifecycleMocks;
+  }),
 }));
 
 vi.mock('@/server/services/moduleAppBuild/service', () => ({
-  ModuleAppBuildService: vi.fn(() => buildServiceMocks),
+  ModuleAppBuildService: vi.fn(function () {
+    return buildServiceMocks;
+  }),
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/client', () => ({
-  ModuleAppRuntimeClient: vi.fn(() => moduleAppRuntimeClientMocks),
+  ModuleAppRuntimeClient: vi.fn(function () {
+    return moduleAppRuntimeClientMocks;
+  }),
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/config', () => ({

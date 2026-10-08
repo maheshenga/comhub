@@ -33,11 +33,20 @@ export default defineConfig({
         '../../apps/server/src/services/desktopRelease',
       ),
       '@/server/services/file': path.resolve(__dirname, '../../apps/server/src/services/file'),
+      '@/server/services/moduleAppBuild': path.resolve(
+        __dirname,
+        '../../apps/server/src/services/moduleAppBuild',
+      ),
+      '@/server/services/moduleAppPackage': path.resolve(
+        __dirname,
+        '../../apps/server/src/services/moduleAppPackage',
+      ),
       '@/server/services/moduleAppRuntime': path.resolve(
         __dirname,
         '../../apps/server/src/services/moduleAppRuntime',
       ),
       '@/server/routers': path.resolve(__dirname, '../../apps/server/src/routers'),
+      '@/server/workflows': path.resolve(__dirname, '../../apps/server/src/workflows'),
       '@/server': path.resolve(__dirname, '../../src/server'),
       '@/types': path.resolve(__dirname, '../../packages/types/src'),
       '@/utils': path.resolve(__dirname, '../../src/utils'),
