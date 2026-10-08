@@ -183,13 +183,13 @@ describe('AdminDataTable', () => {
     render(
       <AdminDataTable<Row>
         columns={columns}
+        csvFileName="orders.csv"
+        dataSource={rows}
+        regionLabel="订单数据表"
         csvColumns={[
           { header: '名称', value: (row) => row.name },
           { header: '编号', value: (row) => row.id },
         ]}
-        csvFileName="orders.csv"
-        dataSource={rows}
-        regionLabel="订单数据表"
       />,
     );
 
