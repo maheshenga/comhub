@@ -54,6 +54,8 @@ jobs:
       # The Admin suite is collected only by the root `app` project; the
       # business-server suite lives behind its own vitest.config.mts, so the
       # root projects collect 0 files from packages/** (see blueprint §7.3-2).
+      # The vitest.config.mts shared exclude already drops the whitelisted
+      # mobileSettingsI18n red (M3 close-out), so this runs green as-is.
       - name: Run Admin feature tests
         run: npx vitest run --project app src/features/Admin
 
