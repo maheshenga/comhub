@@ -592,6 +592,14 @@ describe('DesktopControlCenter', () => {
     await waitFor(() => expect(adminCommercialService.createDesktopRelease).toHaveBeenCalled());
     expect(releasesMutate).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('dialog', { name: 'admin.desktopBuild.release.title' })).toBeVisible();
+    // The create-release chain closes with setSubmitting(false) +
+    // onReleaseChanged() in a finally block; that state work can land after
+    // teardown under suite load, and react-dom's scheduler then throws
+    // "window is not defined" as an unhandled error in a later worker and
+    // fails the whole suite. Flush before returning.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('does not save or release a build profile until Windows assets are complete', () => {
