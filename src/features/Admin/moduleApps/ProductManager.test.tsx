@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ProductManager from './ProductManager';
@@ -197,6 +197,9 @@ describe('ProductManager', () => {
     );
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate).toHaveBeenCalledWith(moduleAppCacheKeys.products('app-1'));
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('updates a product and invalidates only its application products key', async () => {
@@ -232,6 +235,13 @@ describe('ProductManager', () => {
     );
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate).toHaveBeenCalledWith(moduleAppCacheKeys.products('app-1'));
+    // The save chain closes with setSaving(false) in a finally block; that
+    // state update can land after teardown under suite load, and react-dom's
+    // scheduler then throws "window is not defined" as an unhandled error in
+    // a later worker and fails the whole suite. Flush before returning.
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('matches the server product limits in the form controls', () => {

@@ -197,7 +197,6 @@ describe('AdminDefaultSettingsPage runtime models', () => {
       await Promise.resolve();
     });
   });
-
   it('refreshes the canonical server config cache after saving runtime defaults', async () => {
     vi.mocked(mutate).mockClear();
 
