@@ -26,6 +26,7 @@ import {
   type MessageMetadata,
   type MessageToolCall,
   type ModelUsage,
+  RequestTrigger,
   TraceNameMap,
 } from '@lobechat/types';
 import { dedupeBy } from '@lobechat/utils';
@@ -2130,6 +2131,7 @@ export const createAgentExecutors = (context: {
         await chatService.fetchPresetTaskResult({
           abortController: summaryAbortController,
           params: { ...compressionPayload, model, provider },
+          trigger: RequestTrigger.ContextCompression,
           onMessageHandle: (chunk) => {
             if (chunk.type === 'text') {
               summaryContent += chunk.text || '';

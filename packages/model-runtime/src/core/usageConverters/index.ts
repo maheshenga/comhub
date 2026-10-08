@@ -1,13 +1,17 @@
 export { buildAnthropicInitialUsage, convertAnthropicUsage } from './anthropic';
 export { convertGoogleAIUsage } from './google-ai';
-export { convertOpenAIResponseUsage, convertOpenAIUsage } from './openai';
-export { computeImageCost, type ImageGenerationParams } from './utils/computeImageCost';
-export { computeVideoCost, type VideoGenerationParams } from './utils/computeVideoCost';
+export {
+  convertOpenAIResponseUsage,
+  convertOpenAITranscriptionUsage,
+  convertOpenAIUsage,
+} from './openai';
 export {
   computeChatCost,
   type ComputeChatCostOptions,
   type PricingComputationResult,
 } from './utils/computeChatCost';
+export { computeImageCost, type ImageGenerationParams } from './utils/computeImageCost';
+export { computeVideoCost, type VideoGenerationParams } from './utils/computeVideoCost';
 export {
   type ChatCostEstimate,
   type ChatInputTokenEstimate,

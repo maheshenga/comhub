@@ -35,7 +35,7 @@ faithful trace you can get, because it captures the **exact** spawn args, env
 keys, cwd, `--resume`/`--mcp-config` flags, model, and stdin that the app used —
 things a hand-rolled `claude -p` / `codex exec` repro will not reproduce. Reach
 for this before reproducing manually. The recorder lives in
-`apps/desktop/src/main/controllers/HeterogeneousAgentCtr.ts`
+`apps/desktop/src/main/controllers/HeterogeneousAgentImpl.ts`
 (`createCliTraceSession`, `shouldTraceCliOutput`, `resolveTraceRootDir`).
 
 When it records:
@@ -328,7 +328,7 @@ The procedure (recurring — run it every time):
   when the request **goes through** (`status: "allowed"`). In real traces those
   reset-window fields appear on \~all `rate_limit_info` blocks, the vast majority
   of which are `allowed`, not `rejected`. So the window is rolling-window
-  _metadata for an allowed call_, NOT evidence the limit was hit.
+  *metadata for an allowed call*, NOT evidence the limit was hit.
 - **The bug:** `isUserQuotaRateLimit` keyed only on the presence of a reset
   window (`info.resetsAt != null || info.rateLimitType != null`). A later
   terminal error inherited the last allowed event's window → false positive.

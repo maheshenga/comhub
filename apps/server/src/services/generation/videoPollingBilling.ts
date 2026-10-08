@@ -2,6 +2,7 @@ import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAf
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import type { LobeChatDatabase } from '@/database/type';
 import debug from 'debug';
+import type { SpendOrigin } from '@lobechat/types';
 
 const log = debug('lobe-video:billing-settle');
 
@@ -16,6 +17,7 @@ interface SettleVideoPollingChargeParams {
   prechargeResult: Record<string, unknown>;
   provider: string;
   routeMetadata?: AiUsageRouteMetadata;
+  spendOrigin?: SpendOrigin;
   usage?: { completionTokens: number; totalTokens: number };
   userId: string;
   workspaceId?: string;
@@ -36,6 +38,7 @@ export const settleVideoPollingCharge = async ({
   prechargeResult,
   provider,
   routeMetadata,
+  spendOrigin,
   usage,
   userId,
   workspaceId,
@@ -51,6 +54,7 @@ export const settleVideoPollingCharge = async ({
       db,
       latency: durationMs,
       metadata: {
+        ...spendOrigin,
         asyncTaskId,
         generationBatchId,
         modelId,

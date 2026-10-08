@@ -2,8 +2,14 @@ import type { MessageMetadata } from '../message';
 
 export interface UsageRecordItem {
   createdAt: Date;
-  /** Credits actually charged in the commercial ledger. */
-  credits?: number;
+  /**
+   * Provider-native subscription credits consumed (e.g. Qoder), when the run
+   * bills in credits instead of tokens. Not USD. In this fork the chat usage
+   * service fills it with the commercial ledger's charged amount
+   * (`findAssistantMessageLedgerUsage`), so it doubles as the billed-credits
+   * column for commercial deployments.
+   */
+  credits?: number | null;
   /**
    * ID
    **/

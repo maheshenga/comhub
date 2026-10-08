@@ -1,9 +1,13 @@
+import { ASYNC_TASK_TIMEOUT } from '@lobechat/business-config/server';
 import { resolveBusinessModelMapping } from '@lobechat/business-model-runtime';
-import { RequestTrigger } from '@lobechat/types';
+import { RequestTrigger, type SpendOrigin, type VideoGenerationRoute } from '@lobechat/types';
 import debug from 'debug';
+import type { RuntimeVideoGenParams } from 'model-bank';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
 import { trackProviderContentPolicyViolation } from '@/business/server/trackProviderContentPolicyViolation';
+import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
+import { notifyVideoCompleted } from '@/business/server/video-generation/notifyVideoCompleted';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import { GenerationModel } from '@/database/models/generation';
@@ -30,8 +34,12 @@ interface BackgroundPollingParams {
   inferenceId: string;
   model: string;
   prechargeResult?: any;
+  previousGenerationId?: string;
   provider: string;
+  route?: VideoGenerationRoute;
   routeMetadata?: AiUsageRouteMetadata;
+  /** Keeps the completion charge attributed like the webhook path, which reads it from the task row. */
+  spendOrigin?: SpendOrigin;
   userId: string;
   workspaceId?: string;
 }
@@ -48,12 +56,15 @@ export async function processBackgroundVideoPolling(
     generationTopicId,
     inferenceId,
     model,
+    prechargeResult,
+    previousGenerationId,
     provider,
+    route,
     routeMetadata,
+    spendOrigin,
     userId,
     workspaceId,
   } = params;
-  const prechargeResult = params.prechargeResult;
 
   log(
     'Starting background video polling for task: %s (provider: %s, inferenceId: %s)',
@@ -61,6 +72,8 @@ export async function processBackgroundVideoPolling(
     provider,
     inferenceId,
   );
+
+  let claimedByThisWorker = false;
 
   try {
     const asyncTaskModel = new AsyncTaskModel(db, userId, workspaceId);
@@ -73,10 +86,18 @@ export async function processBackgroundVideoPolling(
       modelType: 'video',
       workspaceId,
     });
-    const pollResult = await pollUntilCompletion(modelRuntime, inferenceId);
+    // `route` was pinned for the mapped model id at creation, so poll with that id too;
+    // the user-facing alias may resolve to a router list that no longer holds the route.
+    const pollResult = await pollUntilCompletion(modelRuntime, inferenceId, resolvedModelId, route);
 
     if (!pollResult) {
       throw new Error('Polling completed but no video URL returned');
+    }
+
+    claimedByThisWorker = await AsyncTaskModel.claimVideoCompletion(db, asyncTaskId);
+    if (!claimedByThisWorker) {
+      log('Video task already claimed or finalized, skipping polling result: %s', asyncTaskId);
+      return;
     }
 
     log('Video polling succeeded for task: %s, processing video...', asyncTaskId);
@@ -85,20 +106,22 @@ export async function processBackgroundVideoPolling(
       headers: pollResult.headers,
     });
 
+    const batch = await db.query.generationBatches.findFirst({
+      where: (batches, { eq }) => eq(batches.id, generationBatchId),
+    });
+
     const asset: VideoGenerationAsset = {
       coverUrl: processResult.coverKey,
       duration: processResult.duration,
       height: processResult.height,
-      originalUrl: pollResult.videoUrl,
+      interactionId: inferenceId,
+      originalUrl: pollResult.videoUrl.startsWith('data:') ? undefined : pollResult.videoUrl,
+      previousGenerationId,
       thumbnailUrl: processResult.thumbnailKey,
       type: 'video',
       url: processResult.videoKey,
       width: processResult.width,
     };
-
-    const batch = await db.query.generationBatches.findFirst({
-      where: (batches, { eq }) => eq(batches.id, generationBatchId),
-    });
 
     await generationModel.createAssetAndFile(
       generationId,
@@ -118,6 +141,19 @@ export async function processBackgroundVideoPolling(
       status: AsyncTaskStatus.Success,
     });
 
+    try {
+      await notifyVideoCompleted({
+        generationBatchId,
+        model,
+        prompt: batch?.prompt ?? '',
+        topicId: generationTopicId,
+        userId,
+        workspaceId,
+      });
+    } catch (error) {
+      console.error('[video-background-polling] Video completion notification failed:', error);
+    }
+
     if (prechargeResult) {
       await settleVideoPollingCharge({
         asyncTaskId,
@@ -130,6 +166,7 @@ export async function processBackgroundVideoPolling(
         prechargeResult,
         provider,
         routeMetadata,
+        spendOrigin,
         usage: pollResult.usage,
         userId,
         workspaceId,
@@ -141,6 +178,14 @@ export async function processBackgroundVideoPolling(
     log('Background video polling error for task: %s', asyncTaskId, error);
 
     const asyncTaskModel = new AsyncTaskModel(db, userId, workspaceId);
+    if (!claimedByThisWorker) {
+      claimedByThisWorker = await AsyncTaskModel.claimVideoCompletion(db, asyncTaskId);
+      if (!claimedByThisWorker) {
+        log('Video task failure already handled by another worker: %s', asyncTaskId);
+        return;
+      }
+    }
+
     const providerContentPolicyMessage = await getProviderContentPolicyErrorMessage({
       error,
       provider,
@@ -192,19 +237,21 @@ export async function processBackgroundVideoPolling(
 async function pollUntilCompletion(
   modelRuntime: any,
   inferenceId: string,
+  model: string,
+  route?: VideoGenerationRoute,
 ): Promise<{
   headers?: Record<string, string>;
   usage?: { completionTokens: number; totalTokens: number };
   videoUrl: string;
 } | null> {
-  const maxRetries = 120;
   const pollingInterval = 5000;
+  const maxRetries = Math.ceil(ASYNC_TASK_TIMEOUT / pollingInterval);
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       log('Polling attempt %d/%d for task: %s', attempt + 1, maxRetries, inferenceId);
 
-      const result = await modelRuntime.handlePollVideoStatus(inferenceId);
+      const result = await modelRuntime.handlePollVideoStatus(inferenceId, model, route);
 
       if (result.status === 'success') {
         log('Video generation succeeded for task: %s', inferenceId);

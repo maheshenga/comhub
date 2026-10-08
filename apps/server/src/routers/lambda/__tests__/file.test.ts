@@ -190,6 +190,7 @@ const mockFileModelDeleteUnreferenced = vi.fn();
 const mockFileModelDeleteMany = vi.fn();
 const mockFileModelFindById = vi.fn();
 const mockFileModelFindByIds = vi.fn();
+const mockFileModelFindKnowledgeBaseIds = vi.fn().mockResolvedValue([]);
 const mockFileModelQuery = vi.fn();
 const mockFileModelUpdate = vi.fn();
 const mockFileModelUpdateGlobalFile = vi.fn();
@@ -208,6 +209,7 @@ vi.mock('@/database/models/file', () => ({
       deleteMany: mockFileModelDeleteMany,
       findById: mockFileModelFindById,
       findByIds: mockFileModelFindByIds,
+      findKnowledgeBaseIds: mockFileModelFindKnowledgeBaseIds,
       query: mockFileModelQuery,
       update: mockFileModelUpdate,
       updateGlobalFile: mockFileModelUpdateGlobalFile,
@@ -281,6 +283,7 @@ const mockDocumentModelFindById = vi.fn();
 const mockDocumentModelFindBySlug = vi.fn();
 const mockDocumentModelTransferTo = vi.fn();
 const mockDocumentModelSubtreeHasForeignRows = vi.fn().mockResolvedValue(false);
+const mockDocumentModelSyncFromFile = vi.fn().mockResolvedValue([]);
 
 vi.mock('@/database/repositories/knowledge', () => ({
   KnowledgeRepo: vi.fn(function () {
@@ -298,6 +301,7 @@ vi.mock('@/database/models/document', () => ({
       findById: mockDocumentModelFindById,
       findBySlug: mockDocumentModelFindBySlug,
       subtreeHasForeignRows: mockDocumentModelSubtreeHasForeignRows,
+      syncFromFile: mockDocumentModelSyncFromFile,
       transferTo: mockDocumentModelTransferTo,
     };
   }),
@@ -558,6 +562,43 @@ describe('fileRouter', () => {
 
       expect(mockFileModelCreate).toHaveBeenCalledWith(
         expect.objectContaining({ source: FileSource.PageEditor }),
+        true,
+        routerMocks.transactionClient,
+      );
+    });
+
+    /** @example Agent-document uploads are readable by other members of the workspace. */
+    it('defaults agent-document uploads to public without changing ordinary upload defaults', async () => {
+      // ROOT CAUSE:
+      // Agent uploads used the ordinary private-file default while their document rows
+      // were public. Other workspace members saw the document but its preview returned 404.
+      // Default the dedicated upload source to public and retain private ordinary uploads.
+      ({ caller } = createCallerWithCtx({ workspaceId: 'workspace-1' }));
+      mockFileModelCheckHash.mockResolvedValue({ isExist: false });
+      mockFileModelCreate.mockResolvedValue({ id: 'new-file-id' });
+      const upload = {
+        fileType: 'application/pdf',
+        hash: 'agent-upload-hash',
+        metadata: {},
+        name: 'brief.pdf',
+        size: 100,
+        url: 'files/brief.pdf',
+      };
+
+      await caller.createFile({ ...upload, source: FileSource.AgentDocument });
+
+      /** @example The persisted original file has the same public visibility as its document. */
+      expect(mockFileModelCreate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ source: FileSource.AgentDocument, visibility: 'public' }),
+        true,
+        routerMocks.transactionClient,
+      );
+
+      await caller.createFile(upload);
+
+      /** @example An ordinary upload still starts private. */
+      expect(mockFileModelCreate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ source: undefined, visibility: 'private' }),
         true,
         routerMocks.transactionClient,
       );
@@ -1035,6 +1076,34 @@ describe('fileRouter', () => {
 
       expect(result.url).toBe('https://lobehub.com/f/test-id');
     });
+
+    it('should expose the libraries the file belongs to', async () => {
+      mockFileModelFindById.mockResolvedValue(mockFile);
+      mockFileModelFindKnowledgeBaseIds.mockResolvedValueOnce(['kb-1']);
+
+      const result = await caller.findById({ id: 'test-id' });
+
+      expect(mockFileModelFindKnowledgeBaseIds).toHaveBeenCalledWith('test-id');
+      expect(result.knowledgeBaseIds).toEqual(['kb-1']);
+    });
+  });
+
+  describe('getReadableUrl', () => {
+    it('should throw when the file does not exist', async () => {
+      mockFileModelFindById.mockResolvedValue(null);
+
+      await expect(caller.getReadableUrl({ id: 'invalid-id' })).rejects.toThrow(TRPCError);
+    });
+
+    it('should return the storage URL instead of the /f/:id proxy', async () => {
+      mockFileModelFindById.mockResolvedValue(mockFile);
+      mockFileServiceGetFullFileUrl.mockResolvedValue('https://s3.example.com/test-url?sig=1');
+
+      const result = await caller.getReadableUrl({ id: 'test-id' });
+
+      expect(mockFileServiceGetFullFileUrl).toHaveBeenCalledWith('test-url');
+      expect(result.url).toBe('https://s3.example.com/test-url?sig=1');
+    });
   });
 
   describe('getFileItemById', () => {
@@ -1282,6 +1351,17 @@ describe('fileRouter', () => {
   });
 
   describe('removeUnreferencedFile', () => {
+    /** @example A client retry after server-side cleanup succeeds without touching storage. */
+    it('accepts cleanup of an already removed upload', async () => {
+      mockFileModelFindById.mockResolvedValue(undefined);
+      /** @example Repeating cleanup is idempotent. */
+      await expect(
+        caller.removeUnreferencedFile({ id: 'removed-upload' }),
+      ).resolves.toBeUndefined();
+      /** @example Missing files do not trigger another storage deletion. */
+      expect(mockFileServiceDeleteFile).not.toHaveBeenCalled();
+    });
+
     it('keeps object storage when the file became referenced before cleanup', async () => {
       mockFileModelFindById.mockResolvedValue({ id: 'voice-file', userId: 'test-user' });
       mockFileModelDeleteUnreferenced.mockResolvedValue(undefined);
@@ -1337,6 +1417,10 @@ describe('fileRouter', () => {
       await caller.updateFile({ id: 'file-1', parentId: 'parent-folder' });
 
       expect(mockFileModelUpdate).toHaveBeenCalledWith('file-1', { parentId: 'docs_parent' });
+      expect(mockDocumentModelSyncFromFile).toHaveBeenCalledWith('file-1', {
+        name: undefined,
+        parentId: 'docs_parent',
+      });
     });
 
     it('should strip forged agent-share provenance from metadata updates', async () => {
@@ -1351,6 +1435,7 @@ describe('fileRouter', () => {
       });
 
       expect(mockFileModelUpdate).toHaveBeenCalledWith('file-1', { metadata: { width: 100 } });
+      expect(mockDocumentModelSyncFromFile).not.toHaveBeenCalled();
     });
   });
 

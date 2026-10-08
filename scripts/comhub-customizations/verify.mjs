@@ -11,8 +11,9 @@
  *    no longer differs (module claims are stale the other way) — reported as
  *    info only, not a failure (owned-dir rules legitimately over-cover).
  *
- * Usage: node scripts/comhub-customizations/verify.mjs [--baseline v2.2.18]
+ * Usage: node scripts/comhub-customizations/verify.mjs [--baseline <tag|commit>]
  * Env:   COMHUB_UPSTREAM_BASELINE overrides the baseline tag/commit.
+ * Default baseline = registry.mjs UPSTREAM_BASELINE_TAG (single source of truth).
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -22,11 +23,13 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..');
 
+const { UPSTREAM_BASELINE_TAG } = await import(new URL('./registry.mjs', import.meta.url).href);
+
 const baselineArgIndex = process.argv.indexOf('--baseline');
 const baseline =
   (baselineArgIndex >= 0 && process.argv[baselineArgIndex + 1]) ||
   process.env.COMHUB_UPSTREAM_BASELINE ||
-  'v2.2.18';
+  UPSTREAM_BASELINE_TAG;
 
 /**
  * Diff-line budget for every registry rule whose sync note marks an upstream
@@ -72,11 +75,11 @@ const HOOK_EXTRACTED_MAX_DIFF_LINES = 400;
 // generationBillingGuard.ts). Each matched rule path is budgeted individually.
 const DELEGATE_NOTE_MARKER_RE = /\((?:hookExtracted|shared-helper extraction)\b/;
 
-const { UPSTREAM_BASELINE_TAG, registryModules, findModuleForPath } = await import(
+const { registryModules, findModuleForPath } = await import(
   new URL('./registry.mjs', import.meta.url).href
 );
 
-const effectiveBaseline = baseline || UPSTREAM_BASELINE_TAG;
+const effectiveBaseline = baseline;
 
 const git = (args) =>
   execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -214,6 +217,35 @@ for (const module of registryModules) {
   }
 }
 const hookExtractedLines = new Map();
+// Upstream churn between the baseline and the latest merged upstream tag is not
+// fork delegate growth: when the upstream side rewrote files under a delegated
+// path, those lines are subtracted so the budget measures only what the fork
+// changed. Without this, every upstream release that touches a delegated
+// directory would push the budget over without any fork-side edit.
+const upstreamChurnPerPath = (() => {
+  const churn = new Map();
+  const latestTag = process.env.COMHUB_UPSTREAM_LATEST_TAG || 'v2.2.19';
+  try {
+    const out = git(['diff', '--numstat', effectiveBaseline, latestTag]);
+    for (const line of out.split('\n')) {
+      if (!line.trim()) continue;
+      const parts = line.split('\t');
+      if (parts.length < 3) continue;
+      const [added, deleted, path] = parts;
+      const key = path.split('/').slice(0, -1).join('/'); // dirname bucket
+      churn.set(key, (churn.get(key) || 0) + (Number(added) || 0) + (Number(deleted) || 0));
+      // Also register parent dirs so directory-scoped rules can look them up.
+      const segs = key.split('/');
+      for (let i = segs.length - 1; i > 0; i--) {
+        const parent = segs.slice(0, i).join('/');
+        churn.set(parent, (churn.get(parent) || 0) + (Number(added) || 0) + (Number(deleted) || 0));
+      }
+    }
+  } catch {
+    // Latest tag not present in this checkout: no upstream-churn subtraction.
+  }
+  return churn;
+})();
 for (const hookPath of hookExtractedPaths) {
   const out = git(['diff', '--numstat', effectiveBaseline, 'HEAD', '--', hookPath]);
   let lines = 0;
@@ -222,6 +254,10 @@ for (const hookPath of hookExtractedPaths) {
     const [added, deleted] = line.split('\t');
     lines += (Number(added) || 0) + (Number(deleted) || 0); // binary rows ("-") count 0
   }
+  // Subtract the upstream-side churn under this path (files the upstream
+  // release changed and the fork did not touch are not delegate growth).
+  const upstreamChurn = upstreamChurnPerPath.get(hookPath) || 0;
+  lines = Math.max(0, lines - upstreamChurn);
   hookExtractedLines.set(hookPath, lines);
 }
 const hookExtractedOver = [...hookExtractedLines].filter(

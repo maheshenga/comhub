@@ -1,0 +1,84 @@
+{
+  "deterministic": [
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract accepts a prerelease with build metadata"
+    },
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract accepts and trims a stable SemVer 2.0 release"
+    },
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract allows empty trimmed release notes"
+    },
+    {
+      "file": "packages/business-server/src/desktopBuild/contract.test.ts",
+      "test": "desktop release input contract trims a SemVer at the exact 64-character limit"
+    },
+    {
+      "file": "packages/business-server/src/image-generation/chargeAfterGenerate.test.ts",
+      "test": "image chargeAfterGenerate applies NewAPI route metadata to image pricing multiplier"
+    },
+    {
+      "file": "packages/business-server/src/image-generation/chargeAfterGenerate.test.ts",
+      "test": "image chargeAfterGenerate charges the actual image usage cost with the configured multiplier"
+    },
+    {
+      "file": "packages/business-server/src/module-apps/revenue.test.ts",
+      "test": "module app revenue accrues once, appends a reversal, and rejects non-settleable entries"
+    },
+    {
+      "file": "packages/business-server/src/module-apps/revenue.test.ts",
+      "test": "module app revenue rejects duplicate revenue entry ids in one settlement batch"
+    },
+    {
+      "file": "packages/business-server/src/module-apps/revenue.test.ts",
+      "test": "module app revenue snapshots the stable assigned publisher even after suspension"
+    },
+    {
+      "file": "packages/business-server/src/serverModelPricing.test.ts",
+      "test": "getServerModelPricing prefers request database pricing for admin-managed generation models"
+    },
+    {
+      "file": "packages/business-server/src/serverModelPricing.test.ts",
+      "test": "getServerModelPricing returns a database pricing snapshot when admin-managed pricing is available"
+    },
+    {
+      "file": "packages/business-server/src/serverModelPricing.test.ts",
+      "test": "getServerModelPricing returns a model-bank pricing snapshot when database pricing is unavailable"
+    }
+  ],
+  "errors": [],
+  "flaky": [],
+  "meta": {
+    "suite": "business-server",
+    "runner": "vitest 5.0.0 (win32-x64, node v24.19.0)",
+    "capturedAt": "2026-10-08T23:39:19+08:00",
+    "baselineRef": "commit acc6e65ec4 (upgrade/v2.2.19 tip); clean committed tree",
+    "runs": [12, 12],
+    "runsNote": "raw per-run vitest JSON reports archived at node_modules/.redset-tmp/v2219-bs-{1,2}.json (not committed; regenerate by re-running the suite twice with --reporter=json)",
+    "generatedVia": "double-run",
+    "counts": {
+      "deterministic": 12,
+      "flaky": 0,
+      "errors": 0
+    },
+    "note": "由双跑 vitest JSON 报告按蓝图 §7.3-3 构建：两跑均红->deterministic；恰单跑红->flaky(watchlist)；文件级加载/收集错误(无 assertionResults 或 message 含 Unhandled)两跑均现->errors(errorType 为按首行启发式分类, firstLine 为报告 message 首行)。构建器: node_modules/.redset-tmp/build-redset-v2219.mjs。",
+    "upgradeAcceptance": {
+      "suiteVsM0": {
+        "deterministicBefore": 15,
+        "deterministicAfter": 12,
+        "fixedByUpgrade": 3,
+        "semanticNewReds": 0
+      }
+    }
+  },
+  "whitelist": [
+    {
+      "file": "src/features/Admin/mobileSettingsI18n.test.ts",
+      "reason": "阈值<400 vs 恰400行",
+      "closesIn": "M3"
+    }
+  ]
+}

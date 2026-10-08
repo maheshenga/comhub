@@ -27,7 +27,7 @@ If the file is large but has **one** capability and **one** host, stop. Use `rea
 
 An atom is the **smallest unit a host is allowed not to mount**.
 
-Ask, for every chunk: _would any host ship the rest and skip this?_ If yes, it is an atom. If no, it stays inside its parent.
+Ask, for every chunk: *would any host ship the rest and skip this?* If yes, it is an atom. If no, it stays inside its parent.
 
 That grain is coarser than a visual section and finer than the whole page.
 
@@ -177,7 +177,7 @@ If the light assembler appears on the importer chain, a static import still exis
 | Host                          | Mounts                                                                    |
 | ----------------------------- | ------------------------------------------------------------------------- |
 | In-app `Acceptance/index.tsx` | Identity, goal, inventory, decision, focus workflow, ledger + write slots |
-| Workbench public detail       | Identity, goal, inventory only                                            |
+| Workbench public detail       | Identity, goal, inventory, discussion with sign-in guidance               |
 | Portal                        | Full assembler + `OriginConversationProvider`                             |
 
 Read `AcceptanceGoal` (read + `editSlot`) and `AcceptanceGoalEdit` (write) for the slot cut. Read `originConversation.tsx` for a host seam. Read workbench `AcceptanceDetail.tsx` for a light assembler.

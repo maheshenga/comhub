@@ -8,18 +8,39 @@ tagged with the design value(s) it serves.
 
 ## 4.1 Loading visuals・Natural
 
-**Never use antd `Spin`** — it doesn't match the product's loading visual. Use a project
-loader:
+This section is the single source for **which loading form fits which scenario**; other
+skills link here instead of restating it. Pick by scenario, top to bottom — the first row
+that matches wins:
 
-| Need                        | Component                                                                     |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| Default loading (in-flight) | `NeuralNetworkLoading` from `@/components/NeuralNetworkLoading` (`size` prop) |
-| Inline dots                 | `DotsLoading` / `BubblesLoading` from `@/components`                          |
-| Branded full-page           | `Loading` from `@/components/Loading/BrandTextLoading`                        |
-| List / card placeholder     | a skeleton (e.g. `SkeletonList`)                                              |
+| Scenario                                                    | Form                                                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| App boot / full-screen blocking wait                        | `BrandTextLoading` from `@/components/Loading/BrandTextLoading`            |
+| Route / page first paint (layout known)                     | route skeleton from `@/components/Skeleton/*` mirroring the page structure |
+| Known-shape content (list, card, detail)                    | in-place `Skeleton` / `ListSkeleton` — keep the chrome, swap only the text |
+| Unknown-shape content region (file preview, QR, modal body) | `Spin size="large"` centred                                                |
+| Inline / button / background refresh (revalidate, saving)   | `Spin size="small"`, or `Button`'s `loading` prop for the button itself    |
+| AI thinking, generating or running a tool                   | `Spin variant="network"`                                                   |
+| Sidebar nav loading (section header revalidate, nav item)   | `Spin variant="network"` in place of the title suffix or item icon         |
+| Waiting for a streamed reply's first token                  | `BubblesLoading` from `@/components/BubblesLoading`                        |
+| Long job with a known progress value                        | `Progress` + persisted elapsed readout (see below)                         |
 
-When in doubt, reach for `NeuralNetworkLoading` — the default in-flight indicator (e.g.
-modal "in progress" states). Minimise layout shift (CLS): the strongest loading state
+`Spin` and `Progress` come from `@lobehub/ui/base-ui`; never antd `Spin` / `Progress`.
+Sizes: `small` for 14–20 px contexts (inline, rows, buttons), `middle` for 24–32 px (card
+body, panel), `large` for 36–48 px (centred region). A pixel number is fine when the loader
+must replace an icon of an exact size.
+
+**`variant="network"` means "the AI is working" — plus the sidebar nav loading
+indicator above, which keeps the product's signature glyph.** A settings save or a list
+fetch uses the default variant; using `network` for plain I/O dilutes the one signal that
+tells the user the agent is busy.
+
+**Running-status glyphs are not loaders.** `RingLoading` (a row's running status),
+`StopLoading` (a running action that can be stopped) and `DotsLoading` (a topic row still
+generating) mark an item's *state* inside a list; keep them there and don't use them as
+region loaders. `CircleLoading` and `ContentLoading` are legacy wrappers — new code uses
+`Spin` directly.
+
+Minimise layout shift (CLS): the strongest loading state
 changes as little of the final layout as possible. When a surface already knows its shape
 (card, row, list item), keep the layout elements — container, border, radius, padding,
 icon — and replace only the text/data with a skeleton sized like the text it stands in
@@ -39,7 +60,7 @@ An **elapsed / progress readout for a long op** (a generation clock, an upload %
 state**, it silently **resets to 0 on remount** — the item scrolls out of a virtual feed and
 back, the route is revisited, a re-render remounts the node — and the user sees a minute-long
 job claim it just started. Derive the start from a **persisted timestamp keyed by the job id**
-(sessionStorage / store), so the readout recovers the _true_ elapsed on remount rather than
+(sessionStorage / store), so the readout recovers the *true* elapsed on remount rather than
 lying; and **clear that key when the job leaves the active state** so a finished / removed job
 doesn't leak a stale start onto a later one that reuses the slot.
 
@@ -51,11 +72,12 @@ doesn't leak a stale start onto a later one that reuses the slot.
 
 **Checklist**
 
-- [ ] No antd `Spin`; use `NeuralNetworkLoading` / project loaders. _(Natural)_
-- [ ] Skeleton reuses the loaded component's chrome — content swap, not relayout. _(Certainty・Natural)_
-- [ ] Skeleton lines match the real text's **height and typical width proportion** (long title line over a shorter subtitle, not equal full-width bars). _(Certainty)_
-- [ ] Known-shape surface not downgraded to a bare block / spinner. _(Natural)_
-- [ ] A long-op elapsed / progress readout derives from a **persisted start timestamp keyed by job id** (survives remount, shows true duration) and clears the key when the job ends — never a local counter that resets to 0 on remount. _(Certainty・Natural)_
+- [ ] Loading form picked from the §4.1 scenario table; base-ui `Spin`, never antd `Spin`. *(Natural)*
+- [ ] `Spin variant="network"` only while the AI is thinking / generating / running a tool. *(Certainty)*
+- [ ] Skeleton reuses the loaded component's chrome — content swap, not relayout. *(Certainty・Natural)*
+- [ ] Skeleton lines match the real text's **height and typical width proportion** (long title line over a shorter subtitle, not equal full-width bars). *(Certainty)*
+- [ ] Known-shape surface not downgraded to a bare block / spinner. *(Natural)*
+- [ ] A long-op elapsed / progress readout derives from a **persisted start timestamp keyed by job id** (survives remount, shows true duration) and clears the key when the job ends — never a local counter that resets to 0 on remount. *(Certainty・Natural)*
 
 ### Whole-surface skeletons: match the layout's structure, not just its rows
 
@@ -104,20 +126,20 @@ users' eyes settle first anyway; pretending to know the row count buys nothing.
 
 **Checklist**
 
-- [ ] A whole-surface skeleton's **structural anchors** (header height, fixed nav block, body start, first group title) match the settled surface — verified by measuring, not by reading the JSX. _(Certainty)_
-- [ ] Any conditional chrome that changes height (platform flags, feature gates) is branched in the skeleton with the **same** condition, not hard-coded. _(Certainty)_
-- [ ] A shell that renders per-route panels drives its skeleton from a **per-route shape**, and a panel with no body gets a skeleton with no body. _(Certainty・Natural)_
-- [ ] Static menus align exactly; data-driven lists align **to the first group title** and stop claiming to know the row count. _(Certainty)_
+- [ ] A whole-surface skeleton's **structural anchors** (header height, fixed nav block, body start, first group title) match the settled surface — verified by measuring, not by reading the JSX. *(Certainty)*
+- [ ] Any conditional chrome that changes height (platform flags, feature gates) is branched in the skeleton with the **same** condition, not hard-coded. *(Certainty)*
+- [ ] A shell that renders per-route panels drives its skeleton from a **per-route shape**, and a panel with no body gets a skeleton with no body. *(Certainty・Natural)*
+- [ ] Static menus align exactly; data-driven lists align **to the first group title** and stop claiming to know the row count. *(Certainty)*
 
 ## 4.2 Loading must be able to fail — timeout → error + retry・Certainty・Meaningful
 
-A loading state that can only ever resolve to _success_ is a bug. Any async fetch can hang,
+A loading state that can only ever resolve to *success* is a bug. Any async fetch can hang,
 time out, or error, so every loading state needs a **terminal failure path**: after a
 bounded wait (or on an error) the spinner / skeleton must give way to an explicit **failed**
 state that says it didn't load and offers a **Reload / Retry** button. An indefinite spinner
 is indistinguishable from a dead one — the user is stuck with no recourse but to reload the
 whole app, and can't even tell whether anything is still happening. A failed-with-retry
-state hands control back and restores certainty. Retry re-runs the _same_ fetch (SWR
+state hands control back and restores certainty. Retry re-runs the *same* fetch (SWR
 `mutate` / query refetch), shows loading again while it re-runs, and stays available if it
 fails again; keep any already-loaded context rather than blowing the surface away.
 
@@ -130,7 +152,7 @@ network stay retryable. Derive this from the normalized error status, don't hand
 surface — `normalizeAsyncError` marks `401` / `403` (and anything flagged
 `meta.shouldRetry === false`) non-retryable, and `AsyncError` hides the button accordingly.
 
-> **Decision (2026-07-02): the component-level failed state does _not_ itself redirect on
+> **Decision (2026-07-02): the component-level failed state does *not* itself redirect on
 > `401`.** We assume session-expiry is caught **globally** (an app-level interceptor routes an
 > expired session to sign-in), so a surface only needs the honest no-retry failure state as a
 > backstop — it should not add a second redirect layer. Revisit only if a future surface turns
@@ -162,7 +184,7 @@ render the failed state. When you find an `errorMap` / `isXError` selector, **gr
 consumers** (`rg isXError`): zero call sites is the tell.
 
 > ❌ **Agent profile** (`/agent/:aid/profile`) branches only on `isAgentConfigLoading =
-!activeAgentId || !agentMap[id]` (`store/agent/selectors/selectors.ts`), the data-presence
+> !activeAgentId || !agentMap[id]` (`store/agent/selectors/selectors.ts`), the data-presence
 > disguise, and renders a full-page `<Loading/>` — so a failed / 404 `getAgentConfigById` (a bad
 > or deleted `:aid`) spins **forever** with no retry. The kicker: `onError` **does** populate
 > `agentConfigErrorMap`, and `currentAgentConfigError` / `isAgentConfigError` **and**
@@ -178,7 +200,7 @@ owner) — is gating on that dependency being **present** in the map. When the d
 legitimately resolves to **absent** (deleted, out-of-scope, `null` by design) it never lands in
 the map, so a presence-gate **hangs forever** on a perfectly healthy state. Gate on the dependency
 fetch's **in-flight** flag instead: block only while it's genuinely loading, and **release on
-settled** — data _or_ resolved-`null` _or_ error alike. "Absent" is a resolved state, not a pending
+settled** — data *or* resolved-`null` *or* error alike. "Absent" is a resolved state, not a pending
 one.
 
 > ✅ **Task detail** gets the compound gate right: it blocks the skeleton on `agentConfigLoading`
@@ -201,7 +223,7 @@ bug: a built error branch a first-load failure can't reach is as good as an abse
 > ❌ **Agent document view** (`/agent/:aid/docs/:docId`) has the error state written but
 > ordering-dead: `DocumentIdMode` renders `{error && <EditorError/>}` off the real SWR `error`,
 > but only after `if (isLoading) return <EditorSkeleton/>`, where `isLoading =
-editorSelectors.isDocumentLoading(id) = !documents[id]` (`EditorCanvas/DocumentIdMode.tsx`,
+> editorSelectors.isDocumentLoading(id) = !documents[id]` (`EditorCanvas/DocumentIdMode.tsx`,
 > `store/document/slices/editor/selectors.ts`). `useFetchDocument` writes `documents[id]` only in
 > its `onData`, and returns **`null` (not a throw) on not-found**, dropped by an early return
 > (`store/document/slices/document/action.ts`). So a first-load 500 **and** a deleted / bad
@@ -233,7 +255,7 @@ flag in `finally`, and on `catch` surface the error + a retry; a failed write mu
 permanently disable the only way forward.
 
 > ✅ A panel whose data request errors or exceeds its timeout shows "加载失败" with a
-> **Reload** button that refetches. ❌ A `NeuralNetworkLoading` that spins indefinitely when
+> **Reload** button that refetches. ❌ A `Spin` that spins indefinitely when
 > the request hangs. ❌ `isInit` set only in the success handler, so a failed fetch leaves
 > the skeleton up forever. ❌ The onboarding language step `await setSettings(...)` — the write
 > that gates `commonStepsCompleted` — with no try/catch/finally, so a failed write leaves
@@ -243,7 +265,7 @@ permanently disable the only way forward.
 > mount and renders `Result status="success"` with a spinner + "redirecting…"; if that POST
 > fails the user is stuck on a **permanent success-styled spinner** with no retry
 > (`OAuthConsent/Consent/BuiltinConsent.tsx`) — a loading state that both can't fail and
-> mislabels itself "success". _(pairs with Read §1.1 error state, §4.1 loading visuals.)_
+> mislabels itself "success". *(pairs with Read §1.1 error state, §4.1 loading visuals.)*
 > ❌ The **whole Eval module** wires 9 SWR fetches with an `onSuccess`-only handler and no
 > `onError` (`store/eval/slices/{benchmark,dataset,run,testCase}/action.ts`); every list /
 > detail ready-flag (`benchmarkListInit`, `isLoadingDatasets`, `isLoadingRuns`, …) flips only
@@ -253,7 +275,7 @@ permanently disable the only way forward.
 > ❌ The **Memory** (记忆) area repeats it: every `userMemory` fetch registers an `onSuccess`
 > only, no `onError` (`store/userMemory/slices/{context,activity,identity,preference,experience}/action.ts`,
 > `home/action.ts`, `base/action.ts` `useFetchMemoryDetail`); each list gate `showLoading =
-xSearchLoading || !xInit` flips only on success, so a failed load hangs a **permanent skeleton**
+> xSearchLoading || !xInit` flips only on success, so a failed load hangs a **permanent skeleton**
 > on all five list tabs, a **false-empty** on home, and a **blank panel** on all five detail
 > panels — no `*Error` field even exists to branch on. ❌ Its edit modal is the write-side twin:
 > `EditorModal onOk` does `setConfirmLoading(true) → await onConfirm → setConfirmLoading(false)`
@@ -299,7 +321,7 @@ xSearchLoading || !xInit` flips only on success, so a failed load hangs a **perm
 > state with Retry (see the topic audit).
 
 A distinct shape lives on the **load-more / infinite-scroll** path, not the initial load. The
-first page renders fine, so the surface _looks_ healthy — the trap is the **next-page** fetch:
+first page renders fine, so the surface *looks* healthy — the trap is the **next-page** fetch:
 its `catch` merely resets `isLoadingMore` to false with **no error state and no retry**, so a
 failed page-N load makes the "Loading more…" row **vanish** and the list just stops,
 indistinguishable from reaching the end — while `hasMore` is still `true`. Worse, when the
@@ -321,19 +343,19 @@ tail, kept distinct from the genuine end-of-list.
 
 **Checklist**
 
-- [ ] Every loading state has a terminal failure path — on error or after a bounded timeout, not an infinite spinner. _(Certainty)_
-- [ ] A **load-more / infinite-scroll** page fetch that fails shows an inline Retry at the list tail (distinct from end-of-list), never a silently vanished "loading more" row with `hasMore` still true — and doesn't let an `IntersectionObserver` re-fire into a silent retry loop. _(Certainty)_
-- [ ] An init/ready flag isn't gated on success only — the error path resolves the loading state too, no permanent skeleton. _(Certainty)_
-- [ ] The error state is actually **consumed by a surface**, not just modeled in the store — an `errorMap` / `isXError` selector / `retryX` action with **zero call sites** (`rg` the consumers) is a permanent skeleton wearing a built-but-orphaned error path; the store having the right shape doesn't discharge the obligation. _(Certainty)_
-- [ ] A compound gate waiting on a **secondary/dependent** fetch gates on its **in-flight** flag and releases on settled (data / resolved-`null` / error), never on the dependency being **present** in a map — a legitimately absent dependency (deleted / out-of-scope) must not hang the gate. _(Certainty)_
-- [ ] An error branch isn't **ordered after** a data-presence loading gate — `{error && …}` placed below `if (isLoading) return <Skeleton/>` where `isLoading = !map[id]` is **unreachable on first-load failure** (a failed / not-found fetch never populates the map, so the skeleton short-circuits; it paints only on a **revalidation** failure over already-loaded data), and a resolved-`null` not-found hangs the same permanent skeleton. Check `error` / not-found **before** the loading gate, or flip the gate on settled. _(Certainty)_
-- [ ] An awaited write that gates navigation resets its in-progress flag in `finally` and offers retry on `catch` — a failed write never permanently disables the advance / Back control. _(Certainty)_
-- [ ] The failed state names the failure and offers a **Reload / Retry** action. _(Meaningful)_
-- [ ] Retry is **gated on retryability**, not shown unconditionally — a `401` / `403` (or `meta.shouldRetry === false`) failure renders the reason but **omits Retry** (a retry there just fails again); derive it from the normalized error status, not per-surface. `401` session-expiry is assumed handled by a **global** redirect to sign-in, so a surface does not add its own redirect layer. _(Certainty・Meaningful)_
-- [ ] A **deterministic-cause** failure whose fix lives elsewhere (budget / quota exceeded → top-up・upgrade; permission denied → request access; config invalid → open settings) leads with the **remedy action**, not a bare **Retry** — retrying the same run reproduces the same failure, so an unqualified Retry is a false promise. Map the known terminal error type to its action; keep Retry only as the secondary for genuinely transient causes. _(Meaningful・Certainty)_
-- [ ] Retry re-runs the same fetch, shows loading while re-running, and stays available on repeat failure. _(Certainty)_
-- [ ] Already-loaded context is preserved on failure — don't wipe the surface. _(Meaningful)_
-- [ ] In an auto-dismissing surface (upload dock / progress toast), auto-dismiss fires on **success only** — a failed item persists with a Retry, never cleared by the countdown. _(Certainty・Meaningful)_
+- [ ] Every loading state has a terminal failure path — on error or after a bounded timeout, not an infinite spinner. *(Certainty)*
+- [ ] A **load-more / infinite-scroll** page fetch that fails shows an inline Retry at the list tail (distinct from end-of-list), never a silently vanished "loading more" row with `hasMore` still true — and doesn't let an `IntersectionObserver` re-fire into a silent retry loop. *(Certainty)*
+- [ ] An init/ready flag isn't gated on success only — the error path resolves the loading state too, no permanent skeleton. *(Certainty)*
+- [ ] The error state is actually **consumed by a surface**, not just modeled in the store — an `errorMap` / `isXError` selector / `retryX` action with **zero call sites** (`rg` the consumers) is a permanent skeleton wearing a built-but-orphaned error path; the store having the right shape doesn't discharge the obligation. *(Certainty)*
+- [ ] A compound gate waiting on a **secondary/dependent** fetch gates on its **in-flight** flag and releases on settled (data / resolved-`null` / error), never on the dependency being **present** in a map — a legitimately absent dependency (deleted / out-of-scope) must not hang the gate. *(Certainty)*
+- [ ] An error branch isn't **ordered after** a data-presence loading gate — `{error && …}` placed below `if (isLoading) return <Skeleton/>` where `isLoading = !map[id]` is **unreachable on first-load failure** (a failed / not-found fetch never populates the map, so the skeleton short-circuits; it paints only on a **revalidation** failure over already-loaded data), and a resolved-`null` not-found hangs the same permanent skeleton. Check `error` / not-found **before** the loading gate, or flip the gate on settled. *(Certainty)*
+- [ ] An awaited write that gates navigation resets its in-progress flag in `finally` and offers retry on `catch` — a failed write never permanently disables the advance / Back control. *(Certainty)*
+- [ ] The failed state names the failure and offers a **Reload / Retry** action. *(Meaningful)*
+- [ ] Retry is **gated on retryability**, not shown unconditionally — a `401` / `403` (or `meta.shouldRetry === false`) failure renders the reason but **omits Retry** (a retry there just fails again); derive it from the normalized error status, not per-surface. `401` session-expiry is assumed handled by a **global** redirect to sign-in, so a surface does not add its own redirect layer. *(Certainty・Meaningful)*
+- [ ] A **deterministic-cause** failure whose fix lives elsewhere (budget / quota exceeded → top-up・upgrade; permission denied → request access; config invalid → open settings) leads with the **remedy action**, not a bare **Retry** — retrying the same run reproduces the same failure, so an unqualified Retry is a false promise. Map the known terminal error type to its action; keep Retry only as the secondary for genuinely transient causes. *(Meaningful・Certainty)*
+- [ ] Retry re-runs the same fetch, shows loading while re-running, and stays available on repeat failure. *(Certainty)*
+- [ ] Already-loaded context is preserved on failure — don't wipe the surface. *(Meaningful)*
+- [ ] In an auto-dismissing surface (upload dock / progress toast), auto-dismiss fires on **success only** — a failed item persists with a Retry, never cleared by the countdown. *(Certainty・Meaningful)*
 
 ## 4.3 Capability-gated features・Certainty・Meaningful
 
@@ -345,17 +367,24 @@ broken. Owe a **proactive, non-blocking reminder** — a guardrail, not a gate: 
 inline warning at the point of action, never a hard block or a modal that stops the user.
 Stay reactive — the reminder clears the moment the user switches to a capable model
 (derive from live state, not a one-shot check). Don't warn while config is still loading
-(an unresolved capability looks "unsupported" — a false alarm); warn only on a _resolved_
+(an unresolved capability looks "unsupported" — a false alarm); warn only on a *resolved*
 unsupported state. Scope to the mode that needs it — one reminder per root cause — and
 state both the problem and the remedy.
 
-**Soft-inline is right only when the user can fix it _in context_.** The "never a hard block"
+When several guardrails collapse behind one summary control, keep that control subordinate
+to the action surface. Semantic warning color may identify the icon or label, but it must not
+turn a toolbar affordance into a raised warning card through a strong outline, tinted depth,
+or decorative stacking shadow. The expanded rows still carry the complete warning treatment.
+For wrapped messages, align the status icon to the first line of copy rather than centering it
+against the whole text block; the icon identifies the message, not its bounding box.
+
+**Soft-inline is right only when the user can fix it *in context*.** The "never a hard block"
 rule above assumes a **model / config** capability — the user switches the model dropdown and
 the feature works, so blocking them would be gratuitous. A different class of gap is
 **structural**: the capability is absent because of the **platform / deployment**, not a choice
 the user can flip on this screen — a build served without the backend the feature needs (no
 database, a client-only distribution), a plan that doesn't include the feature. Here there is
-nothing to switch, so a soft inline warning over a half-working surface is _worse_ than honest:
+nothing to switch, so a soft inline warning over a half-working surface is *worse* than honest:
 render a **full-surface gate** that says the feature isn't available in this context **and
 carries the remedy** (how to self-host / enable the backend, upgrade the plan), not a bare "not
 supported". The distinction is user-fixable-here → soft inline; not-fixable-here → full gate
@@ -364,17 +393,19 @@ with a path out. Both still owe the remedy.
 > ✅ The image-generation surface renders `NotSupportClient` — a full-surface explainer with
 > feature cards + links to self-hosting-database docs and the hosted app — when the client build
 > lacks the DB backend generation needs (`image/NotSupportClient.tsx`), instead of showing a dead
-> composer. The remedy is _in the gate_. ❌ A model-capability gap hard-blocking the surface, or
+> composer. The remedy is *in the gate*. ❌ A model-capability gap hard-blocking the surface, or
 > conversely a platform-absent feature faking a working UI that silently no-ops.
 
 **Checklist**
 
-- [ ] A **model / config** capability gap (user can switch here) shows a soft inline warning, never a hard block. _(Meaningful)_
-- [ ] A **platform / deployment** capability gap (not fixable on this screen) shows a full-surface gate **with the remedy** (self-host / enable / upgrade), never a soft warning over a half-working surface or a faked-working no-op. _(Certainty・Meaningful)_
-- [ ] Reminder is reactive — clears when a capable model is selected. _(Natural)_
-- [ ] No warning while config is still loading; only on resolved-unsupported. _(Certainty)_
-- [ ] Scoped to the dependent mode; one reminder per root cause. _(Natural・Certainty)_
-- [ ] Copy states the problem and the remedy. _(Meaningful)_
+- [ ] A **model / config** capability gap (user can switch here) shows a soft inline warning, never a hard block. *(Meaningful)*
+- [ ] A **platform / deployment** capability gap (not fixable on this screen) shows a full-surface gate **with the remedy** (self-host / enable / upgrade), never a soft warning over a half-working surface or a faked-working no-op. *(Certainty・Meaningful)*
+- [ ] Reminder is reactive — clears when a capable model is selected. *(Natural)*
+- [ ] No warning while config is still loading; only on resolved-unsupported. *(Certainty)*
+- [ ] Scoped to the dependent mode; one reminder per root cause. *(Natural・Certainty)*
+- [ ] Copy states the problem and the remedy. *(Meaningful)*
+- [ ] A collapsed guardrail summary stays visually subordinate to its action surface — semantic color can identify it, but no strong warning outline or decorative colored elevation turns it into a competing card. *(Natural・Certainty)*
+- [ ] In a wrapped guardrail row, the status icon aligns with the first line of copy, not the vertical center of the complete text block. *(Natural)*
 
 ## 4.4 Autosave needs a persistent save-state, and one convention per surface・Certainty・Meaningful
 
@@ -421,7 +452,7 @@ just moves it onto the button.
 > `saveStatus` / `metaSaveStatus` back to `idle` (`store/document/slices/editor/action.ts`,
 > `PageEditor/store/action.ts`). A network / 500 save failure is then indistinguishable from
 > a success (only a lock `CONFLICT` is surfaced); the state machine literally can't
-> _represent_ failure, so it can never show it — the silent-write trap baked into the type.
+> *represent* failure, so it can never show it — the silent-write trap baked into the type.
 > ❌ **Agent profile** shares the identical type-level trap: `AutoSaveHint`'s enum is
 > `'idle' | 'saving' | 'saved'` (`components/Editor/AutoSaveHint.tsx`) — **no `failed`** — so
 > the header can't show a failed write, and every writer on the surface swallows it: the prompt
@@ -438,10 +469,10 @@ just moves it onto the button.
 
 **Checklist**
 
-- [ ] Save-state surfaced (saving → saved → failed), never a silent write — whether autosave **or** an explicit per-field/section `Save` button (explicit Save still owes the failure signal). _(Certainty)_
-- [ ] The save-state enum can **represent** failure — a `failed` variant exists and the write's `catch` drives it, not a reset to `idle` / neutral. _(Certainty)_
-- [ ] A failed autosave shows an inline error **with retry** and keeps the edited value. _(Meaningful)_
-- [ ] One save-feedback convention across a multi-field surface — ideally baked into the shared form wrapper, not re-invented per tab. _(Certainty)_
+- [ ] Save-state surfaced (saving → saved → failed), never a silent write — whether autosave **or** an explicit per-field/section `Save` button (explicit Save still owes the failure signal). *(Certainty)*
+- [ ] The save-state enum can **represent** failure — a `failed` variant exists and the write's `catch` drives it, not a reset to `idle` / neutral. *(Certainty)*
+- [ ] A failed autosave shows an inline error **with retry** and keeps the edited value. *(Meaningful)*
+- [ ] One save-feedback convention across a multi-field surface — ideally baked into the shared form wrapper, not re-invented per tab. *(Certainty)*
 
 ## 4.5 Error copy is written for a human, not a log line・Meaningful・Certainty
 
@@ -453,19 +484,19 @@ message) and never passes an i18n file. Three smells mark a message that escaped
 - **Internal ids in the headline** — a raw `tpc_…` / `msg_…` / uuid, a `#N` sequence, an
   operation id. The id is for a **log or an inspect link**, never the sentence the user reads;
   it belongs on a **structured field** (`topicId`, `taskId`) that powers a "View run" affordance,
-  not baked into the title. A human reading "topic #1 (tpc\_5UBuAjUU4z6B)" learns nothing and
+  not baked into the title. A human reading "topic #1 (tpc_5UBuAjUU4z6B)" learns nothing and
   distrusts the whole card.
 - **Log / stack framing** — `Execution failed: …`, `Error: …`, `[TaskLifecycle]`, a
   prefixed severity. Framing that reads like a console line signals "this wasn't meant for
   you". State what happened in a plain clause; drop the engineering prefix.
 - **Redundancy with the surface** — repeating identity the card's meta row already shows
   (the task ref, the agent name). If the row says `T-1 · 标题灵感`, the body headline restating
-  `T-1 … error` is noise; the body should carry the _new_ information (what failed, why).
+  `T-1 … error` is noise; the body should carry the *new* information (what failed, why).
 
 And because the copy is human-facing, it must be **localized** — a server-assembled error
 string is English-only and reaches a zh user untranslated. Push the **framing** through
 i18n at the view (`t('…error.title')`), keep the stored string a clean English fallback free
-of the smells above, and localize the _cause_ too where it maps to a known error type
+of the smells above, and localize the *cause* too where it maps to a known error type
 (don't hand-translate an arbitrary provider message — surface it as honest detail).
 
 > ✅ The HomeInbox error brief headline is localized at the card (`t('inbox.error.title')` →
@@ -473,13 +504,13 @@ of the smells above, and localize the _cause_ too where it maps to a known error
 > `topicId` field that lights up "View run" (`InboxBriefCard.tsx`,
 > `taskLifecycle/index.ts` error brief). ❌ Its prior form baked the lot into the stored
 > string — title `` `${taskIdentifier} topic #${seq} (${topicId}) error` `` → **"T-1 topic #1
-> (tpc\_5UBuAjUU4z6B) error"**, summary `` `Execution failed: ${raw}` `` — internal id in the
+> (tpc_5UBuAjUU4z6B) error"**, summary `` `Execution failed: ${raw}` `` — internal id in the
 > headline, log framing, task ref duplicated from the meta row, and English-only for every
 > locale.
 
 **Checklist**
 
-- [ ] No internal id (`tpc_…` / uuid / `#N` seq / operation id) in the user-facing headline or body — it rides a **structured field** powering an inspect / "View run" link, never the sentence. _(Meaningful)_
-- [ ] No log / stack framing in the copy — drop `Execution failed:` / `Error:` / `[Module]` prefixes; state what happened as a plain clause. _(Meaningful)_
-- [ ] The message doesn't repeat identity the surface's meta row already shows (task ref, agent name) — the body carries the _new_ info (what failed, why). _(Certainty)_
-- [ ] Error framing is **localized** through i18n at the view; any server-assembled stored string is a clean English fallback (no id / no log prefix), and a known error _cause_ is localized too. _(Meaningful・Certainty)_
+- [ ] No internal id (`tpc_…` / uuid / `#N` seq / operation id) in the user-facing headline or body — it rides a **structured field** powering an inspect / "View run" link, never the sentence. *(Meaningful)*
+- [ ] No log / stack framing in the copy — drop `Execution failed:` / `Error:` / `[Module]` prefixes; state what happened as a plain clause. *(Meaningful)*
+- [ ] The message doesn't repeat identity the surface's meta row already shows (task ref, agent name) — the body carries the *new* info (what failed, why). *(Certainty)*
+- [ ] Error framing is **localized** through i18n at the view; any server-assembled stored string is a clean English fallback (no id / no log prefix), and a known error *cause* is localized too. *(Meaningful・Certainty)*

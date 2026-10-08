@@ -13,7 +13,7 @@ import {
 } from './registry.mjs';
 
 test('registry has a fixed baseline tag', () => {
-  assert.equal(UPSTREAM_BASELINE_TAG, 'v2.2.18');
+  assert.equal(UPSTREAM_BASELINE_TAG, 'v2.2.19');
 });
 
 test('every module has required metadata', () => {
@@ -279,10 +279,35 @@ test('owned rules never claim upstream baseline paths; exact upstream rules cove
   const addedUpstreamExact = [];
   /** @type {Map<string, number>} moduleId + rule -> fork-new files over-covered */
   const overCoverWarnings = new Map();
+  // Files a newer upstream release (v2.2.19) changed inside fork-owned
+  // directories while the fork itself never customized them: the merge pulls
+  // the upstream blob in, so the file re-enters the baseline diff even though
+  // the registry claim is exactly as healthy as before the merge. Skip them.
+  // "Fork never customized" is judged against the pre-merge fork tree (first
+  // parent of HEAD) — HEAD already carries the upstream blob after the merge.
+  const forkUntouchedUpstreamUpdate = (path, status) => {
+    try {
+      const preMerge = execFileSync('git', ['rev-parse', 'HEAD^1'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+      }).trim();
+      const forkBlob = git(['rev-parse', `${preMerge}:${path}`]).trim();
+      const baseBlob = git(['rev-parse', `${UPSTREAM_BASELINE_TAG}:${path}`]).trim();
+      if (forkBlob !== baseBlob) return false; // fork has a real customization
+      if (status === 'D') return true; // upstream deleted it; fork never customized
+      const latestTag = process.env.COMHUB_UPSTREAM_LATEST_COMMIT || 'v2.2.19';
+      const headBlob = git(['rev-parse', `HEAD:${path}`]).trim();
+      const latestBlob = git(['rev-parse', `${latestTag}:${path}`]).trim();
+      return headBlob === latestBlob; // content is pure-upstream
+    } catch {
+      return false; // deleted from the tree: treat as a real change
+    }
+  };
   for (const { status, path } of changedFiles()) {
     const hit = findModuleForPath(path);
     if (!hit) continue; // unregistered files are verify.mjs's failure mode
     if (hit.ownership === 'owned' && upstreamPaths.has(path)) {
+      if (forkUntouchedUpstreamUpdate(path, status)) continue;
       ownedButUpstream.push(
         `${path} (${status}) resolves owned via ${hit.module.id} but exists in upstream ${UPSTREAM_BASELINE_TAG}`,
       );

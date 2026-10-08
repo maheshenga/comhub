@@ -210,8 +210,15 @@ export class FileS3 extends S3 {
     buffer: Buffer,
     contentType?: string,
     cacheControl?: string,
+    options?: { abortSignal?: AbortSignal; ifMatch?: string },
   ) {
-    return (await this.getRuntimeS3()).uploadBuffer(path, buffer, contentType, cacheControl);
+    return (await this.getRuntimeS3()).uploadBuffer(
+      path,
+      buffer,
+      contentType,
+      cacheControl,
+      options,
+    );
   }
 
   public async uploadPrivateBuffer(path: string, buffer: Buffer, contentType?: string) {

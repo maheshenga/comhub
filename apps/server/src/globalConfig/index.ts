@@ -43,6 +43,24 @@ const getBetterAuthSSOProviders = () => {
   return parseSSOProviders(authEnv.AUTH_SSO_PROVIDERS);
 };
 
+/**
+ * Which Agent Gateway wire protocol the client may dial.
+ *
+ * The multiplexed `/v2/ws` socket only exists on the gateway that ships with
+ * business builds. A self-hosted deployment runs `lobehub/lobehub-gateway`,
+ * which serves `GET /ws` and nothing else — a client that picks v2 there only
+ * reaches a working socket after burning its dial budget on 404s, so the
+ * default has to be the one that works everywhere. `AGENT_GATEWAY_PROTOCOL`
+ * overrides both guesses, which is what an on-prem business deployment sitting
+ * in front of a v1 gateway needs.
+ */
+const resolveAgentGatewayProtocol = (): 1 | 2 => {
+  if (appEnv.AGENT_GATEWAY_PROTOCOL === 2) return 2;
+  if (appEnv.AGENT_GATEWAY_PROTOCOL === 1) return 1;
+
+  return ENABLE_BUSINESS_FEATURES ? 2 : 1;
+};
+
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
   const defaultAgentMeta = cleanObject({
@@ -104,6 +122,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
 
     // Expose Agent Gateway URL to client (used by hetero agents; also required for queue mode)
     ...(appEnv.AGENT_GATEWAY_URL ? { agentGatewayUrl: appEnv.AGENT_GATEWAY_URL } : undefined),
+    agentGatewayProtocol: resolveAgentGatewayProtocol(),
 
     image: cleanObject({
       defaultModel: generationModelConfig.image?.model,

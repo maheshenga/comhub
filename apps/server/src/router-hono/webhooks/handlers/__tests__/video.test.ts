@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   processVideoForGeneration: vi.fn(),
   resolveBusinessModelMapping: vi.fn(),
   updateAsyncTask: vi.fn(),
+  claimVideoCompletion: vi.fn().mockResolvedValue({ id: 'task-1' }),
 }));
 
 vi.mock('@lobechat/model-runtime', () => ({
@@ -62,6 +63,8 @@ vi.mock('@/database/models/asyncTask', () => ({
     }),
     {
       findByInferenceId: mocks.findByInferenceId,
+      // Upstream v2.2.19 deduplicates webhook deliveries through this claim.
+      claimVideoCompletion: mocks.claimVideoCompletion,
     },
   ),
 }));

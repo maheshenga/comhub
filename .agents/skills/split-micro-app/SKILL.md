@@ -20,9 +20,9 @@ the decisions and landmines, not copies of the code:
 
 One app, two serve paths. Do not mix them.
 
-| Surface             | Who serves it                           | Build                                                                                                                                                                                               |
-| ------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cloud               | Gateway (torii) → Worker (SSR)          | Cloud Next does **not** `build:spa:<name>`, copy `_spa-<name>`, rewrite to `/spa-<name>`, or CDN-upload that prefix                                                                                 |
+| Surface          | Who serves it                           | Build                                                                                                                                                                                               |
+| ---------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloud            | Gateway (torii) → Worker (SSR)          | Cloud Next does **not** `build:spa:<name>`, copy `_spa-<name>`, rewrite to `/spa-<name>`, or CDN-upload that prefix                                                                                 |
 | OSS / 子部署 Docker | Next in the same image, client-rendered | `build:docker` runs `build:spa:<name>`; `<NAME>_REQUIRED=1` on `generateSpaTemplates`; Dockerfile copies `apps/<name>/package.json` before `pnpm i` and `public/_spa-<name>` into the runtime image |
 
 `generateSpaTemplates` skips a missing `dist/<name>` HTML unless `<NAME>_REQUIRED=1`. Cloud must skip. Docker must require.
@@ -109,6 +109,14 @@ the one manual rule. See `apps/workbench/scripts/should-build.mjs` +
 `.github/workflows/deploy-workbench.yml`; the overlay-hosted variant is lobehub-cloud's
 `scripts/shouldBuildShare.ts` + `.github/workflows/deploy-share.yml` (§1b).
 
+The manifest is only a pre-filter: it lists every module the build loaded, so type-only files,
+barrels and tree-shaken code trigger builds too. The deploy decision is the **output hash**
+(`scripts/workerOutputHash.ts`): the build is deterministic (comment-only edits hash
+identically), so `deploy.ts` hashes `build/`, compares it with the `output-hash.txt` carried in
+the same artifact, and skips upload + `wrangler deploy` when equal — keeping Cloudflare's
+100-version rollback window for real releases. Manual dispatch passes no previous hash and
+always deploys. Workbench has it; share does not yet.
+
 **PR-time verify is a separate workflow per repo that can change the artifact** — deploy
 ownership (§1b) does not decide verify ownership. Each verify builds the worker, uploads a
 non-deployed preview **version** (`wrangler versions upload --preview-alias`, dry-run when
@@ -158,7 +166,7 @@ OSS `vite.config.rr.mts` is a thin caller reading `SHARE_TSCONFIG_PROJECT` /
 through `scripts/{buildShare,devShare,deployShare,shouldBuildShare}.ts`.
 
 **Landmine — the overlay silently doesn't apply.** Vite 8's native `resolve.tsconfigPaths`
-resolves against the tsconfig _nearest each importer_, so submodule files resolve through the
+resolves against the tsconfig *nearest each importer*, so submodule files resolve through the
 submodule's own tsconfig and the host overlay is lost. The build still succeeds and ships the
 open-source fallback surfaces (for share: a blank page). An overlay build must use the
 `vite-tsconfig-paths` **plugin** pinned to the host tsconfig and switch the native one off
@@ -250,7 +258,7 @@ gateway routes API to `app` instead), and redirect `/` + unknown paths to `WORKB
 - **Preload the `error` namespace**, not just the render ones. The boundary shows exactly when a
   chunk failed to load — precisely when the client can no longer fetch a dictionary — and an
   untranslated boundary prints raw keys (`error.title`…). Cost for share: +6.3KB gzip/document.
-- **Prefilling a virtualized list**: `virtua` caches measured sizes by index, so a _truncated_
+- **Prefilling a virtualized list**: `virtua` caches measured sizes by index, so a *truncated*
   prefill that later grows misaligns every row. Prefill the whole list or none of it.
 
 ## 3b. Prerendering instead of SSR (`ssr: false`)
@@ -264,7 +272,7 @@ and swaps a `window.__SERVER_CONFIG__` placeholder for the deployment's config.
   prerendered config-free and the worker injects it. Anything that reads it must be hydration-
   gated (`useIsHydrated`), or the first client render diverges from the document.
 - **Audit what actually needs to travel that way — most of it does not.** The hydration gate
-  applies to the _whole_ injected object, so every value routed through it is a value missing
+  applies to the *whole* injected object, so every value routed through it is a value missing
   from the prerendered HTML. In `apps/auth` the config carried 11 fields; the pages read 6, and
   the most visible one was in the wrong layer entirely: `enableBusinessFeatures` is a
   **build-time constant** (`@lobechat/business-const`, `false` open-source / `true` in Cloud via
@@ -345,10 +353,10 @@ RR v8 gotchas (docs/templates still say v7):
 ## 4. SEO
 
 One shared builder (`app/lib/seo.ts` → `buildPageMeta`): title, description, robots,
-og:title/description/type/site\_name/locale (underscore form)/image(+alt), twitter card set.
+og:title/description/type/site_name/locale (underscore form)/image(+alt), twitter card set.
 Rules: leaf `meta` **fully replaces** root meta — every leaf returns the whole set;
 `og:image` must be an **absolute URL** (reuse landing's `https://lobehub.com/assets/cao-og.webp`);
-dynamic title/description come from the route loader (subject title · BRANDING\_NAME,
+dynamic title/description come from the route loader (subject title · BRANDING_NAME,
 requirement text truncated \~200 chars).
 
 ## 5. Gateway Routing (torii, `../lobehub-gateway`)
@@ -364,7 +372,7 @@ To add a micro app:
    Leave `/trpc` unruled: it falls to `default` (app) so browser API calls stay same-origin
    authenticated. `.data` suffix is normalized before matching.
 4. Validate: `bun run test` in the gateway repo (invariant suite reads the mirror).
-5. Staging: `bun scripts/torii.ts push --env staging --expect <fp>` (needs TORII\_ACCESS\_\*),
+5. Staging: `bun scripts/torii.ts push --env staging --expect <fp>` (needs TORII_ACCESS\_\*),
    or poke staging KV directly (`wrangler kv key put --namespace-id <staging CONFIG ns>`) —
    README-sanctioned. Prod writes only via the Toriiban (鳥居番) admin **Promote** button:
    `torii.ts promote` prints the exact delta and refuses to write, and
@@ -410,7 +418,7 @@ protocol affinity for the landing pair; it consults `resolveRule` and lets other
 Build success proves nothing about what rendered. Each of these produced a real defect that a
 green build hid: the overlay resolving to OSS stubs, the dev shell answering 200 with the wrong
 app, an edit that silently no-op'd because the anchor string had drifted (deployed a 500 —
-so: build → local `wrangler dev` → browser → _then_ deploy), and a "fix" asserted from the
+so: build → local `wrangler dev` → browser → *then* deploy), and a "fix" asserted from the
 source instead of the page. Prove the Docker chain by running `build:spa:<name>` +
 `<NAME>_REQUIRED=1 build:spa:copy` and asserting every asset the generated template references
 exists under `public/`; prove the SSR page by viewing source, not by reading the loader.

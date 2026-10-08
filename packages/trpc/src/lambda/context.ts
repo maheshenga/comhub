@@ -16,8 +16,8 @@ import { extractTraceContext } from '@/libs/observability/traceparent';
 import { assertOIDCUserActive, isOIDCUserInactiveError } from '@/libs/oidc-provider/access-control';
 import { validateOIDCJWT } from '@/libs/oidc-provider/jwt';
 import { isApiKeyExpired, validateApiKeyFormat } from '@/utils/apiKey';
+import { getRequestClientIP } from '@/utils/requestClientIP';
 
-import { extractClientIp } from '../utils/clientIp';
 import { describeOIDCAuthFailure, setAuthFailureHeader } from '../utils/authFailure';
 import { HETERO_OPERATION_JWT_PURPOSE } from '../utils/internalJwt';
 
@@ -185,7 +185,7 @@ export const createLambdaContext = async (request: NextRequest): Promise<LambdaC
   // for API-response caching see https://trpc.io/docs/v11/caching
 
   const userAgent = request.headers.get('user-agent') || undefined;
-  const clientIp = extractClientIp(request.headers);
+  const clientIp = getRequestClientIP(request.headers);
 
   // get marketAccessToken from cookies
   const cookieHeader = request.headers.get('cookie');

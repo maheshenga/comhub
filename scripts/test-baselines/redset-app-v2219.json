@@ -1,0 +1,584 @@
+{
+  "deterministic": [
+    {
+      "file": "scripts/dockerWorkspaceManifests.test.ts",
+      "test": "Docker workspace manifests copies only tracked sources from the local build context"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/auditLogger.test.ts",
+      "test": "FtsSearchReindexFileLogger appends ordered JSONL events and atomically writes a private summary"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository accepts an older generation index but no newer or foreign one"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository appends a newly covered entity and reopens a ready generation"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository atomically checkpoints item failures and rejects a stale cursor"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository covers only the requested entities when creating an upgrade generation"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository creates one local v2 checkpoint and resumes it after constructing a new repository"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository does not let an operator skip an uncertain retryable failure"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository fences only selected entities once when creating a checkpoint, not when resuming it"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository gates readiness on current generation failures while preserving superseded history"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository keeps same-schema rebuild checkpoints separate by run ID and restores them by identity"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository leaves a ready generation untouched when it already covers the requested entities"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository lets an operator skip a failed document without counting it as indexed"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository loads the exact target without parsing an unrelated corrupt checkpoint"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository pins an in-place upgraded entity to the index its alias already serves"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository records the Outbox high-water boundary when all entities are ready"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository refuses to mark a run ready while entities are incomplete"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository refuses to resume a checkpoint when capture definitions changed"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository refuses to resume a tracked entity into a different physical index"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository rejects a checkpoint that tracks one entity twice"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository rejects a checkpoint whose generation covers no entity"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository reports a corrupt checkpoint instead of silently starting over"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts",
+      "test": "FtsSearchReindexFileRepository resumes an in-place generation that keeps the same physical index"
+    },
+    {
+      "file": "scripts/elasticsearchReindex/runtime/__tests__/reindexService.test.ts",
+      "test": "FtsSearchReindexService backfills a pending checkpoint member when it rejoins a ready generation"
+    },
+    {
+      "file": "scripts/packageManagerPolicy.test.ts",
+      "test": "package manager policy does not restore the retired QStash debug patch"
+    },
+    {
+      "file": "scripts/packageManagerPolicy.test.ts",
+      "test": "package manager policy pins jest-dom to the supported 6.x release"
+    },
+    {
+      "file": "scripts/packageManagerPolicy.test.ts",
+      "test": "package manager policy routes app and server tests through Vitest projects"
+    },
+    {
+      "file": "src/app/[variants]/metadata.test.ts",
+      "test": "generateMetadata uses the backend brand name for page titles and SEO metadata"
+    },
+    {
+      "file": "src/app/spa/[variants]/[[...path]]/route.test.ts",
+      "test": "SPA route brand boot config includes the mobile app banner while keeping the configured brand metadata"
+    },
+    {
+      "file": "src/app/spa/[variants]/[[...path]]/route.test.ts",
+      "test": "SPA route brand boot config injects the server brand into SPA config and renders only the dedicated loading text"
+    },
+    {
+      "file": "src/app/spa/[variants]/[[...path]]/route.test.ts",
+      "test": "SPA route brand boot config keeps the upstream loading SVG when no admin loading SVG URL is configured"
+    },
+    {
+      "file": "src/business/client/BusinessSettingPages/mobilePresentation.test.ts",
+      "test": "mobile business settings presentation matches the upstream usage information architecture without legacy charts"
+    },
+    {
+      "file": "src/business/client/BusinessSettingPages/Notification.test.tsx",
+      "test": "Notification renders managed notification settings and announcement action on web"
+    },
+    {
+      "file": "src/components/StatisticCard/TitleWithPercentage.test.tsx",
+      "test": "TitleWithPercentage uses a native title without creating an ellipsis tooltip"
+    },
+    {
+      "file": "src/features/Admin/AdminMobileSettingsPage.test.tsx",
+      "test": "AdminMobileSettingsPage loads selector choices only when an administrator requests them"
+    },
+    {
+      "file": "src/features/ChatInput/ChatInputNotice/useChatInputNotice.test.tsx",
+      "test": "useChatInputNotice does not mark a uniquely available managed model as offline when the saved provider is newapi"
+    },
+    {
+      "file": "src/features/DailyBrief/__tests__/BriefCardSummary.test.tsx",
+      "test": "BriefCardSummary should render summary text"
+    },
+    {
+      "file": "src/features/Payments/checkout.test.ts",
+      "test": "submitPaymentCheckout submits only the structured hidden fields returned by the server"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened billing"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened credits"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened plans"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened referral"
+    },
+    {
+      "file": "src/features/Settings/features/SettingsContent.test.tsx",
+      "test": "SettingsContent mobile presentation forwards mobile presentation to directly opened usage"
+    },
+    {
+      "file": "src/features/User/__tests__/UserAvatar.test.tsx",
+      "test": "UserAvatar should show LobeChat and default avatar when the user is not logged in"
+    },
+    {
+      "file": "src/hooks/useNavLayout.test.tsx",
+      "test": "useNavLayout hides Memory in workspace mode"
+    },
+    {
+      "file": "src/hooks/useNavLayout.test.tsx",
+      "test": "useNavLayout keeps Memory visible in personal mode"
+    },
+    {
+      "file": "src/libs/qstash/index.test.ts",
+      "test": "qstash clients does not create QStash clients at import time when QSTASH_TOKEN is empty"
+    },
+    {
+      "file": "src/routes/(desktop)/desktop-onboarding/features/LoginStep.test.tsx",
+      "test": "Desktop onboarding LoginStep renders a focused success state and returns to login methods without duplicate auth UI"
+    },
+    {
+      "file": "src/routes/(desktop)/desktop-onboarding/features/LoginStep.test.tsx",
+      "test": "Desktop onboarding LoginStep uses public desktop login configuration for the visible login copy and logo"
+    },
+    {
+      "file": "src/routes/(main)/_layout/authMount.test.ts",
+      "test": "main layout (desktop) keeps auth recovery outside WorkspaceContextSlot so a blocked shell cannot hide it"
+    },
+    {
+      "file": "src/routes/(main)/_layout/authMount.test.ts",
+      "test": "main layout (web) keeps auth recovery outside WorkspaceContextSlot so a blocked shell cannot hide it"
+    },
+    {
+      "file": "src/routes/(main)/community/(detail)/skill/index.test.tsx",
+      "test": "SkillDetailPage decodes encoded community skill identifiers before fetching details"
+    },
+    {
+      "file": "src/routes/(main)/settings/_layout/index.test.tsx",
+      "test": "SettingsLayout keeps the personal sidebar on regular settings routes"
+    },
+    {
+      "file": "src/routes/(mobile)/chat/features/ChatHeader/ChatHeaderTitle.test.tsx",
+      "test": "ChatHeaderTitle uses the configured mobile brand for the inbox conversation"
+    },
+    {
+      "file": "src/server/services/brand/__tests__/lazy-import.test.ts",
+      "test": "getServerBrand lazy database loading falls back to the default brand when the database module fails during initialization"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService automatically refunds a duplicate lifetime payment rejected during settlement"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService does not call the provider twice when subscription reversal is retried"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService does not overwrite a concurrent terminal subscription refund state"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService finishes a successful uncredited refund without resolving an adapter"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService manually confirms a pending ZPay refund before reversing subscription benefits"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService marks a verified missing ZPay refund as failed without reversing plan benefits"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService persists a failed event when subscription activation throws"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService recovers a canceled late payment through the uncredited refund state machine"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService reports the committed order state when a stale failed event loses the update race"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService reverses paid subscription benefits on a refund callback"
+    },
+    {
+      "file": "src/server/services/payments/subscriptionPayment.test.ts",
+      "test": "SubscriptionPaymentService settles a verified subscription success event"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService claims a canceled late payment before requesting its automatic refund"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService does not call the provider twice when local refund reversal is retried"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService does not overwrite a concurrent terminal top-up refund state"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService finishes a successful uncredited refund without resolving an adapter"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService manually confirms a pending ZPay refund before reversing credited top-up funds"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService marks a verified missing ZPay refund as failed without reversing credits"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService persists a failed event when settlement throws"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService processes a refund callback for an uncredited pending top-up"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService queries a pre-persisted refund request after an uncertain provider failure"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService queries the provider before reporting that a missing checkout still needs recovery"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService reports the committed order state when a stale failed event loses the update race"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService revalidates successful duplicate callbacks before reporting them as duplicates"
+    },
+    {
+      "file": "src/server/services/payments/topUpPayment.test.ts",
+      "test": "TopUpPaymentService settles a late provider success while recovering a locally failed order"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage historyCount functionality should include all messages when historyCount is disabled"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage historyCount functionality should include historyCount + 1 messages when historyCount is enabled"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage historyCount functionality should include only current message when historyCount is 0 and enabled"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage with tools messages not update system role without tool"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage with tools messages should inject a tool system role for models with tools"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService createAssistantMessage with tools messages should update the system role for models with tools"
+    },
+    {
+      "file": "src/services/chat/chat.test.ts",
+      "test": "ChatService getChatCompletion should preserve the topic ID when using the browser runtime"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should deduplicate remote models and warn after a successful update"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should fetch remote models and batch update"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should not warn when updating deduplicated models fails"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction fetchRemoteModelList should preserve enabled status of existing models when fetching"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction removeAiModel should delete model and refresh list"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction toggleModelEnabled should handle service errors and throw without clearing loading state"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction toggleModelEnabled should toggle model enabled state with loading indicators"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction updateAiModelsConfig should update model config and refresh list"
+    },
+    {
+      "file": "src/store/aiInfra/slices/aiModel/action.test.ts",
+      "test": "AiModelAction updateAiModelsSort should update model sort order and refresh list"
+    },
+    {
+      "file": "src/store/home/slices/sidebarUI/action.test.ts",
+      "test": "createSidebarUISlice duplicateAgent should duplicate an agent and switch to the new agent"
+    },
+    {
+      "file": "src/store/tool/slices/builtin/executors/lobe-agent-documents.test.ts",
+      "test": "agentDocumentsExecutor host invalidation revalidates the editor key after a content write instead of touching the document store"
+    }
+  ],
+  "errors": [
+    {
+      "file": "docker-compose/deploy/module-worker/compose.test.mjs",
+      "errorType": "\u001b[1;32mMSYS2 is starting for the first time. Executing the i",
+      "firstLine": "\u001b[1;32mMSYS2 is starting for the first time. Executing the initial setup.\u001b[1;0m"
+    },
+    {
+      "file": "scripts/comhub-customizations/registry.test.mjs",
+      "errorType": "No test suite found in file E",
+      "firstLine": "No test suite found in file E:/code/comhub/wt-upgrade-v2219/scripts/comhub-customizations/registry.test.mjs"
+    },
+    {
+      "file": "scripts/dockerComposeDeploy.test.ts",
+      "errorType": "spawnSync /bin/sh ENOENT",
+      "firstLine": "spawnSync /bin/sh ENOENT"
+    },
+    {
+      "file": "src/features/Acceptance/Viewer/Checks/CheckList.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/Acceptance/Viewer/Review/DecisionBar.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/AgentDocumentsExplorer/DocumentExplorerTree.test.tsx",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/AgentSidebar/Topic/TopicListContent/ByProjectMode/GroupItem.test.tsx",
+      "errorType": "[vitest] No \"CURRENT_VERSION\" export is defined on the \"@/co",
+      "firstLine": "[vitest] No \"CURRENT_VERSION\" export is defined on the \"@/const/version\" mock. Did you forget to return it from \"vi.mock\"?"
+    },
+    {
+      "file": "src/features/Conversation/ConversationProvider.test.tsx",
+      "errorType": "[vitest] No \"isScopeTrusted\" export is defined on the \"@/lib",
+      "firstLine": "[vitest] No \"isScopeTrusted\" export is defined on the \"@/libs/swr/useCacheScope\" mock. Did you forget to return it from \"vi.mock\"?"
+    },
+    {
+      "file": "src/features/Conversation/WorkingSidebar/Review/__tests__/FileItem.test.tsx",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ExplorerTree/view/ExplorerTree.test.tsx",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceHome/Layout/Body/LibraryList/Item/Editing.test.tsx",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/hooks/useExplorerSelection.test.tsx",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/hooks/useResetSelectionOnQueryChange.test.tsx",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/index.test.tsx",
+      "errorType": "[vitest] There was an error when mocking a module. If you ar",
+      "firstLine": "[vitest] There was an error when mocking a module. If you are using \"vi.mock\" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock"
+    },
+    {
+      "file": "src/features/ResourceManager/components/Explorer/ListView/ListItem/FileListItemActions.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/components/LibraryHierarchy/visibleNodes.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/store/action.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/ResourceManager/store/selectors.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/features/WorkGallery/hooks.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/routes/(main)/settings/provider/index.test.tsx",
+      "errorType": "[vitest] No \"CURRENT_VERSION\" export is defined on the \"@/co",
+      "firstLine": "[vitest] No \"CURRENT_VERSION\" export is defined on the \"@/const/version\" mock. Did you forget to return it from \"vi.mock\"?"
+    },
+    {
+      "file": "src/store/chat/slices/agentRun/actions/__tests__/clientToolExecution.test.ts",
+      "errorType": "ClientToolExecutionActionImpl is not a constructor",
+      "firstLine": "ClientToolExecutionActionImpl is not a constructor"
+    },
+    {
+      "file": "src/store/chat/slices/agentRun/actions/__tests__/gateway.clientLlmWait.test.ts",
+      "errorType": "GatewayActionImpl is not a constructor",
+      "firstLine": "GatewayActionImpl is not a constructor"
+    },
+    {
+      "file": "src/store/chat/slices/agentRun/actions/__tests__/questionSubmission.test.ts",
+      "errorType": "QuestionSubmissionActionImpl is not a constructor",
+      "firstLine": "QuestionSubmissionActionImpl is not a constructor"
+    },
+    {
+      "file": "src/store/chat/slices/message/selectors/messageState.test.ts",
+      "errorType": "Cannot read properties of undefined (reading 'currentDisplay",
+      "firstLine": "Cannot read properties of undefined (reading 'currentDisplayChatKey')"
+    },
+    {
+      "file": "src/store/file/slices/chat/selectors.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/file/slices/fileManager/selectors.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/file/slices/resource/action.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/library/slices/content/action.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    },
+    {
+      "file": "src/store/library/slices/crud/action.test.ts",
+      "errorType": "createFileSlice is not a function",
+      "firstLine": "createFileSlice is not a function"
+    }
+  ],
+  "flaky": [
+    {
+      "file": "src/features/Admin/AdminMobileSettingsPage.test.tsx",
+      "test": "AdminMobileSettingsPage does not allow more than four featured assistants"
+    }
+  ],
+  "meta": {
+    "suite": "app",
+    "runner": "vitest 5.0.0 (win32-x64, node v24.19.0)",
+    "capturedAt": "2026-10-09T00:13:03+08:00",
+    "baselineRef": "commit acc6e65ec4 (upgrade/v2.2.19 tip: merge a32a3cd97e + working-tree completion acc6e65ec4); clean committed tree",
+    "runs": [98, 97],
+    "runsNote": "raw per-run vitest JSON reports archived at node_modules/.redset-tmp/v2219-app-{1,2}.json (not committed; regenerate by re-running the suite twice with --reporter=json)",
+    "generatedVia": "double-run",
+    "counts": {
+      "deterministic": 97,
+      "flaky": 1,
+      "errors": 29
+    },
+    "note": "由双跑 vitest JSON 报告按蓝图 §7.3-3 构建：两跑均红->deterministic；恰单跑红->flaky(watchlist)；文件级加载/收集错误(无 assertionResults 或 message 含 Unhandled)两跑均现->errors(errorType 为按首行启发式分类, firstLine 为报告 message 首行)。构建器: node_modules/.redset-tmp/build-redset-v2219.mjs（原始报告 v2219-app-{1b,2b}.json）。\n升级验收定性（对照 redset-app-m0.json 差分）：双套件升级语义新增红=0。deterministic 相对 m0 净降 247（344->97）：升级修复 253 条，其中 FileViewer/Image 系上游 v2.2.19 新测试 140+ 条因修复 vitest.config MotionProvider stub 的 Windows 分隔符拦截缺口而全绿。其余 6 条双跑均红条目经单文件低负载复跑逐条定性为环境/负载敏感，非升级语义红：dockerWorkspaceManifests(1)=git ls-files -- . 输出 1,051,146 字节越过 spawnSync 默认 1MB buffer(ENOBUFS)，m0 树 966,466 字节未越线，升级净增文件使字节数越线；AdminMobileSettingsPage(1) 与 lobe-agent-documents(1)=全量跑下超时(30s/5s)，单文件复跑全绿；checkpointRepository(2)=EPERM fsync 环境红，m0 树同文件同错误(19/22 失败)已入 m0 快照 errors，上游新增用例扩大分母；chat.test topicID(1)=全量跑内存压力下时序漂移，单文件复跑绿(该文件其余 5 条为 m0 已有存量 UTC 断言 vs 本机时区红)。",
+    "upgradeAcceptance": {
+      "suiteVsM0": {
+        "deterministicBefore": 344,
+        "deterministicAfter": 97,
+        "fixedByUpgrade": 253,
+        "semanticNewReds": 0,
+        "envSensitiveVerifiedGreenSolo": [
+          "scripts/dockerWorkspaceManifests.test.ts (ENOBUFS: git ls-files output crossed the 1MB default spawnSync buffer after the upgrade grew the tree)",
+          "src/features/Admin/AdminMobileSettingsPage.test.tsx (load timeout in full run, green solo)",
+          "src/store/tool/slices/builtin/executors/lobe-agent-documents.test.ts (load timeout in full run, green solo)",
+          "src/services/chat/chat.test.ts topicID entry (timing drift under full-run memory pressure, green solo)"
+        ],
+        "knownEnvironmentReds": [
+          "scripts/elasticsearchReindex/runtime/__tests__/checkpointRepository.test.ts (EPERM fsync; same-error family already present in the m0 snapshot errors — upstream added cases)"
+        ]
+      }
+    }
+  },
+  "whitelist": [
+    {
+      "file": "src/features/Admin/mobileSettingsI18n.test.ts",
+      "reason": "阈值<400 vs 恰400行",
+      "closesIn": "M3"
+    }
+  ]
+}

@@ -73,7 +73,6 @@ const extractVersion = (versionBanner: string): string | undefined =>
   versionBanner.match(VERSION_PATTERN)?.[1];
 
 const isWindows = () => platform() === 'win32';
-const getPlatformPath = () => (isWindows() ? path.win32 : path.posix);
 let shellPathPromise: Promise<string | undefined> | undefined;
 let registryPathPromise: Promise<string | undefined> | undefined;
 
@@ -121,7 +120,7 @@ const pickWindowsRunnables = (lines: string[]): string[] => lines.filter(isWindo
 const isPathLikeCommand = (command: string): boolean =>
   isWindows()
     ? path.win32.isAbsolute(command) || /[\\/]/.test(command)
-    : path.posix.isAbsolute(command) || command.includes(path.posix.sep);
+    : path.isAbsolute(command) || command.includes(path.sep);
 
 /**
  * A login *interactive* shell has to load the user's full interactive config —
@@ -156,7 +155,7 @@ const getLoginShellPath = async (): Promise<string | undefined> => {
   if (isWindows()) return undefined;
 
   const shell = process.env.SHELL;
-  if (!shell || !path.posix.isAbsolute(shell)) return undefined;
+  if (!shell || !path.isAbsolute(shell)) return undefined;
 
   try {
     const { stdout } = await execFilePromise(shell, ['-ilc', 'printf "%s" "$PATH"'], {
@@ -168,7 +167,7 @@ const getLoginShellPath = async (): Promise<string | undefined> => {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .reverse()
-      .find((line) => line.includes(getPlatformPath().delimiter));
+      .find((line) => line.includes(path.delimiter));
   } catch (error) {
     // `execFile` kills the child on timeout and reports it as a signal, so a
     // slow shell and a hostile one are told apart here rather than downstream.
@@ -295,10 +294,9 @@ const getWindowsRegistryPath = async (): Promise<string | undefined> => {
 };
 
 const mergePathValues = (...values: Array<string | undefined>): string | undefined => {
-  const platformPath = getPlatformPath();
   const seen = new Set<string>();
   const segments = values
-    .flatMap((value) => value?.split(platformPath.delimiter) ?? [])
+    .flatMap((value) => value?.split(path.delimiter) ?? [])
     .map((segment) => segment.trim())
     .filter((segment) => {
       if (!segment || seen.has(segment)) return false;
@@ -306,7 +304,7 @@ const mergePathValues = (...values: Array<string | undefined>): string | undefin
       return true;
     });
 
-  return segments.length > 0 ? segments.join(platformPath.delimiter) : undefined;
+  return segments.length > 0 ? segments.join(path.delimiter) : undefined;
 };
 
 const recoverProbeEnvironment = async (
@@ -741,40 +739,39 @@ export const DEFAULT_HETERO_COMMAND = Object.fromEntries(
 // official installer can put `claude` under ~/.local/bin, while the Codex
 // desktop app bundles a functional CLI inside its app bundle without symlinking it.
 const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[] => {
-  const platformPath = getPlatformPath();
   switch (agentType) {
     case 'amp': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'amp'),
-        platformPath.join(homedir(), '.amp', 'bin', 'amp'),
-        platformPath.join(homedir(), '.bun', 'bin', 'amp'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'amp'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'amp'),
+        path.join(homedir(), '.local', 'bin', 'amp'),
+        path.join(homedir(), '.amp', 'bin', 'amp'),
+        path.join(homedir(), '.bun', 'bin', 'amp'),
+        path.join(homedir(), '.npm-global', 'bin', 'amp'),
+        path.join(homedir(), 'Library', 'pnpm', 'amp'),
       ];
     }
     case 'claude-code': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'claude'),
-        platformPath.join(homedir(), '.bun', 'bin', 'claude'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'claude'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'claude'),
+        path.join(homedir(), '.local', 'bin', 'claude'),
+        path.join(homedir(), '.bun', 'bin', 'claude'),
+        path.join(homedir(), '.npm-global', 'bin', 'claude'),
+        path.join(homedir(), 'Library', 'pnpm', 'claude'),
       ];
     }
     case 'codebuddy': {
       if (platform() === 'win32') {
-        return [platformPath.join(homedir(), 'AppData', 'Roaming', 'npm', 'codebuddy.cmd')];
+        return [path.join(homedir(), 'AppData', 'Roaming', 'npm', 'codebuddy.cmd')];
       }
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'codebuddy'),
-        platformPath.join(homedir(), '.bun', 'bin', 'codebuddy'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'codebuddy'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'codebuddy'),
+        path.join(homedir(), '.local', 'bin', 'codebuddy'),
+        path.join(homedir(), '.bun', 'bin', 'codebuddy'),
+        path.join(homedir(), '.npm-global', 'bin', 'codebuddy'),
+        path.join(homedir(), 'Library', 'pnpm', 'codebuddy'),
       ];
     }
     case 'codex': {
@@ -796,37 +793,40 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
 
       if (platform() !== 'darwin') return [];
 
-      // Codex.app was renamed to ChatGPT.app. Prefer the current bundle name,
-      // while keeping Codex.app as a fallback for older installations.
-      return ['ChatGPT.app', 'Codex.app'].flatMap((appBundleName) => {
-        const bundledCli = platformPath.join(appBundleName, 'Contents', 'Resources', 'codex');
-
-        return [
-          platformPath.join('/Applications', bundledCli),
-          platformPath.join(homedir(), 'Applications', bundledCli),
-        ];
-      });
+      // Codex.app was renamed to ChatGPT.app. ChatGPT.app 26.9 then moved the
+      // CLI from `Resources/codex` into a self-contained `Resources/codex-cli/`
+      // package whose `codex-package.json` declares `bin/codex` as the
+      // entrypoint. Probe newest first; legacy Codex.app only ever shipped the
+      // flat binary.
+      return [
+        path.join('ChatGPT.app', 'Contents', 'Resources', 'codex-cli', 'bin', 'codex'),
+        path.join('ChatGPT.app', 'Contents', 'Resources', 'codex'),
+        path.join('Codex.app', 'Contents', 'Resources', 'codex'),
+      ].flatMap((bundledCli) => [
+        path.join('/Applications', bundledCli),
+        path.join(homedir(), 'Applications', bundledCli),
+      ]);
     }
     case 'cursor': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'agent'),
+        path.join(homedir(), '.local', 'bin', 'agent'),
         // Cursor's installer creates both names. Keep the unambiguous legacy
         // alias as a fallback when another CLI shadows the generic `agent`.
-        platformPath.join(homedir(), '.local', 'bin', 'cursor-agent'),
+        path.join(homedir(), '.local', 'bin', 'cursor-agent'),
       ];
     }
     case 'droid': {
       if (platform() === 'win32') {
-        return [platformPath.join(homedir(), 'AppData', 'Roaming', 'npm', 'droid.cmd')];
+        return [path.join(homedir(), 'AppData', 'Roaming', 'npm', 'droid.cmd')];
       }
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'droid'),
-        platformPath.join(homedir(), '.bun', 'bin', 'droid'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'droid'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'droid'),
+        path.join(homedir(), '.local', 'bin', 'droid'),
+        path.join(homedir(), '.bun', 'bin', 'droid'),
+        path.join(homedir(), '.npm-global', 'bin', 'droid'),
+        path.join(homedir(), 'Library', 'pnpm', 'droid'),
       ];
     }
     case 'devin': {
@@ -835,49 +835,49 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
     }
     case 'grok-build': {
       if (platform() === 'win32') {
-        return [platformPath.join(homedir(), '.grok', 'bin', 'grok.exe')];
+        return [path.join(homedir(), '.grok', 'bin', 'grok.exe')];
       }
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
-      return [platformPath.join(homedir(), '.grok', 'bin', 'grok')];
+      return [path.join(homedir(), '.grok', 'bin', 'grok')];
     }
     case 'kimi-code': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
       return [
-        platformPath.join(homedir(), '.kimi-code', 'bin', 'kimi'),
-        platformPath.join(homedir(), '.local', 'bin', 'kimi'),
-        platformPath.join(homedir(), '.bun', 'bin', 'kimi'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'kimi'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'kimi'),
+        path.join(homedir(), '.kimi-code', 'bin', 'kimi'),
+        path.join(homedir(), '.local', 'bin', 'kimi'),
+        path.join(homedir(), '.bun', 'bin', 'kimi'),
+        path.join(homedir(), '.npm-global', 'bin', 'kimi'),
+        path.join(homedir(), 'Library', 'pnpm', 'kimi'),
       ];
     }
     case 'opencode': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.opencode', 'bin', 'opencode'),
-        platformPath.join(homedir(), '.local', 'bin', 'opencode'),
-        platformPath.join(homedir(), '.bun', 'bin', 'opencode'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'opencode'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'opencode'),
+        path.join(homedir(), '.opencode', 'bin', 'opencode'),
+        path.join(homedir(), '.local', 'bin', 'opencode'),
+        path.join(homedir(), '.bun', 'bin', 'opencode'),
+        path.join(homedir(), '.npm-global', 'bin', 'opencode'),
+        path.join(homedir(), 'Library', 'pnpm', 'opencode'),
       ];
     }
     case 'pi': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'pi'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'pi'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'pi'),
+        path.join(homedir(), '.local', 'bin', 'pi'),
+        path.join(homedir(), '.npm-global', 'bin', 'pi'),
+        path.join(homedir(), 'Library', 'pnpm', 'pi'),
       ];
     }
     case 'qoder': {
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'qodercli'),
-        platformPath.join(homedir(), '.bun', 'bin', 'qodercli'),
-        platformPath.join(homedir(), '.npm-global', 'bin', 'qodercli'),
-        platformPath.join(homedir(), 'Library', 'pnpm', 'qodercli'),
+        path.join(homedir(), '.local', 'bin', 'qodercli'),
+        path.join(homedir(), '.bun', 'bin', 'qodercli'),
+        path.join(homedir(), '.npm-global', 'bin', 'qodercli'),
+        path.join(homedir(), 'Library', 'pnpm', 'qodercli'),
       ];
     }
     case 'trae': {
@@ -896,8 +896,8 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
       if (platform() !== 'darwin' && platform() !== 'linux') return [];
 
       return [
-        platformPath.join(homedir(), '.local', 'bin', 'traecli'),
-        platformPath.join(homedir(), '.local', 'bin', 'trae-cli'),
+        path.join(homedir(), '.local', 'bin', 'traecli'),
+        path.join(homedir(), '.local', 'bin', 'trae-cli'),
       ];
     }
     default: {

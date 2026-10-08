@@ -1,3 +1,7 @@
+import { type SpendOrigin } from '@lobechat/types';
+import debug from 'debug';
+import { and, eq } from 'drizzle-orm';
+
 import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
 import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
@@ -9,13 +13,9 @@ import {
   type NewGenerationBatch,
 } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
-import { type SpendOrigin } from '@lobechat/types';
 import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
-import { generateUniqueSeeds } from '@/utils/number';
-import { and, eq } from 'drizzle-orm';
-import debug from 'debug';
-
 import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
+import { generateUniqueSeeds } from '@/utils/number';
 
 const log = debug('lobe-generation-billing-guard');
 
@@ -81,9 +81,9 @@ export const withRouteMetadata = <T extends Record<string, unknown>>(
   routeMetadata === undefined ? metadata : { ...metadata, routeMetadata };
 
 interface ReleaseReservationParams {
-  db: LobeChatDatabase;
   /** e.g. `video-reservation` / `image-reservation:${index}` — trace id only. */
   asyncTaskId: string;
+  db: LobeChatDatabase;
   generationBatchId: string;
   modelId: string;
   prechargeResult: Record<string, unknown>;
@@ -201,6 +201,8 @@ export interface VideoGenerationRecordInput {
   generationTopicId: string;
   model: string;
   prechargeResult: Record<string, unknown> | undefined;
+  /** Continuation source (upstream v2.2.19); persisted on the async task metadata. */
+  previousGenerationId?: string;
   prompt: string;
   provider: string;
   routeMetadata: AiUsageRouteMetadata | undefined;
@@ -222,6 +224,7 @@ export const createVideoGenerationRecords = async (
     configForDatabase,
     generationTopicId,
     model,
+    previousGenerationId,
     prechargeResult,
     prompt,
     provider,
@@ -265,6 +268,7 @@ export const createVideoGenerationRecords = async (
       .values({
         metadata: {
           ...(prechargeResult ? { precharge: prechargeResult } : {}),
+          ...(previousGenerationId ? { previousGenerationId } : {}),
           ...withRouteMetadata(
             {
               ...(spendOrigin ? { spendOrigin } : {}),
