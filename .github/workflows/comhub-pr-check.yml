@@ -42,8 +42,8 @@ jobs:
       - name: Fetch upstream baseline tag
         run: |
           git remote add upstream https://github.com/lobehub/lobehub.git || true
-          git fetch --depth=1 upstream tag v2.2.18 --no-tags || \
-            echo "::warning::could not fetch upstream v2.2.18; gate will fail with a fetch hint"
+          git fetch --depth=1 upstream tag v2.2.19 --no-tags || \
+            echo "::warning::could not fetch upstream v2.2.19; gate will fail with a fetch hint"
 
       - name: Verify customization registry
         run: node --test scripts/comhub-customizations/registry.test.mjs && node scripts/comhub-customizations/verify.mjs
