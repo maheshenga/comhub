@@ -16,6 +16,8 @@ import {
 export type ImportPage = () => Promise<{ default: ComponentType } | ComponentType>;
 
 export type AdminRouteManifestEntry = {
+  /** Dev-tools loading label (`Desktop > Admin > …`), carried from the catalog. */
+  debugId?: string;
   /** Catalog id (top level) or ModuleAdminRouteId (Module Center subtree). */
   id: AdminCatalogId | ModuleAdminRouteId;
   /** Fully qualified URL path (ADMIN_BASE_PATH + segments). */
@@ -77,6 +79,7 @@ export const ADMIN_ROUTE_MANIFEST: AdminRouteManifestEntry[] = ADMIN_CATALOG.fla
   if (item.id !== 'modules') {
     return [
       {
+        debugId: item.debugId,
         id: item.id,
         importPage: ADMIN_PAGE_IMPORTS[item.id],
         path: item.path,
@@ -89,6 +92,7 @@ export const ADMIN_ROUTE_MANIFEST: AdminRouteManifestEntry[] = ADMIN_CATALOG.fla
   const flatten = (node: ModuleAdminRouteNode, parentPath: string): AdminRouteManifestEntry[] => {
     const path = node.index ? parentPath : `${parentPath}/${node.segment ?? ''}`;
     const entry: AdminRouteManifestEntry = {
+      debugId: `Desktop > Admin > modules > ${node.id}`,
       id: node.id,
       ...(MODULE_ADMIN_ROUTE_IMPORTS[node.id]
         ? { importPage: MODULE_ADMIN_ROUTE_IMPORTS[node.id] }

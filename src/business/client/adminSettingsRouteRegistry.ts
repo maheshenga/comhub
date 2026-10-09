@@ -60,7 +60,9 @@ export const ADMIN_SETTINGS_ROUTE_REGISTRY: AdminSettingsRouteRegistryItem[] =
 
     return [
       {
-        debugId: entry.path,
+        // Carried from the catalog through the manifest so dev loading panels
+        // show the semantic `Desktop > Admin > <id>` label, not the URL.
+        debugId: entry.debugId ?? entry.path,
         id: entry.id,
         ...(entry.importPage ? { importPage: entry.importPage } : {}),
         ...(entry.segment === '' ? { index: true } : { segment: entry.segment }),

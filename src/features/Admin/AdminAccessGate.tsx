@@ -1,6 +1,8 @@
 'use client';
 
 import { type AdminRole, isAdminRole } from '@lobechat/types';
+import { Flexbox } from '@lobehub/ui';
+import { Skeleton } from '@lobehub/ui/base-ui';
 import { Navigate, useLocation } from 'react-router';
 
 import {
@@ -27,6 +29,12 @@ export interface AdminAccessGateProps {
  * check. Rendering-level checks in the admin layout remain harmless
  * duplicates.
  *
+ * `role` is populated asynchronously by StoreInitialization → useInitUserState
+ * (BetterAuth session merges carry no role), so before `isUserStateInit` the
+ * verdict is UNKNOWN, not DENIED — redirecting there would bounce admins off
+ * their deep link (`§3.2` ①) with no way back. Hold the same init skeleton as
+ * `admin/_layout/index.tsx` until the store settles.
+ *
  * Backend `requireAdminCapability` is the security boundary; this gate is UX
  * only (avoids flashing admin content or a blank page before the redirect).
  */
@@ -36,8 +44,19 @@ export const AdminAccessGate = ({
   enforcePathAccess = true,
 }: AdminAccessGateProps) => {
   const { pathname } = useLocation();
-  const user = useUserStore(userProfileSelectors.userProfile);
+  const [user, isUserStateInit] = useUserStore((s) => [
+    userProfileSelectors.userProfile(s),
+    s.isUserStateInit,
+  ]);
   const role = (user as { role?: AdminRole | string } | undefined)?.role;
+
+  if (!isUserStateInit) {
+    return (
+      <Flexbox data-testid="admin-access-gate-loading" gap={16}>
+        <Skeleton active paragraph={{ rows: 6 }} />
+      </Flexbox>
+    );
+  }
 
   if (!isAdminRole(role)) return <Navigate replace to={deniedTo} />;
 

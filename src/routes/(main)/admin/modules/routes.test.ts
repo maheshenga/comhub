@@ -17,18 +17,30 @@ import {
  * is read back from the import map itself — the manifest's lazy imports point
  * at `@/routes/(main)/admin/...` specifiers, so existence and thin-route shape
  * assertions stay derived from the single route source of truth.
+ *
+ * Vite SSR transpiles the arrow-bodied dynamic imports to
+ * `__vite_ssr_dynamic_import__("/src/routes/...")` before toString sees them
+ * (double quotes, /src/ prefix) — same duality handled by
+ * adminRouteManifest.bidirectional.test.ts; match both forms and normalize to
+ * cwd-relative paths. Guarded by a non-empty assertion below so a future
+ * transpiler form degrades to a loud failure, not a vacuous pass.
  */
+const MODULE_IMPORT_SPECIFIERS = /import\(['"](.+?)['"]\)|import__\(["'](.+?)["']\)/;
+
 const routeFiles = Object.entries(MODULE_ADMIN_ROUTE_IMPORTS).flatMap(([routeId, importFn]) => {
   // Layout-only grouping nodes have no import — nothing to assert on disk.
   if (typeof importFn !== 'function') return [];
 
   const source = Function.prototype.toString.call(importFn);
-  const match = source.match(/import\('(@\/routes\/.+?)'\)/);
+  const match = source.match(MODULE_IMPORT_SPECIFIERS);
   if (!match) return [];
 
-  const specifier = match[1];
-  const relative = specifier.replace(/^@\//, '').replaceAll("'", '');
-  const candidates = [`${relative}.tsx`, `${relative}/index.tsx`];
+  const specifier = (match[1] ?? match[2]).replace(/^(@\/|\/src\/)/, 'src/');
+  // Vite SSR resolves directory imports to their concrete file
+  // (`.../configuration/index.tsx`); authored specifiers stay directory-shaped.
+  const candidates = specifier.endsWith('.tsx')
+    ? [specifier]
+    : [`${specifier}.tsx`, `${specifier}/index.tsx`];
 
   return [[routeId as ModuleAdminRouteId, candidates] as const];
 });
@@ -65,6 +77,12 @@ describe('Module Center thin route modules', () => {
   });
 
   it('keeps every routed page as a thin feature export', () => {
+    // Derivation sanity: if specifier extraction ever stops matching (new
+    // transpiler form), this fails loudly instead of iterating zero files.
+    expect(routeFiles.length, 'import-map specifier derivation matched nothing').toBeGreaterThan(
+      15,
+    );
+
     for (const [routeId, candidates] of routeFiles) {
       const absolutePath = candidates
         .map((candidate) => path.resolve(process.cwd(), candidate))
