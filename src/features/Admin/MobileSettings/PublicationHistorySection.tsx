@@ -3,6 +3,8 @@
 import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar  } from 'antd-style';
 
+import type { MobileConfigPublicationState } from '@/const/mobileConfigPublication';
+
 import { mobileSettingsStyles } from './index';
 
 const styles = createStaticStyles(({ css }) => ({
@@ -24,13 +26,9 @@ const styles = createStaticStyles(({ css }) => ({
 }));
 
 interface PublicationHistorySectionProps {
-  onRollback: (revision: string) => void;
-  publicationState: {
-    draft: { revision: string };
-    history: Array<{ revision: string; updatedAt: string }>;
-    published: { revision: string };
-  };
-  rollingBackRevision: string | null;
+  onRollback: (revision: number) => void;
+  publicationState: MobileConfigPublicationState;
+  rollingBackRevision: number | undefined;
   t: (key: any, defaultValue?: any, values?: any) => string;
 }
 

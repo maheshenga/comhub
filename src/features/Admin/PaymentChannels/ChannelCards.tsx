@@ -3,6 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Select, Switch } from '@lobehub/ui/base-ui';
 import { Form, Input, Tag, Typography } from 'antd';
+import type { TFunction } from 'i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 
@@ -11,11 +12,9 @@ import { SecretHint } from './SecretHint';
 
 const { Text } = Typography;
 
-type TFn = (key: string, values?: Record<string, unknown>) => string;
-
 interface ChannelCardProps {
   config: PaymentSettingsData['paymentConfig'];
-  t: TFn;
+  t: TFunction<'subscription'>;
   urlRule: object;
 }
 

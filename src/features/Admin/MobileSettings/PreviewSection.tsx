@@ -2,11 +2,13 @@
 
 import { memo } from 'react';
 
+import type { MobilePublicConfigV1 } from '@/const/mobileConfig';
+
 import MobileConfigPreview from '../MobileConfigPreview';
 import { mobileSettingsStyles } from './index';
 
 interface PreviewSectionProps {
-  config: Record<string, unknown>;
+  config: MobilePublicConfigV1;
   t: (key: any, defaultValue?: any, values?: any) => string;
 }
 
@@ -16,7 +18,7 @@ const PreviewSection = memo<PreviewSectionProps>(({ config, t }) => (
     className={mobileSettingsStyles.section}
   >
     <h2 className={mobileSettingsStyles.sectionTitle}>{t('admin.mobile.preview', 'Preview')}</h2>
-    <MobileConfigPreview config={config as any} />
+    <MobileConfigPreview config={config} />
   </section>
 ));
 

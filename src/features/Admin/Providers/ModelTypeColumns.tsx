@@ -3,14 +3,13 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { Input, Switch, Tag } from 'antd';
+import type { TFunction } from 'i18next';
 
 import type { AdminModelAbilities } from '../adminProviderModelAbilities';
 import { AiProviderModelAbilitiesCell } from '../adminProviderModelAbilities';
 import { AiProviderModelPricingCell } from '../adminProviderModelPricing';
 import { hasSyncedOrManualPricing } from './modelPricingStatus';
 import type { ModelRow } from './shared';
-
-type TFn = (key: any, defaultValue?: any, values?: any) => string;
 
 export interface ModelTypeColumnsParams {
   handleDelete: (row: ModelRow) => void;
@@ -22,7 +21,7 @@ export interface ModelTypeColumnsParams {
     inputCostRate?: number,
     outputCostRate?: number,
   ) => Promise<void>;
-  t: TFn;
+  t: TFunction<'subscription'>;
 }
 
 export const buildModelTypeColumns = ({

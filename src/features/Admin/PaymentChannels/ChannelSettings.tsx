@@ -217,17 +217,17 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
           <Tabs
             items={[
               {
-                children: <AlipaySettingsCard config={config} t={t as any} urlRule={urlRule} />,
+                children: <AlipaySettingsCard config={config} t={t} urlRule={urlRule} />,
                 key: 'alipay',
                 label: t('admin.payments.provider.alipay', 'Alipay'),
               },
               {
-                children: <WechatSettingsCard config={config} t={t as any} urlRule={urlRule} />,
+                children: <WechatSettingsCard config={config} t={t} urlRule={urlRule} />,
                 key: 'wechat',
                 label: t('admin.payments.provider.wechat', 'WeChat Pay'),
               },
               {
-                children: <ZpaySettingsCard config={config} t={t as any} urlRule={urlRule} />,
+                children: <ZpaySettingsCard config={config} t={t} urlRule={urlRule} />,
                 key: 'zpay',
                 label: 'Z-Pay',
               },

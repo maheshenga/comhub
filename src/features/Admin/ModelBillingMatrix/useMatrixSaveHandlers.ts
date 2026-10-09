@@ -28,7 +28,9 @@ interface UseMatrixSaveHandlersParams {
   planData: Record<string, any> | undefined;
   plans: { displayName: string; plan: string }[];
   rows: MatrixRow[];
-  setBillingBasisOverride: (value: BillingBasisValues | null) => void;
+  setBillingBasisOverride: (
+    updater: BillingBasisValues | null | ((current: BillingBasisValues | null) => BillingBasisValues),
+  ) => void;
   setRowsOverride: (updater: (current: MatrixRow[] | null) => MatrixRow[] | null) => void;
   settings: Record<string, any> | undefined;
   t: (key: any, defaultValue?: any, values?: any) => string;
