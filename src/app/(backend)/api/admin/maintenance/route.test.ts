@@ -1,49 +1,24 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { syncExpiredSubscriptionsToFree } from '@/business/server/subscriptionMaintenance';
+import { adminSettingsRouter } from '@/business/server/lambda-routers/admin/settings';
 import { getServerDB } from '@/database/server';
-import { APP_SETTING_KEYS } from '@/server/services/appSettings';
-import {
-  APP_SETTING_SECRET_PREFIX,
-  encryptAppSettingSecret,
-} from '@/server/services/appSettings/secrets';
 
 import { POST } from './route';
 
-const cleanupMocks = vi.hoisted(() => ({
-  cleanupPending: vi.fn(),
-  cleanupExpiredUploads: vi.fn(),
+vi.mock('@/business/server/lambda-routers/admin/settings', () => ({
+  adminSettingsRouter: { createCaller: vi.fn() },
 }));
 
 vi.mock('@/database/server', () => ({
   getServerDB: vi.fn(),
 }));
 
-vi.mock('@/business/server/subscriptionMaintenance', () => ({
-  syncExpiredSubscriptionsToFree: vi.fn(),
-}));
-
-vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
-  ModuleAppPackageLifecycleService: vi.fn(function () {
-    return cleanupMocks;
-  }),
-}));
-
-vi.mock('@/server/services/moduleAppArtifactCleanup', () => ({
-  ModuleAppArtifactCleanupService: vi.fn(function () {
-    return cleanupMocks;
-  }),
-}));
-
-const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 15).toString('base64');
-
-const createDb = (secret: unknown = 'maintenance-secret') =>
+const createDb = (adminUser?: { id: string } | null) =>
   ({
     query: {
-      appSettings: {
-        findFirst: vi.fn().mockResolvedValue({ value: secret }),
-      },
+      appSettings: { findFirst: vi.fn().mockResolvedValue(undefined) },
+      users: { findFirst: vi.fn().mockResolvedValue(adminUser ?? null) },
     },
   }) as any;
 
@@ -57,96 +32,98 @@ const createRequest = (token?: string, body?: Record<string, unknown>) =>
     method: 'POST',
   }) as any;
 
-describe('admin maintenance route module app cleanup', () => {
+const createCallerMock = (runMaintenance: ReturnType<typeof vi.fn>) => {
+  vi.mocked(adminSettingsRouter.createCaller).mockReturnValue(
+    { runMaintenance } as any,
+  );
+  return runMaintenance;
+};
+
+describe('admin maintenance route (shared implementation forward)', () => {
   beforeEach(() => {
-    process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
+    process.env.CRON_SECRET = 'environment-maintenance-secret';
     vi.clearAllMocks();
-    vi.mocked(getServerDB).mockResolvedValue(createDb());
-    vi.mocked(syncExpiredSubscriptionsToFree).mockResolvedValue({
-      expiredSnapshots: 2,
-      freeSnapshotsCreated: 1,
-    });
-    cleanupMocks.cleanupExpiredUploads.mockResolvedValue({ expired: 4, failed: 1 });
-    cleanupMocks.cleanupPending.mockResolvedValue({
-      claimed: 5,
-      failed: 1,
-      released: 3,
-      retrying: 1,
-    });
+    vi.mocked(getServerDB).mockResolvedValue(createDb({ id: 'admin-actor-1' }));
   });
 
   afterEach(() => {
-    delete process.env.KEY_VAULTS_SECRET;
     delete process.env.CRON_SECRET;
+    delete process.env.MAINTENANCE_ACTOR_USER_ID;
   });
 
   it('keeps missing and incorrect bearer tokens unauthorized', async () => {
+    const runMaintenance = createCallerMock(vi.fn());
+
     await expect(POST(createRequest())).resolves.toMatchObject({ status: 401 });
     await expect(POST(createRequest('wrong-secret'))).resolves.toMatchObject({ status: 401 });
-    expect(cleanupMocks.cleanupExpiredUploads).not.toHaveBeenCalled();
-  });
-
-  it('runs bounded module app cleanup for an authenticated request', async () => {
-    const response = await POST(
-      createRequest('maintenance-secret', { skipAudit: true, skipOrders: true }),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      moduleAppUploadCleanupFailed: 1,
-      moduleAppUploadsExpired: 4,
-      moduleAppArtifactCleanupClaimed: 5,
-      moduleAppArtifactCleanupFailed: 1,
-      moduleAppArtifactCleanupRetrying: 1,
-      moduleAppArtifactsReleased: 3,
-      subscriptionSnapshotsExpired: 2,
-    });
-    expect(cleanupMocks.cleanupExpiredUploads).toHaveBeenCalledWith({ limit: 100 });
-    expect(cleanupMocks.cleanupPending).toHaveBeenCalledWith(100);
-  });
-
-  it('decrypts cron.secret and keeps legacy non-string environment fallback', async () => {
-    const encrypted = await encryptAppSettingSecret(
-      APP_SETTING_KEYS.cronSecret,
-      'encrypted-maintenance-secret',
-    );
-    vi.mocked(getServerDB).mockResolvedValue(createDb(encrypted));
-    await expect(
-      POST(createRequest('encrypted-maintenance-secret', { skipAudit: true, skipOrders: true })),
-    ).resolves.toMatchObject({ status: 200 });
-
-    process.env.CRON_SECRET = 'environment-maintenance-secret';
-    vi.mocked(getServerDB).mockResolvedValue(createDb({ legacy: true }));
-    await expect(
-      POST(createRequest('environment-maintenance-secret', { skipAudit: true, skipOrders: true })),
-    ).resolves.toMatchObject({ status: 200 });
+    expect(runMaintenance).not.toHaveBeenCalled();
   });
 
   it('fails closed instead of using CRON_SECRET for invalid ciphertext', async () => {
     process.env.CRON_SECRET = 'environment-maintenance-secret';
-    vi.mocked(getServerDB).mockResolvedValue(
-      createDb(`${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.cronSecret}:invalid`),
-    );
+    const db = createDb();
+    db.query.appSettings = {
+      findFirst: vi.fn().mockResolvedValue({ value: 'invalid-encrypted-value' }),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    const runMaintenance = createCallerMock(vi.fn());
 
     await expect(POST(createRequest('environment-maintenance-secret'))).resolves.toMatchObject({
       status: 401,
     });
-    expect(cleanupMocks.cleanupExpiredUploads).not.toHaveBeenCalled();
+    expect(runMaintenance).not.toHaveBeenCalled();
   });
 
-  it('skips module app cleanup only when explicitly requested', async () => {
+  it('forwards the maintenance request through the shared tRPC implementation', async () => {
+    const runMaintenance = createCallerMock(
+      vi.fn().mockResolvedValue({ moduleAppUploadsExpired: 4, ok: true }),
+    );
+
     const response = await POST(
-      createRequest('maintenance-secret', {
+      createRequest('environment-maintenance-secret', {
+        auditRetentionDays: 30,
+        pendingOrderExpiryDays: 14,
         skipAudit: true,
-        skipModuleAppArtifacts: true,
-        skipModuleAppUploads: true,
         skipOrders: true,
       }),
     );
 
     expect(response.status).toBe(200);
-    expect(cleanupMocks.cleanupExpiredUploads).not.toHaveBeenCalled();
-    expect(cleanupMocks.cleanupPending).not.toHaveBeenCalled();
-    expect(await response.json()).not.toHaveProperty('moduleAppUploadsExpired');
+    await expect(response.json()).resolves.toMatchObject({
+      channel: 'cron',
+      moduleAppUploadsExpired: 4,
+      ok: true,
+    });
+    expect(runMaintenance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auditRetentionDays: 30,
+        command: { actionId: 'setting.runMaintenance', confirmed: true },
+        pendingOrderExpiryDays: 14,
+        skipAudit: true,
+        skipOrders: true,
+      }),
+    );
+  });
+
+  it('requires a maintenance actor for the audit foreign key', async () => {
+    createCallerMock(vi.fn());
+    vi.mocked(getServerDB).mockResolvedValue(createDb(undefined));
+
+    await expect(POST(createRequest('environment-maintenance-secret'))).resolves.toMatchObject({
+      status: 503,
+    });
+  });
+
+  it('prefers the explicit maintenance actor environment over the admin fallback', async () => {
+    const runMaintenance = createCallerMock(vi.fn().mockResolvedValue({ ok: true }));
+    process.env.MAINTENANCE_ACTOR_USER_ID = 'explicit-actor';
+
+    await POST(createRequest('environment-maintenance-secret'));
+
+    const callerCtx = vi.mocked(adminSettingsRouter.createCaller).mock.calls[0]?.[0] as {
+      userId: string;
+    };
+    expect(callerCtx.userId).toBe('explicit-actor');
+    expect(runMaintenance).toHaveBeenCalled();
   });
 });

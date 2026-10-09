@@ -344,7 +344,7 @@ describe('adminDesktopRouter', () => {
   it('binds the only matched GitHub workflow run without changing release status', async () => {
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
-      .reconcileDesktopRelease({ releaseId: RELEASE_ID });
+      .reconcileDesktopRelease({ command: { actionId: 'desktop.release.reconcile', confirmed: true }, releaseId: RELEASE_ID });
 
     expect(mocks.github.reconcileDesktopReleaseWorkflow).toHaveBeenCalledWith({
       channel: 'stable',
@@ -372,7 +372,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+        .reconcileDesktopRelease({ command: { actionId: 'desktop.release.reconcile', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       message: 'DESKTOP_RELEASE_RECONCILE_CONFLICT',
@@ -392,7 +392,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+        .reconcileDesktopRelease({ command: { actionId: 'desktop.release.reconcile', confirmed: true }, releaseId: RELEASE_ID }),
     ).resolves.toEqual({ candidateCount: 0, reason: 'not-found', state: 'unresolved' });
 
     expect(mocks.model.bindReleaseWorkflowRun).not.toHaveBeenCalled();
@@ -413,7 +413,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+        .reconcileDesktopRelease({ command: { actionId: 'desktop.release.reconcile', confirmed: true }, releaseId: RELEASE_ID }),
     ).resolves.toEqual({ candidateCount: 1, reason: 'rerun-pending', state: 'unresolved' });
 
     expect(mocks.model.expirePendingReleaseRetry).toHaveBeenCalledWith({
@@ -445,7 +445,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+        .reconcileDesktopRelease({ command: { actionId: 'desktop.release.reconcile', confirmed: true }, releaseId: RELEASE_ID }),
     ).resolves.toEqual({
       candidateCount: 1,
       reason: 'rerun-not-delivered',
@@ -461,7 +461,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+        .reconcileDesktopRelease({ command: { actionId: 'desktop.release.reconcile', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'DESKTOP_RELEASE_RECONCILE_NOT_ALLOWED',
@@ -473,7 +473,7 @@ describe('adminDesktopRouter', () => {
   it('retries a failed release through the required external-effect audit', async () => {
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
-      .retryDesktopRelease({ releaseId: RELEASE_ID });
+      .retryDesktopRelease({ command: { actionId: 'desktop.release.retry', confirmed: true }, releaseId: RELEASE_ID });
 
     expect(mocks.model.prepareReleaseRetry).toHaveBeenCalledWith({
       actorUserId: 'system-admin-user',
@@ -499,7 +499,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .retryDesktopRelease({ releaseId: RELEASE_ID }),
+        .retryDesktopRelease({ command: { actionId: 'desktop.release.retry', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       message: 'DESKTOP_RELEASE_RETRY_NOT_ALLOWED',
@@ -521,7 +521,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .retryDesktopRelease({ releaseId: RELEASE_ID }),
+        .retryDesktopRelease({ command: { actionId: 'desktop.release.retry', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toThrow('GitHub rerun failed (409).');
 
     expect(mocks.model.markReleaseResult).toHaveBeenCalledWith({
@@ -544,7 +544,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .retryDesktopRelease({ releaseId: RELEASE_ID }),
+        .retryDesktopRelease({ command: { actionId: 'desktop.release.retry', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toThrow('GitHub rerun timed out.');
 
     expect(mocks.model.prepareReleaseRetry).toHaveBeenCalledTimes(1);
@@ -564,7 +564,7 @@ describe('adminDesktopRouter', () => {
 
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
-      .activateDesktopRelease({ releaseId: RELEASE_ID });
+      .activateDesktopRelease({ command: { actionId: 'desktop.release.activate', confirmed: true }, releaseId: RELEASE_ID });
 
     expect(mocks.publication.normalizeDesktopReleasePublication).toHaveBeenCalledWith({
       channel: 'stable',
@@ -611,7 +611,7 @@ describe('adminDesktopRouter', () => {
       await expect(
         adminDesktopRouter
           .createCaller({ userId: 'system-admin-user' } as any)
-          .activateDesktopRelease({ releaseId: RELEASE_ID }),
+          .activateDesktopRelease({ command: { actionId: 'desktop.release.activate', confirmed: true }, releaseId: RELEASE_ID }),
       ).rejects.toMatchObject({
         code: 'BAD_REQUEST',
         message: 'DESKTOP_RELEASE_ACTIVATION_NOT_ALLOWED',
@@ -637,7 +637,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .activateDesktopRelease({ releaseId: RELEASE_ID }),
+        .activateDesktopRelease({ command: { actionId: 'desktop.release.activate', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'DESKTOP_RELEASE_PUBLICATION_INVALID',
@@ -663,7 +663,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .activateDesktopRelease({ releaseId: RELEASE_ID }),
+        .activateDesktopRelease({ command: { actionId: 'desktop.release.activate', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'DESKTOP_RELEASE_PUBLICATION_INVALID',
@@ -679,7 +679,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'finance-admin-user' } as any)
-        .activateDesktopRelease({ releaseId: RELEASE_ID }),
+        .activateDesktopRelease({ command: { actionId: 'desktop.release.activate', confirmed: true }, releaseId: RELEASE_ID }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     expect(mocks.model.getRelease).not.toHaveBeenCalled();
@@ -769,6 +769,7 @@ describe('adminDesktopRouter', () => {
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
       .completeBuildAssetUpload({
+        command: { actionId: 'desktop.buildAsset.complete', confirmed: true },
         key: stagingAssetKey,
         kind: 'appPreview',
         profileId: PROFILE_ID,
@@ -824,6 +825,7 @@ describe('adminDesktopRouter', () => {
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
       .saveBuildProfileDraft({
+          command: { actionId: 'desktop.buildProfile.saveDraft', confirmed: true },
         assets: manifest,
         createIfMissing: true,
         expectedRevision: 0,
@@ -855,6 +857,7 @@ describe('adminDesktopRouter', () => {
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
         .saveBuildProfileDraft({
+            command: { actionId: 'desktop.buildProfile.saveDraft', confirmed: true },
           assets: manifest,
           expectedRevision: 1,
           name: 'ComHub',
@@ -873,7 +876,7 @@ describe('adminDesktopRouter', () => {
     await expect(
       adminDesktopRouter
         .createCaller({ userId: 'system-admin-user' } as any)
-        .archiveBuildProfile({ profileId: PROFILE_ID }),
+        .archiveBuildProfile({ command: { actionId: 'desktop.buildProfile.archive', confirmed: true }, profileId: PROFILE_ID }),
     ).resolves.toEqual({ id: PROFILE_ID, status: 'archived' });
 
     expect(mocks.model.archiveProfile).toHaveBeenCalledWith(
@@ -886,6 +889,7 @@ describe('adminDesktopRouter', () => {
   it('dispatches only an explicitly frozen, complete release through the required audit effect', async () => {
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1003,6 +1007,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1022,6 +1027,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1039,6 +1045,7 @@ describe('adminDesktopRouter', () => {
   it('rejects invalid release input before freezing or dispatching', async () => {
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1057,6 +1064,7 @@ describe('adminDesktopRouter', () => {
       adminDesktopRouter
         .createCaller({ userId: 'finance-admin-user' } as any)
         .createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
           channel: 'stable',
           profileId: PROFILE_ID,
           releaseNotes: 'notes',
@@ -1071,6 +1079,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1090,6 +1099,7 @@ describe('adminDesktopRouter', () => {
         adminDesktopRouter
           .createCaller({ userId: 'system-admin-user' } as any)
           .createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
             channel: 'stable',
             profileId: PROFILE_ID,
             releaseNotes: 'notes',
@@ -1105,6 +1115,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1126,6 +1137,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1150,6 +1162,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',
@@ -1191,6 +1204,7 @@ describe('adminDesktopRouter', () => {
         adminDesktopRouter
           .createCaller({ userId: 'system-admin-user' } as any)
           .createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
             channel: 'stable',
             profileId: PROFILE_ID,
             releaseNotes: 'notes',
@@ -1218,6 +1232,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes,
@@ -1247,6 +1262,7 @@ describe('adminDesktopRouter', () => {
 
     await expect(
       adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        command: { actionId: 'desktop.release.create', confirmed: true },
         channel: 'stable',
         profileId: PROFILE_ID,
         releaseNotes: 'notes',

@@ -110,9 +110,16 @@ describe('adminCommercialService NewAPI helpers', () => {
 
   it('delegates desktop build profile and protected asset operations to admin.desktop', async () => {
     const input = { kind: 'appPreview' as const };
-    await adminCommercialService.activateDesktopRelease('44444444-4444-4444-8444-444444444444');
+    const releaseId = '44444444-4444-4444-8444-444444444444';
+    const activateEnvelope = { actionId: 'desktop.release.activate', confirmed: true } as const;
+    const completeEnvelope = { actionId: 'desktop.buildAsset.complete', confirmed: true } as const;
+    const createEnvelope = { actionId: 'desktop.release.create', confirmed: true } as const;
+    const reconcileEnvelope = { actionId: 'desktop.release.reconcile', confirmed: true } as const;
+    const retryEnvelope = { actionId: 'desktop.release.retry', confirmed: true } as const;
+    await adminCommercialService.activateDesktopRelease(releaseId, activateEnvelope);
     await adminCommercialService.createBuildAssetUpload(input);
     await adminCommercialService.completeBuildAssetUpload({
+      command: completeEnvelope,
       key: 'desktop-build-assets/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.png',
       kind: 'appPreview',
       profileId: '11111111-1111-4111-8111-111111111111',
@@ -121,19 +128,21 @@ describe('adminCommercialService NewAPI helpers', () => {
     await adminCommercialService.listDesktopReleases({ limit: 10 });
     await adminCommercialService.createDesktopRelease({
       channel: 'stable',
+      command: createEnvelope,
       profileId: '11111111-1111-4111-8111-111111111111',
       releaseNotes: 'notes',
       version: '2.4.0',
     });
-    await adminCommercialService.reconcileDesktopRelease('44444444-4444-4444-8444-444444444444');
-    await adminCommercialService.retryDesktopRelease('44444444-4444-4444-8444-444444444444');
+    await adminCommercialService.reconcileDesktopRelease(releaseId, reconcileEnvelope);
+    await adminCommercialService.retryDesktopRelease(releaseId, retryEnvelope);
 
     expect(lambdaClient.admin.desktop.activateDesktopRelease.mutate).toHaveBeenCalledWith({
-      releaseId: '44444444-4444-4444-8444-444444444444',
+      command: activateEnvelope,
+      releaseId,
     });
     expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
     expect(lambdaClient.admin.desktop.completeBuildAssetUpload.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'appPreview' }),
+      expect.objectContaining({ command: completeEnvelope, kind: 'appPreview' }),
     );
     expect(lambdaClient.admin.desktop.listBuildProfiles.query).toHaveBeenCalledWith({
       cursor: PROFILE_CURSOR,
@@ -144,15 +153,18 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
     expect(lambdaClient.admin.desktop.createDesktopRelease.mutate).toHaveBeenCalledWith({
       channel: 'stable',
+      command: createEnvelope,
       profileId: '11111111-1111-4111-8111-111111111111',
       releaseNotes: 'notes',
       version: '2.4.0',
     });
     expect(lambdaClient.admin.desktop.reconcileDesktopRelease.mutate).toHaveBeenCalledWith({
-      releaseId: '44444444-4444-4444-8444-444444444444',
+      command: reconcileEnvelope,
+      releaseId,
     });
     expect(lambdaClient.admin.desktop.retryDesktopRelease.mutate).toHaveBeenCalledWith({
-      releaseId: '44444444-4444-4444-8444-444444444444',
+      command: retryEnvelope,
+      releaseId,
     });
   });
 

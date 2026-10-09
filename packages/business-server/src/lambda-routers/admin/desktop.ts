@@ -149,8 +149,17 @@ const throwDesktopReleaseReconcileError = (error: unknown): never => {
 
 export const adminDesktopRouter = router({
   activateDesktopRelease: systemWriteProcedure
-    .input(z.object({ releaseId: z.string().uuid() }).strict())
+    .input(
+      z
+        .object({
+          command: activateDesktopReleaseCommand.schema,
+          reason: z.string().min(1).max(500).optional(),
+          releaseId: z.string().uuid(),
+        })
+        .strict(),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = activateDesktopReleaseCommand.validate(input.command, input.reason);
       const model = new DesktopBuildModel(ctx.serverDB);
       const release = await model.getRelease(input.releaseId);
       if (!release) {
@@ -189,8 +198,9 @@ export const adminDesktopRouter = router({
 
       const activated = await runRequiredAdminAuditMutation<DesktopReleaseItem>(ctx, {
         audit: (result) => ({
-          action: activateDesktopReleaseCommand.definition.auditAction,
+          action: command.auditAction,
           payload: {
+            ...(command.reason ? { reason: command.reason } : {}),
             channel: result.channel,
             releaseId: result.id,
             version: result.version,
@@ -207,13 +217,21 @@ export const adminDesktopRouter = router({
       return activated;
     }),
   archiveBuildProfile: systemWriteProcedure
-    .input(z.object({ profileId: z.string().uuid() }).strict())
+    .input(
+      z
+        .object({
+          command: archiveBuildProfileCommand.schema,
+          profileId: z.string().uuid(),
+        })
+        .strict(),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = archiveBuildProfileCommand.validate(input.command);
       const model = new DesktopBuildModel(ctx.serverDB);
 
       return runRequiredAdminAuditMutation<DesktopBuildProfileItem>(ctx, {
         audit: (profile) => ({
-          action: archiveBuildProfileCommand.definition.auditAction,
+          action: command.auditAction,
           payload: { profileId: profile.id },
           resourceId: profile.id,
           resourceType: 'desktopBuildProfile',
@@ -226,6 +244,7 @@ export const adminDesktopRouter = router({
     .input(
       z
         .object({
+          command: completeBuildAssetCommand.schema,
           key: z.string().min(1).max(1024),
           kind: assetKindSchema,
           profileId: z.string().uuid(),
@@ -233,11 +252,12 @@ export const adminDesktopRouter = router({
         .strict(),
     )
     .mutation(async ({ ctx, input }) => {
+      const command = completeBuildAssetCommand.validate(input.command);
       const storage = new FileS3();
 
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (_status, asset) => ({
-          action: completeBuildAssetCommand.definition.auditAction,
+          action: command.auditAction,
           payload: {
             kind: input.kind,
             profileId: input.profileId,
@@ -246,15 +266,44 @@ export const adminDesktopRouter = router({
           resourceId: input.profileId,
           resourceType: 'desktopBuildProfile',
         }),
-        effect: () => completeDesktopBuildAsset({ ...input, storage }),
+        effect: () =>
+          completeDesktopBuildAsset({
+            key: input.key,
+            kind: input.kind,
+            profileId: input.profileId,
+            storage,
+          }),
       });
     }),
   createBuildAssetUpload: systemWriteProcedure
     .input(z.object({ kind: assetKindSchema, profileId: z.string().uuid().optional() }).strict())
     .mutation(({ input }) => createDesktopBuildAssetUpload({ input, storage: new FileS3() })),
   createDesktopRelease: systemWriteProcedure
-    .input(desktopReleaseInputSchema)
+    .input(
+      desktopReleaseInputSchema.extend({
+        command: createDesktopReleaseCreationCommand.schema,
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      // Dual-command reuse point (catalog §6.3): one mutation dispatches both
+      // the `desktop.release.create` freeze audit and the
+      // `desktop.release.dispatch` workflow audit. The envelope actionId may
+      // match either sibling command; the validated sibling supplies the
+      // confirmation/semantics, and the other audit action derives from its
+      // catalog definition so both stay catalog-true.
+      const parsedActionId = (input.command as { actionId?: string } | null | undefined)?.actionId;
+      const envelopeMatchesDispatch = parsedActionId === 'desktop.release.dispatch';
+      const validated = envelopeMatchesDispatch
+        ? createDesktopReleaseCommand.validate(input.command)
+        : createDesktopReleaseCreationCommand.validate(input.command);
+      const creationCommand = {
+        ...validated,
+        auditAction: createDesktopReleaseCreationCommand.definition.auditAction,
+      };
+      const dispatchCommand = {
+        ...validated,
+        auditAction: createDesktopReleaseCommand.definition.auditAction,
+      };
       const model = new DesktopBuildModel(ctx.serverDB);
       const profile = await model.getProfile(input.profileId);
       if (!profile)
@@ -285,15 +334,15 @@ export const adminDesktopRouter = router({
 
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: () => ({
-          action: createDesktopReleaseCommand.definition.auditAction,
-          payload: auditPayload,
+          action: dispatchCommand.auditAction,
+          payload: { ...auditPayload, ...(dispatchCommand.reason ? { reason: dispatchCommand.reason } : {}) },
           resourceId: releaseId,
           resourceType: 'desktopRelease',
         }),
         effect: async () => {
           await runRequiredAdminAuditMutation(ctx, {
             audit: () => ({
-              action: createDesktopReleaseCreationCommand.definition.auditAction,
+              action: creationCommand.auditAction,
               payload: auditPayload,
               resourceId: releaseId,
               resourceType: 'desktopRelease',
@@ -302,10 +351,13 @@ export const adminDesktopRouter = router({
               model.freezeDraftForRelease(
                 {
                   actorUserId: ctx.userId,
+                  channel: input.channel,
                   expectedDraftRevisionId: draft.id,
                   frozenRevisionId,
+                  profileId: input.profileId,
                   releaseId,
-                  ...input,
+                  releaseNotes: input.releaseNotes,
+                  version: input.version,
                 },
                 tx,
               ),
@@ -427,8 +479,16 @@ export const adminDesktopRouter = router({
     )
     .query(({ ctx, input }) => new DesktopBuildModel(ctx.serverDB).listReleases(input)),
   reconcileDesktopRelease: systemWriteProcedure
-    .input(z.object({ releaseId: z.string().uuid() }).strict())
+    .input(
+      z
+        .object({
+          command: reconcileDesktopReleaseCommand.schema,
+          releaseId: z.string().uuid(),
+        })
+        .strict(),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = reconcileDesktopReleaseCommand.validate(input.command);
       const model = new DesktopBuildModel(ctx.serverDB);
       const release = await model.getRelease(input.releaseId);
       if (!release) {
@@ -443,7 +503,7 @@ export const adminDesktopRouter = router({
 
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (status, result) => ({
-          action: reconcileDesktopReleaseCommand.definition.auditAction,
+          action: command.auditAction,
           payload: {
             lifecycleStatus: status,
             releaseId: release.id,
@@ -507,13 +567,21 @@ export const adminDesktopRouter = router({
       });
     }),
   retryDesktopRelease: systemWriteProcedure
-    .input(z.object({ releaseId: z.string().uuid() }).strict())
+    .input(
+      z
+        .object({
+          command: retryDesktopReleaseCommand.schema,
+          releaseId: z.string().uuid(),
+        })
+        .strict(),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = retryDesktopReleaseCommand.validate(input.command);
       const model = new DesktopBuildModel(ctx.serverDB);
 
       return runRequiredAdminAuditExternalEffect(ctx, {
         audit: (status, result) => ({
-          action: retryDesktopReleaseCommand.definition.auditAction,
+          action: command.auditAction,
           payload: {
             lifecycleStatus: status,
             releaseId: input.releaseId,
@@ -560,6 +628,7 @@ export const adminDesktopRouter = router({
       z
         .object({
           assets: assetManifestSchema,
+          command: saveBuildProfileDraftCommand.schema,
           createIfMissing: z.boolean().optional(),
           expectedRevision: z.number().int().nonnegative(),
           name: z.string().trim().min(1).max(255),
@@ -569,6 +638,7 @@ export const adminDesktopRouter = router({
         .strict(),
     )
     .mutation(async ({ ctx, input }) => {
+      const command = saveBuildProfileDraftCommand.validate(input.command);
       const storage = new FileS3();
       const assets = await validateDesktopBuildAssetManifest({
         manifest: input.assets,
@@ -581,7 +651,7 @@ export const adminDesktopRouter = router({
       try {
         return await runRequiredAdminAuditMutation<SavedDraft>(ctx, {
           audit: (result) => ({
-            action: saveBuildProfileDraftCommand.definition.auditAction,
+            action: command.auditAction,
             payload: {
               assets: assetAuditPayload(assets),
               profileId: result.profileId,
