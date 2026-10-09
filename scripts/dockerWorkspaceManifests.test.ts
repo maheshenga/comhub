@@ -59,6 +59,9 @@ describe('Docker workspace manifests', () => {
       const trackedFiles = spawnSync('git', ['ls-files', '--', source], {
         cwd: root,
         encoding: 'utf8',
+        // `git ls-files -- packages` output exceeds the 1 MB default maxBuffer
+        // on CI (status=null, ENOBUFS) — headroom for the growing tree.
+        maxBuffer: 64 * 1024 * 1024,
       });
 
       expect(trackedFiles.status, trackedFiles.stderr).toBe(0);
