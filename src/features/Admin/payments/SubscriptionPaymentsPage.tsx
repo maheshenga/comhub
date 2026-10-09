@@ -166,8 +166,7 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
         }
         selectedRefundCount={selectedRefundableIds.length}
         bulkRefund={{
-          // 评审修复：订阅支付域必须走 subscriptionPaymentOrders 域端点。
-          actionId: 'payment.subscriptionBulkRefund' as const,
+          actionId: 'payment.subscriptionBulkRefund' as const, // 订阅域端点（非 topUpOrders）
           description: t(
             'admin.payments.subscriptions.bulkRefundDescription',
             'Requests provider refunds for the selected paid subscription payments. This is a typed-confirmation command: type the command ID to proceed. Each refund is audited with a shared batchCorrelationId.',
