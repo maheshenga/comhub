@@ -843,7 +843,7 @@ describe('admin commercial flow pages', () => {
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const orderDetailDrawer = readRepoFile('src/features/Admin/Orders/OrderDetailDrawer.tsx');
     const ordersShared = readRepoFile('src/features/Admin/Orders/shared.ts');
-    const auditPage = readRepoFile('src/routes/(main)/admin/audit/index.tsx');
+    const auditPage = readRepoFile('src/features/Admin/Audit/AdminAuditPage.tsx');
 
     expect(ordersPage).toContain("import { useNavigate } from 'react-router'");
     expect(orderDetailDrawer).toContain("import { Link, useNavigate } from 'react-router'");

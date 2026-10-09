@@ -25,8 +25,11 @@ describe('ModuleSectionNav', () => {
     expect(
       within(finance)
         .getAllByRole('link')
-        .map((link) => link.textContent),
+        .map((link) => link.getAttribute('href')?.split('/').at(-1)),
     ).toEqual(['revenue', 'payments', 'payouts']);
+    // PP-10：compatibility 分区带状态徽标（对可访问名不可见）。
+    const paymentsLink = screen.getByRole('link', { name: 'payments' });
+    expect(paymentsLink.querySelector('[data-status="compatibility"]')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'apps' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'operations' })).not.toBeInTheDocument();
   });

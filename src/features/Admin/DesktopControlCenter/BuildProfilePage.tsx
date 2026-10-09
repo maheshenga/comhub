@@ -1,8 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Button, confirmModal, Select } from '@lobehub/ui/base-ui';
-import { Alert, Form, message, Skeleton, Typography } from 'antd';
+import { Button, confirmModal } from '@lobehub/ui/base-ui';
+import { Alert, Form, message, Skeleton } from 'antd';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -20,12 +20,15 @@ import {
   hasCompleteWindowsAssets,
 } from './buildProfileForm';
 import CreateDesktopReleaseModal from './CreateDesktopReleaseModal';
+import { BuildProfileHeader } from './buildProfileHeader';
 import DesktopBuildHistory, { type DesktopReleaseHistoryItem } from './DesktopBuildHistory';
 import { desktopControlCenterStyles } from './styles';
 
-interface BuildProfileView {
+type DraftAssetManifest = Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>;
+
+export interface BuildProfileView {
   currentDraft?: {
-    assetManifest?: Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>;
+    assetManifest?: DraftAssetManifest;
     payload?: Partial<BuildProfileFormValues>;
   };
   currentRevision?: number;
@@ -42,8 +45,33 @@ interface BuildProfilePageProps {
 }
 
 const getProfileItems = (data: unknown): BuildProfileView[] =>
-  ((data as { items?: BuildProfileView[] } | undefined)?.items ?? []) as BuildProfileView[];
+  (((data as { items?: BuildProfileView[] } | undefined)?.items ?? []) as BuildProfileView[]);
 
+const withDraftApplied = (
+  current: BuildProfileView,
+  assets: DraftAssetManifest,
+  payload: Partial<BuildProfileFormValues>,
+): BuildProfileView => ({
+  ...current,
+  currentDraft: { assetManifest: assets, payload },
+  currentRevision: (current.currentRevision ?? 0) + 1,
+  name: payload.applicationName ?? current.name,
+});
+const LoadFailedAlert = ({ onRetry, t }: { onRetry: () => void; t: any }) => (
+  <Alert
+    title={t('admin.desktopBuild.loadFailed')}
+    type="error"
+    action={<Button onClick={onRetry}>{t('admin.desktopControl.retry')}</Button>}
+  />
+);
+const EmptyProfilesAlert = ({ onCreate, t }: { onCreate: () => void; t: any }) => (
+  <Alert
+    description={t('admin.desktopBuild.emptyDescription')}
+    title={t('admin.desktopBuild.empty')}
+    type="info"
+    action={<Button onClick={onCreate}>{t('admin.desktopBuild.profile.create')}</Button>}
+  />
+);
 const BuildProfilePage = memo<BuildProfilePageProps>(
   ({ currentRelease, onDirtyChange, onReleaseActivated }) => {
     const { t } = useTranslation('subscription');
@@ -67,12 +95,8 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       localProfile?.id === selectedProfile.id &&
       !profileItems.some((profile) => profile.id === selectedProfile.id),
     );
-    const [assets, setAssets] = useState<Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>>(
-      {},
-    );
-    const [savedAssets, setSavedAssets] = useState<
-      Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>
-    >({});
+    const [assets, setAssets] = useState<DraftAssetManifest>({});
+    const [savedAssets, setSavedAssets] = useState<DraftAssetManifest>({});
     const [savedFormValues, setSavedFormValues] = useState<BuildProfileFormValues>();
     const [baseRevision, setBaseRevision] = useState(0);
     const [saving, setSaving] = useState(false);
@@ -97,27 +121,34 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       });
 
     const createProfile = () => {
-      const defaults = createDefaultBuildProfileForm();
       const id = globalThis.crypto.randomUUID();
       setLocalProfile({
         currentRevision: 0,
         id,
         identityLocked: false,
-        name: defaults.applicationName,
+        name: createDefaultBuildProfileForm().applicationName,
         status: 'active',
       });
       setSelectedProfileId(id);
     };
-
     const handleCreateProfile = () => {
       if (dirty) return confirmDiscard(createProfile);
       createProfile();
     };
-
     const handleSelectProfile = (profileId: string) => {
       if (profileId === selectedProfile?.id) return;
       if (dirty) return confirmDiscard(() => setSelectedProfileId(profileId));
       setSelectedProfileId(profileId);
+    };
+
+    useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+    const markDirty = () => {
+      dirtyRef.current = true;
+      setDirty(true);
+    };
+    const markClean = () => {
+      dirtyRef.current = false;
+      setDirty(false);
     };
 
     useEffect(() => {
@@ -126,48 +157,20 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       setSelectedProfileId((current) => current ?? selectedProfile.id);
       const profileFormValues = buildProfileFormFromProfile(selectedProfile);
       form.setFieldsValue(profileFormValues);
-      setAssets(selectedProfile.currentDraft?.assetManifest ?? {});
-      setSavedAssets(selectedProfile.currentDraft?.assetManifest ?? {});
+      const assetManifest = selectedProfile.currentDraft?.assetManifest ?? {};
+      setAssets(assetManifest);
+      setSavedAssets(assetManifest);
       setSavedFormValues(profileFormValues);
       setBaseRevision(selectedProfile.currentRevision ?? 0);
       loadedProfileIdRef.current = selectedProfile.id;
-      dirtyRef.current = false;
-      setDirty(false);
+      markClean();
     }, [form, selectedProfile]);
 
-    useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
-
-    const markDirty = () => {
-      dirtyRef.current = true;
-      setDirty(true);
-    };
-
     if (profiles.error) {
-      return (
-        <Alert
-          title={t('admin.desktopBuild.loadFailed')}
-          type="error"
-          action={
-            <Button onClick={() => void profiles.mutate()}>
-              {t('admin.desktopControl.retry')}
-            </Button>
-          }
-        />
-      );
+      return <LoadFailedAlert onRetry={() => void profiles.mutate()} t={t as any} />;
     }
-
     if (profiles.isLoading && !profiles.data) return <Skeleton active paragraph={{ rows: 8 }} />;
-    if (!selectedProfile)
-      return (
-        <Alert
-          description={t('admin.desktopBuild.emptyDescription')}
-          title={t('admin.desktopBuild.empty')}
-          type="info"
-          action={
-            <Button onClick={handleCreateProfile}>{t('admin.desktopBuild.profile.create')}</Button>
-          }
-        />
-      );
+    if (!selectedProfile) return <EmptyProfilesAlert onCreate={handleCreateProfile} t={t as any} />;
 
     const canCreateBuild = hasCompleteWindowsAssets(savedAssets);
     const canSaveDraft = hasCompleteWindowsAssets(assets);
@@ -190,28 +193,20 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
         });
         setSavedAssets(assets);
         setSavedFormValues(payload);
-        dirtyRef.current = false;
-        setDirty(false);
+        markClean();
         if (isLocalProfile) {
           setLocalProfile((current) =>
-            current
-              ? {
-                  ...current,
-                  currentDraft: { assetManifest: assets, payload },
-                  currentRevision: (current.currentRevision ?? 0) + 1,
-                  name: payload.applicationName,
-                }
-              : current,
+            current ? withDraftApplied(current, assets, payload) : current,
           );
         }
         await profiles.mutate();
         message.success(t('admin.desktopBuild.saveSuccess'));
       } catch (error) {
+        const conflict = error instanceof Error && error.message.includes(
+          'DESKTOP_BUILD_PROFILE_REVISION_CONFLICT',
+        );
         message.error(
-          error instanceof Error &&
-            error.message.includes('DESKTOP_BUILD_PROFILE_REVISION_CONFLICT')
-            ? t('admin.desktopBuild.revisionConflict')
-            : t('admin.desktopBuild.saveFailed'),
+          conflict ? t('admin.desktopBuild.revisionConflict') : t('admin.desktopBuild.saveFailed'),
         );
       } finally {
         setSaving(false);
@@ -225,8 +220,7 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       setArchiving(true);
       try {
         await adminCommercialService.archiveBuildProfile(selectedProfile.id, envelope);
-        dirtyRef.current = false;
-        setDirty(false);
+        markClean();
         setSelectedProfileId(undefined);
         await profiles.mutate();
         message.success(t('admin.desktopBuild.profile.archiveSuccess'));
@@ -239,42 +233,16 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
 
     return (
       <div className={desktopControlCenterStyles.buildProfileLayout}>
-        <div className={desktopControlCenterStyles.buildProfileHeader}>
-          <div>
-            <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
-              {t('admin.desktopControl.tabs.buildProfile')}
-            </Typography.Title>
-            <Typography.Text type="secondary">{t('admin.desktopBuild.subtitle')}</Typography.Text>
-          </div>
-          <div className={desktopControlCenterStyles.buildProfileActions}>
-            <label
-              className={desktopControlCenterStyles.buildProfileSelectorLabel}
-              htmlFor="desktop-build-profile-selector"
-            >
-              {t('admin.desktopBuild.profile.selector')}
-            </label>
-            <Select
-              id="desktop-build-profile-selector"
-              style={{ minWidth: 180 }}
-              value={selectedProfile.id}
-              options={[
-                ...(isLocalProfile && localProfile ? [localProfile] : []),
-                ...profileItems,
-              ].map((profile) => ({ label: profile.name, value: profile.id }))}
-              onChange={(profileId) => void handleSelectProfile(profileId)}
-            />
-            {!isLocalProfile ? (
-              <AdminDangerousActionButton
-                danger
-                actionId="desktop.buildProfile.archive"
-                loading={archiving}
-                onConfirm={(envelope) => performArchiveProfile(envelope)}
-              >
-                {t('admin.desktopBuild.profile.archive')}
-              </AdminDangerousActionButton>
-            ) : null}
-          </div>
-        </div>
+        <BuildProfileHeader
+          archiving={archiving}
+          isLocalProfile={isLocalProfile}
+          localProfile={localProfile}
+          profileItems={profileItems}
+          selectedProfileId={selectedProfile.id}
+          t={t as any}
+          onArchive={(envelope) => void performArchiveProfile(envelope)}
+          onSelect={handleSelectProfile}
+        />
         <Alert
           showIcon
           description={t('admin.desktopBuild.publisher.description')}

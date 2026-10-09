@@ -28,6 +28,10 @@ const externalEffectCommands = new Set([
   'desktop.release.dispatch',
   'desktop.release.reconcile',
   'desktop.release.retry',
+  // M5 §5.2: bulk refund drives per-order refund calls against external
+  // payment channels (no single DB transaction can wrap the batch), so the
+  // batch audit goes through runRequiredAdminAuditExternalEffect per item.
+  'payment.bulkRefund',
 ]);
 const nestedTransactionAuditCommandNames: Record<string, string> = {
   'desktop.release.activate': 'activateDesktopReleaseCommand',

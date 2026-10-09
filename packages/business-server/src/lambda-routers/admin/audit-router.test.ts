@@ -82,6 +82,22 @@ describe('adminAuditRouter', () => {
     ]);
   });
 
+  it('filters audit rows by the M5 batchCorrelationId payload path', async () => {
+    const { countWhere, db, findMany } = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    await adminAuditRouter.createCaller({ userId: 'admin-user' } as any).list({
+      batchCorrelationId: 'batch-123',
+      cursor: 0,
+      limit: 50,
+    } as any);
+
+    const built = buildSql(findMany.mock.calls[0]?.[0].where);
+    expect(built.sql).toBe(`"admin_audit_logs"."payload"->>'batchCorrelationId' = $1`);
+    expect(built.params).toStrictEqual(['batch-123']);
+    expect(buildSql(countWhere.mock.calls[0]?.[0]).sql).toBe(built.sql);
+  });
+
   it('applies resource and created range filters to audit exports', async () => {
     const { db, findMany } = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db as any);

@@ -2,32 +2,28 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Button, confirmModal, Select, toast } from '@lobehub/ui/base-ui';
-import { Alert, Space, type TableProps, Tag } from 'antd';
+import { Alert, Space, type TableProps } from 'antd';
 import { createStaticStyles } from 'antd-style';
-import { RefreshCw, RotateCcw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
-import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  error: css`
-    display: grid;
-    gap: 2px;
-    max-width: 420px;
-  `,
-  errorMessage: css`
-    overflow: hidden;
-    color: ${cssVar.colorTextSecondary};
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  `,
+import {
+  buildSettlementFailureColumns,
+  SETTLEMENT_STATUSES,
+  settlementStyles as styles,
+  type SettlementFailureRow,
+  type SettlementFailureStatus,
+} from './settlementShared';
+
+const pageStyles = createStaticStyles(({ css }) => ({
   page: css`
     display: grid;
     gap: 16px;
@@ -40,45 +36,14 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     align-items: end;
     justify-content: space-between;
   `,
-  toolbarField: css`
-    display: grid;
-    gap: 6px;
-
-    min-width: 180px;
-
-    font-size: 13px;
-    color: ${cssVar.colorTextSecondary};
-  `,
 }));
 
-type SettlementFailureStatus = 'pending' | 'resolved';
-
-type CreditSettlementFailureRow = {
-  actualAmount: number | string;
-  attempts: number;
-  createdAt: Date | string;
-  errorCode: null | string;
-  errorMessage: string;
-  id: string;
-  lastAttemptAt: Date | string;
-  payerScopeType: 'personal' | 'workspace';
-  payerUserId: null | string;
-  payerWorkspaceId: null | string;
-  reservationId: string;
-  reservationStatus: string;
-  resolvedAt: Date | null | string;
-  status: SettlementFailureStatus;
-  updatedAt: Date | string;
-};
-
 type CreditSettlementFailureListResponse = {
-  items: CreditSettlementFailureRow[];
+  items: SettlementFailureRow[];
   nextCursor: null | number;
 };
 
 const PAGE_SIZE = 25;
-const SETTLEMENT_STATUSES = ['pending', 'resolved'] as const;
-const formatDateTime = (value: Date | string) => new Date(value).toLocaleString();
 
 const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
   ({ canWrite: canWriteOverride }) => {
@@ -123,7 +88,7 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
       });
     };
 
-    const retry = async (row: CreditSettlementFailureRow) => {
+    const retry = async (row: SettlementFailureRow) => {
       setBusyId(row.id);
       try {
         await adminCommercialService.retryCreditSettlementFailure(row.id);
@@ -142,102 +107,29 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
       }
     };
 
-    const columns: TableProps<CreditSettlementFailureRow>['columns'] = [
-      {
-        key: 'reservation',
-        render: (_, row) => (
-          <div>
-            <div>{row.reservationId}</div>
-            <small>{row.id}</small>
-          </div>
+    const confirmRetry = (row: SettlementFailureRow) => {
+      confirmModal({
+        cancelText: t('cancel', 'Cancel'),
+        content: t(
+          'admin.payments.settlements.retryConfirmDescription',
+          'Retry the original settlement. A successful retry will debit the recorded actual credits.',
         ),
-        title: t('admin.payments.settlements.columns.reservation', 'Reservation / failure'),
-        width: 300,
-      },
-      {
-        key: 'payer',
-        render: (_, row) =>
-          row.payerScopeType === 'workspace'
-            ? (row.payerWorkspaceId ?? '-')
-            : (row.payerUserId ?? '-'),
-        title: t('admin.payments.settlements.columns.payer', 'Payer'),
-        width: 220,
-      },
-      {
-        dataIndex: 'actualAmount',
-        key: 'actualAmount',
-        render: (value) => formatAdminCredits(Number(value)),
-        title: t('admin.payments.settlements.columns.amount', 'Actual credits'),
-        width: 130,
-      },
-      {
-        key: 'error',
-        render: (_, row) => (
-          <div className={styles.error} title={row.errorMessage}>
-            <strong>{row.errorCode ?? 'SETTLEMENT_FAILED'}</strong>
-            <span className={styles.errorMessage}>{row.errorMessage}</span>
-          </div>
-        ),
-        title: t('admin.payments.settlements.columns.error', 'Last error'),
-        width: 360,
-      },
-      {
-        key: 'attempts',
-        render: (_, row) => (
-          <div>
-            <div>{row.attempts}</div>
-            <small>{formatDateTime(row.lastAttemptAt)}</small>
-          </div>
-        ),
-        title: t('admin.payments.settlements.columns.attempts', 'Attempts'),
-        width: 180,
-      },
-      {
-        key: 'status',
-        render: (_, row) => (
-          <Space direction="vertical" size={2}>
-            <Tag color={row.status === 'resolved' ? 'green' : 'red'}>
-              {t(`admin.payments.settlements.status.${row.status}`, row.status)}
-            </Tag>
-            <small>{row.reservationStatus}</small>
-          </Space>
-        ),
-        title: t('admin.payments.settlements.columns.status', 'Status'),
-        width: 130,
-      },
-      {
-        fixed: 'right',
-        key: 'actions',
-        render: (_, row) =>
-          canWrite && row.status === 'pending' ? (
-            <Button
-              icon={<RotateCcw aria-hidden size={16} />}
-              loading={busyId === row.id}
-              size="small"
-              onClick={() =>
-                confirmModal({
-                  cancelText: t('cancel', 'Cancel'),
-                  content: t(
-                    'admin.payments.settlements.retryConfirmDescription',
-                    'Retry the original settlement. A successful retry will debit the recorded actual credits.',
-                  ),
-                  okText: t('admin.payments.settlements.retry', 'Retry settlement'),
-                  onOk: () => retry(row),
-                  title: t('admin.payments.settlements.retryConfirmTitle', 'Retry settlement?'),
-                })
-              }
-            >
-              {t('admin.payments.settlements.retry', 'Retry settlement')}
-            </Button>
-          ) : null,
-        title: t('admin.payments.settlements.columns.actions', 'Actions'),
-        width: 170,
-      },
-    ];
+        okText: t('admin.payments.settlements.retry', 'Retry settlement'),
+        onOk: () => retry(row),
+        title: t('admin.payments.settlements.retryConfirmTitle', 'Retry settlement?'),
+      });
+    };
+
+    const columns = buildSettlementFailureColumns({
+      busyId,
+      canWrite,
+      onRetry: confirmRetry,
+      t: t as any,
+    });
 
     return (
-      <section className={styles.page} data-testid="credit-settlement-failures-page">
-        <div className={styles.toolbar}>
+      <section className={pageStyles.page} data-testid="credit-settlement-failures-page">
+        <div className={pageStyles.toolbar}>
           <div>
             <strong>{t('admin.payments.settlements.title', 'Credit settlement failures')}</strong>
             <div>

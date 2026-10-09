@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
+import { buildAdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -17,6 +18,13 @@ import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
 import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
 import { buildOrderColumns } from './Orders/orderColumns';
 import { OrderDetailDrawer } from './Orders/OrderDetailDrawer';
+import {
+  BulkDryRunAlert,
+  isBulkEligibleOrder,
+  OrderBulkToolbar,
+  type BulkOrderDryRun,
+  orderRowSelection,
+} from './Orders/orderBulkToolbar';
 import type { AdminOrderDetail, OrderStatus, PendingOrderCommand } from './Orders/shared';
 import { buildTopUpPaymentUrl } from './Orders/shared';
 
@@ -67,6 +75,30 @@ const AdminOrdersPage = memo(() => {
     async (): Promise<AdminOrderDetail> =>
       adminCommercialService.getOrderDetail(orderDetailId!) as any,
   );
+
+  // M5 §5.2 批量：仅 pending 订单可勾选；批量动作走 dry-run 预检 + 信封确认。
+  const orderRows = useMemo(() => data?.items ?? [], [data]);
+  const bulkEligibleIds = useMemo(
+    () => orderRows.filter(isBulkEligibleOrder).map((row: any) => row.id as string),
+    [orderRows],
+  );
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const effectiveSelectedIds = useMemo(
+    () => selectedOrderIds.filter((id) => bulkEligibleIds.includes(id)),
+    [selectedOrderIds, bulkEligibleIds],
+  );
+  const [bulkDryRun, setBulkDryRun] = useState<BulkOrderDryRun | null>(null);
+
+  const runBulkDryRun = async (orderIds: string[], action: 'bulkCancel' | 'bulkExpire') => {
+    const actionId = action === 'bulkCancel' ? 'order.bulkCancel' : 'order.bulkExpire';
+    const command = buildAdminDangerousActionEnvelope(actionId, { confirmed: true });
+    const preview =
+      action === 'bulkCancel'
+        ? await adminCommercialService.bulkCancelOrders(orderIds, command as any)
+        : await adminCommercialService.bulkExpireOrders(orderIds, command as any);
+    setBulkDryRun(preview);
+    return preview;
+  };
 
   const refresh = async () => mutate(swrKey);
 
@@ -177,13 +209,30 @@ const AdminOrdersPage = memo(() => {
                       }}
                     />
                   </div>
+                  {effectiveSelectedIds.length > 0 ? (
+                    <OrderBulkToolbar
+                      effectiveSelectedIds={effectiveSelectedIds}
+                      orderRows={orderRows as any}
+                      refresh={refresh}
+                      setBulkDryRun={setBulkDryRun}
+                      t={t as any}
+                      onClearSelection={() => setSelectedOrderIds([])}
+                      onDryRun={runBulkDryRun}
+                    />
+                  ) : null}
                 </AdminToolbar>
+                <BulkDryRunAlert
+                  dryRun={bulkDryRun}
+                  onDismiss={() => setBulkDryRun(null)}
+                  t={t as any}
+                />
                 <AdminResponsiveTable label={t('admin.orders.tableLabel', '订单数据表')}>
                   <InlineTable
                     columns={columns}
                     dataSource={data?.items ?? []}
                     loading={isLoading}
                     rowKey="id"
+                    rowSelection={orderRowSelection(effectiveSelectedIds, setSelectedOrderIds)}
                   />
                 </AdminResponsiveTable>
                 {(cursorStack.length > 1 || data?.nextCursor != null) && (

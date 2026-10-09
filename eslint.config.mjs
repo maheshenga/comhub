@@ -11,20 +11,9 @@ const baseRestrictedImportOptions = restrictedImports.rules['no-restricted-impor
 
 // Admin domain max-lines red line (blueprint §4.5 / milestone M2): every
 // non-test `.tsx` under src/features/Admin must stay under 300 lines. The
-// 38 legacy offenders are exempted as warnings via
-// eslint-admin-legacy-oversized.json — the list ONLY shrinks (M3 splits the
-// Admin-root pages, M5 the moduleApps/payments/DesktopControlCenter ones);
-// when it empties, delete the overrides block below.
-const adminOversizedExemption = (() => {
-  try {
-    return JSON.parse(
-      readFileSync(new URL('./eslint-admin-legacy-oversized.json', import.meta.url), 'utf8'),
-    );
-  } catch {
-    return { files: [] };
-  }
-})();
-const adminOversizedFiles = adminOversizedExemption.files.map((entry) => entry.path);
+// legacy exemption list (eslint-admin-legacy-oversized.json) was emptied by
+// M5 (all 17 remaining offenders split below the budget) and deleted along
+// with its overrides block.
 const adminMaxLinesOptions = { max: 300, skipBlankLines: false, skipComments: false };
 
 // Shared by every src/** no-restricted-imports block: flat config replaces a
@@ -590,18 +579,11 @@ export default eslint(
     },
   },
   // Admin domain max-lines red line (blueprint §4.5): error above 300 lines
-  // for every non-test tsx in src/features/Admin; the legacy exemption list
-  // downgrades exactly those 38 files to warnings. flat config matches the
-  // negated block first (warn), then the general block (error).
-  {
-    files: adminOversizedFiles,
-    rules: {
-      'max-lines': ['warn', adminMaxLinesOptions],
-    },
-  },
+  // for every non-test tsx in src/features/Admin. The legacy exemption list
+  // (which downgraded offenders to warnings) was emptied by M5 and deleted.
   {
     files: ['src/features/Admin/**/*.tsx'],
-    ignores: ['**/*.test.tsx', '**/*.stories.tsx', ...adminOversizedFiles],
+    ignores: ['**/*.test.tsx', '**/*.stories.tsx'],
     rules: {
       'max-lines': ['error', adminMaxLinesOptions],
     },

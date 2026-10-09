@@ -1,8 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, Input, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, Modal } from '@lobehub/ui/base-ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -17,48 +16,13 @@ import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { AdminModuleAppOutboundHostPurpose, AdminModuleAppPackageRow } from '../types';
 import { getPackageColumns } from './packageColumns';
-
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  controls: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  `,
-  hostList: css`
-    display: grid;
-    gap: 12px;
-  `,
-  hostRow: css`
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
-    gap: 12px;
-    align-items: center;
-
-    @media (width <= 640px) {
-      grid-template-columns: 1fr;
-    }
-  `,
-  hostName: css`
-    overflow-wrap: anywhere;
-  `,
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
-  `,
-  table: css`
-    border-collapse: collapse;
-    width: 100%;
-
-    th,
-    td {
-      padding-block: 10px;
-      padding-inline: 8px;
-      border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-      text-align: start;
-    }
-  `,
-}));
+import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
+import {
+  OutboundHostClassification,
+  RejectReasonField,
+  ReviewFilters,
+  ReviewRowActions,
+} from './reviewParts';
 
 type PackageListResponse = { items: AdminModuleAppPackageRow[]; nextCursor: null | string };
 type ReviewAction = 'approve' | 'reject' | 'rescan';
@@ -209,62 +173,15 @@ const ModuleReviewsPage = memo(() => {
         <h1>{t('moduleApps.admin.reviews.title')}</h1>
         <p>{t('moduleApps.admin.reviews.description')}</p>
       </header>
-      <div className={styles.controls}>
-        <label>
-          {t('moduleApps.admin.reviews.filters.reviewStatus')}
-          <Select
-            value={reviewStatus ?? ''}
-            options={[
-              { label: t('moduleApps.admin.reviews.filters.all'), value: '' },
-              {
-                label: t('moduleApps.admin.reviews.status.pendingReview'),
-                value: 'pending_review',
-              },
-              { label: t('moduleApps.admin.reviews.status.approved'), value: 'approved' },
-              { label: t('moduleApps.admin.reviews.status.rejected'), value: 'rejected' },
-            ]}
-            onChange={(value) => updateFilter('reviewStatus', String(value ?? ''))}
-          />
-        </label>
-        <label>
-          {t('moduleApps.admin.reviews.filters.buildStatus')}
-          <Select
-            value={buildStatus ?? ''}
-            options={[
-              { label: t('moduleApps.admin.reviews.filters.all'), value: '' },
-              { label: t('moduleApps.admin.reviews.buildStatus.queued'), value: 'queued' },
-              { label: t('moduleApps.admin.reviews.buildStatus.building'), value: 'building' },
-              { label: t('moduleApps.admin.reviews.buildStatus.ready'), value: 'ready' },
-              { label: t('moduleApps.admin.reviews.buildStatus.failed'), value: 'failed' },
-            ]}
-            onChange={(value) => updateFilter('buildStatus', String(value ?? ''))}
-          />
-        </label>
-        <label>
-          {t('moduleApps.admin.reviews.filters.appId')}
-          <Input
-            maxLength={36}
-            value={appId ?? ''}
-            onChange={(event) => updateFilter('appId', event.target.value)}
-          />
-        </label>
-        <label>
-          {t('moduleApps.admin.reviews.filters.publisherId')}
-          <Input
-            maxLength={36}
-            value={publisherId ?? ''}
-            onChange={(event) => updateFilter('publisherId', event.target.value)}
-          />
-        </label>
-        <label>
-          {t('moduleApps.admin.reviews.filters.submittedByUserId')}
-          <Input
-            maxLength={255}
-            value={submittedByUserId ?? ''}
-            onChange={(event) => updateFilter('submittedByUserId', event.target.value)}
-          />
-        </label>
-      </div>
+      <ReviewFilters
+        appId={appId}
+        buildStatus={buildStatus}
+        publisherId={publisherId}
+        reviewStatus={reviewStatus}
+        submittedByUserId={submittedByUserId}
+        onUpdateFilter={updateFilter}
+        t={t as any}
+      />
       <ModulePageState
         emptyKind={isFiltered ? 'filtered' : 'initial'}
         error={error}
@@ -303,27 +220,11 @@ const ModuleReviewsPage = memo(() => {
                   ))}
                   {canWrite ? (
                     <td>
-                      <div className={styles.controls}>
-                        <Button
-                          disabled={
-                            item.reviewStatus !== 'pending_review' || item.scanStatus !== 'clean'
-                          }
-                          onClick={() => openAction('approve', item)}
-                        >
-                          {t('moduleApps.admin.reviews.approve')}
-                        </Button>
-                        {item.reviewStatus === 'pending_review' && item.scanStatus !== 'clean' ? (
-                          <Button onClick={() => openAction('rescan', item)}>
-                            {t('moduleApps.admin.reviews.rescan')}
-                          </Button>
-                        ) : null}
-                        <Button
-                          disabled={item.reviewStatus !== 'pending_review'}
-                          onClick={() => openAction('reject', item)}
-                        >
-                          {t('moduleApps.admin.reviews.reject')}
-                        </Button>
-                      </div>
+                      <ReviewRowActions
+                        item={item}
+                        onOpen={(nextAction) => openAction(nextAction, item)}
+                        t={t as any}
+                      />
                     </td>
                   ) : null}
                 </tr>
@@ -370,55 +271,19 @@ const ModuleReviewsPage = memo(() => {
         >
           {actionComplete ? <p>{t('moduleApps.admin.reviews.actionSuccess')}</p> : null}
           {action === 'approve' && !actionComplete && outboundHosts.length > 0 ? (
-            <div className={styles.hostList}>
-              {outboundHosts.map((host) => (
-                <label className={styles.hostRow} key={host}>
-                  <span className={styles.hostName}>{host}</span>
-                  <Select
-                    aria-label={host}
-                    value={outboundHostPurposes[host] ?? ''}
-                    options={[
-                      {
-                        label: t('moduleApps.admin.reviews.outboundPurpose.unclassified'),
-                        value: '',
-                      },
-                      {
-                        label: t('moduleApps.admin.reviews.outboundPurpose.general'),
-                        value: 'general',
-                      },
-                      {
-                        label: t('moduleApps.admin.reviews.outboundPurpose.ai'),
-                        value: 'ai',
-                      },
-                      {
-                        label: t('moduleApps.admin.reviews.outboundPurpose.payment'),
-                        value: 'payment',
-                      },
-                    ]}
-                    onChange={(value) =>
-                      setOutboundHostPurposes((current) => ({
-                        ...current,
-                        [host]:
-                          value === 'ai' || value === 'general' || value === 'payment'
-                            ? value
-                            : undefined,
-                      }))
-                    }
-                  />
-                </label>
-              ))}
-            </div>
+            <OutboundHostClassification
+              outboundHosts={outboundHosts}
+              outboundHostPurposes={outboundHostPurposes}
+              setOutboundHostPurposes={setOutboundHostPurposes}
+              t={t as any}
+            />
           ) : null}
           {action === 'reject' && !actionComplete ? (
-            <label>
-              {t('moduleApps.admin.reviews.rejectReason')}
-              <TextArea
-                required
-                maxLength={1000}
-                value={rejectReason}
-                onChange={(event) => setRejectReason(event.target.value)}
-              />
-            </label>
+            <RejectReasonField
+              rejectReason={rejectReason}
+              setRejectReason={setRejectReason}
+              t={t as any}
+            />
           ) : null}
           {actionError ? <p role="alert">{actionError}</p> : null}
         </Modal>

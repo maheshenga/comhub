@@ -2,11 +2,10 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Select } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
-import { ArrowRight, ClipboardCheck, CreditCard, PackageCheck, Play } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { ClipboardCheck, CreditCard, PackageCheck, Play } from 'lucide-react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -19,97 +18,11 @@ import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
 import { setFilter } from '../shared/queryState';
 import type { AdminModuleAppItem, AdminModuleAppPackageRow, ModuleAppRunRow } from '../types';
-
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  band: css`
-    display: grid;
-    gap: 12px;
-
-    padding-block: 20px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-  `,
-  bandHeader: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: baseline;
-    justify-content: space-between;
-  `,
-  bandTitle: css`
-    display: flex;
-    gap: 8px;
-    align-items: center;
-
-    margin: 0;
-
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 24px;
-    color: ${cssVar.colorText};
-  `,
-  control: css`
-    display: grid;
-    gap: 6px;
-    max-width: 360px;
-
-    font-size: 13px;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  link: css`
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-
-    color: ${cssVar.colorTextSecondary};
-    text-decoration: none;
-
-    &:hover {
-      color: ${cssVar.colorText};
-    }
-  `,
-  list: css`
-    display: grid;
-    gap: 0;
-  `,
-  page: css`
-    display: grid;
-    gap: 4px;
-    max-width: 1180px;
-  `,
-  row: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 16px;
-    align-items: baseline;
-
-    min-height: 44px;
-    padding-block: 10px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-
-    &:last-child {
-      border-block-end: 0;
-    }
-  `,
-  rowLink: css`
-    flex: 1 1 220px;
-
-    min-width: 0;
-
-    overflow: hidden;
-
-    color: ${cssVar.colorText};
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-decoration: none;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  `,
-  secondary: css`
-    color: ${cssVar.colorTextSecondary};
-  `,
-}));
+import { ModuleOverviewBand, ModuleOverviewRow } from './moduleOverviewBand';
+import {
+  moduleOverviewStyles as styles,
+  statusTranslationKeys,
+} from './moduleOverviewShared';
 
 type ListResponse<T> = { items?: T[]; nextCursor?: null | string };
 
@@ -122,46 +35,6 @@ const appPath = (appId: string) =>
   MODULE_ADMIN_ROUTE_PATHS['module-app-overview'].replace(':appId', encodeURIComponent(appId));
 
 const paymentPath = `${MODULE_ADMIN_ROUTE_PATHS['module-payments']}?discrepancyStatus=open`;
-
-const statusTranslationKeys: Record<string, string> = {
-  denied: 'moduleApps.admin.center.overview.status.denied',
-  draft: 'moduleApps.admin.center.overview.status.draft',
-  failed: 'moduleApps.admin.center.overview.status.failed',
-  pending_review: 'moduleApps.admin.center.overview.status.pendingReview',
-  published: 'moduleApps.admin.center.overview.status.published',
-  queued: 'moduleApps.admin.center.overview.status.queued',
-  running: 'moduleApps.admin.center.overview.status.running',
-  succeeded: 'moduleApps.admin.center.overview.status.succeeded',
-  unpublished: 'moduleApps.admin.center.overview.status.unpublished',
-};
-
-const ModuleOverviewBand = ({
-  children,
-  icon,
-  link,
-  linkLabel,
-  title,
-}: {
-  children: ReactNode;
-  icon: ReactNode;
-  link: string;
-  linkLabel: string;
-  title: string;
-}) => (
-  <section className={styles.band}>
-    <div className={styles.bandHeader}>
-      <h2 className={styles.bandTitle}>
-        {icon}
-        {title}
-      </h2>
-      <Link className={styles.link} to={link}>
-        <span>{linkLabel}</span>
-        <ArrowRight aria-hidden size={14} />
-      </Link>
-    </div>
-    {children}
-  </section>
-);
 
 const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
   ({ canReadFinance: canReadFinanceOverride, canReadModules: canReadModulesOverride }) => {
@@ -256,23 +129,18 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
                 onRetry={() => packagesKey && mutate(packagesKey)}
               >
                 <div className={styles.list}>
-                  {packageItems.map((item) => {
-                    const displayName =
-                      item.manifestSnapshot?.app?.displayName ??
-                      item.manifestSnapshot?.app?.slug ??
-                      item.id;
-                    return (
-                      <div className={styles.row} key={item.id}>
-                        <Link
-                          className={styles.rowLink}
-                          to={MODULE_ADMIN_ROUTE_PATHS['module-reviews']}
-                        >
-                          {displayName}
-                        </Link>
-                        <span className={styles.secondary}>{statusLabel(item.reviewStatus)}</span>
-                      </div>
-                    );
-                  })}
+                  {packageItems.map((item) => (
+                    <ModuleOverviewRow
+                      key={item.id}
+                      label={
+                        item.manifestSnapshot?.app?.displayName ??
+                        item.manifestSnapshot?.app?.slug ??
+                        item.id
+                      }
+                      secondary={statusLabel(item.reviewStatus)}
+                      to={MODULE_ADMIN_ROUTE_PATHS['module-reviews']}
+                    />
+                  ))}
                 </div>
               </ModulePageState>
             </ModuleOverviewBand>
@@ -311,12 +179,12 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
               >
                 <div className={styles.list}>
                   {appItems.map((app) => (
-                    <div className={styles.row} key={app.id}>
-                      <Link className={styles.rowLink} to={appPath(app.id)}>
-                        {app.displayName}
-                      </Link>
-                      <span className={styles.secondary}>{statusLabel(app.status)}</span>
-                    </div>
+                    <ModuleOverviewRow
+                      key={app.id}
+                      label={app.displayName}
+                      secondary={statusLabel(app.status)}
+                      to={appPath(app.id)}
+                    />
                   ))}
                 </div>
               </ModulePageState>
@@ -342,15 +210,12 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
                 >
                   <div className={styles.list}>
                     {runItems.map((run) => (
-                      <div className={styles.row} key={run.id}>
-                        <Link
-                          className={styles.rowLink}
-                          to={`${MODULE_ADMIN_ROUTE_PATHS['module-runs']}?appId=${encodeURIComponent(selectedAppId)}`}
-                        >
-                          {run.id}
-                        </Link>
-                        <span className={styles.secondary}>{statusLabel(run.status)}</span>
-                      </div>
+                      <ModuleOverviewRow
+                        key={run.id}
+                        label={run.id}
+                        secondary={statusLabel(run.status)}
+                        to={`${MODULE_ADMIN_ROUTE_PATHS['module-runs']}?appId=${encodeURIComponent(selectedAppId)}`}
+                      />
                     ))}
                   </div>
                 </ModulePageState>
@@ -379,14 +244,12 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
             >
               <div className={styles.list}>
                 {paymentItems.map((payment) => (
-                  <div className={styles.row} key={payment.id}>
-                    <Link className={styles.rowLink} to={paymentPath}>
-                      {payment.appName} / {payment.orderId}
-                    </Link>
-                    <span className={styles.secondary}>
-                      {payment.totalAmount} {payment.currency}
-                    </span>
-                  </div>
+                  <ModuleOverviewRow
+                    key={payment.id}
+                    label={`${payment.appName} / ${payment.orderId}`}
+                    secondary={`${payment.totalAmount} ${payment.currency}`}
+                    to={paymentPath}
+                  />
                 ))}
               </div>
             </ModulePageState>

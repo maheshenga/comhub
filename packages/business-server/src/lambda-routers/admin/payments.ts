@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   type PaymentMethodId,
   paymentMethodIdSchema,
@@ -27,6 +29,7 @@ import { createPaymentAdapter } from '@/server/services/payments/factory';
 import { SubscriptionPaymentService } from '@/server/services/payments/subscriptionPayment';
 import { TopUpPaymentService } from '@/server/services/payments/topUpPayment';
 
+import { createAdminCommand } from './adminCommand';
 import { runRequiredAdminAuditExternalEffect } from './audit';
 
 const ONLINE_PAYMENT_PROVIDERS = ['alipay', 'wechat_pay', 'zpay'] as const;
@@ -40,6 +43,11 @@ const TopUpPaymentStatusSchema = z.enum([
 ]);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const bulkRefundCommand = createAdminCommand('payment.bulkRefund');
+
+type BulkRefundResult = { error?: string; ok: boolean; orderId: string };
+type AdminMutationContext = { clientIp?: null | string; userId: string };
+
 
 const ListTopUpPaymentsInputSchema = z
   .object({
@@ -95,11 +103,14 @@ const CreditSettlementPayloadSchema = z
   .strict();
 
 type OnlineTopUpOrder = {
+  amount: number | string;
+  currency: string;
   externalOrderId: null | string;
   id: string;
   idempotencyKey: null | string;
   metadata: null | Record<string, unknown>;
   provider: null | string;
+  refundStatus: 'failed' | 'pending' | 'succeeded' | null;
   status: string;
   userId: string;
 };
@@ -323,6 +334,158 @@ export const adminPaymentsRouter = router({
       });
 
       return { items, nextCursor: hasMore ? input.cursor + input.limit : null };
+    }),
+
+  // M5 §5.2 批量范式：单端点批量信封 + typed 确认（资金类删除级操作，
+  // reasonPolicy=required）+ dry-run 只读预检 + batchCorrelationId 贯通审计。
+  // 退款是外部支付渠道效应（非单事务），逐单走 runRequiredAdminAuditExternalEffect
+  // 并共享同一 batchCorrelationId；批级汇总审计先落一条。
+  bulkRefund: financeWriteProcedure
+    .input(
+      z.object({
+        command: bulkRefundCommand.schema,
+        dryRun: z.boolean().optional(),
+        orderIds: z.array(z.string().uuid()).min(1).max(50),
+        reason: z.string().trim().min(1).max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const command = bulkRefundCommand.validate(input.command, input.reason);
+      const batchCorrelationId = randomUUID();
+
+      if (input.dryRun) {
+        const orders: OnlineTopUpOrder[] = await ctx.serverDB.query.topUpOrders.findMany({
+          columns: {
+            amount: true,
+            currency: true,
+            externalOrderId: true,
+            id: true,
+            idempotencyKey: true,
+            refundStatus: true,
+            status: true,
+            userId: true,
+          },
+          where: inArray(topUpOrders.id, input.orderIds),
+        });
+        const byId = new Map(orders.map((order) => [order.id, order]));
+        const refundable = (order: (typeof orders)[number]) =>
+          order.status === 'paid' && Boolean(order.externalOrderId) && order.refundStatus !== 'succeeded';
+
+        return {
+          batchCorrelationId: null,
+          dryRun: true,
+          results: input.orderIds.map((orderId) => {
+            const order = byId.get(orderId);
+            if (!order) {
+              return { error: 'TOP_UP_ORDER_NOT_FOUND', ok: false, orderId, preview: null };
+            }
+            const refundableNow = refundable(order);
+            return {
+              error: refundableNow ? null : 'TOP_UP_ORDER_NOT_REFUNDABLE',
+              ok: refundableNow,
+              orderId,
+              preview: {
+                amount: Number(order.amount),
+                currency: order.currency,
+                refundStatus: order.refundStatus,
+                status: order.status,
+              },
+            };
+          }),
+          total: input.orderIds.length,
+          matched: orders.length,
+          refundable: orders.filter(refundable).length,
+          unmatchedOrderIds: input.orderIds.filter((id) => !byId.has(id)),
+        };
+      }
+
+      const orders: OnlineTopUpOrder[] = await ctx.serverDB.query.topUpOrders.findMany({
+        columns: {
+          amount: true,
+          currency: true,
+          externalOrderId: true,
+          id: true,
+          idempotencyKey: true,
+          metadata: true,
+          provider: true,
+          refundStatus: true,
+          status: true,
+          userId: true,
+        },
+        where: inArray(topUpOrders.id, input.orderIds),
+      });
+      const ordersById = new Map(orders.map((order) => [order.id, order]));
+      const missing = input.orderIds.filter((orderId) => !ordersById.has(orderId));
+      if (missing.length > 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'TOP_UP_ORDER_NOT_FOUND' });
+      }
+      // 预解析全部在线支付合法性（BAD_REQUEST 早于任何效应发起）。
+      const validatedByOrder = new Map(
+        input.orderIds.map((orderId) => {
+          const order = ordersById.get(orderId)!;
+          const validated = (() => {
+            try {
+              return { ok: true as const, value: parseOnlineTopUpOrder(order) };
+            } catch (error) {
+              return { error, ok: false as const };
+            }
+          })();
+          return [orderId, validated] as const;
+        }),
+      );
+      for (const [orderId, validated] of validatedByOrder) {
+        if (!validated.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `TOP_UP_PAYMENT_ORDER_INVALID: ${orderId}`,
+          });
+        }
+      }
+
+      const service = await createTopUpPaymentService(ctx.serverDB);
+      const results: BulkRefundResult[] = [];
+      for (const orderId of input.orderIds) {
+        const order = ordersById.get(orderId)!;
+        try {
+          const outcome = await runRequiredAdminAuditExternalEffect(ctx, {
+            audit: (status, result) => ({
+              action: command.auditAction,
+              payload: {
+                batchCorrelationId,
+                debtAmount: result && 'debtAmount' in result ? result.debtAmount : 0,
+                provider: order.provider,
+                reason: command.reason,
+                resultStatus: result?.status ?? order.status,
+                terminalStatus: status,
+              },
+              resourceId: order.id,
+              resourceType: 'topUpPayment',
+              targetUserId: order.userId,
+            }),
+            correlationId: randomUUID(),
+            effect: () =>
+              service.refundOrder({
+                orderId: order.id,
+                reason: command.reason!,
+                userId: order.userId,
+              }),
+          });
+          results.push({ ok: true, orderId });
+          void outcome;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'UNKNOWN';
+          results.push({ error: message, ok: false, orderId });
+        }
+      }
+
+      return {
+        batchCorrelationId,
+        dryRun: false,
+        results,
+        succeeded: results.filter((result) => result.ok).length,
+        failed: results.filter((result) => !result.ok).length,
+        total: results.length,
+      };
     }),
 
   refundTopUpPayment: financeWriteProcedure

@@ -11,6 +11,7 @@ import { Avatar, Flexbox } from '@lobehub/ui';
 import { Button, Modal, Select } from '@lobehub/ui/base-ui';
 import { Empty, Input, InputNumber, message, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type * as React from 'react';
 import { createStaticStyles } from 'antd-style';
 import { Download } from 'lucide-react';
 import { memo, useState } from 'react';
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import {
+  AdminBulkActionFlow,
   AdminDangerousActionButton,
   AdminPageShell,
   AdminResponsiveTable,
@@ -132,6 +134,13 @@ const AdminUsersPage = memo(() => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [roleDrafts, setRoleDrafts] = useState<Record<string, AssignableRole>>({});
+  // M5 §5.2 批量：勾选 + 批量封禁/改角色（typed 确认），支持跨页累加。
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkRole, setBulkRole] = useState<AssignableRole | null>(null);
+  const onClearSelection = () => {
+    setSelectedUserIds([]);
+    setBulkRole(null);
+  };
 
   const swrKey = ['admin-users', query, planFilter ?? '', subscriptionStartedOrder ?? '', cursor];
   const { data: plansData } = useClientDataSWR(
@@ -582,6 +591,86 @@ const AdminUsersPage = memo(() => {
               }}
             />
           </div>
+          {selectedUserIds.length > 0 && canManageSupport ? (
+            <Flexbox horizontal gap={8}>
+              <AdminBulkActionFlow
+                actionId="user.bulkBan"
+                count={selectedUserIds.length}
+                danger
+                size="small"
+                confirmTitle={t('admin.users.bulkBanTitle', '批量封禁 {{count}} 个用户？', {
+                  count: selectedUserIds.length,
+                })}
+                confirmDescription={t(
+                  'admin.users.bulkBanDescription',
+                  '将选中的用户标记为封禁状态，同批次同事务逐条审计（batchCorrelationId 可在审计页聚合检索）。',
+                )}
+                onRun={async (command) =>
+                  adminCommercialService.bulkBanUsers(selectedUserIds, command)
+                }
+                onSuccess={async () => {
+                  onClearSelection();
+                  await invalidate();
+                }}
+                summary={(result: any) => ({
+                  failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
+                  requested: result?.total,
+                  succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
+                })}
+              >
+                {t('admin.users.bulkBan', '批量封禁')}
+              </AdminBulkActionFlow>
+              {canSetRoles ? (
+                <>
+                  <Select
+                    allowClear
+                    className={styles.filter}
+                    placeholder={t('admin.users.bulkRolePlaceholder', '选择目标角色')}
+                    value={bulkRole ?? undefined}
+                    options={roleOptions.filter((option) => option.value !== '__none__')}
+                    onChange={(value: AssignableRole) => setBulkRole(value ?? null)}
+                  />
+                  <AdminBulkActionFlow
+                    actionId="user.bulkSetRole"
+                    count={bulkRole && selectedUserIds.length ? selectedUserIds.length : 0}
+                    size="small"
+                    confirmTitle={t(
+                      'admin.users.bulkSetRoleTitle',
+                      '批量调整 {{count}} 个用户角色为 {{role}}？',
+                      { count: selectedUserIds.length, role: bulkRole ?? '' },
+                    )}
+                    confirmDescription={t(
+                      'admin.users.bulkSetRoleDescription',
+                      '将选中的用户角色统一变更为所选目标角色。此为 typed 确认命令，需要输入命令 ID。',
+                    )}
+                    onRun={async (command) =>
+                      adminCommercialService.bulkSetUserRole(
+                        {
+                          role: (bulkRole === '__none__' ? null : (bulkRole ?? 'user')) as any,
+                          userIds: selectedUserIds,
+                        },
+                        command,
+                      )
+                    }
+                    onSuccess={async () => {
+                      onClearSelection();
+                      await invalidate();
+                    }}
+                    summary={(result: any) => ({
+                      failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
+                      requested: result?.total,
+                      succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
+                    })}
+                  >
+                    {t('admin.users.bulkSetRole', '批量改角色')}
+                  </AdminBulkActionFlow>
+                </>
+              ) : null}
+              <Button size="small" onClick={onClearSelection}>
+                {t('admin.users.clearSelection', '清空选择')}
+              </Button>
+            </Flexbox>
+          ) : null}
           <Button
             disabled={exporting}
             loading={exporting}
@@ -658,6 +747,13 @@ const AdminUsersPage = memo(() => {
               loading={isLoading && cursor === 0}
               locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
               rowKey="id"
+              rowSelection={{
+                getCheckboxProps: (row: any) => ({
+                  disabled: !canManageSupport || row.id === undefined,
+                }),
+                onChange: (keys: React.Key[]) => setSelectedUserIds(keys.map(String)),
+                selectedRowKeys: selectedUserIds,
+              }}
             />
           </AdminResponsiveTable>
         )}

@@ -41,6 +41,7 @@ type AdminModelApiProviderType =
 type AdminAuditQueryParams = {
   action?: string;
   actorUserId?: string;
+  batchCorrelationId?: string;
   from?: Date | string;
   resourceId?: string;
   resourceType?: string;
@@ -186,11 +187,23 @@ class AdminCommercialService {
     return lambdaClient.admin.users.unban.mutate({ userId });
   };
 
+  bulkBanUsers = async (
+    userIds: string[],
+    command: AdminCommandEnvelope<'user.bulkBan'>,
+  ) => lambdaClient.admin.users.bulkBan.mutate({ command, userIds });
+
   setUserRole = async (
     params: { role: AdminRole | 'user' | null; userId: string },
     command: AdminCommandEnvelope<'user.setRole'>,
   ) => {
     return lambdaClient.admin.users.setRole.mutate({ ...params, command });
+  };
+
+  bulkSetUserRole = async (
+    params: { role: AdminRole | 'user' | null; userIds: string[] },
+    command: AdminCommandEnvelope<'user.bulkSetRole'>,
+  ) => {
+    return lambdaClient.admin.users.bulkSetRole.mutate({ ...params, command });
   };
 
   // Credits
@@ -700,6 +713,16 @@ class AdminCommercialService {
   expireOrder = async (orderId: string, command: AdminCommandEnvelope<'order.expire'>) =>
     lambdaClient.admin.orders.expire.mutate({ command, orderId });
 
+  bulkCancelOrders = async (
+    orderIds: string[],
+    command: AdminCommandEnvelope<'order.bulkCancel'>,
+  ) => lambdaClient.admin.orders.bulkCancel.mutate({ command, orderIds });
+
+  bulkExpireOrders = async (
+    orderIds: string[],
+    command: AdminCommandEnvelope<'order.bulkExpire'>,
+  ) => lambdaClient.admin.orders.bulkExpire.mutate({ command, orderIds });
+
   getOrderDetail = async (orderId: string) =>
     lambdaClient.admin.orders.getDetail.query({ orderId });
 
@@ -735,6 +758,11 @@ class AdminCommercialService {
 
   refundTopUpPayment = async (input: { orderId: string; reason: string }) =>
     lambdaClient.admin.payments.refundTopUpPayment.mutate(input);
+
+  bulkRefundTopUpPayments = async (
+    orderIds: string[],
+    command: AdminCommandEnvelope<'payment.bulkRefund'>,
+  ) => lambdaClient.admin.payments.bulkRefund.mutate({ command, orderIds });
 
   resolveTopUpPaymentRefund = async (input: {
     note: string;

@@ -1,7 +1,6 @@
 'use client';
 
 import { Button, Switch, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
 import { RotateCcw, Save } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,114 +12,11 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import type { ModuleAppRuntimeSettingsData } from '../../types';
-
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  actions: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  `,
-  description: css`
-    margin: 0;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  field: css`
-    display: grid;
-    gap: 6px;
-    min-width: 0;
-  `,
-  fieldGrid: css`
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-  `,
-  input: css`
-    width: 100%;
-    min-width: 0;
-    height: 36px;
-    padding-inline: 10px;
-    border: 1px solid ${cssVar.colorBorder};
-    border-radius: 6px;
-
-    color: ${cssVar.colorText};
-
-    background: ${cssVar.colorBgContainer};
-    outline: none;
-
-    &:focus-visible {
-      border-color: ${cssVar.colorPrimary};
-      box-shadow: 0 0 0 2px ${cssVar.colorPrimaryBg};
-    }
-
-    &:disabled {
-      cursor: not-allowed;
-      color: ${cssVar.colorTextDisabled};
-      background: ${cssVar.colorBgContainerDisabled};
-    }
-  `,
-  label: css`
-    font-size: 13px;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  notice: css`
-    margin: 0;
-    padding-block: 10px;
-    padding-inline: 12px;
-    border-inline-start: 3px solid ${cssVar.colorWarning};
-
-    color: ${cssVar.colorText};
-
-    background: ${cssVar.colorWarningBg};
-  `,
-  panel: css`
-    display: grid;
-    gap: 18px;
-  `,
-  secretHint: css`
-    font-size: 12px;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  switchGrid: css`
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 0 20px;
-  `,
-  switchRow: css`
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 16px;
-    align-items: center;
-
-    min-height: 64px;
-    padding-block: 10px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-  `,
-  switchText: css`
-    display: grid;
-    gap: 3px;
-
-    strong {
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    span {
-      font-size: 12px;
-      color: ${cssVar.colorTextSecondary};
-    }
-  `,
-}));
-
-type RuntimeSettingsForm = {
-  executionEnabled: boolean;
-  internalToken: string;
-  internalUrl: string;
-  invocationEnabled: boolean;
-  publicExecutionEnabled: boolean;
-  publicOrigin: string;
-  scheduleDispatchEnabled: boolean;
-  workflowPrivilegedExecutorsEnabled: boolean;
-};
+import {
+  buildRuntimeSettingUpdates,
+  runtimeSettingsStyles as styles,
+  type RuntimeSettingsForm,
+} from './runtimeSettingsShared';
 
 const buildFormValues = (settings: ModuleAppRuntimeSettingsData): RuntimeSettingsForm => ({
   executionEnabled: settings.requestedSwitches.executionEnabled,
@@ -154,6 +50,18 @@ const SwitchRow = ({
     <Switch aria-label={label} checked={checked} disabled={disabled} onChange={onChange} />
   </label>
 );
+
+const RUNTIME_ERROR_KEYS = [
+  'MODULE_APP_PUBLIC_EXECUTION_REQUIRES_EXECUTION',
+  'MODULE_APP_PUBLIC_EXECUTION_CONFIG_REQUIRED',
+  'MODULE_APP_RUNTIME_INVOCATION_REQUIRES_EXECUTION',
+  'MODULE_APP_RUNTIME_INVOCATION_CONFIG_REQUIRED',
+  'MODULE_APP_RUNTIME_CONFIG_SOURCE_MISMATCH',
+  'MODULE_APP_RUNTIME_AUTH_FAILED',
+  'MODULE_APP_RUNTIME_NOT_READY',
+  'MODULE_APP_SCHEDULE_DISPATCH_REQUIRES_EXECUTION',
+  'MODULE_APP_WORKFLOW_EXECUTORS_REQUIRE_EXECUTION',
+];
 
 const ModuleAppRuntimeSettings = memo<{
   canWrite?: boolean;
@@ -204,36 +112,9 @@ const ModuleAppRuntimeSettings = memo<{
     if (!canWrite) return;
     setSubmitting(true);
     try {
-      const updates = [
-        { key: APP_SETTING_KEYS.moduleAppExecutionEnabled, value: values.executionEnabled },
-        {
-          key: APP_SETTING_KEYS.moduleAppPublicExecutionEnabled,
-          value: values.publicExecutionEnabled,
-        },
-        {
-          key: APP_SETTING_KEYS.moduleAppRuntimeInvocationEnabled,
-          value: values.invocationEnabled,
-        },
-        {
-          key: APP_SETTING_KEYS.moduleAppScheduleDispatchEnabled,
-          value: values.scheduleDispatchEnabled,
-        },
-        {
-          key: APP_SETTING_KEYS.moduleAppWorkflowPrivilegedExecutorsEnabled,
-          value: values.workflowPrivilegedExecutorsEnabled,
-        },
-        { key: APP_SETTING_KEYS.moduleAppRuntimeInternalUrl, value: values.internalUrl },
-        { key: APP_SETTING_KEYS.moduleAppRuntimePublicOrigin, value: values.publicOrigin },
-        ...(values.internalToken.trim()
-          ? [
-              {
-                key: APP_SETTING_KEYS.moduleAppRuntimeInternalToken,
-                value: values.internalToken,
-              },
-            ]
-          : []),
-      ];
-      await adminCommercialService.setModuleAppRuntimeSettings({ updates });
+      await adminCommercialService.setModuleAppRuntimeSettings({
+        updates: buildRuntimeSettingUpdates(values, APP_SETTING_KEYS),
+      });
       await Promise.all([
         mutate(ADMIN_SETTINGS_SECTION_SWR_KEY('module-runtime')),
         mutate(moduleAppCacheKeys.runtimeDiagnostics()),
@@ -243,26 +124,20 @@ const ModuleAppRuntimeSettings = memo<{
       setValues(nextValues);
       toast.success(t('moduleApps.admin.runtime.settings.saved'));
     } catch (error) {
-      const messageKey =
-        error instanceof Error &&
-        [
-          'MODULE_APP_PUBLIC_EXECUTION_REQUIRES_EXECUTION',
-          'MODULE_APP_PUBLIC_EXECUTION_CONFIG_REQUIRED',
-          'MODULE_APP_RUNTIME_INVOCATION_REQUIRES_EXECUTION',
-          'MODULE_APP_RUNTIME_INVOCATION_CONFIG_REQUIRED',
-          'MODULE_APP_RUNTIME_CONFIG_SOURCE_MISMATCH',
-          'MODULE_APP_RUNTIME_AUTH_FAILED',
-          'MODULE_APP_RUNTIME_NOT_READY',
-          'MODULE_APP_SCHEDULE_DISPATCH_REQUIRES_EXECUTION',
-          'MODULE_APP_WORKFLOW_EXECUTORS_REQUIRE_EXECUTION',
-        ].includes(error.message)
-          ? `moduleApps.admin.runtime.settings.errors.${error.message}`
-          : 'moduleApps.admin.runtime.settings.saveFailed';
-      toast.error(t(messageKey));
+      const known = error instanceof Error && RUNTIME_ERROR_KEYS.includes(error.message);
+      toast.error(
+        t(
+          known
+            ? `moduleApps.admin.runtime.settings.errors.${(error as Error).message}`
+            : 'moduleApps.admin.runtime.settings.saveFailed',
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
   };
+
+  const fieldDisabled = submitting || !canWrite;
 
   return (
     <div className={styles.panel} data-testid="module-runtime-settings">
@@ -283,7 +158,7 @@ const ModuleAppRuntimeSettings = memo<{
           <span className={styles.label}>{t('moduleApps.admin.runtime.settings.internalUrl')}</span>
           <input
             className={styles.input}
-            disabled={submitting || !canWrite}
+            disabled={fieldDisabled}
             type="url"
             value={values.internalUrl}
             onChange={(event) => setValue('internalUrl', event.target.value)}
@@ -295,7 +170,7 @@ const ModuleAppRuntimeSettings = memo<{
           </span>
           <input
             className={styles.input}
-            disabled={submitting || !canWrite}
+            disabled={fieldDisabled}
             type="url"
             value={values.publicOrigin}
             onChange={(event) => setValue('publicOrigin', event.target.value)}
@@ -308,7 +183,7 @@ const ModuleAppRuntimeSettings = memo<{
           <input
             autoComplete="new-password"
             className={styles.input}
-            disabled={submitting || !canWrite}
+            disabled={fieldDisabled}
             placeholder={settings.internalTokenMasked ?? undefined}
             type="password"
             value={values.internalToken}
@@ -327,7 +202,7 @@ const ModuleAppRuntimeSettings = memo<{
         <SwitchRow
           checked={values.executionEnabled}
           description={t('moduleApps.admin.runtime.settings.executionDescription')}
-          disabled={submitting || !canWrite}
+          disabled={fieldDisabled}
           label={t('moduleApps.admin.runtime.settings.execution')}
           onChange={setExecutionEnabled}
         />
@@ -336,8 +211,7 @@ const ModuleAppRuntimeSettings = memo<{
           description={t('moduleApps.admin.runtime.settings.publicExecutionDescription')}
           label={t('moduleApps.admin.runtime.settings.publicExecution')}
           disabled={
-            submitting ||
-            !canWrite ||
+            fieldDisabled ||
             (!values.publicExecutionEnabled && (!values.executionEnabled || !publicConnectionReady))
           }
           onChange={(checked) => setValue('publicExecutionEnabled', checked)}
@@ -347,8 +221,7 @@ const ModuleAppRuntimeSettings = memo<{
           description={t('moduleApps.admin.runtime.settings.invocationDescription')}
           label={t('moduleApps.admin.runtime.settings.invocation')}
           disabled={
-            submitting ||
-            !canWrite ||
+            fieldDisabled ||
             (!values.invocationEnabled && (!values.executionEnabled || !internalConnectionReady))
           }
           onChange={(checked) => setValue('invocationEnabled', checked)}
@@ -357,9 +230,7 @@ const ModuleAppRuntimeSettings = memo<{
           checked={values.scheduleDispatchEnabled}
           description={t('moduleApps.admin.runtime.settings.scheduleDescription')}
           label={t('moduleApps.admin.runtime.settings.schedule')}
-          disabled={
-            submitting || !canWrite || (!values.scheduleDispatchEnabled && !values.executionEnabled)
-          }
+          disabled={fieldDisabled || (!values.scheduleDispatchEnabled && !values.executionEnabled)}
           onChange={(checked) => setValue('scheduleDispatchEnabled', checked)}
         />
         <SwitchRow
@@ -367,9 +238,7 @@ const ModuleAppRuntimeSettings = memo<{
           description={t('moduleApps.admin.runtime.settings.workflowDescription')}
           label={t('moduleApps.admin.runtime.settings.workflow')}
           disabled={
-            submitting ||
-            !canWrite ||
-            (!values.workflowPrivilegedExecutorsEnabled && !values.executionEnabled)
+            fieldDisabled || (!values.workflowPrivilegedExecutorsEnabled && !values.executionEnabled)
           }
           onChange={(checked) => setValue('workflowPrivilegedExecutorsEnabled', checked)}
         />
