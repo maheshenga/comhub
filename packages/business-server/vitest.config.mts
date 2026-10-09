@@ -41,6 +41,10 @@ export default defineConfig({
         __dirname,
         '../../apps/server/src/services/moduleAppPackage',
       ),
+      '@/server/services/moduleAppArtifactCleanup': path.resolve(
+        __dirname,
+        '../../apps/server/src/services/moduleAppArtifactCleanup',
+      ),
       '@/server/services/moduleAppRuntime': path.resolve(
         __dirname,
         '../../apps/server/src/services/moduleAppRuntime',

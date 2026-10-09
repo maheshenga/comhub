@@ -258,6 +258,11 @@ const MODULES = [
         'upstream',
         'artifact upload incl. renderer mainhash',
       ],
+      [
+        'p:src/app/(backend)/api/admin/secretAuth.ts',
+        'owned',
+        'fork-new: shared timingSafeEqual bearer-secret util for the admin machine channels (maintenance + desktop-release); single seam for M4 §6.5 secret-check convergence',
+      ],
       ['p:src/app/(backend)/api/admin/desktop-release/', 'owned', 'callback + profile API routes'],
       ['p:src/app/(backend)/api/admin/maintenance/', 'owned', 'admin maintenance route'],
       ['p:src/app/(backend)/api/webhooks/', 'owned', 'payment/module-app webhook routes'],
@@ -384,9 +389,14 @@ const MODULES = [
         'fork-new: appSettings definition face (metadata, valueDefinitions, runtimeConsumers key-evidence + sourcePath contracts) — admin console service surface maintained for the admin-console redesign',
       ],
       [
+        'p:packages/business-server/src/lambda-routers/admin/',
+        'owned',
+        'fork-new: business-server admin tRPC routers (parity, audit transactions, desktop commands, moduleApps) — admin console service surface maintained for the admin-console redesign (M4 server-contract milestone)',
+      ],
+      [
         'p:packages/business-server/src/',
         'upstream',
-        'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares; conservative over-cover: also claims fork-new files (appSettings/ residual — writers/adminProcedures.ts + moduleRuntimeValidation.ts + definitions/ precisely claimed above; lambda-routers/admin/, module-apps/, adminImpact/, desktopBuild/, subscriptionMaintenance, adminNewapiPricing, __tests__)',
+        'model-runtime.ts, image/video-generation charge helpers, lambda routers (accountDeletion/file/referral/spend/subscription), user.ts, trpc-middlewares; conservative over-cover: also claims fork-new files (appSettings/ residual — writers/adminProcedures.ts + moduleRuntimeValidation.ts + definitions/ precisely claimed above; lambda-routers/admin/ precisely claimed above; module-apps/, adminImpact/, desktopBuild/, subscriptionMaintenance, adminNewapiPricing, __tests__)',
       ],
       [
         'p:packages/business/',

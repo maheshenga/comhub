@@ -1,11 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
-
 import { eq } from 'drizzle-orm';
 
 import { appSettings } from '@/database/schemas';
 import { type getServerDB } from '@/database/server';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
+
+import { timingSafeBearerEqual } from '../secretAuth';
 
 const readStringSetting = async (db: Awaited<ReturnType<typeof getServerDB>>, key: string) => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
@@ -35,10 +35,11 @@ export const resolveDesktopReleaseToken = async (
   return typeof decryptedSecret === 'string' ? decryptedSecret : (process.env.CRON_SECRET ?? null);
 };
 
-export const isDesktopReleaseAuthorized = (token: string, expected: string) => {
-  const actual = Buffer.from(token);
-  const expectedBuffer = Buffer.from(expected);
-  if (actual.byteLength !== expectedBuffer.byteLength) return false;
-
-  return timingSafeEqual(actual, expectedBuffer);
-};
+/**
+ * Constant-time bearer comparison shared with the maintenance channel
+ * (`../secretAuth.ts`); the desktop release endpoints keep only this seam
+ * because token resolution here has DESKTOP_RELEASE_TOKEN precedence and may
+ * never touch the database cron secret.
+ */
+export const isDesktopReleaseAuthorized = (token: string, expected: string) =>
+  timingSafeBearerEqual(token, expected);

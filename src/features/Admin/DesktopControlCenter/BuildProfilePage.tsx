@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminDangerousActionButton from '../AdminDangerousActionButton';
+import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
 import BuildProfileEditor from './BuildProfileEditor';
 import {
   buildProfileFormFromProfile,
@@ -177,6 +179,9 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       try {
         await adminCommercialService.saveBuildProfileDraft({
           assets,
+          command: buildAdminDangerousActionEnvelope('desktop.buildProfile.saveDraft', {
+            confirmed: true,
+          }),
           ...(isLocalProfile ? { createIfMissing: true } : {}),
           expectedRevision: baseRevision,
           name: payload.applicationName,
@@ -213,10 +218,13 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       }
     };
 
-    const performArchiveProfile = async () => {
+    const performArchiveProfile = async (
+      envelope: ReturnType<typeof buildAdminDangerousActionEnvelope<'desktop.buildProfile.archive'>>,
+    ) => {
+      if (!selectedProfile) return;
       setArchiving(true);
       try {
-        await adminCommercialService.archiveBuildProfile(selectedProfile.id);
+        await adminCommercialService.archiveBuildProfile(selectedProfile.id, envelope);
         dirtyRef.current = false;
         setDirty(false);
         setSelectedProfileId(undefined);
@@ -227,16 +235,6 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       } finally {
         setArchiving(false);
       }
-    };
-
-    const archiveProfile = () => {
-      confirmModal({
-        cancelText: t('admin.desktopBuild.profile.archiveCancel'),
-        content: t('admin.desktopBuild.profile.archiveDescription', { name: selectedProfile.name }),
-        okText: t('admin.desktopBuild.profile.archive'),
-        onOk: performArchiveProfile,
-        title: t('admin.desktopBuild.profile.archiveTitle'),
-      });
     };
 
     return (
@@ -266,9 +264,14 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
               onChange={(profileId) => void handleSelectProfile(profileId)}
             />
             {!isLocalProfile ? (
-              <Button loading={archiving} onClick={() => void archiveProfile()}>
+              <AdminDangerousActionButton
+                actionId="desktop.buildProfile.archive"
+                danger
+                loading={archiving}
+                onConfirm={(envelope) => performArchiveProfile(envelope)}
+              >
                 {t('admin.desktopBuild.profile.archive')}
-              </Button>
+              </AdminDangerousActionButton>
             ) : null}
           </div>
         </div>
@@ -290,9 +293,14 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
           }}
         />
         <div className={desktopControlCenterStyles.formActions}>
-          <Button disabled={!canSaveDraft} loading={saving} onClick={() => void handleSaveDraft()}>
+          <AdminDangerousActionButton
+            actionId="desktop.buildProfile.saveDraft"
+            disabled={!canSaveDraft}
+            loading={saving}
+            onConfirm={() => handleSaveDraft()}
+          >
             {t('admin.desktopBuild.saveDraft')}
-          </Button>
+          </AdminDangerousActionButton>
           <Button disabled={!canCreateBuild} type="primary" onClick={() => setReleaseOpen(true)}>
             {t('admin.desktopBuild.createBuild')}
           </Button>

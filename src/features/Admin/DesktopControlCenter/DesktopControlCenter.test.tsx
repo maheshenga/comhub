@@ -1,3 +1,4 @@
+import type { AdminCommandId } from '@lobechat/types';
 import { ConfigProvider } from '@lobehub/ui';
 import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -17,6 +18,29 @@ import type { DesktopReleaseHistoryItem } from './DesktopBuildHistory';
 import DesktopControlCenter from './index';
 
 const confirmModalMock = vi.hoisted(() => vi.fn());
+// Stand-ins for the real exports (the rest of the mock below replaces the
+// whole module). AdminSettingsConflictAlert does `instanceof
+// AdminSettingsRevisionConflictError` on every render with an error, so the
+// factory must expose it or vitest throws "No export is defined on the mock".
+const AdminSettingsRevisionConflictErrorMock = vi.hoisted(
+  () =>
+    class AdminSettingsRevisionConflictError extends Error {
+      details: Record<string, unknown>;
+      constructor(details: Record<string, unknown>) {
+        super('APP_SETTINGS_REVISION_CONFLICT');
+        this.name = 'AdminSettingsRevisionConflictError';
+        this.details = details;
+      }
+    },
+);
+const getAdminSettingsSaveErrorDetailsMock = vi.hoisted(
+  () =>
+    (error: unknown): { code?: string; correlationId?: string; isConflict: boolean } => ({
+      isConflict: String((error as Error | undefined)?.message ?? '').includes(
+        'APP_SETTINGS_REVISION_CONFLICT',
+      ),
+    }),
+);
 const routeBlocker = vi.hoisted(() => ({
   proceed: vi.fn(),
   reset: vi.fn(),
@@ -42,7 +66,42 @@ vi.mock('@/libs/swr', () => ({
   useClientDataSWR: vi.fn(),
 }));
 
+// The desktop confirm buttons ride the shared AdminDangerousActionButton
+// (antd Popconfirm in jsdom). Mock it to forward the actionId-derived
+// envelope on click so the suite asserts the service contract directly.
+vi.mock('../AdminDangerousActionButton', () => ({
+  default: ({
+    children,
+    disabled,
+    loading,
+    onConfirm,
+    actionId,
+  }: {
+    actionId: AdminCommandId;
+    children?: React.ReactNode;
+    disabled?: boolean;
+    loading?: boolean;
+    onConfirm: (envelope: { actionId: AdminCommandId; confirmed: true }) => Promise<void> | void;
+  }) => (
+    <button
+      data-loading={loading ? 'true' : undefined}
+      disabled={disabled}
+      onClick={() => {
+        // Mirror the real antd Popconfirm/Modal behaviour: the component's
+        // onConfirm chain rethrows service errors after surfacing
+        // `message.error`, and antd swallows the rejection internally. If the
+        // mock drops the promise instead, the rethrow escapes as an unhandled
+        // rejection that fails the whole suite from a later worker.
+        Promise.resolve(onConfirm({ actionId, confirmed: true })).catch(() => undefined);
+      }}
+    >
+      {children}
+    </button>
+  ),
+}));
+
 vi.mock('@/services/adminCommercial', () => ({
+  AdminSettingsRevisionConflictError: AdminSettingsRevisionConflictErrorMock,
   adminCommercialService: {
     activateDesktopRelease: vi.fn(),
     archiveBuildProfile: vi.fn(),
@@ -59,6 +118,7 @@ vi.mock('@/services/adminCommercial', () => ({
     saveBuildProfileDraft: vi.fn(),
     setAppSettingsBatch: vi.fn(),
   },
+  getAdminSettingsSaveErrorDetails: getAdminSettingsSaveErrorDetailsMock,
 }));
 
 const availableArtifact = (type: 'linux' | 'mac-arm' | 'mac-intel' | 'windows') => ({
@@ -629,6 +689,7 @@ describe('DesktopControlCenter', () => {
     await waitFor(() => {
       expect(adminCommercialService.reconcileDesktopRelease).toHaveBeenCalledWith(
         '44444444-4444-4444-8444-444444444444',
+        { actionId: 'desktop.release.reconcile', confirmed: true },
       );
     });
     expect(releasesMutate).toHaveBeenCalledTimes(1);
@@ -648,12 +709,10 @@ describe('DesktopControlCenter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.retry' }));
 
-    expect(confirmModalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'admin.desktopBuild.history.retryConfirmTitle' }),
-    );
     await waitFor(() => {
       expect(adminCommercialService.retryDesktopRelease).toHaveBeenCalledWith(
         '44444444-4444-4444-8444-444444444444',
+        { actionId: 'desktop.release.retry', confirmed: true },
       );
     });
     expect(releasesMutate).toHaveBeenCalledTimes(1);
@@ -663,9 +722,6 @@ describe('DesktopControlCenter', () => {
     vi.mocked(adminCommercialService.retryDesktopRelease).mockRejectedValueOnce(
       new Error('GitHub rerun delivery is unknown.'),
     );
-    confirmModalMock.mockImplementationOnce(({ onOk }) => {
-      void onOk?.().catch(() => undefined);
-    });
     renderControlCenter({
       releaseData: [{ ...releaseData[0], status: 'failed' }],
       search: 'tab=build-profile',
@@ -733,12 +789,10 @@ describe('DesktopControlCenter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.activate' }));
 
-    expect(confirmModalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'admin.desktopBuild.history.activateConfirmTitle' }),
-    );
     await waitFor(() => {
       expect(adminCommercialService.activateDesktopRelease).toHaveBeenCalledWith(
         '44444444-4444-4444-8444-444444444444',
+        { actionId: 'desktop.release.activate', confirmed: true },
       );
     });
     expect(releasesMutate).toHaveBeenCalledTimes(1);
