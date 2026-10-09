@@ -165,6 +165,7 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         }
         selectedRefundCount={selectedRefundableIds.length}
         bulkRefund={{
+          actionId: 'payment.bulkRefund' as const,
           description: t(
             'admin.payments.topups.bulkRefundDescription',
             'Requests provider refunds for the selected paid payments. This is a typed-confirmation command: type the command ID to proceed. Each refund is audited with a shared batchCorrelationId.',

@@ -22,6 +22,8 @@ export interface PaymentListHeaderProps {
   t: TFn;
   title: string;
   bulkRefund?: {
+    /** 勾选域对应的批量退款命令 ID：充值页 payment.bulkRefund / 订阅页 payment.subscriptionBulkRefund。 */
+    actionId: 'payment.bulkRefund' | 'payment.subscriptionBulkRefund';
     description: string;
     onRun: (command: any) => Promise<unknown>;
     onSuccess: () => Promise<void>;
@@ -53,7 +55,7 @@ export const PaymentListHeader = ({
       </Button>
       {canWrite && bulkRefund && selectedRefundCount > 0 ? (
         <AdminBulkActionFlow
-          actionId="payment.bulkRefund"
+          actionId={bulkRefund.actionId}
           count={selectedRefundCount}
           danger
           size="small"

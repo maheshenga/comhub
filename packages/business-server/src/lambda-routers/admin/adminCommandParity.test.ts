@@ -32,6 +32,9 @@ const externalEffectCommands = new Set([
   // payment channels (no single DB transaction can wrap the batch), so the
   // batch audit goes through runRequiredAdminAuditExternalEffect per item.
   'payment.bulkRefund',
+  // 评审修复：订阅支付域批量退款（subscriptionPaymentOrders +
+  // SubscriptionPaymentService），与充值域 bulkRefund 同为外部渠道效应。
+  'payment.subscriptionBulkRefund',
 ]);
 const nestedTransactionAuditCommandNames: Record<string, string> = {
   'desktop.release.activate': 'activateDesktopReleaseCommand',

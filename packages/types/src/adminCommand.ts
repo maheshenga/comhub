@@ -240,11 +240,26 @@ export const ADMIN_COMMANDS = {
     auditAction: 'payment.bulkRefund',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
-    description: 'Requests refunds for multiple paid online payments in one batch.',
+    description: 'Requests refunds for multiple paid online top-up payments in one batch.',
     reasonPolicy: 'required',
     serverBoundary: { kind: 'trpc', procedurePath: 'admin.payments.bulkRefund' },
     severity: 'critical',
     title: 'Refund payments in bulk',
+  },
+  'payment.subscriptionBulkRefund': {
+    actionId: 'payment.subscriptionBulkRefund',
+    auditAction: 'payment.subscriptionBulkRefund',
+    capability: ADMIN_CAPABILITIES.financeWrite,
+    confirmationMode: 'typed',
+    description:
+      'Requests refunds for multiple paid subscription payment orders in one batch.',
+    reasonPolicy: 'required',
+    serverBoundary: {
+      kind: 'trpc',
+      procedurePath: 'admin.payments.subscriptionBulkRefund',
+    },
+    severity: 'critical',
+    title: 'Refund subscription payments in bulk',
   },
   'redemption.bulkDelete': {
     actionId: 'redemption.bulkDelete',

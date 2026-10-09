@@ -5,12 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TopUpPaymentsPage from './TopUpPaymentsPage';
 
 const service = vi.hoisted(() => ({
+  bulkRefundTopUpPayments: vi.fn(),
   listTopUpPayments: vi.fn(),
   reconcilePendingTopUpPayments: vi.fn(),
   reconcileTopUpPayment: vi.fn(),
   refundTopUpPayment: vi.fn(),
   resolveTopUpPaymentRefund: vi.fn(),
 }));
+// 批量退款入口 mock 成捕获 props：用例断言页面把 actionId 与 onRun 接到充值域端点。
+const bulkFlow = vi.hoisted(() => ({ captures: [] as any[] }));
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 const state = vi.hoisted(() => ({
@@ -35,10 +38,25 @@ vi.mock('@/libs/swr', () => ({
   },
 }));
 vi.mock('@/components/InlineTable', () => ({
-  default: ({ columns, dataSource }: any) => (
+  default: ({ columns, dataSource, rowSelection }: any) => (
     <div>
       {dataSource.map((row: any) => (
         <div key={row.id}>
+          {rowSelection ? (
+            <input
+              type="checkbox"
+              aria-label={`select-${row.id}`}
+              disabled={rowSelection.getCheckboxProps?.(row).disabled}
+              checked={rowSelection.selectedRowKeys?.includes(row.id)}
+              onChange={(event) =>
+                rowSelection.onChange(
+                  event.target.checked
+                    ? [...(rowSelection.selectedRowKeys ?? []), row.id]
+                    : (rowSelection.selectedRowKeys ?? []).filter((key: any) => key !== row.id),
+                )
+              }
+            />
+          ) : null}
           {columns.map((column: any) => (
             <span key={column.key ?? column.dataIndex}>
               {column.render
@@ -50,6 +68,12 @@ vi.mock('@/components/InlineTable', () => ({
       ))}
     </div>
   ),
+}));
+vi.mock('@/features/Admin/AdminBulkActionFlow', () => ({
+  default: (props: any) => {
+    bulkFlow.captures.push(props);
+    return null;
+  },
 }));
 vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, icon: _icon, loading: _loading, ...props }: any) => (
@@ -93,6 +117,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 describe('TopUpPaymentsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bulkFlow.captures.length = 0;
     state.data = { items: [], nextCursor: null };
     state.error = undefined;
   });
@@ -361,5 +386,66 @@ describe('TopUpPaymentsPage', () => {
         resolution: 'failed',
       }),
     );
+  });
+
+  it('wires the bulk refund entry to the top-up domain endpoint', async () => {
+    const orderId = '00000000-0000-4000-8000-000000000001';
+    state.data = {
+      items: [
+        {
+          amount: '19.90',
+          createdAt: new Date().toISOString(),
+          credits: '1000',
+          currency: 'CNY',
+          externalOrderId: 'provider-order-1',
+          id: orderId,
+          idempotencyKey: '00000000-0000-4000-8000-000000000002',
+          metadata: { method: 'wechat_pay' },
+          packageId: 'starter',
+          paidAt: null,
+          paymentReference: null,
+          provider: 'wechat_pay',
+          refundReference: null,
+          refundStatus: null,
+          status: 'paid',
+          updatedAt: new Date().toISOString(),
+          userEmail: 'user@example.com',
+          userId: 'user-1',
+          userName: null,
+        },
+      ],
+      nextCursor: null,
+    };
+    service.bulkRefundTopUpPayments.mockResolvedValue({
+      batchCorrelationId: 'batch-1',
+      dryRun: false,
+      failed: 0,
+      results: [{ ok: true, orderId }],
+      succeeded: 1,
+      total: 1,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/admin/payments?tab=topups']}>
+        <TopUpPaymentsPage canWrite />
+      </MemoryRouter>,
+    );
+
+    // 勾选 paid 行 → selectedRefundCount>0 → 页头渲染批量退款入口。
+    fireEvent.click(screen.getByRole('checkbox', { name: `select-${orderId}` }));
+
+    // 评审修复回归防线：充值页批量入口必须携带充值域 actionId，
+    // 且信封原样落到 bulkRefundTopUpPayments（topUpOrders 域）。
+    expect(bulkFlow.captures.length).toBeGreaterThan(0);
+    const flow = bulkFlow.captures.at(-1);
+    expect(flow.actionId).toBe('payment.bulkRefund');
+    const command = {
+      actionId: 'payment.bulkRefund',
+      confirmationText: 'payment.bulkRefund',
+      confirmed: true,
+      reason: 'duplicate charge',
+    };
+    await flow.onRun(command);
+    expect(service.bulkRefundTopUpPayments).toHaveBeenCalledWith([orderId], command);
   });
 });

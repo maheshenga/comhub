@@ -97,6 +97,9 @@ describe('adminDangerousActions', () => {
       const source = readFileSync(path.resolve(repoRoot, filePath), 'utf8');
       return [
         ...source.matchAll(/actionId="([A-Za-z0-9.]+)"/g),
+        // M5 评审修复：payments 两页把域命令 ID 以对象字段声明（bulkRefund.actionId），
+        // 守卫需同时识别该字面量形态才能看到 payment.subscriptionBulkRefund。
+        ...source.matchAll(/actionId: '([A-Za-z0-9.]+)'/g),
         ...source.matchAll(/buildAdminDangerousActionEnvelope\('([A-Za-z0-9.]+)'/g),
       ].map((match) => match[1]);
     });

@@ -95,6 +95,9 @@ type AssignableRole = AdminRole | 'user' | '__none__';
 const AdminUsersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
+  const currentUserId = useUserStore(
+    (state) => (userProfileSelectors.userId as any)(state) as string | undefined,
+  );
   const canImpersonate = hasAdminCapability(role, ADMIN_CAPABILITIES.adminAccess);
   const canManageFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
   const canManageSupport = hasAdminCapability(role, ADMIN_CAPABILITIES.supportWrite);
@@ -748,8 +751,17 @@ const AdminUsersPage = memo(() => {
               locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
               rowKey="id"
               rowSelection={{
+                // 评审修复（对齐订单页 isBulkEligibleOrder 防线）：已封禁、
+                // 超管账号与本人所在行不可勾选——封禁已封禁用户是空操作、
+                // 超管账号封禁需要单独警示、勾中自己会触发服务端批级
+                // CANNOT_BAN_SELF 而拒绝整批（最多 50 人）。
                 getCheckboxProps: (row: any) => ({
-                  disabled: !canManageSupport || row.id === undefined,
+                  disabled:
+                    !canManageSupport ||
+                    row.id === undefined ||
+                    row.id === currentUserId ||
+                    Boolean(row.banned) ||
+                    isFullAdminRole(row.role),
                 }),
                 onChange: (keys: React.Key[]) => setSelectedUserIds(keys.map(String)),
                 selectedRowKeys: selectedUserIds,

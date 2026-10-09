@@ -30,7 +30,7 @@ import { SubscriptionPaymentService } from '@/server/services/payments/subscript
 import { TopUpPaymentService } from '@/server/services/payments/topUpPayment';
 
 import { createAdminCommand } from './adminCommand';
-import { runRequiredAdminAuditExternalEffect } from './audit';
+import { recordAdminAuditStrict, runRequiredAdminAuditExternalEffect } from './audit';
 
 const ONLINE_PAYMENT_PROVIDERS = ['alipay', 'wechat_pay', 'zpay'] as const;
 const TopUpPaymentStatusSchema = z.enum([
@@ -44,6 +44,7 @@ const TopUpPaymentStatusSchema = z.enum([
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 const bulkRefundCommand = createAdminCommand('payment.bulkRefund');
+const subscriptionBulkRefundCommand = createAdminCommand('payment.subscriptionBulkRefund');
 
 type BulkRefundResult = { error?: string; ok: boolean; orderId: string };
 type AdminMutationContext = { clientIp?: null | string; userId: string };
@@ -478,6 +479,21 @@ export const adminPaymentsRouter = router({
         }
       }
 
+      // 批级汇总审计（与 orders/users/subscriptions 三域同口径：payload 带
+      // total/succeeded/failed 三键，审计页按 batchCorrelationId 聚合时口径一致）。
+      await recordAdminAuditStrict(ctx, {
+        action: command.auditAction,
+        payload: {
+          batchCorrelationId,
+          failed: results.filter((result) => !result.ok).length,
+          reason: command.reason,
+          succeeded: results.filter((result) => result.ok).length,
+          total: results.length,
+        },
+        resourceId: 'top-up-payments-bulk-refund',
+        resourceType: 'topUpPayment',
+      }, { correlationId: batchCorrelationId });
+
       return {
         batchCorrelationId,
         dryRun: false,
@@ -782,6 +798,180 @@ export const adminPaymentsRouter = router({
         effect: async () =>
           reconcileSubscriptionOrder(await createSubscriptionPaymentService(ctx.serverDB), order),
       });
+    }),
+
+  // M5 §5.2 批量（评审修复）：订阅支付域的批量退款。订阅列表页的数据源是
+  // subscriptionPaymentOrders（admin.payments.listSubscriptionPayments），
+  // 批量退款必须查同一张表并走 SubscriptionPaymentService.refundOrder，
+  // 不能复用 topUpOrders 域的 bulkRefund（两表 id 均为 uuid，入参无法拦截域错配）。
+  subscriptionBulkRefund: financeWriteProcedure
+    .input(
+      z.object({
+        command: subscriptionBulkRefundCommand.schema,
+        dryRun: z.boolean().optional(),
+        orderIds: z.array(z.string().uuid()).min(1).max(50),
+        reason: z.string().trim().min(1).max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const command = subscriptionBulkRefundCommand.validate(input.command, input.reason);
+      const batchCorrelationId = randomUUID();
+
+      if (input.dryRun) {
+        const orders: Array<{
+          externalOrderId: string | null;
+          id: string;
+          refundStatus: 'failed' | 'pending' | 'succeeded' | null;
+          status: string;
+          userId: string;
+        }> = await ctx.serverDB.query.subscriptionPaymentOrders.findMany({
+          columns: {
+            externalOrderId: true,
+            id: true,
+            refundStatus: true,
+            status: true,
+            userId: true,
+          },
+          where: inArray(subscriptionPaymentOrders.id, input.orderIds),
+        });
+        const byId = new Map(orders.map((order) => [order.id, order]));
+        const refundable = (order: (typeof orders)[number]) =>
+          order.status === 'paid' &&
+          Boolean(order.externalOrderId) &&
+          order.refundStatus !== 'succeeded';
+
+        return {
+          batchCorrelationId: null,
+          dryRun: true,
+          matched: orders.length,
+          refundable: orders.filter(refundable).length,
+          results: input.orderIds.map((orderId) => {
+            const order = byId.get(orderId);
+            if (!order) {
+              return {
+                error: 'SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND',
+                ok: false,
+                orderId,
+                preview: null,
+              };
+            }
+            const refundableNow = refundable(order);
+            return {
+              error: refundableNow ? null : 'SUBSCRIPTION_PAYMENT_ORDER_NOT_REFUNDABLE',
+              ok: refundableNow,
+              orderId,
+              preview: {
+                refundStatus: order.refundStatus,
+                status: order.status,
+              },
+            };
+          }),
+          total: input.orderIds.length,
+          unmatchedOrderIds: input.orderIds.filter((id) => !byId.has(id)),
+        };
+      }
+
+      const orders: Array<{
+        externalOrderId: string | null;
+        id: string;
+        idempotencyKey: string;
+        method: PaymentMethodId;
+        provider: PaymentProvider;
+        refundStatus: 'failed' | 'pending' | 'succeeded' | null;
+        status: string;
+        userId: string;
+      }> = await ctx.serverDB.query.subscriptionPaymentOrders.findMany({
+        columns: {
+          externalOrderId: true,
+          id: true,
+          idempotencyKey: true,
+          method: true,
+          provider: true,
+          refundStatus: true,
+          status: true,
+          userId: true,
+        },
+        where: inArray(subscriptionPaymentOrders.id, input.orderIds),
+      });
+      const ordersById = new Map(orders.map((order) => [order.id, order]));
+      const missing = input.orderIds.filter((orderId) => !ordersById.has(orderId));
+      if (missing.length > 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND',
+        });
+      }
+      // 预解析全部在线支付合法性（BAD_REQUEST 早于任何效应发起）。
+      for (const orderId of input.orderIds) {
+        const order = ordersById.get(orderId)!;
+        try {
+          parseOnlineSubscriptionOrder(order);
+        } catch {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `SUBSCRIPTION_PAYMENT_ORDER_INVALID: ${orderId}`,
+          });
+        }
+      }
+
+      const service = await createSubscriptionPaymentService(ctx.serverDB);
+      const results: BulkRefundResult[] = [];
+      for (const orderId of input.orderIds) {
+        const order = ordersById.get(orderId)!;
+        try {
+          const outcome = await runRequiredAdminAuditExternalEffect(ctx, {
+            audit: (status, result) => ({
+              action: command.auditAction,
+              payload: {
+                batchCorrelationId,
+                debtAmount: result && 'debtAmount' in result ? result.debtAmount : 0,
+                provider: order.provider,
+                reason: command.reason,
+                resultStatus: result?.status ?? order.status,
+                terminalStatus: status,
+              },
+              resourceId: order.id,
+              resourceType: 'subscriptionPayment',
+              targetUserId: order.userId,
+            }),
+            correlationId: randomUUID(),
+            effect: () =>
+              service.refundOrder({
+                orderId: order.id,
+                reason: command.reason!,
+                userId: order.userId,
+              }),
+          });
+          results.push({ ok: true, orderId });
+          void outcome;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'UNKNOWN';
+          results.push({ error: message, ok: false, orderId });
+        }
+      }
+
+      // 批级汇总审计（与其它三域同口径：payload 带 total/succeeded/failed 三键）。
+      await recordAdminAuditStrict(ctx, {
+        action: command.auditAction,
+        payload: {
+          batchCorrelationId,
+          failed: results.filter((result) => !result.ok).length,
+          reason: command.reason,
+          succeeded: results.filter((result) => result.ok).length,
+          total: results.length,
+        },
+        resourceId: 'subscription-payments-bulk-refund',
+        resourceType: 'subscriptionPayment',
+      }, { correlationId: batchCorrelationId });
+
+      return {
+        batchCorrelationId,
+        dryRun: false,
+        results,
+        succeeded: results.filter((result) => result.ok).length,
+        failed: results.filter((result) => !result.ok).length,
+        total: results.length,
+      };
     }),
 
   refundSubscriptionPayment: financeWriteProcedure

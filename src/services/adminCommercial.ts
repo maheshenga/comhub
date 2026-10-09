@@ -764,6 +764,13 @@ class AdminCommercialService {
     command: AdminCommandEnvelope<'payment.bulkRefund'>,
   ) => lambdaClient.admin.payments.bulkRefund.mutate({ command, orderIds });
 
+  // 评审修复：订阅支付域批量退款必须走 subscriptionPaymentOrders 域端点，
+  // 不能复用充值域 bulkRefund（两表 id 均为 uuid，域错配服务端无法拦截）。
+  bulkRefundSubscriptionPayments = async (
+    orderIds: string[],
+    command: AdminCommandEnvelope<'payment.subscriptionBulkRefund'>,
+  ) => lambdaClient.admin.payments.subscriptionBulkRefund.mutate({ command, orderIds });
+
   resolveTopUpPaymentRefund = async (input: {
     note: string;
     orderId: string;

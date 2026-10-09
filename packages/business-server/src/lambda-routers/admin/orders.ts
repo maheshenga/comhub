@@ -122,11 +122,6 @@ const loadPendingRedemptionOrdersForBulk = async (
   return ordersById;
 };
 
-const buildBulkOrderMutation = (action: 'cancel' | 'expire') => {
-  const bulkCommand = action === 'cancel' ? bulkCancelCommand : bulkExpireCommand;
-  return { bulkCommand };
-};
-
 const previewBulkOrders = async (
   db: LobeChatDatabase,
   orderIds: string[],
@@ -245,8 +240,6 @@ const applyBulkOrderStatusChange = async ({
   return results;
 };
 
-const buildBulkOrderDryRunResult = (input: { dryRun?: boolean; orderIds: string[] }) => input;
-
 const bulkOrderIdsSchema = z.array(z.string().min(1)).min(1).max(50);
 
 const getPendingRedemptionOrder = async (
@@ -294,7 +287,6 @@ export const adminOrdersRouter = router({
       // dryRun: read-only impact preview — no writes, no batch audit rows
       // (blueprint §5.2: dry-run 预检在确认弹窗展示命中清单).
       if (input.dryRun) {
-        buildBulkOrderDryRunResult(input);
         return previewBulkOrders(ctx.serverDB, input.orderIds);
       }
 
@@ -335,7 +327,6 @@ export const adminOrdersRouter = router({
       const batchCorrelationId = randomUUID();
 
       if (input.dryRun) {
-        buildBulkOrderDryRunResult(input);
         return previewBulkOrders(ctx.serverDB, input.orderIds);
       }
 
