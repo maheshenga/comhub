@@ -485,13 +485,13 @@ describe('APP_SETTINGS_CATALOG', () => {
     expect(cronConsumerPaths).toEqual(
       expect.arrayContaining([
         'src/app/(backend)/api/admin/desktop-release/auth.ts',
-        'src/app/(backend)/api/admin/maintenance/route.ts',
+        'src/app/(backend)/api/admin/secretAuth.ts',
       ]),
     );
     expect(catalogItem(APP_SETTING_KEYS.cronSecret).runtimeConsumers).toContainEqual({
-      id: 'desktop-release-legacy-authentication',
-      sourcePath: 'src/app/(backend)/api/admin/desktop-release/auth.ts',
-      symbol: 'resolveDesktopReleaseToken',
+      id: 'maintenance-cron-forward',
+      sourcePath: 'src/app/(backend)/api/admin/secretAuth.ts',
+      symbol: 'resolveCronSecret',
     });
     expect(catalogItem(APP_SETTING_KEYS.referralRewardCredits).runtimeConsumers).toContainEqual(
       expect.objectContaining({

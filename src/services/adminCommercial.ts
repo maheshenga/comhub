@@ -256,8 +256,10 @@ class AdminCommercialService {
 
   getDesktopOverview = async () => lambdaClient.admin.desktop.getOverview.query();
 
-  activateDesktopRelease = async (releaseId: string) =>
-    lambdaClient.admin.desktop.activateDesktopRelease.mutate({ releaseId });
+  activateDesktopRelease = async (
+    releaseId: string,
+    command: AdminCommandEnvelope<'desktop.release.activate'>,
+  ) => lambdaClient.admin.desktop.activateDesktopRelease.mutate({ command, releaseId });
 
   listBuildProfiles = async (params?: { cursor?: string; limit?: number }) =>
     lambdaClient.admin.desktop.listBuildProfiles.query(params);
@@ -270,12 +272,14 @@ class AdminCommercialService {
 
   createDesktopRelease = async (input: {
     channel: 'canary' | 'stable';
+    command: AdminCommandEnvelope<'desktop.release.create'>;
     profileId: string;
     releaseNotes: string;
     version: string;
   }) => lambdaClient.admin.desktop.createDesktopRelease.mutate(input);
 
   completeBuildAssetUpload = async (input: {
+    command: AdminCommandEnvelope<'desktop.buildAsset.complete'>;
     key: string;
     kind: DesktopBuildAssetKind;
     profileId: string;
@@ -283,6 +287,7 @@ class AdminCommercialService {
 
   saveBuildProfileDraft = async (input: {
     assets: DesktopBuildAssetManifest;
+    command: AdminCommandEnvelope<'desktop.buildProfile.saveDraft'>;
     createIfMissing?: boolean;
     expectedRevision: number;
     name: string;
@@ -290,17 +295,23 @@ class AdminCommercialService {
     profileId: string;
   }) => lambdaClient.admin.desktop.saveBuildProfileDraft.mutate(input);
 
-  archiveBuildProfile = async (profileId: string) =>
-    lambdaClient.admin.desktop.archiveBuildProfile.mutate({ profileId });
+  archiveBuildProfile = async (
+    profileId: string,
+    command: AdminCommandEnvelope<'desktop.buildProfile.archive'>,
+  ) => lambdaClient.admin.desktop.archiveBuildProfile.mutate({ command, profileId });
 
   listDesktopReleases = async (params?: { limit?: number; profileId?: string }) =>
     lambdaClient.admin.desktop.listDesktopReleases.query(params);
 
-  reconcileDesktopRelease = async (releaseId: string) =>
-    lambdaClient.admin.desktop.reconcileDesktopRelease.mutate({ releaseId });
+  reconcileDesktopRelease = async (
+    releaseId: string,
+    command: AdminCommandEnvelope<'desktop.release.reconcile'>,
+  ) => lambdaClient.admin.desktop.reconcileDesktopRelease.mutate({ command, releaseId });
 
-  retryDesktopRelease = async (releaseId: string) =>
-    lambdaClient.admin.desktop.retryDesktopRelease.mutate({ releaseId });
+  retryDesktopRelease = async (
+    releaseId: string,
+    command: AdminCommandEnvelope<'desktop.release.retry'>,
+  ) => lambdaClient.admin.desktop.retryDesktopRelease.mutate({ command, releaseId });
 
   getMobileSettingsPublication = async () =>
     lambdaClient.admin.settings.getMobileConfigPublication.query();

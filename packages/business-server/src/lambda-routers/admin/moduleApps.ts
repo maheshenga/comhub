@@ -459,14 +459,16 @@ export const adminModuleAppsRouter = router({
   assignPublisher: moduleAppWriteProcedure
     .input(AssignPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppPublisherModel(ctx.serverDB).assignApplication(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.publisher_assigned',
-        metadata: { appId: input.appId },
-        resourceId: input.publisherId,
-        resourceType: 'moduleAppPublisher',
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: () => ({
+          eventType: 'module_app.publisher_assigned',
+          metadata: { appId: input.appId },
+          resourceId: input.publisherId,
+          resourceType: 'moduleAppPublisher',
+        }),
+        mutation: (tx) =>
+          new ModuleAppPublisherModel(tx as LobeChatDatabase).assignApplication(input),
       });
-      return result;
     }),
 
   acknowledgePaymentDiscrepancy: financeWriteProcedure
@@ -510,14 +512,15 @@ export const adminModuleAppsRouter = router({
   createPublisher: moduleAppWriteProcedure
     .input(CreatePublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppPublisherModel(ctx.serverDB).createPublisher(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.publisher_created',
-        metadata: { userId: input.userId },
-        resourceId: result.id,
-        resourceType: 'moduleAppPublisher',
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: (result) => ({
+          eventType: 'module_app.publisher_created',
+          metadata: { userId: input.userId },
+          resourceId: result.id,
+          resourceType: 'moduleAppPublisher',
+        }),
+        mutation: (tx) => new ModuleAppPublisherModel(tx as LobeChatDatabase).createPublisher(input),
       });
-      return result;
     }),
 
   exportPaymentReconciliation: financeReadProcedure
@@ -544,20 +547,15 @@ export const adminModuleAppsRouter = router({
     .input(CreateProductInputSchema)
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
-      return ctx.serverDB.transaction(async (tx: Transaction) => {
-        const result = await new ModuleAppCommerceModel(tx as LobeChatDatabase).createProduct(
-          input,
-        );
-        await writeAudit(
-          { clientIp: ctx.clientIp ?? null, serverDB: tx, userId: ctx.userId },
-          {
-            eventType: 'module_app.product_created',
-            metadata: { appId: input.appId, productKey: input.productKey },
-            resourceId: result.id,
-            resourceType: 'moduleAppProduct',
-          },
-        );
-        return result;
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: (result) => ({
+          eventType: 'module_app.product_created',
+          metadata: { appId: input.appId, productKey: input.productKey },
+          resourceId: result.id,
+          resourceType: 'moduleAppProduct',
+        }),
+        mutation: (tx) =>
+          new ModuleAppCommerceModel(tx as LobeChatDatabase).createProduct(input),
       });
     }),
 
@@ -841,13 +839,14 @@ export const adminModuleAppsRouter = router({
   suspendPublisher: moduleAppWriteProcedure
     .input(PublisherIdInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppPublisherModel(ctx.serverDB).suspendPublisher(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.publisher_suspended',
-        resourceId: input.publisherId,
-        resourceType: 'moduleAppPublisher',
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: () => ({
+          eventType: 'module_app.publisher_suspended',
+          resourceId: input.publisherId,
+          resourceType: 'moduleAppPublisher',
+        }),
+        mutation: (tx) => new ModuleAppPublisherModel(tx as LobeChatDatabase).suspendPublisher(input),
       });
-      return result;
     }),
 
   transitionPayoutBatch: financeWriteProcedure
@@ -941,124 +940,137 @@ export const adminModuleAppsRouter = router({
     await requireAdminApp(ctx.serverDB, input.appId);
 
     try {
-      await new ModuleAppModel(ctx.serverDB).setStatus({ appId: input.appId, status: 'published' });
+      return await runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: () => ({ eventType: 'module_app.published', resourceId: input.appId }),
+        mutation: async (tx) => {
+          try {
+            await new ModuleAppModel(tx as LobeChatDatabase).setStatus({
+              appId: input.appId,
+              status: 'published',
+            });
+          } catch (error) {
+            throw mapPublishError(error);
+          }
+
+          return { ok: true } as const;
+        },
+      });
     } catch (error) {
       throw mapPublishError(error);
     }
-    await writeAudit(ctx, { eventType: 'module_app.published', resourceId: input.appId });
-
-    return { ok: true };
   }),
 
   approvePackage: moduleAppWriteProcedure
     .input(ApprovePackageInputSchema)
     .mutation(async ({ ctx, input }) => {
-      let result;
       try {
-        result = await new ModuleAppBuildService({ db: ctx.serverDB }).approvePackage({
-          ...input,
-          reviewedByUserId: ctx.userId,
+        return await runRequiredModuleAppAuditMutation<any>(ctx, {
+          audit: (result) => ({
+            eventType: 'module_app.package_approved',
+            metadata: {
+              buildId: result.build?.id,
+              buildStatus: result.build?.status,
+              outboundHostPolicies: result.outboundHostPolicies,
+              outboundHostPurposes: (result.outboundHostPolicies as Array<{ purpose: string }>).map(
+                ({ purpose }) => purpose,
+              ),
+              packageId: input.packageId,
+              slug: result.slug,
+              versionId: result.versionId,
+            },
+            resourceId: result.appId,
+          }),
+          mutation: async (tx) =>
+            new ModuleAppBuildService({ db: tx as LobeChatDatabase }).approvePackage({
+              ...input,
+              reviewedByUserId: ctx.userId,
+            }),
         });
       } catch (error) {
         throw mapPackageReviewError(error);
       }
-
-      await writeAudit(ctx, {
-        eventType: 'module_app.package_approved',
-        metadata: {
-          buildId: result.build?.id,
-          buildStatus: result.build?.status,
-          outboundHostPolicies: result.outboundHostPolicies,
-          outboundHostPurposes: result.outboundHostPolicies.map(({ purpose }) => purpose),
-          packageId: input.packageId,
-          slug: result.slug,
-          versionId: result.versionId,
-        },
-        resourceId: result.appId,
-      });
-
-      return result;
     }),
 
   rescanPackage: moduleAppWriteProcedure
     .input(PackageIdInputSchema)
     .mutation(async ({ ctx, input }) => {
-      let result;
       try {
-        result = await new ModuleAppPackageLifecycleService({
-          db: ctx.serverDB,
-        }).rescanLegacyPackage({
-          ...input,
-          reviewedByUserId: ctx.userId,
+        return await runRequiredModuleAppAuditMutation<any>(ctx, {
+          audit: (result) => ({
+            eventType: 'module_app.package_rescanned',
+            metadata: {
+              cleanupQueued: result.cleanupQueued,
+              issueCodes: result.issueCodes,
+              scanStatus: result.scanStatus,
+            },
+            resourceId: input.packageId,
+            resourceType: 'moduleAppPackage',
+          }),
+          mutation: (tx) =>
+            new ModuleAppPackageLifecycleService({ db: tx as LobeChatDatabase }).rescanLegacyPackage(
+              {
+                ...input,
+                reviewedByUserId: ctx.userId,
+              },
+            ),
         });
       } catch (error) {
         throw mapPackageReviewError(error);
       }
-
-      await writeAudit(ctx, {
-        eventType: 'module_app.package_rescanned',
-        metadata: {
-          cleanupQueued: result.cleanupQueued,
-          issueCodes: result.issueCodes,
-          scanStatus: result.scanStatus,
-        },
-        resourceId: input.packageId,
-        resourceType: 'moduleAppPackage',
-      });
-
-      return result;
     }),
 
   rejectPackage: moduleAppWriteProcedure
     .input(RejectPackageInputSchema)
     .mutation(async ({ ctx, input }) => {
-      let result;
       try {
-        result = await new ModuleAppPackageLifecycleService({
-          db: ctx.serverDB,
-        }).releaseRejectedPackage({
-          ...input,
-          reviewedByUserId: ctx.userId,
+        return await runRequiredModuleAppAuditMutation<any>(ctx, {
+          audit: (result) => ({
+            eventType: 'module_app.package_rejected',
+            metadata: {
+              cleanupQueued: result.cleanupQueued,
+              cleanupSkipped: 'cleanupSkipped' in result ? result.cleanupSkipped : false,
+              reason: input.reason,
+            },
+            resourceId: input.packageId,
+            resourceType: 'moduleAppPackage',
+          }),
+          mutation: (tx) =>
+            new ModuleAppPackageLifecycleService({
+              db: tx as LobeChatDatabase,
+            }).releaseRejectedPackage({
+              ...input,
+              reviewedByUserId: ctx.userId,
+            }),
         });
       } catch (error) {
         throw mapPackageReviewError(error);
       }
-
-      await writeAudit(ctx, {
-        eventType: 'module_app.package_rejected',
-        metadata: {
-          cleanupQueued: result.cleanupQueued,
-          cleanupSkipped: 'cleanupSkipped' in result ? result.cleanupSkipped : false,
-          reason: input.reason,
-        },
-        resourceId: input.packageId,
-        resourceType: 'moduleAppPackage',
-      });
-
-      return result;
     }),
 
   unpublish: moduleAppWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    await new ModuleAppModel(ctx.serverDB).setStatus({ appId: input.appId, status: 'unpublished' });
-    await writeAudit(ctx, { eventType: 'module_app.unpublished', resourceId: input.appId });
-
-    return { ok: true };
+    return runRequiredModuleAppAuditMutation<any>(ctx, {
+      audit: () => ({ eventType: 'module_app.unpublished', resourceId: input.appId }),
+      mutation: (tx) =>
+        new ModuleAppModel(tx as LobeChatDatabase).setStatus({
+          appId: input.appId,
+          status: 'unpublished',
+        }),
+    }).then(() => ({ ok: true }));
   }),
 
   upsert: moduleAppWriteProcedure
     .input(moduleAppAdminUpsertSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppModel(ctx.serverDB).upsertAppForAdmin(input);
-
-      await writeAudit(ctx, {
-        eventType: 'module_app.upserted',
-        metadata: { slug: input.slug, status: input.status },
-        resourceId: result.id,
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: (result) => ({
+          eventType: 'module_app.upserted',
+          metadata: { slug: input.slug, status: input.status },
+          resourceId: result.id,
+        }),
+        mutation: (tx) => new ModuleAppModel(tx as LobeChatDatabase).upsertAppForAdmin(input),
       });
-
-      return result;
     }),
 
   upsertBilling: financeWriteProcedure
@@ -1066,7 +1078,7 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
 
-      return runRequiredModuleAppAuditMutation(ctx, {
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
         audit: () => ({
           eventType: 'module_app.billing_upserted',
           metadata: { chargeMode: input.billing.chargeMode },
@@ -1081,7 +1093,7 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
 
-      return runRequiredModuleAppAuditMutation(ctx, {
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
         audit: () => ({
           eventType: 'module_app.entitlements_upserted',
           metadata: { count: input.entitlements.length },
@@ -1098,7 +1110,7 @@ export const adminModuleAppsRouter = router({
       await requireAdminApp(ctx.serverDB, input.appId);
 
       try {
-        return await runRequiredModuleAppAuditMutation(ctx, {
+        return await runRequiredModuleAppAuditMutation<any>(ctx, {
           audit: () => ({
             eventType: 'module_app.configuration_upserted',
             metadata: { actions: input.actions.length, pages: input.pages.length },
@@ -1118,12 +1130,13 @@ export const adminModuleAppsRouter = router({
   verifyPublisher: moduleAppWriteProcedure
     .input(VerifyPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppPublisherModel(ctx.serverDB).verifyPublisher(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.publisher_verified',
-        resourceId: input.publisherId,
-        resourceType: 'moduleAppPublisher',
+      return runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: () => ({
+          eventType: 'module_app.publisher_verified',
+          resourceId: input.publisherId,
+          resourceType: 'moduleAppPublisher',
+        }),
+        mutation: (tx) => new ModuleAppPublisherModel(tx as LobeChatDatabase).verifyPublisher(input),
       });
-      return result;
     }),
 });

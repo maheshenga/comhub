@@ -12,6 +12,7 @@ import {
   normalizeS3FilePath,
 } from '@/server/services/appSettings';
 import { invalidateServerBrand } from '@/server/services/brand';
+import { ModuleAppArtifactCleanupService } from '@/server/services/moduleAppArtifactCleanup';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 
@@ -244,9 +245,11 @@ export const runtimeSettingsWriteProcedures = {
         notificationRetentionDays: z.number().int().min(1).max(3650).optional(),
         pendingOrderExpiryDays: z.number().int().min(1).max(365).optional(),
         skipAudit: z.boolean().optional(),
+        skipModuleAppArtifacts: z.boolean().optional(),
         skipModuleAppUploads: z.boolean().optional(),
         skipNotifications: z.boolean().optional(),
         skipOrders: z.boolean().optional(),
+        skipSubscriptions: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -340,9 +343,11 @@ export const runtimeSettingsWriteProcedures = {
                 databaseResult.notificationsDeleted = deleted.length;
               }
 
-              const subscriptionResult = await syncExpiredSubscriptionsToFree(tx);
-              databaseResult.subscriptionSnapshotsExpired = subscriptionResult.expiredSnapshots;
-              databaseResult.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
+              if (!opts.skipSubscriptions) {
+                const subscriptionResult = await syncExpiredSubscriptionsToFree(tx);
+                databaseResult.subscriptionSnapshotsExpired = subscriptionResult.expiredSnapshots;
+                databaseResult.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
+              }
 
               return databaseResult;
             },
@@ -356,14 +361,39 @@ export const runtimeSettingsWriteProcedures = {
             db: ctx.serverDB,
           }).cleanupExpiredUploads({ limit: 100 });
 
-          return {
+          const withUploads = {
             ...databaseResult,
             moduleAppUploadCleanupFailed: cleanup.failed,
             moduleAppUploadsExpired: cleanup.expired,
           };
+
+          if (opts.skipModuleAppArtifacts) return withUploads;
+
+          const artifactCleanup = await new ModuleAppArtifactCleanupService({
+            db: ctx.serverDB,
+          }).cleanupPending(100);
+
+          return {
+            ...withUploads,
+            moduleAppArtifactCleanupClaimed: artifactCleanup.claimed,
+            moduleAppArtifactCleanupFailed: artifactCleanup.failed,
+            moduleAppArtifactCleanupRetrying: artifactCleanup.retrying,
+            moduleAppArtifactsReleased: artifactCleanup.released,
+          };
         },
-        terminalStatus: (result) =>
-          result.moduleAppUploadCleanupFailed > 0 ? 'failed' : 'succeeded',
+        terminalStatus: (result) => {
+          if (result.moduleAppUploadCleanupFailed > 0) return 'failed';
+
+          if (
+            !opts.skipModuleAppArtifacts &&
+            typeof result.moduleAppArtifactCleanupFailed === 'number' &&
+            result.moduleAppArtifactCleanupFailed > 0
+          ) {
+            return 'failed';
+          }
+
+          return 'succeeded';
+        },
       });
 
       return { ok: true, ...result };

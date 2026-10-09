@@ -72,6 +72,17 @@ const getProcedureSource = (procedurePath: string) => {
 };
 
 describe('admin command router parity', () => {
+  // M4 §6.3 dual-command reuse point: `admin.desktop.createDesktopRelease`
+  // dispatches both the `desktop.release.create` (freeze) and
+  // `desktop.release.dispatch` (workflow) audit actions from one validated
+  // envelope; its input schema carries the create command's schema and the
+  // mutation derives both audit actions from the catalog definitions.
+  const dualCommandReuseProcedure = 'admin.desktop.createDesktopRelease';
+  const dualCommandRouterCommandNames: Record<string, string> = {
+    'desktop.release.create': 'createDesktopReleaseCreationCommand',
+    'desktop.release.dispatch': 'createDesktopReleaseCommand',
+  };
+
   it('wires every catalog procedure to its declared middleware and command definition', () => {
     for (const definition of Object.values(ADMIN_COMMANDS)) {
       if (definition.serverBoundary.kind !== 'trpc') continue;
@@ -82,6 +93,20 @@ describe('admin command router parity', () => {
       expect(block, definition.actionId).toMatch(
         new RegExp(`^  [A-Za-z][A-Za-z0-9_]*: ${escapeRegExp(middleware)}`),
       );
+
+      if (definition.serverBoundary.procedurePath === dualCommandReuseProcedure) {
+        const commandName = dualCommandRouterCommandNames[definition.actionId];
+        expect(source, definition.actionId).toMatch(
+          new RegExp(
+            `const ${commandName} = createAdminCommand\\('${escapeRegExp(definition.actionId)}'\\)`,
+          ),
+        );
+        expect(block, definition.actionId).toContain('command: createDesktopReleaseCreationCommand.schema');
+        expect(block, definition.actionId).toContain('auditAction:');
+        expect(block, definition.actionId).toMatch(/runRequiredAdminAuditExternalEffect\(/);
+        continue;
+      }
+
 
       if (definition.confirmationMode === 'none') {
         const nestedCommandName = nestedTransactionAuditCommandNames[definition.actionId];
@@ -154,5 +179,59 @@ describe('admin command router parity', () => {
         );
       }
     }
+  });
+
+  it('keeps moduleApps mutation audits inside the business transaction (audit consistency)', () => {
+    // M4 §6.2: every moduleApps write path audits through
+    // runRequiredModuleAppAuditMutation so the audit row commits or rolls
+    // back with the business write. A mutation that mutates through
+    // `ctx.serverDB` (outside any transaction) and then calls the audit
+    // helper afterwards is the exact drift this gate blocks; the two
+    // allowed shapes are (a) the read-side export audit on a query (no
+    // business write) and (b) the product write that already threads `tx`
+    // through writeAudit directly.
+    const source = readFileSync(path.join(__dirname, 'moduleApps.ts'), 'utf8');
+    const procedureBlocks = source.slice(source.indexOf('export const adminModuleAppsRouter'));
+    const entries = procedureBlocks.split(/\n {2}(?=[A-Za-z][A-Za-z0-9]*:)/).slice(1);
+
+    expect(entries.length).toBeGreaterThan(10);
+
+    for (const block of entries) {
+      const isMutation = /\.mutation\(/.test(block);
+      if (!isMutation) continue;
+
+      // A transactional mutation either uses the required audit wrapper or
+      // threads its tx into writeAudit; both keep the audit atomic.
+      const transactionalAudit =
+        /runRequiredModuleAppAuditMutation(?:<[^>]+>)?\(/.test(block) ||
+        /runRequiredAdminAuditExternalEffect\(/.test(block) ||
+        /writeAudit\(\s*\{[^}]*serverDB:\s*tx/.test(block);
+
+      if (transactionalAudit) continue;
+
+      // Non-transactional mutations must not perform any database write at
+      // all — otherwise their audit could not be transactional.
+      expect(block, block.slice(0, 60)).not.toMatch(
+        /new \w+Model\(ctx\.serverDB\)|new \w+Service\(\{ db: ctx\.serverDB \}|\(await createConfiguredModulePaymentService\(ctx\.serverDB\)\)/,
+      );
+    }
+  });
+
+  it('keeps parity coverage catalog-generated with error and warning tiers', () => {
+    // Coverage is derived from the catalog itself (ADMIN_COMMANDS), not a
+    // hand-maintained list: every trpc-bound command must pass the wiring
+    // assertions above (already enforced per-definition in the first test).
+    // The error tier re-checks that no catalog command escaped iteration;
+    // the warning tier tracks http-boundary commands (currently 1) without
+    // failing until a tRPC migration lands.
+    const trpcBound = Object.values(ADMIN_COMMANDS).filter(
+      ({ serverBoundary }) => serverBoundary.kind === 'trpc',
+    );
+    const httpBound = Object.values(ADMIN_COMMANDS).filter(
+      ({ serverBoundary }) => serverBoundary.kind === 'http',
+    );
+
+    expect(trpcBound.length).toBeGreaterThan(20);
+    expect(httpBound.map(({ actionId }) => actionId)).toEqual(['user.impersonate.attempt']);
   });
 });

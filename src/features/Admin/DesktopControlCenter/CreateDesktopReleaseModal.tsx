@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
 import {
   type BuildProfileFormValues,
   buildProfilePayloadFromForm,
@@ -40,12 +41,15 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
       version,
     });
 
-    const handleCreate = async () => {
+    const handleCreate = async (
+      envelope: ReturnType<typeof buildAdminDangerousActionEnvelope<'desktop.release.create'>>,
+    ) => {
       const values = await form.validateFields();
       setSubmitting(true);
       try {
         await adminCommercialService.createDesktopRelease({
           channel: values.channel,
+          command: envelope,
           profileId: profile.id,
           releaseNotes: values.releaseNotes || '',
           version: values.version,
@@ -73,7 +77,15 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
           <span id="desktop-build-release-title">{t('admin.desktopBuild.release.title')}</span>
         }
         onCancel={submitting ? undefined : onClose}
-        onOk={() => void handleCreate()}
+        onOk={() =>
+          void handleCreate(
+            // One envelope drives both catalog siblings server-side at
+            // admin.desktop.createDesktopRelease: the create audit freezes
+            // the draft and the dispatch audit launches the workflow.
+            // actionId="desktop.release.dispatch" shares this confirmation.
+            buildAdminDangerousActionEnvelope('desktop.release.create', { confirmed: true }),
+          )
+        }
       >
         <Form
           form={form}

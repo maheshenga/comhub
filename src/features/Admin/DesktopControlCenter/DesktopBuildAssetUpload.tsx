@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
+
 const acceptByKind: Record<DesktopBuildAssetKind, string> = {
   appPreview: '.png',
   nsisHeader: '.bmp,.png',
@@ -58,6 +60,9 @@ const DesktopBuildAssetUpload = memo<DesktopBuildAssetUploadProps>(
         });
         if (!response.ok) throw new Error('DESKTOP_BUILD_ASSET_UPLOAD_FAILED');
         const trustedAsset = await adminCommercialService.completeBuildAssetUpload({
+          command: buildAdminDangerousActionEnvelope('desktop.buildAsset.complete', {
+            confirmed: true,
+          }),
           key: target.key,
           kind,
           profileId,
