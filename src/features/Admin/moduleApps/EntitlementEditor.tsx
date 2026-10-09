@@ -16,7 +16,7 @@ const EntitlementEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
         {(fields, { add, remove }) => (
           <Flexbox gap={12}>
             {fields.map((field) => (
-              <Flexbox key={field.key} gap={8}>
+              <Flexbox gap={8} key={field.key}>
                 <Flexbox horizontal gap={12}>
                   <Form.Item
                     label={t('moduleApps.admin.entitlements.plan')}

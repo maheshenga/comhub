@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { SETTING_KEYS } from './adminSettingsForm';
 import {
   buildInitialValues,
   buildNotificationMaterializationUpdates,
-} from './AdminNotificationsPage';
+} from './Notifications/shared';
+import { SETTING_KEYS } from './adminSettingsForm';
 
 describe('AdminNotificationsPage settings helpers', () => {
   it('materializes notification defaults for system announcement settings', () => {

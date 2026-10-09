@@ -3,10 +3,10 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const page = readFileSync(
-  path.resolve(__dirname, '../../..', 'src/features/Admin/AdminTopUpPackagesPage.tsx'),
-  'utf8',
-);
+const readSource = (relativePath: string) =>
+  readFileSync(path.resolve(__dirname, '../../..', relativePath), 'utf8');
+const page = readSource('src/features/Admin/AdminTopUpPackagesPage.tsx');
+const formFields = readSource('src/features/Admin/TopUpPackages/PackageFormFields.tsx');
 
 describe('admin top-up package experience', () => {
   it('uses shared hierarchy, retry state, responsive table, and modal form grids', () => {
@@ -15,7 +15,8 @@ describe('admin top-up package experience', () => {
     expect(page).toContain('AdminSection');
     expect(page).toContain('AdminToolbar');
     expect(page).toContain('AdminResponsiveTable');
-    expect(page).toContain('AdminFormGrid');
+    // Modal form grids live in the split PackageFormFields block.
+    expect(formFields).toContain('AdminFormGrid');
     expect(page).toContain('onRetry={refresh}');
     expect(page).not.toContain('padding={embedded ? 0 : 24}');
   });

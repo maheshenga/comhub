@@ -27,7 +27,7 @@ const filesWithAdminCopy = [
   'src/features/Admin/AdminFileStoragePage.tsx',
   'src/features/Admin/AdminNotificationsPage.tsx',
   'src/features/Admin/AdminSystemMaintenancePage.tsx',
-  'src/features/Admin/AdminContentPages.tsx',
+  'src/features/Admin/Content/ContentPage.tsx',
   'src/features/Admin/AdminExpertPlazaPage.tsx',
   'src/features/Admin/AdminDefaultSettingsPage.tsx',
   'src/features/Admin/AdminPlanFaqCard.tsx',
@@ -247,9 +247,12 @@ describe('admin Chinese copy', () => {
 
   it('includes readable copy for content governance and system defaults pages', () => {
     const catalog = readRepoFile('src/features/Admin/adminCatalog.ts');
-    const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
+    const contentPages = readRepoFile('src/features/Admin/Content/shared.tsx');
     const expertPlazaPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
-    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminDefaultSettingsPage.tsx');
+    const systemDefaultsPage = readRepoFile(
+      'src/features/Admin/DefaultSettings/SectionFields.tsx',
+    );
+    const systemDefaultsShared = readRepoFile('src/features/Admin/DefaultSettings/shared.ts');
 
     expect(catalog).toContain("label: '内容与运营'");
     expect(catalog).toContain("label: 'AI 运行时默认值'");
@@ -258,7 +261,7 @@ describe('admin Chinese copy', () => {
     expect(contentPages).toContain('用户文稿管理');
     expect(expertPlazaPage).toContain('专家广场配置已保存');
     expect(systemDefaultsPage).toContain('服务模型默认设置 JSON');
-    expect(systemDefaultsPage).toContain('默认助手模型');
+    expect(systemDefaultsShared).toContain('默认助手模型');
     expect(systemDefaultsPage).toContain('提示词改写模型');
     expect(systemDefaultsPage).toContain('默认禁用的内置技能/工具');
   });
@@ -286,10 +289,11 @@ describe('admin Chinese copy', () => {
 
   it('keeps the user detail drawer labels in Chinese for plan assignment and history tables', () => {
     const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
+    const detailSections = readRepoFile('src/features/Admin/UserDetail/DetailSections.tsx');
 
     expect(userDetailDrawer).toContain("t('admin.userDetail.assignPlan', '给用户分配套餐')");
-    expect(userDetailDrawer).toContain("t('admin.userDetail.endTime', '结束时间')");
-    expect(userDetailDrawer).toContain("t('admin.userDetail.ledgerType', '类型')");
-    expect(userDetailDrawer).toContain("t('admin.userDetail.orderId', 'ID')");
+    expect(detailSections).toContain("t('admin.userDetail.endTime', '结束时间')");
+    expect(detailSections).toContain("t('admin.userDetail.ledgerType', '类型')");
+    expect(detailSections).toContain("t('admin.userDetail.orderId', 'ID')");
   });
 });

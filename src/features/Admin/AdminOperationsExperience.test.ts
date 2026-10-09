@@ -19,7 +19,20 @@ describe('admin operations management experience', () => {
       const page = readRepoFile(filePath);
 
       expect(page, filePath).toContain('AdminPageShell');
+    }
+
+    for (const filePath of [
+      ...operationPages.filter((filePath) => !filePath.includes('ExpertPlaza')),
+      'src/features/Admin/ExpertPlaza/EntryMetaFields.tsx',
+    ]) {
+      const page = readRepoFile(filePath);
+
       expect(page, filePath).toContain('AdminSection');
+    }
+
+    for (const filePath of operationPages) {
+      const page = readRepoFile(filePath);
+
       expect(page, filePath).toContain('AdminPageError');
       expect(page, filePath).toContain('AdminFormActions');
       expect(page, filePath).not.toContain('padding={24}');
@@ -48,7 +61,11 @@ describe('admin operations management experience', () => {
   });
 
   it('uses responsive grids instead of fixed inline form rows', () => {
-    for (const filePath of operationPages) {
+    for (const filePath of [
+      ...operationPages.filter((filePath) => !filePath.includes('ExpertPlaza')),
+      'src/features/Admin/ExpertPlaza/EntryMetaFields.tsx',
+      'src/features/Admin/ExpertPlaza/CardListFields.tsx',
+    ]) {
       const page = readRepoFile(filePath);
 
       expect(page, filePath).toContain('AdminFormGrid');

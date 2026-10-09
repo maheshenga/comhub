@@ -1,9 +1,7 @@
 'use client';
 
-import { Flexbox, Skeleton } from '@lobehub/ui';
-import { Button, confirmModal } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
-import { createStaticStyles } from 'antd-style';
+import { Flexbox } from '@lobehub/ui';
+import { confirmModal } from '@lobehub/ui/base-ui';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,8 +16,7 @@ import {
 } from '@/const/mobileConfigPublication';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
-import MobileConfigPreview from './MobileConfigPreview';
+import { AdminPageShell } from './layout';
 import {
   ApplicationsSection,
   BottomNavigationSection,
@@ -27,42 +24,25 @@ import {
   DesignToolsSection,
   DiscoverCommunitySection,
   FeaturedAssistantsSection,
-  mobileSettingsStyles,
 } from './MobileSettings';
+import {
+  MobileSettingsActions,
+  MobileSettingsFeedback,
+  MobileSettingsLoading,
+} from './MobileSettings/PageFrame';
+import PreviewSection from './MobileSettings/PreviewSection';
+import PublicationHistorySection from './MobileSettings/PublicationHistorySection';
 import { useMobilePublicationActions } from './MobileSettings/useMobilePublicationActions';
+import { useMobileSelectorOptions } from './MobileSettings/useMobileSelectorOptions';
 import {
   cloneConfig,
   createMobileSettingsAsyncGuard,
-  idleSelectorStatus,
-  loadAssistantOptions,
-  loadModelOptions,
-  loadModuleAppOptions,
-  type ModelOption,
-  type SelectOption,
-  type SelectorStatus,
   stringifyConfig,
   toFormConfig,
   validateFormConfig,
 } from './mobileSettingsHelpers';
 import { useUnsavedChangesGuard } from './shared/useUnsavedChangesGuard';
 
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  publicationMeta: css`
-    font-size: 13px;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  revisionRow: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-
-    min-height: 44px;
-    padding-block: 6px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-  `,
-}));
 const AdminMobileSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const tr = useCallback(
@@ -82,15 +62,7 @@ const AdminMobileSettingsPage = memo(() => {
   const [publicationState, setPublicationState] = useState<MobileConfigPublicationState>(() =>
     createMobileConfigPublication(DEFAULT_MOBILE_CONFIG, new Date(0).toISOString()),
   );
-  const [assistantOptions, setAssistantOptions] = useState<SelectOption[]>([]);
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
-  const [moduleAppOptions, setModuleAppOptions] = useState<SelectOption[]>([]);
-  const [assistantStatus, setAssistantStatus] = useState<SelectorStatus>(idleSelectorStatus);
-  const [modelStatus, setModelStatus] = useState<SelectorStatus>(idleSelectorStatus);
-  const [moduleAppStatus, setModuleAppStatus] = useState<SelectorStatus>(idleSelectorStatus);
-  const [selectedAssistantId, setSelectedAssistantId] = useState('');
-  const [selectedModelValue, setSelectedModelValue] = useState('');
-  const [selectedModuleAppId, setSelectedModuleAppId] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
@@ -114,63 +86,23 @@ const AdminMobileSettingsPage = memo(() => {
     }
   }, [asyncGuard, tr]);
 
-  const refreshAssistantOptions = useCallback(async () => {
-    if (!asyncGuard.isMounted()) return;
-    setAssistantStatus({ loading: true });
-    try {
-      const assistants = await loadAssistantOptions();
-      if (!asyncGuard.isMounted()) return;
-      setAssistantOptions(assistants);
-      setAssistantStatus({ loading: false });
-    } catch {
-      if (!asyncGuard.isMounted()) return;
-      setAssistantOptions([]);
-      setSelectedAssistantId('');
-      setAssistantStatus({
-        error: tr('admin.mobile.assistantSelectorUnavailable', 'Assistant selector unavailable.'),
-        loading: false,
-      });
-    }
-  }, [asyncGuard, tr]);
-
-  const refreshModelOptions = useCallback(async () => {
-    if (!asyncGuard.isMounted()) return;
-    setModelStatus({ loading: true });
-    try {
-      const models = await loadModelOptions();
-      if (!asyncGuard.isMounted()) return;
-      setModelOptions(models);
-      setModelStatus({ loading: false });
-    } catch {
-      if (!asyncGuard.isMounted()) return;
-      setModelOptions([]);
-      setSelectedModelValue('');
-      setModelStatus({
-        error: tr('admin.mobile.modelSelectorUnavailable', 'Model selector unavailable.'),
-        loading: false,
-      });
-    }
-  }, [asyncGuard, tr]);
-
-  const refreshModuleAppOptions = useCallback(async () => {
-    if (!asyncGuard.isMounted()) return;
-    setModuleAppStatus({ loading: true });
-    try {
-      const moduleApps = await loadModuleAppOptions();
-      if (!asyncGuard.isMounted()) return;
-      setModuleAppOptions(moduleApps);
-      setModuleAppStatus({ loading: false });
-    } catch {
-      if (!asyncGuard.isMounted()) return;
-      setModuleAppOptions([]);
-      setSelectedModuleAppId('');
-      setModuleAppStatus({
-        error: tr('admin.mobile.moduleAppSelectorUnavailable', 'Module app selector unavailable.'),
-        loading: false,
-      });
-    }
-  }, [asyncGuard, tr]);
-
+  const {
+    assistantOptions,
+    assistantStatus,
+    modelOptions,
+    modelStatus,
+    moduleAppOptions,
+    moduleAppStatus,
+    refreshAssistantOptions,
+    refreshModelOptions,
+    refreshModuleAppOptions,
+    selectedAssistantId,
+    selectedModelValue,
+    selectedModuleAppId,
+    setSelectedAssistantId,
+    setSelectedModelValue,
+    setSelectedModuleAppId,
+  } = useMobileSelectorOptions({ asyncGuard, tr });
   useEffect(() => {
     asyncGuard.mount();
     void loadPublication();
@@ -273,11 +205,7 @@ const AdminMobileSettingsPage = memo(() => {
         title={tr('admin.mobile.title', '手机端配置')}
         width="full"
       >
-        <Flexbox data-testid="mobile-settings-loading" gap={16}>
-          <Skeleton.Button active block style={{ height: 32, width: 240 }} />
-          <Skeleton.Paragraph active rows={4} />
-          <Skeleton.Button active block style={{ height: 120 }} />
-        </Flexbox>
+        <MobileSettingsLoading />
       </AdminPageShell>
     );
   }
@@ -290,11 +218,12 @@ const AdminMobileSettingsPage = memo(() => {
       width="full"
     >
       <Flexbox gap={24}>
-        {error ? <AdminPageError description={error} onRetry={loadPublication} /> : null}
-        {success ? <Alert showIcon title={success} type="success" /> : null}
-        {validation.messages.map((message) => (
-          <Alert showIcon key={message} title={message} type="warning" />
-        ))}
+        <MobileSettingsFeedback
+          error={error}
+          loadPublication={loadPublication}
+          success={success}
+          validation={validation}
+        />
 
         <BrandSection {...sectionProps} />
         <BottomNavigationSection {...sectionProps} />
@@ -325,70 +254,25 @@ const AdminMobileSettingsPage = memo(() => {
           onRetryModuleApps={() => void refreshModuleAppOptions()}
         />
 
-        <section
-          aria-label={tr('admin.mobile.preview', 'Preview')}
-          className={mobileSettingsStyles.section}
-        >
-          <h2 className={mobileSettingsStyles.sectionTitle}>
-            {tr('admin.mobile.preview', 'Preview')}
-          </h2>
-          <MobileConfigPreview config={normalizedPreview} />
-        </section>
+        <PreviewSection config={normalizedPreview} t={tr} />
 
-        <section
-          aria-label={tr('admin.mobile.history', 'Publication history')}
-          className={mobileSettingsStyles.section}
-        >
-          <h2 className={mobileSettingsStyles.sectionTitle}>
-            {tr('admin.mobile.history', 'Publication history')}
-          </h2>
-          <div className={styles.publicationMeta}>
-            {tr('admin.mobile.draftRevision', 'Draft revision {{draft}}', {
-              draft: publicationState.draft.revision,
-            })}
-            {' | '}
-            {tr('admin.mobile.publishedRevision', 'Published revision {{published}}', {
-              published: publicationState.published.revision,
-            })}
-          </div>
-          {publicationState.history.map((snapshot) => (
-            <div className={styles.revisionRow} key={snapshot.revision}>
-              <span>
-                {tr('admin.mobile.revision', 'Revision {{revision}}', {
-                  revision: snapshot.revision,
-                })}{' '}
-                <time dateTime={snapshot.updatedAt}>
-                  {new Date(snapshot.updatedAt).toLocaleString()}
-                </time>
-              </span>
-              {snapshot.revision !== publicationState.published.revision ? (
-                <Button
-                  loading={rollingBackRevision === snapshot.revision}
-                  onClick={() => void rollback(snapshot.revision)}
-                >
-                  {tr('admin.mobile.rollback', 'Roll back')}
-                </Button>
-              ) : null}
-            </div>
-          ))}
-        </section>
+        <PublicationHistorySection
+          publicationState={publicationState}
+          rollingBackRevision={rollingBackRevision}
+          t={tr}
+          onRollback={(revision) => void rollback(revision)}
+        />
 
-        <AdminFormActions label={tr('admin.mobile.actions', '手机端配置操作')}>
-          <Button onClick={() => void restoreDefaults()}>
-            {tr('admin.mobile.restoreDefaults', 'Restore defaults')}
-          </Button>
-          <Button disabled={!canSave} loading={saving} onClick={() => void save()}>
-            {tr('admin.mobile.saveDraft', 'Save draft')}
-          </Button>
-          <Button
-            disabled={!canPublish}
-            loading={publishing}
-            type="primary"
-            onClick={() => void publish()}
-          >
-            {tr('admin.mobile.publish', 'Publish')}
-          </Button>
-        </AdminFormActions>
+        <MobileSettingsActions
+          canPublish={canPublish}
+          canSave={canSave}
+          publish={publish}
+          publishing={publishing}
+          restoreDefaults={restoreDefaults}
+          save={save}
+          saving={saving}
+          tr={tr}
+        />
       </Flexbox>
     </AdminPageShell>
   );

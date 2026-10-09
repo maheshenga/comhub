@@ -101,10 +101,10 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
               disabled={!isFiniteCycle}
               max={120}
               min={1}
+              placeholder={t('admin.assignPlan.durationLifetime', '终身套餐无需填写')}
               precision={0}
               style={{ width: '100%' }}
               value={isFiniteCycle ? durationMonths : null}
-              placeholder={t('admin.assignPlan.durationLifetime', '终身套餐无需填写')}
               onChange={(value: number | null) => onDurationMonthsChange(Number(value ?? 1))}
             />
           </Flexbox>

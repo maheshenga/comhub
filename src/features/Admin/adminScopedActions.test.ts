@@ -44,22 +44,25 @@ describe('scoped admin user actions', () => {
 describe('scoped model billing matrix actions', () => {
   it('gates each read and write section on its owning capability', () => {
     const source = readSource('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const matrixData = readSource('src/features/Admin/ModelBillingMatrix/useMatrixData.ts');
+    const matrixTable = readSource('src/features/Admin/ModelBillingMatrix/MatrixTable.tsx');
 
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.modelOpsRead)');
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.financeRead)');
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.systemRead)');
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite)');
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.systemWrite)');
-    expect(source).toContain('canReadModels ? MATRIX_KEY : null');
-    expect(source).toContain('canReadPlans ? PLANS_KEY : null');
-    expect(source).toContain(
+    expect(matrixData).toContain('canReadModels ? MATRIX_KEY : null');
+    expect(matrixData).toContain('canReadPlans ? PLANS_KEY : null');
+    expect(matrixData).toContain(
       "canReadSettings ? ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix') : null",
     );
-    expect(source).toContain('disabled={!canWriteFinance || !planData || saving}');
-    expect(source).toContain('disabled={!canWriteSystem || !settings || saving}');
-    expect(source).toContain(
+    // The gated save controls live in the split MatrixTable section.
+    expect(matrixTable).toContain('disabled={!canWriteFinance || !planData || saving}');
+    expect(matrixTable).toContain('disabled={!canWriteSystem || !settings || saving}');
+    expect(matrixTable).toContain(
       "!['pricingMultiplier', 'creditsPerDollar', 'actions'].includes(String(column.key))",
     );
-    expect(source).toContain('columns={visibleColumns}');
+    expect(matrixTable).toContain('columns={visibleColumns}');
   });
 });

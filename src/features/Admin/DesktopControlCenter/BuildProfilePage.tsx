@@ -265,8 +265,8 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
             />
             {!isLocalProfile ? (
               <AdminDangerousActionButton
-                actionId="desktop.buildProfile.archive"
                 danger
+                actionId="desktop.buildProfile.archive"
                 loading={archiving}
                 onConfirm={(envelope) => performArchiveProfile(envelope)}
               >

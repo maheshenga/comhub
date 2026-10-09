@@ -65,11 +65,6 @@ const exclude = [
   '**/apps/cli/**',
   '**/packages/**',
   '**/e2e/**',
-  // Whitelisted until M3 splits AdminMobileSettingsPage (blueprint §7.3-1,
-  // redset-app-m0.json whitelist): its <400-line threshold is the only red.
-  // The `app` project overrides `test.exclude` inline, so CLI `--exclude`
-  // never reaches it — the exclusion must live in this shared array.
-  '**/mobileSettingsI18n.test.ts',
 ];
 
 export default defineConfig({

@@ -67,7 +67,7 @@ const AdminSettingsGovernanceCard = memo(() => {
           message.error(
             t('admin.settings.governance.deleteUnknownMismatch', '输入的 key 不匹配'),
           );
-          return Promise.reject(new Error('CONFIRMATION_KEY_MISMATCH'));
+          throw new Error('CONFIRMATION_KEY_MISMATCH');
         }
 
         await adminCommercialService.deleteUnknownAppSetting({ confirmKey: key, key });
@@ -82,12 +82,12 @@ const AdminSettingsGovernanceCard = memo(() => {
 
   return (
     <Card
+      title={t('admin.settings.governance.title', '设置治理健康检查')}
       extra={
         <Button size="small" onClick={() => mutate()}>
           {t('admin.settings.governance.refresh', '刷新')}
         </Button>
       }
-      title={t('admin.settings.governance.title', '设置治理健康检查')}
     >
       <Flexbox gap={16}>
         <Space wrap>
@@ -112,12 +112,12 @@ const AdminSettingsGovernanceCard = memo(() => {
         {hasUnknownKeys ? (
           <Alert
             showIcon
+            message={t('admin.settings.governance.unknownFound', '发现未注册设置项')}
+            type="warning"
             description={t(
               'admin.settings.governance.unknownDescription',
               '这些 key 可能来自旧版本、手工写库或已迁移功能。建议确认后迁移或清理，避免后台重复设置或配置不生效。',
             )}
-            message={t('admin.settings.governance.unknownFound', '发现未注册设置项')}
-            type="warning"
           />
         ) : (
           <Alert
@@ -131,6 +131,7 @@ const AdminSettingsGovernanceCard = memo(() => {
           <List
             bordered
             dataSource={data.unknownKeys}
+            size="small"
             renderItem={(item) => (
               <List.Item
                 actions={[
@@ -147,7 +148,6 @@ const AdminSettingsGovernanceCard = memo(() => {
                 <Text code>{item.key}</Text>
               </List.Item>
             )}
-            size="small"
           />
         )}
 

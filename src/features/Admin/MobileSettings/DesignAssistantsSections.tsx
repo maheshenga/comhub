@@ -208,12 +208,12 @@ export const FeaturedAssistantsSection = ({
           {tr('admin.mobile.loadModelOptions', 'Load model options')}
         </Button>
         <SelectField
-          disabled={
-            assistantStatus.loading || Boolean(assistantStatus.error) || assistantOptions.length === 0
-          }
           label={tr('admin.mobile.featuredAssistant', 'Featured assistant')}
           options={assistantOptions}
           value={selectedAssistantId}
+          disabled={
+            assistantStatus.loading || Boolean(assistantStatus.error) || assistantOptions.length === 0
+          }
           onChange={setSelectedAssistantId}
         />
         <SelectField

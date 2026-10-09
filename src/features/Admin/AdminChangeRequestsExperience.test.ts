@@ -8,6 +8,11 @@ const page = readFileSync(
   'utf8',
 );
 
+const bulkToolbar = readFileSync(
+  path.resolve(__dirname, '../../..', 'src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx'),
+  'utf8',
+);
+
 describe('admin change requests experience', () => {
   it('uses shared page hierarchy, retry state, and responsive table navigation', () => {
     expect(page).toContain('AdminPageShell');
@@ -20,9 +25,9 @@ describe('admin change requests experience', () => {
   });
 
   it('keeps approval, rejection, bulk confirmation, and selection reset behavior', () => {
-    expect(page).toContain('AdminBulkActionFlow');
-    expect(page).toContain('actionId="subscription.changeRequest.bulkApprove"');
-    expect(page).toContain('actionId="subscription.changeRequest.bulkReject"');
+    expect(bulkToolbar).toContain('AdminBulkActionFlow');
+    expect(bulkToolbar).toContain('actionId="subscription.changeRequest.bulkApprove"');
+    expect(bulkToolbar).toContain('actionId="subscription.changeRequest.bulkReject"');
     expect(page).toContain('setSelectedIds([])');
     expect(page).toContain('handleRejectConfirm');
   });

@@ -1,18 +1,12 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Select } from '@lobehub/ui/base-ui';
-import { Alert, Descriptions, Form, Input, InputNumber, message, Typography } from 'antd';
+import { Button, Select } from '@lobehub/ui/base-ui';
+import { Alert, Form, Input, InputNumber, message, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
-import {
-  type MemoryUserMemoryTriggerMode,
-  normalizeMemoryUserMemoryTriggerMode,
-  normalizeText,
-  SETTING_KEYS,
-} from '@/features/Admin/adminSettingsForm';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -25,85 +19,16 @@ import {
   AdminPageShell,
   AdminSection,
 } from './layout';
+import RunResultModal from './SystemMaintenance/RunResultModal';
+import {
+  buildInitialValues,
+  buildUpdates,
+  type MaintenanceFormValues,
+  type MaintenanceResult,
+  memoryTriggerModeOptions,
+} from './SystemMaintenance/shared';
 
 const { Text } = Typography;
-
-const memoryTriggerModeOptions = [
-  { label: '自动选择', value: 'auto' },
-  { label: '直接执行（推荐单机 Node 部署）', value: 'direct' },
-  { label: 'QStash 工作流优先（缺失 Token 时回退直接执行）', value: 'workflow' },
-] satisfies Array<{ label: string; value: MemoryUserMemoryTriggerMode }>;
-
-type MaintenanceFormValues = {
-  cronAuditRetentionDays: number;
-  cronPendingOrderExpiryDays: number;
-  cronSecret: string;
-  memoryUserMemoryTriggerMode: MemoryUserMemoryTriggerMode;
-};
-
-type MaintenanceResult = {
-  auditCutoff?: string;
-  auditLogsDeleted?: number;
-  freeSnapshotsCreated?: number;
-  moduleAppUploadCleanupFailed?: number;
-  moduleAppUploadsExpired?: number;
-  notificationRetentionCutoff?: string;
-  notificationsDeleted?: number;
-  pendingOrdersCutoff?: string;
-  pendingOrdersExpired?: number;
-  subscriptionSnapshotsExpired?: number;
-};
-
-const buildInitialValues = (data: any): MaintenanceFormValues => ({
-  cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
-  cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
-  cronSecret: '',
-  memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
-    data?.memoryUserMemoryTriggerMode,
-  ),
-});
-
-const normalizeValues = (values: MaintenanceFormValues): MaintenanceFormValues => ({
-  cronAuditRetentionDays:
-    typeof values.cronAuditRetentionDays === 'number' ? values.cronAuditRetentionDays : 365,
-  cronPendingOrderExpiryDays:
-    typeof values.cronPendingOrderExpiryDays === 'number' ? values.cronPendingOrderExpiryDays : 7,
-  cronSecret: normalizeText(values.cronSecret),
-  memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
-    values.memoryUserMemoryTriggerMode,
-  ),
-});
-
-const buildUpdates = (values: MaintenanceFormValues, initial: MaintenanceFormValues) => {
-  const current = normalizeValues(values);
-  const baseline = normalizeValues(initial);
-  const updates: { key: string; value: unknown }[] = [];
-
-  if (current.cronSecret) {
-    updates.push({ key: SETTING_KEYS.cronSecret, value: current.cronSecret });
-  }
-
-  const fields: Array<keyof MaintenanceFormValues> = [
-    'cronAuditRetentionDays',
-    'cronPendingOrderExpiryDays',
-    'memoryUserMemoryTriggerMode',
-  ];
-
-  const keyMap: Record<keyof MaintenanceFormValues, string> = {
-    cronAuditRetentionDays: SETTING_KEYS.cronAuditRetentionDays,
-    cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
-    cronSecret: SETTING_KEYS.cronSecret,
-    memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
-  };
-
-  for (const field of fields) {
-    if (current[field] !== baseline[field]) {
-      updates.push({ key: keyMap[field], value: current[field] });
-    }
-  }
-
-  return updates;
-};
 
 const AdminSystemMaintenancePage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -331,35 +256,7 @@ const AdminSystemMaintenancePage = memo(() => {
         </Flexbox>
       </Form>
 
-      <Modal
-        footer={null}
-        open={!!runResult}
-        title={t('admin.maintenance.runResult', '维护结果')}
-        onCancel={() => setRunResult(null)}
-      >
-        <Descriptions
-          column={1}
-          size="small"
-          items={[
-            { children: runResult?.auditLogsDeleted ?? 0, label: '已删除审计日志' },
-            { children: runResult?.auditCutoff ?? '-', label: '审计日志清理时间点' },
-            { children: runResult?.pendingOrdersExpired ?? 0, label: '已过期待支付订单' },
-            { children: runResult?.pendingOrdersCutoff ?? '-', label: '待支付订单过期时间点' },
-            { children: runResult?.notificationsDeleted ?? 0, label: '已删除归档通知' },
-            {
-              children: runResult?.notificationRetentionCutoff ?? '-',
-              label: '归档通知清理时间点',
-            },
-            { children: runResult?.subscriptionSnapshotsExpired ?? 0, label: '已过期订阅快照' },
-            { children: runResult?.freeSnapshotsCreated ?? 0, label: '已补充免费套餐' },
-            { children: runResult?.moduleAppUploadsExpired ?? 0, label: '已清理模块应用上传' },
-            {
-              children: runResult?.moduleAppUploadCleanupFailed ?? 0,
-              label: '模块应用上传清理失败',
-            },
-          ]}
-        />
-      </Modal>
+      <RunResultModal runResult={runResult} onClose={() => setRunResult(null)} />
     </AdminPageShell>
   );
 });
