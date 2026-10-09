@@ -692,6 +692,20 @@ const MODULES = [
         'upstream',
         'admin deep-link redirect (/admin/* → /settings/admin/*) injected at the main-area route definition (M1 routing); diff kept to a few dozen lines; also limits the earlier mobile-workspace src/spa/router/ over-cover claim on this file',
       ],
+      // M2 design-system: the Admin max-lines gate lives in the root eslint
+      // config (upstream file, claimed upstream per the deps-pins precedent —
+      // an upstream file the fork deliberately extends) and its exemption
+      // list is a fork-new JSON claimed owned below.
+      [
+        'p:eslint.config.mjs',
+        'upstream',
+        'admin-console M2 max-lines gate: scoped max-lines overrides + exemption-list import appended on top of the upstream config; upstream rule-set changes (alint recalibrations) must be re-merged around the appended Admin block at the tail',
+      ],
+      [
+        'p:eslint-admin-legacy-oversized.json',
+        'owned',
+        'fork-new: Admin >300-line legacy tsx exemption list (38 entries at M2 baseline, warn-only, only shrinks — M3 split the Admin-root pages down to 17; see blueprint §4.5) consumed by eslint.config.mjs max-lines overrides',
+      ],
       ['p:src/features/Admin/', 'owned', 'admin feature modules + tests'],
       ['p:src/routes/(main)/admin/', 'owned', 'admin routes'],
       ['p:src/routes/(main)/settings/_layout/index.tsx', 'upstream', 'admin entry for admins'],

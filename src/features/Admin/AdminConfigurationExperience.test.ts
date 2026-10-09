@@ -13,10 +13,24 @@ const configurationPages = [
   'src/features/Admin/AdminPptSettingsPage.tsx',
 ];
 
+// M3 split: the model-policy form sections moved into the ModelPolicy/
+// PolicySections block; the section-hierarchy tokens live there now.
+const hierarchyOverrides: Record<string, string[]> = {
+  'src/features/Admin/AdminModelPolicyPage.tsx': [
+    'src/features/Admin/ModelPolicy/PolicySections.tsx',
+  ],
+};
+
+const readWithSplitBlocks = (filePath: string) => {
+  let source = readRepoFile(filePath);
+  for (const block of hierarchyOverrides[filePath] ?? []) source += readRepoFile(block);
+  return source;
+};
+
 describe('admin configuration management experience', () => {
   it('uses the shared responsive hierarchy and stable form actions on every page', () => {
     for (const filePath of configurationPages) {
-      const page = readRepoFile(filePath);
+      const page = readWithSplitBlocks(filePath);
 
       expect(page, filePath).toContain('AdminPageShell');
       expect(page, filePath).toContain('AdminSection');

@@ -29,12 +29,12 @@ const criticalActions = [
 ] as const;
 
 const visibleActionFiles = [
-  'src/features/Admin/AdminChangeRequestsPage.tsx',
-  'src/features/Admin/AdminContentPages.tsx',
-  'src/features/Admin/AdminOrdersPage.tsx',
-  'src/features/Admin/AdminProvidersPage.tsx',
+  'src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx',
+  'src/features/Admin/Orders/orderColumns.tsx',
+  'src/features/Admin/Providers/useInstanceColumns.tsx',
   'src/features/Admin/AdminSystemMaintenancePage.tsx',
   'src/features/Admin/AdminUserDetailDrawer.tsx',
+  'src/features/Admin/Content/contentColumns.tsx',
   'src/features/Admin/DesktopControlCenter/BuildProfilePage.tsx',
   'src/features/Admin/DesktopControlCenter/CreateDesktopReleaseModal.tsx',
   'src/features/Admin/DesktopControlCenter/DesktopBuildAssetUpload.tsx',

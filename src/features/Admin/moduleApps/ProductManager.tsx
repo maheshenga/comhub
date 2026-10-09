@@ -243,13 +243,15 @@ const ProductManager = memo<{
   return (
     <Flexbox gap={12}>
       <ModulePageState
+        emptyDescription={t('moduleApps.admin.products.emptyDescription')}
+        emptyTitle={t('moduleApps.admin.products.emptyTitle')}
         error={error}
         errorDescription={t('moduleApps.admin.products.loadErrorDescription')}
         errorTitle={t('moduleApps.admin.products.loadErrorTitle')}
         isEmpty={!isLoading && !error && data.length === 0}
         loading={isLoading}
         loadingLabel={t('moduleApps.admin.products.loading')}
-        onRetry={() => void retry()}
+        retryLabel={t('moduleApps.admin.products.retry')}
         primaryAction={
           canWrite
             ? {
@@ -259,9 +261,7 @@ const ProductManager = memo<{
               }
             : undefined
         }
-        retryLabel={t('moduleApps.admin.products.retry')}
-        emptyDescription={t('moduleApps.admin.products.emptyDescription')}
-        emptyTitle={t('moduleApps.admin.products.emptyTitle')}
+        onRetry={() => void retry()}
       >
         <Flexbox gap={12}>
           <Flexbox horizontal justify="flex-end">

@@ -66,7 +66,7 @@ export const buildManualTokenPricingMetadata = ({
   }
 
   return {
-    ...(metadata ?? {}),
+    ...metadata,
     manualPricing,
   };
 };
@@ -99,7 +99,7 @@ export const buildManualMediaPricingMetadata = ({
   }
 
   return {
-    ...(metadata ?? {}),
+    ...metadata,
     manualPricing,
   };
 };

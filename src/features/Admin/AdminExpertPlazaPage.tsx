@@ -1,12 +1,10 @@
 'use client';
 
-import { Avatar, Flexbox } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
-import { Alert, Form, type FormInstance, Input, message, Switch, Tooltip, Typography } from 'antd';
-import { Plus, Trash2 } from 'lucide-react';
+import { Alert, Form, type FormInstance, message } from 'antd';
 import { memo, useEffect, useState } from 'react';
 
-import { Card } from '@/components/antd-compat/Card';
 import {
   ADMIN_SETTINGS_SECTION_SWR_KEY,
   PUBLIC_EXPERT_PLAZA_SWR_KEY,
@@ -15,15 +13,10 @@ import { DEFAULT_EXPERT_PLAZA_CONFIG, type ExpertPlazaCard } from '@/const/exper
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import {
-  AdminFormActions,
-  AdminFormGrid,
-  AdminPageError,
-  AdminPageShell,
-  AdminSection,
-} from './layout';
-
-const { Text } = Typography;
+import CardListFields from './ExpertPlaza/CardListFields';
+import EntryMetaFields from './ExpertPlaza/EntryMetaFields';
+import type { CardFormValue, FormValues } from './ExpertPlaza/shared';
+import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 
 const SETTING_KEYS = {
   cards: 'expertPlaza.cards',
@@ -32,18 +25,6 @@ const SETTING_KEYS = {
   enabled: 'expertPlaza.enabled',
   name: 'expertPlaza.name',
 } as const;
-
-type CardFormValue = Omit<ExpertPlazaCard, 'tags'> & {
-  tagsText?: string;
-};
-
-type FormValues = {
-  cards: CardFormValue[];
-  categoriesText: string;
-  description: string;
-  enabled: boolean;
-  name: string;
-};
 
 const splitTextList = (value?: string) =>
   Array.from(
@@ -160,149 +141,9 @@ const AdminExpertPlazaPage = memo(() => {
         layout="vertical"
       >
         <Flexbox gap={24}>
-          <AdminSection description="设置侧栏入口状态、公开栏目名称和页面分类。" title="入口与页面">
-            <AdminFormGrid>
-              <Form.Item label="启用侧栏入口" name="enabled" valuePropName="checked">
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                label="栏目名称"
-                name="name"
-                rules={[{ message: '请填写栏目名称', required: true }]}
-              >
-                <Input placeholder="专家广场" />
-              </Form.Item>
-            </AdminFormGrid>
-            <Form.Item label="页面说明" name="description">
-              <Input.TextArea autoSize={{ minRows: 2 }} />
-            </Form.Item>
-            <Form.Item
-              extra="每行一个分类，也支持逗号分隔。"
-              label="分类列表"
-              name="categoriesText"
-            >
-              <Input.TextArea autoSize={{ minRows: 4 }} />
-            </Form.Item>
-          </AdminSection>
+          <EntryMetaFields />
 
-          <AdminSection
-            description="卡片按列表顺序展示；必填标题和描述，ID 留空时会根据标题生成。"
-            title="卡片信息"
-          >
-            <Form.List name="cards">
-              {(fields, { add, remove }) => (
-                <Flexbox gap={12}>
-                  {fields.map(({ key, name, ...restField }) => (
-                    <Card
-                      key={key}
-                      size="small"
-                      title={<SpacePreview form={form} name={name} />}
-                      extra={
-                        <Tooltip title="删除卡片">
-                          <Button
-                            danger
-                            aria-label="删除卡片"
-                            icon={<Trash2 aria-hidden size={16} />}
-                            size="small"
-                            onClick={() => remove(name)}
-                          />
-                        </Tooltip>
-                      }
-                    >
-                      <Flexbox gap={12}>
-                        <AdminFormGrid columns={3}>
-                          <Form.Item {...restField} label="ID" name={[name, 'id']}>
-                            <Input placeholder="finance-advisor" />
-                          </Form.Item>
-                          <Form.Item
-                            {...restField}
-                            label="标题"
-                            name={[name, 'title']}
-                            rules={[{ message: '请填写标题', required: true }]}
-                          >
-                            <Input placeholder="财务顾问" />
-                          </Form.Item>
-                          <Form.Item {...restField} label="分类" name={[name, 'category']}>
-                            <Input placeholder="办公" />
-                          </Form.Item>
-                        </AdminFormGrid>
-                        <Form.Item
-                          {...restField}
-                          label="描述"
-                          name={[name, 'description']}
-                          rules={[{ message: '请填写描述', required: true }]}
-                        >
-                          <Input.TextArea autoSize={{ minRows: 2 }} />
-                        </Form.Item>
-                        <AdminFormGrid>
-                          <Form.Item {...restField} label="头像 / 图标地址" name={[name, 'avatar']}>
-                            <Input placeholder="/images/avatar-presets/avatar-1.svg" />
-                          </Form.Item>
-                          <Form.Item {...restField} label="跳转链接" name={[name, 'url']}>
-                            <Input placeholder="/market/..." />
-                          </Form.Item>
-                        </AdminFormGrid>
-                        <AdminFormGrid columns={3}>
-                          <Form.Item {...restField} label="作者/来源" name={[name, 'author']}>
-                            <Input />
-                          </Form.Item>
-                          <Form.Item {...restField} label="指标名称" name={[name, 'metricLabel']}>
-                            <Input placeholder="使用人数" />
-                          </Form.Item>
-                          <Form.Item {...restField} label="指标值" name={[name, 'metricValue']}>
-                            <Input placeholder="1.2k" />
-                          </Form.Item>
-                        </AdminFormGrid>
-                        <Form.Item
-                          {...restField}
-                          extra="每行一个标签，也支持逗号分隔。"
-                          label="标签"
-                          name={[name, 'tagsText']}
-                        >
-                          <Input.TextArea autoSize={{ minRows: 2 }} />
-                        </Form.Item>
-                        <AdminFormGrid>
-                          <Form.Item
-                            {...restField}
-                            label="启用"
-                            name={[name, 'enabled']}
-                            valuePropName="checked"
-                          >
-                            <Switch defaultChecked />
-                          </Form.Item>
-                          <Form.Item
-                            {...restField}
-                            label="精选"
-                            name={[name, 'featured']}
-                            valuePropName="checked"
-                          >
-                            <Switch />
-                          </Form.Item>
-                        </AdminFormGrid>
-                      </Flexbox>
-                    </Card>
-                  ))}
-                  <Button
-                    block
-                    icon={<Plus aria-hidden size={16} />}
-                    type="dashed"
-                    onClick={() =>
-                      add({
-                        description: '',
-                        enabled: true,
-                        featured: false,
-                        id: '',
-                        tagsText: '',
-                        title: '',
-                      })
-                    }
-                  >
-                    添加卡片
-                  </Button>
-                </Flexbox>
-              )}
-            </Form.List>
-          </AdminSection>
+          <CardListFields form={form as FormInstance<any>} />
 
           <AdminFormActions label="专家广场配置操作">
             <Button
@@ -319,20 +160,6 @@ const AdminExpertPlazaPage = memo(() => {
     </AdminPageShell>
   );
 });
-
-const SpacePreview = ({ form, name }: { form: FormInstance<FormValues>; name: number }) => (
-  <Form.Item noStyle shouldUpdate>
-    {() => {
-      const card = form.getFieldValue(['cards', name]) as CardFormValue | undefined;
-      return (
-        <Flexbox horizontal align="center" gap={8}>
-          <Avatar avatar={card?.avatar} size={32} title={card?.title ?? ''} />
-          <Text strong>{card?.title || '新卡片'}</Text>
-        </Flexbox>
-      );
-    }}
-  </Form.Item>
-);
 
 AdminExpertPlazaPage.displayName = 'AdminExpertPlazaPage';
 

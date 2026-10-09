@@ -1,8 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Button, Space, Tag, Typography, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
+import { Button, message,Space, Tag, Typography, Upload } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Select, Tabs } from '@lobehub/ui/base-ui';
-import { Empty, Input, message, Tag } from 'antd';
+import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
+import { Empty, message, Tag } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,29 +18,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminChangeRequestsPage from './AdminChangeRequestsPage';
 import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
-import {
-  ADMIN_SUBSCRIPTION_CYCLES,
-  getAdminSubscriptionCycleLabel,
-} from './adminSubscriptionCycles';
 import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
-
-type PlanFilter = 'all' | 'free' | 'hobby' | 'starter' | 'premium' | 'ultimate';
-
-const PLAN_COLORS: Record<string, string> = {
-  free: 'default',
-  hobby: 'blue',
-  premium: 'gold',
-  starter: 'cyan',
-  ultimate: 'purple',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  active: 'success',
-  canceled: 'default',
-  expired: 'warning',
-  past_due: 'error',
-  trialing: 'processing',
-};
+import ForcePlanModal from './Subscriptions/ForcePlanModal';
+import { PLAN_COLORS, type PlanFilter,STATUS_COLORS } from './Subscriptions/shared';
 
 const styles = createStaticStyles(({ css }) => ({
   filter: css`
@@ -261,62 +241,13 @@ const AdminSubscriptionsPage = memo(() => {
                   </Flexbox>
                 )}
 
-                <Modal
-                  confirmLoading={submitting}
-                  open={forceModal.visible}
-                  title={t('admin.subscriptions.modal.title', '人工变更套餐')}
+                <ForcePlanModal
+                  forceModal={forceModal}
+                  setForceModal={setForceModal}
+                  submitting={submitting}
                   onCancel={closeForceModal}
-                  onOk={handleForceConfirm}
-                >
-                  <Flexbox gap={12}>
-                    <Flexbox gap={4}>
-                      <div>{t('admin.subscriptions.modal.planLabel', '套餐')}</div>
-                      <Select
-                        style={{ width: '100%' }}
-                        value={forceModal.plan}
-                        options={[
-                          { label: '免费版（Free）', value: 'free' },
-                          { label: '轻量版（Hobby）', value: 'hobby' },
-                          { label: '基础版（Starter）', value: 'starter' },
-                          { label: '专业版（Premium）', value: 'premium' },
-                          { label: '旗舰版（Ultimate）', value: 'ultimate' },
-                        ]}
-                        onChange={(value: string) =>
-                          setForceModal((prev) => ({ ...prev, plan: value }))
-                        }
-                      />
-                    </Flexbox>
-                    <Flexbox gap={4}>
-                      <div>{t('admin.subscriptions.modal.cycleLabel', '周期')}</div>
-                      <Select
-                        style={{ width: '100%' }}
-                        value={forceModal.cycle}
-                        options={ADMIN_SUBSCRIPTION_CYCLES.map((item) => ({
-                          label: t(
-                            `admin.subscriptions.modal.${item}`,
-                            getAdminSubscriptionCycleLabel(item),
-                          ),
-                          value: item,
-                        }))}
-                        onChange={(value) => setForceModal((prev) => ({ ...prev, cycle: value }))}
-                      />
-                    </Flexbox>
-                    <Flexbox gap={4}>
-                      <div>{t('admin.subscriptions.modal.reasonLabel', '原因')}</div>
-                      <Input.TextArea
-                        rows={3}
-                        value={forceModal.reason}
-                        placeholder={t(
-                          'admin.subscriptions.modal.reasonPlaceholder',
-                          '请输入变更原因...',
-                        )}
-                        onChange={(event: { target: { value: string } }) =>
-                          setForceModal((prev) => ({ ...prev, reason: event.target.value }))
-                        }
-                      />
-                    </Flexbox>
-                  </Flexbox>
-                </Modal>
+                  onConfirm={handleForceConfirm}
+                />
               </AdminSection>
             ),
             key: 'subscriptions',

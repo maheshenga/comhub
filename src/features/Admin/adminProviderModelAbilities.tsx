@@ -30,7 +30,7 @@ export const buildManualAbilitiesMetadata = ({
   abilities: AdminModelAbilities;
   metadata?: Record<string, unknown> | null;
 }) => ({
-  ...(metadata ?? {}),
+  ...metadata,
   manualAbilities: abilities,
 });
 

@@ -3,7 +3,6 @@
 import { Icon } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { Spin, Tag } from 'antd';
-import { createStaticStyles } from 'antd-style';
 import {
   ArrowRight,
   ChartNoAxesColumn,
@@ -23,121 +22,9 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { AdminMetricStrip, AdminPageError, AdminPageShell, AdminSection } from './layout';
+import { overviewStyles } from './Overview/overviewStyles';
 
-const styles = createStaticStyles(({ css, cssVar }) => ({
-  group: css`
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
 
-    min-width: 0;
-    padding-block: 14px;
-    border-block-start: 1px solid ${cssVar.colorBorderSecondary};
-  `,
-  groupDescription: css`
-    margin: 0;
-    font-size: ${cssVar.fontSizeSM};
-    line-height: ${cssVar.lineHeightSM};
-    color: ${cssVar.colorTextSecondary};
-  `,
-  groupGrid: css`
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0 24px;
-
-    @media (width < 960px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    @media (width < 640px) {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  `,
-  groupTitle: css`
-    margin: 0;
-
-    font-size: ${cssVar.fontSize};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 22px;
-    color: ${cssVar.colorText};
-  `,
-  keyValue: css`
-    display: grid;
-    grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
-    gap: 12px;
-    align-items: baseline;
-
-    min-height: 32px;
-    padding-block: 5px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-
-    &:last-child {
-      border-block-end: 0;
-    }
-  `,
-  keyValueLabel: css`
-    color: ${cssVar.colorTextSecondary};
-  `,
-  keyValueValue: css`
-    font-weight: ${cssVar.fontWeightStrong};
-    color: ${cssVar.colorText};
-    text-align: end;
-    overflow-wrap: anywhere;
-  `,
-  link: css`
-    cursor: pointer;
-
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-
-    width: 100%;
-    min-height: 34px;
-    padding-block: 5px;
-    padding-inline: 8px;
-    border: 0;
-    border-radius: ${cssVar.borderRadiusSM};
-
-    font: inherit;
-    color: ${cssVar.colorText};
-    text-align: start;
-
-    background: transparent;
-
-    &:hover {
-      background: ${cssVar.colorFillTertiary};
-    }
-
-    &:focus-visible {
-      outline: 2px solid ${cssVar.colorPrimary};
-      outline-offset: 1px;
-    }
-  `,
-  linkList: css`
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  `,
-  pending: css`
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
-    justify-content: center;
-
-    min-height: 88px;
-  `,
-  split: css`
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
-
-    @media (width < 800px) {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  `,
-}));
 
 const AdminOverviewPage = memo(() => {
   const navigate = useNavigate();
@@ -210,7 +97,7 @@ const AdminOverviewPage = memo(() => {
         />
       )}
 
-      <div className={styles.split}>
+      <div className={overviewStyles.split}>
         <AdminSection
           description="优先处理会影响用户权益和订阅状态的请求。"
           title="待处理事项"
@@ -221,7 +108,7 @@ const AdminOverviewPage = memo(() => {
             </Button>
           }
         >
-          <div className={styles.pending}>
+          <div className={overviewStyles.pending}>
             {pendingChangesError ? (
               <AdminPageError
                 description="待处理事项加载失败，请重试。"
@@ -259,17 +146,17 @@ const AdminOverviewPage = memo(() => {
             <AdminPageError description="系统状态加载失败，请重试。" onRetry={refreshSettings} />
           ) : settings ? (
             <div>
-              <div className={styles.keyValue}>
-                <span className={styles.keyValueLabel}>品牌名称</span>
-                <strong className={styles.keyValueValue}>{settings.brandName || '未设置'}</strong>
+              <div className={overviewStyles.keyValue}>
+                <span className={overviewStyles.keyValueLabel}>品牌名称</span>
+                <strong className={overviewStyles.keyValueValue}>{settings.brandName || '未设置'}</strong>
               </div>
-              <div className={styles.keyValue}>
-                <span className={styles.keyValueLabel}>默认模型</span>
-                <strong className={styles.keyValueValue}>{defaultModel}</strong>
+              <div className={overviewStyles.keyValue}>
+                <span className={overviewStyles.keyValueLabel}>默认模型</span>
+                <strong className={overviewStyles.keyValueValue}>{defaultModel}</strong>
               </div>
-              <div className={styles.keyValue}>
-                <span className={styles.keyValueLabel}>推荐奖励</span>
-                <strong className={styles.keyValueValue}>
+              <div className={overviewStyles.keyValue}>
+                <span className={overviewStyles.keyValueLabel}>推荐奖励</span>
+                <strong className={overviewStyles.keyValueValue}>
                   {settings.referralRewardCredits ?? 0} 积分
                 </strong>
               </div>
@@ -284,15 +171,15 @@ const AdminOverviewPage = memo(() => {
         description="入口按职责域组织；日常操作无需在长菜单中反复定位。"
         title="管理模块"
       >
-        <div className={styles.groupGrid}>
+        <div className={overviewStyles.groupGrid}>
           {ADMIN_NAV_GROUPS.filter((group) => group.key !== 'overview').map((group) => (
-            <article className={styles.group} key={group.key}>
-              <h3 className={styles.groupTitle}>{group.label}</h3>
-              <p className={styles.groupDescription}>{group.description}</p>
-              <div className={styles.linkList}>
+            <article className={overviewStyles.group} key={group.key}>
+              <h3 className={overviewStyles.groupTitle}>{group.label}</h3>
+              <p className={overviewStyles.groupDescription}>{group.description}</p>
+              <div className={overviewStyles.linkList}>
                 {group.items.map((item) => (
                   <button
-                    className={styles.link}
+                    className={overviewStyles.link}
                     key={item.path}
                     type="button"
                     onClick={() => navigate(item.path)}

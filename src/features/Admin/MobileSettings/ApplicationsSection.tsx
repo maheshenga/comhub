@@ -76,12 +76,12 @@ export const ApplicationsSection = ({
           {tr('admin.mobile.loadModuleAppOptions', 'Load module app options')}
         </Button>
         <SelectField
-          disabled={
-            moduleAppStatus.loading || Boolean(moduleAppStatus.error) || moduleAppOptions.length === 0
-          }
           label={tr('admin.mobile.featuredModuleApp', 'Featured module app')}
           options={moduleAppOptions}
           value={selectedModuleAppId}
+          disabled={
+            moduleAppStatus.loading || Boolean(moduleAppStatus.error) || moduleAppOptions.length === 0
+          }
           onChange={setSelectedModuleAppId}
         />
         <Button disabled={!canAdd} onClick={addModuleApp}>
