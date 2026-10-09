@@ -135,9 +135,9 @@ describe('useAdminCursorQuery', () => {
       nextCursor: cursor === undefined ? 'cursor-2' : null,
     }));
 
-    const seenKeys: readonly unknown[][] = [];
+    const seenKeys: unknown[][] = [];
     await setSwrImplementation((key, fetch) => {
-      seenKeys.push([...key]);
+      if (key) seenKeys.push([...key]);
       return { data: fetch(), error: undefined, isLoading: false, mutate: vi.fn() };
     });
 
