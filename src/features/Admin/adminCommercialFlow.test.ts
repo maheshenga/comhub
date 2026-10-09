@@ -582,7 +582,7 @@ describe('admin commercial flow pages', () => {
 
   it('uses the provider-neutral admin route for service provider management', () => {
     const adminCatalog = readRepoFile('src/features/Admin/adminCatalog.ts');
-    const desktopRouteRegistry = readRepoFile('src/business/client/adminSettingsRouteRegistry.ts');
+    const routeManifest = readRepoFile('src/features/Admin/adminRouteManifest.ts');
 
     expect(existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/providers/index.tsx'))).toBe(
       true,
@@ -590,9 +590,12 @@ describe('admin commercial flow pages', () => {
     expect(
       existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/newapi-providers/index.tsx')),
     ).toBe(false);
-    expect(desktopRouteRegistry).toContain("import('@/routes/(main)/admin/providers')");
+    // M1 routing: the catalog→route lazy import moved from
+    // adminSettingsRouteRegistry.ts into ADMIN_PAGE_IMPORTS of the shared
+    // adminRouteManifest.ts (single source of truth) — assert the manifest form.
+    expect(routeManifest).toContain("import('@/routes/(main)/admin/providers')");
     expect(adminCatalog).toContain("segment: 'providers'");
-    expect(desktopRouteRegistry).not.toContain('newapi-providers');
+    expect(routeManifest).not.toContain('newapi-providers');
   });
 
   it('wires centralized dangerous action confirmations into high-risk admin surfaces', () => {

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MODULE_ADMIN_ROUTE_IMPORTS } from '@/business/client/moduleAdminRouteImports';
 import { ADMIN_CATALOG } from '@/features/Admin/adminCatalog';
+import { ADMIN_ROUTE_MANIFEST, MODULE_ADMIN_ROUTE_IDS } from '@/features/Admin/adminRouteManifest';
 import {
   MODULE_ADMIN_ROUTE_TREE,
   type ModuleAdminRouteNode,
@@ -13,6 +14,7 @@ import {
   ADMIN_SETTINGS_ROUTE_SEGMENTS,
 } from './adminSettingsRouteRegistry';
 import {
+  adminLegacyRedirectRoute,
   buildAdminSettingsRouteObject,
   BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithSettingsLayout,
@@ -67,13 +69,15 @@ describe('BusinessDesktopRoutes', () => {
       adminRoute.children?.map((route) => (route.index ? '' : String(route.path))) ?? [];
 
     expect(adminRoute.path).toBe('admin');
-    expect(childSegments).toEqual(ADMIN_SETTINGS_ROUTE_SEGMENTS);
+    // Trailing `*` is the admin fallback segment (§3.2 ②) — registered routes
+    // still match the registry order exactly.
+    expect(childSegments.slice(0, -1)).toEqual(ADMIN_SETTINGS_ROUTE_SEGMENTS);
+    expect(childSegments.at(-1)).toBe('*');
     expect(new Set(childSegments).size).toBe(childSegments.length);
     expect(ADMIN_SETTINGS_ROUTE_REGISTRY.map((route) => route.segment ?? '')).toEqual(
-      childSegments,
+      childSegments.slice(0, -1),
     );
   });
-
   it('builds nested admin route nodes recursively', () => {
     const route = buildAdminSettingsRouteObject({
       children: [
@@ -133,7 +137,40 @@ describe('BusinessDesktopRoutes', () => {
   });
 
   it('does not match the removed Module App URL', () => {
-    expect(matchRoutes(BusinessDesktopRoutesWithSettingsLayout, '/admin/module-apps')).toBeNull();
-    expect(matchRoutes(BusinessDesktopRoutesWithSettingsLayout, '/admin/modules')).not.toBeNull();
+    // `/admin/module-apps` (pre-Module-Center URL): the legacy redirect route
+    // owns it outside `/settings`, and inside the admin subtree it is caught
+    // by the `*` fallback segment — either way it renders a managed admin
+    // page, never a blank workspace.
+    const legacy = matchRoutes([adminLegacyRedirectRoute], '/admin/module-apps');
+    expect(legacy?.at(-1)?.route.path).toBe('admin/*');
+    expect(legacy?.at(-1)?.params['*']).toBe('module-apps');
+
+    const subtree = matchRoutes(BusinessDesktopRoutesWithSettingsLayout, '/admin/module-apps');
+    expect(subtree?.at(-1)?.route.path).toBe('*');
+    const modulesChain = matchRoutes(BusinessDesktopRoutesWithSettingsLayout, '/admin/modules');
+    expect(modulesChain?.map((match) => match.route.path)).toContain('modules');
+  });
+
+  it('legacy admin/* redirect route covers the bare prefix and any depth', () => {
+    expect(adminLegacyRedirectRoute.path).toBe('admin/*');
+    for (const pathname of ['/admin', '/admin/users', '/admin/modules/apps/app-1/runtime']) {
+      expect(matchRoutes([adminLegacyRedirectRoute], pathname), pathname).not.toBeNull();
+    }
+  });
+
+  it('derives its segments from the shared admin route manifest', () => {
+    // Registry order = manifest order: every manifest id that is mounted
+    // top-level maps to a registry segment; the Module Center subtree is
+    // nested under the single `module-center-layout` entry.
+    const registryIds = ADMIN_SETTINGS_ROUTE_REGISTRY.map((route) => route.id);
+    expect(registryIds).toEqual(
+      ADMIN_ROUTE_MANIFEST.filter(
+        (entry) =>
+          !(MODULE_ADMIN_ROUTE_IDS as string[]).includes(entry.id) ||
+          entry.id === 'module-center-layout',
+      ).map((entry) => entry.id),
+    );
+    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('modules');
+    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS.filter((segment) => segment === '')).toHaveLength(1);
   });
 });

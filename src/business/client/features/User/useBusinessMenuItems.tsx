@@ -1,3 +1,4 @@
+import { isAdminRole } from '@lobechat/types';
 import { Icon } from '@lobehub/ui';
 import { type ItemType } from 'antd/es/menu/interface';
 import { Crown, ShieldCheck } from 'lucide-react';
@@ -23,7 +24,10 @@ export default function useBusinessMenuItems(isSignin: boolean | undefined): Ite
       key: 'upgrade-plan',
       label: <Link to="/settings/plans">{t('tab.plans', 'Upgrade plan')}</Link>,
     },
-    ...(role === 'admin'
+    // Entry surface = gate surface (admin console redesign §2.4): the menu
+    // entry uses the same isAdminRole predicate as the router-level
+    // AdminAccessGate, so the entry never links a page the gate would bounce.
+    ...(isAdminRole(role)
       ? [
           {
             icon: <Icon icon={ShieldCheck} />,
