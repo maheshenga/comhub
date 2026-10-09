@@ -838,7 +838,9 @@ describe('AdminMobileSettingsPage', () => {
     expect(adminCommercialService.moduleApps.list).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: 'page-2', limit: 200, status: 'published' }),
     );
-  }, 15_000);
+    // Dual-page cursor mock chains two SWR resolutions: ~13s locally, and the
+    // shared-runner full-suite load pushed the earlier 15s cap over the line.
+  }, 60_000);
 
   it('does not write state after unmounting with pending load or save requests', async () => {
     const loadDeferred = createDeferred<MobileConfigPublicationState>();
