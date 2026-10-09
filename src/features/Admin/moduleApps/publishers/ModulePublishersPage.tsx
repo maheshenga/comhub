@@ -17,6 +17,7 @@ import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import PublisherFormModal, { type PublisherFormValues } from './PublisherFormModal';
+import { usePublisherGovernance } from './usePublisherGovernance';
 
 const styles = createStaticStyles(({ css }) => ({
   controls: css`
@@ -32,16 +33,6 @@ const styles = createStaticStyles(({ css }) => ({
 }));
 
 type PublisherListResponse = { items: ModuleAppPublisherRow[]; nextCursor: null | string };
-type GovernanceAction = 'assign' | 'suspend' | 'verify';
-
-const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[1-8][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i;
-
-const appListFamilyPredicate = (key: unknown) =>
-  Array.isArray(key) && key[0] === 'admin-module-apps' && key[1] === 'apps';
-const publisherListFamilyPredicate = (key: unknown) =>
-  Array.isArray(key) && key[0] === 'admin-module-apps' && key[1] === 'publishers';
-const invalidatePublisherLists = () =>
-  mutate(publisherListFamilyPredicate, undefined, { revalidate: true });
 
 const ModulePublishersPage = memo(() => {
   const { t } = useTranslation('common');
@@ -51,11 +42,8 @@ const ModulePublishersPage = memo(() => {
   );
   const canWrite = hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppWrite);
   const [createOpen, setCreateOpen] = useState(false);
-  const [action, setAction] = useState<GovernanceAction>();
-  const [appId, setAppId] = useState('');
-  const [error, setError] = useState<string>();
-  const [selectedPublisher, setSelectedPublisher] = useState<ModuleAppPublisherRow>();
   const [submitting, setSubmitting] = useState(false);
+  const governance = usePublisherGovernance({ t: t as any });
   const status = searchParams.get('status') ?? undefined;
   const userId = searchParams.get('userId') ?? undefined;
   const cursor = searchParams.get('cursor') ?? undefined;
@@ -92,58 +80,13 @@ const ModulePublishersPage = memo(() => {
     setSubmitting(true);
     try {
       await adminCommercialService.moduleApps.createPublisher(values);
-      await invalidatePublisherLists();
+      await mutate(listKey);
       toast.success(t('moduleApps.admin.publishers.createSuccess'));
       setCreateOpen(false);
     } finally {
       setSubmitting(false);
     }
   };
-  const openAction = (nextAction: GovernanceAction, publisher: ModuleAppPublisherRow) => {
-    setAction(nextAction);
-    setAppId('');
-    setError(undefined);
-    setSelectedPublisher(publisher);
-  };
-  const submitAction = async () => {
-    const normalizedAppId = appId.trim();
-    const appIdIsValid = UUID_PATTERN.test(normalizedAppId);
-    if (!action || !selectedPublisher || (action === 'assign' && !appIdIsValid)) return;
-    setSubmitting(true);
-    setError(undefined);
-    try {
-      if (action === 'verify') {
-        await adminCommercialService.moduleApps.verifyPublisher({
-          publisherId: selectedPublisher.id,
-          verificationMetadata: {},
-        });
-      } else if (action === 'suspend') {
-        await adminCommercialService.moduleApps.suspendPublisher({
-          publisherId: selectedPublisher.id,
-        });
-      } else {
-        await adminCommercialService.moduleApps.assignPublisher({
-          appId: normalizedAppId,
-          publisherId: selectedPublisher.id,
-        });
-        await Promise.all([
-          mutate(moduleAppCacheKeys.detail(normalizedAppId)),
-          mutate(appListFamilyPredicate, undefined, { revalidate: true }),
-        ]);
-      }
-      await invalidatePublisherLists();
-      toast.success(t(`moduleApps.admin.publishers.${action}Success`));
-      setAction(undefined);
-      setSelectedPublisher(undefined);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : t('moduleApps.admin.publishers.actionError'),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-  const appIdIsValid = UUID_PATTERN.test(appId.trim());
 
   return (
     <section className={styles.page} data-testid="module-publishers-page">
@@ -237,13 +180,13 @@ const ModulePublishersPage = memo(() => {
             canWrite
               ? (publisher) => (
                   <div className={styles.controls}>
-                    <Button onClick={() => openAction('verify', publisher)}>
+                    <Button onClick={() => governance.openAction('verify', publisher)}>
                       {t('moduleApps.admin.publishers.verify')}
                     </Button>
-                    <Button onClick={() => openAction('suspend', publisher)}>
+                    <Button onClick={() => governance.openAction('suspend', publisher)}>
                       {t('moduleApps.admin.publishers.suspend')}
                     </Button>
-                    <Button onClick={() => openAction('assign', publisher)}>
+                    <Button onClick={() => governance.openAction('assign', publisher)}>
                       {t('moduleApps.admin.publishers.assign')}
                     </Button>
                   </div>
@@ -268,28 +211,30 @@ const ModulePublishersPage = memo(() => {
         <Modal
           destroyOnHidden
           cancelText={t('cancel')}
-          confirmLoading={submitting}
-          okButtonProps={{ disabled: submitting || (action === 'assign' && !appIdIsValid) }}
-          okText={action ? t(`moduleApps.admin.publishers.${action}`) : ''}
-          open={Boolean(action)}
-          title={action ? t(`moduleApps.admin.publishers.${action}`) : ''}
-          onCancel={() => !submitting && setAction(undefined)}
-          onOk={submitAction}
+          confirmLoading={governance.submitting}
+          okButtonProps={{
+            disabled: governance.submitting || (governance.action === 'assign' && !governance.appIdIsValid),
+          }}
+          okText={governance.action ? t(`moduleApps.admin.publishers.${governance.action}`) : ''}
+          open={Boolean(governance.action)}
+          title={governance.action ? t(`moduleApps.admin.publishers.${governance.action}`) : ''}
+          onCancel={governance.closeAction}
+          onOk={governance.submitAction}
         >
-          {action === 'assign' ? (
+          {governance.action === 'assign' ? (
             <label>
               {t('moduleApps.admin.publishers.appId')}
               <Input
                 maxLength={36}
-                value={appId}
-                onChange={(event) => setAppId(event.target.value)}
+                value={governance.appId}
+                onChange={(event) => governance.setAppId(event.target.value)}
               />
             </label>
           ) : null}
-          {action === 'assign' && appId && !appIdIsValid ? (
+          {governance.action === 'assign' && governance.appId && !governance.appIdIsValid ? (
             <p role="alert">{t('moduleApps.admin.publishers.appIdError')}</p>
           ) : null}
-          {error ? <p role="alert">{error}</p> : null}
+          {governance.error ? <p role="alert">{governance.error}</p> : null}
         </Modal>
       ) : null}
     </section>

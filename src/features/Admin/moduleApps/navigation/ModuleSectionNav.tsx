@@ -14,6 +14,7 @@ import {
   type ModuleAdminSection,
 } from './catalog';
 import { getModuleAppSectionsForRole, getModuleCenterSectionsForRole } from './policy';
+import { getModuleSectionStatus } from './sectionStatus';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   group: css`
@@ -56,6 +57,31 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   nestedLink: css`
     padding-inline-start: 20px;
+  `,
+  statusBadge: css`
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+
+    margin-inline-start: auto;
+    padding-block: 1px;
+    padding-inline: 6px;
+    border-radius: ${cssVar.borderRadiusSM};
+
+    font-size: 11px;
+    line-height: 16px;
+    color: ${cssVar.colorTextTertiary};
+    background: ${cssVar.colorFillTertiary};
+
+    &[data-status='experimental'] {
+      color: ${cssVar.colorWarning};
+      background: ${cssVar.colorWarningBg};
+    }
+
+    &[data-status='compatibility'] {
+      color: ${cssVar.colorTextSecondary};
+      background: ${cssVar.colorFillSecondary};
+    }
   `,
   nav: css`
     display: grid;
@@ -126,6 +152,28 @@ const ModuleSectionNav = memo<ModuleSectionNavProps>(
         : getModuleCenterSectionsForRole(resolvedRole);
     const labelKeys = resolvedMode === 'detail' ? DETAIL_LABEL_KEYS : CENTER_LABEL_KEYS;
 
+    // PP-10：分区状态徽标（experimental/compatibility 显式标注）。
+    const statusBadge = (id: ModuleAdminRouteId) => {
+      const status = getModuleSectionStatus(id);
+      if (status === 'active') return null;
+      return (
+        <span
+          aria-hidden
+          className={styles.statusBadge}
+          data-status={status}
+          title={
+            status === 'experimental'
+              ? translate('moduleApps.admin.center.sectionStatus.experimental')
+              : translate('moduleApps.admin.center.sectionStatus.compatibility')
+          }
+        >
+          {status === 'experimental'
+            ? translate('moduleApps.admin.center.sectionStatus.experimental')
+            : translate('moduleApps.admin.center.sectionStatus.compatibility')}
+        </span>
+      );
+    };
+
     const renderLink = (section: ModuleAdminSection, nested = false) => {
       const labelKey = labelKeys[section.id];
       if (!labelKey) return null;
@@ -144,6 +192,8 @@ const ModuleSectionNav = memo<ModuleSectionNavProps>(
               resolvedMode === 'detail' ? 'detailNavigation' : 'navigation'
             }.${labelKey}`,
           )}
+          {/* PP-10：非 active 分区显式标注真实状态，避免「看起来是主路径」的误导。 */}
+          {statusBadge(section.id)}
         </NavLink>
       );
     };

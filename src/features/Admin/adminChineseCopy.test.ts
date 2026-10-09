@@ -20,7 +20,7 @@ const filesWithAdminCopy = [
   'src/features/Admin/adminNavigation.ts',
   'src/features/Admin/AdminDesktopUpdatePage.tsx',
   'src/features/Admin/AdminUserDetailDrawer.tsx',
-  'src/routes/(main)/admin/audit/index.tsx',
+  'src/features/Admin/Audit/AdminAuditPage.tsx',
   'src/routes/(main)/admin/subscriptions/index.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
@@ -232,6 +232,20 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.changeRequests.bulkRejectProgress']).toBe(
       '正在拒绝选中的套餐变更请求，请勿关闭页面。',
     );
+  });
+
+  it('includes default Chinese copy for the M5 three-domain batch actions', () => {
+    expect(subscription['admin.orders.bulkExpire']).toBe('批量过期');
+    expect(subscription['admin.orders.bulkExpireTitle']).toBe(
+      '批量过期 {{count}} 个待支付订单？',
+    );
+    expect(subscription['admin.orders.bulkCancel']).toBe('批量取消');
+    expect(subscription['admin.orders.bulkDryRun']).toBe('预检');
+    expect(subscription['admin.users.bulkBan']).toBe('批量封禁');
+    expect(subscription['admin.users.bulkSetRole']).toBe('批量改角色');
+    expect(subscription['admin.users.clearSelection']).toBe('清空选择');
+    expect(subscription['admin.payments.topups.bulkRefund']).toBe('批量退款');
+    expect(subscription['admin.payments.subscriptions.bulkRefund']).toBe('批量退款');
   });
 
   it('includes default Chinese copy for assigning user plans from the user list', () => {

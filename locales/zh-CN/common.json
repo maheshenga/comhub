@@ -537,6 +537,8 @@
   "moduleApps.admin.center.navigation.revenue": "收入",
   "moduleApps.admin.center.navigation.reviews": "审核",
   "moduleApps.admin.center.navigation.runs": "运行",
+  "moduleApps.admin.center.sectionStatus.compatibility": "兼容",
+  "moduleApps.admin.center.sectionStatus.experimental": "试验",
   "moduleApps.admin.center.overview.appSelector": "查看运行记录的应用",
   "moduleApps.admin.center.overview.description": "无需加载完整管理表格，即可查看最新模块活动。",
   "moduleApps.admin.center.overview.loading": "正在加载概览数据",

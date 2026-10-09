@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { adminAuditLogs } from '@/database/schemas';
@@ -9,6 +9,9 @@ import { recordAdminAudit } from './audit';
 const auditFilterInput = z.object({
   action: z.string().max(200).optional(),
   actorUserId: z.string().max(255).optional(),
+  // M5 §5.3 审计可视化：按批量任务聚合检索（item 审计与批级审计共享
+  // payload.batchCorrelationId，见 bulkApprove 范式）。
+  batchCorrelationId: z.string().max(255).optional(),
   from: z.coerce.date().optional(),
   resourceId: z.string().max(255).optional(),
   resourceType: z.string().max(120).optional(),
@@ -21,6 +24,7 @@ type AuditFilterInput = z.infer<typeof auditFilterInput>;
 const buildAuditWhere = ({
   action,
   actorUserId,
+  batchCorrelationId,
   from,
   resourceId,
   resourceType,
@@ -33,6 +37,9 @@ const buildAuditWhere = ({
     targetUserId ? eq(adminAuditLogs.targetUserId, targetUserId) : undefined,
     resourceType ? eq(adminAuditLogs.resourceType, resourceType) : undefined,
     resourceId ? eq(adminAuditLogs.resourceId, resourceId) : undefined,
+    batchCorrelationId
+      ? sql`${adminAuditLogs.payload}->>'batchCorrelationId' = ${batchCorrelationId}`
+      : undefined,
     from ? gte(adminAuditLogs.createdAt, from) : undefined,
     to ? lte(adminAuditLogs.createdAt, to) : undefined,
   ].filter(Boolean);

@@ -5,12 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionPaymentsPage from './SubscriptionPaymentsPage';
 
 const service = vi.hoisted(() => ({
+  bulkRefundSubscriptionPayments: vi.fn(),
   listSubscriptionPayments: vi.fn(),
   reconcilePendingSubscriptionPayments: vi.fn(),
   reconcileSubscriptionPayment: vi.fn(),
   refundSubscriptionPayment: vi.fn(),
   resolveSubscriptionPaymentRefund: vi.fn(),
 }));
+// 批量退款入口 mock 成捕获 props：用例断言页面把 actionId 与 onRun 接到订阅域端点。
+const bulkFlow = vi.hoisted(() => ({ captures: [] as any[] }));
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 const state = vi.hoisted(() => ({
@@ -35,10 +38,25 @@ vi.mock('@/libs/swr', () => ({
   },
 }));
 vi.mock('@/components/InlineTable', () => ({
-  default: ({ columns, dataSource }: any) => (
+  default: ({ columns, dataSource, rowSelection }: any) => (
     <div>
       {dataSource.map((row: any) => (
         <div key={row.id}>
+          {rowSelection ? (
+            <input
+              type="checkbox"
+              aria-label={`select-${row.id}`}
+              disabled={rowSelection.getCheckboxProps?.(row).disabled}
+              checked={rowSelection.selectedRowKeys?.includes(row.id)}
+              onChange={(event) =>
+                rowSelection.onChange(
+                  event.target.checked
+                    ? [...(rowSelection.selectedRowKeys ?? []), row.id]
+                    : (rowSelection.selectedRowKeys ?? []).filter((key: any) => key !== row.id),
+                )
+              }
+            />
+          ) : null}
           {columns.map((column: any) => (
             <span key={column.key ?? column.dataIndex}>
               {column.render
@@ -50,6 +68,12 @@ vi.mock('@/components/InlineTable', () => ({
       ))}
     </div>
   ),
+}));
+vi.mock('@/features/Admin/AdminBulkActionFlow', () => ({
+  default: (props: any) => {
+    bulkFlow.captures.push(props);
+    return null;
+  },
 }));
 vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, icon: _icon, loading: _loading, ...props }: any) => (
@@ -95,6 +119,7 @@ const orderId = '00000000-0000-4000-8000-000000000001';
 describe('SubscriptionPaymentsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bulkFlow.captures.length = 0;
     state.data = { items: [], nextCursor: null };
     state.error = undefined;
   });
@@ -276,5 +301,67 @@ describe('SubscriptionPaymentsPage', () => {
         resolution: 'succeeded',
       }),
     );
+  });
+
+  it('wires the bulk refund entry to the subscription domain endpoint', async () => {
+    state.data = {
+      items: [
+        {
+          amount: '68.00',
+          createdAt: new Date().toISOString(),
+          currency: 'CNY',
+          cycle: 'monthly',
+          displayName: 'Starter',
+          externalOrderId: 'subscription-trade-1',
+          id: orderId,
+          idempotencyKey: '00000000-0000-4000-8000-000000000002',
+          method: 'wechat_pay',
+          monthlyCredits: 5000,
+          paidAt: new Date().toISOString(),
+          plan: 'starter',
+          provider: 'wechat_pay',
+          refundReference: null,
+          refundStatus: null,
+          status: 'paid',
+          updatedAt: new Date().toISOString(),
+          userEmail: 'user@example.com',
+          userId: 'user-1',
+          userName: null,
+        },
+      ],
+      nextCursor: null,
+    };
+    service.bulkRefundSubscriptionPayments.mockResolvedValue({
+      batchCorrelationId: 'batch-1',
+      dryRun: false,
+      failed: 0,
+      results: [{ ok: true, orderId }],
+      succeeded: 1,
+      total: 1,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/admin/payments?tab=subscriptions']}>
+        <SubscriptionPaymentsPage canWrite />
+      </MemoryRouter>,
+    );
+
+    // 勾选 paid 行 → selectedRefundCount>0 → 页头渲染批量退款入口。
+    fireEvent.click(screen.getByRole('checkbox', { name: `select-${orderId}` }));
+
+    // 评审修复回归防线：订阅页批量入口必须携带订阅域 actionId，
+    // 且信封原样落到 bulkRefundSubscriptionPayments（subscriptionPaymentOrders 域），
+    // 不得再走 topUpOrders 域的 bulkRefundTopUpPayments。
+    expect(bulkFlow.captures.length).toBeGreaterThan(0);
+    const flow = bulkFlow.captures.at(-1);
+    expect(flow.actionId).toBe('payment.subscriptionBulkRefund');
+    const command = {
+      actionId: 'payment.subscriptionBulkRefund',
+      confirmationText: 'payment.subscriptionBulkRefund',
+      confirmed: true,
+      reason: 'duplicate purchase',
+    };
+    await flow.onRun(command);
+    expect(service.bulkRefundSubscriptionPayments).toHaveBeenCalledWith([orderId], command);
   });
 });

@@ -1,6 +1,7 @@
 import { ADMIN_ROLE_IDS, type AdminCompactUser, Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, asc, count, desc, eq, gte, isNull, like, or, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
@@ -21,7 +22,7 @@ import {
 } from '@/libs/trpc/lambda';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
+import { recordAdminAudit, recordAdminAuditStrict, runRequiredAdminAuditMutation } from './audit';
 
 type ResetAllUsersToFreePlanResult = {
   canceledPaid: number;
@@ -232,8 +233,266 @@ const compactUserReadProcedure = adminAnyCapabilityProcedure([
 const recordImpersonationAttemptCommand = createAdminCommand('user.impersonate.attempt');
 const resetAllToFreePlanCommand = createAdminCommand('user.resetAllToFreePlan');
 const setRoleCommand = createAdminCommand('user.setRole');
+const bulkBanCommand = createAdminCommand('user.bulkBan');
+const bulkSetRoleCommand = createAdminCommand('user.bulkSetRole');
+
+type BulkUserResult = { error?: string; ok: boolean; userId: string };
+
+type AdminMutationContext = { clientIp?: null | string; userId: string };
+
+const recordBulkUserItemAudit = async ({
+  action,
+  batchCorrelationId,
+  ctx,
+  error,
+  payload,
+  tx,
+  userId,
+}: {
+  action: string;
+  batchCorrelationId: string;
+  ctx: AdminMutationContext;
+  error?: string;
+  payload?: Record<string, unknown>;
+  tx: Transaction;
+  userId: string;
+}) =>
+  recordAdminAuditStrict(
+    { ...ctx, serverDB: tx },
+    {
+      action: `user.${action}.item`,
+      payload: {
+        ...(payload ?? {}),
+        error: error ?? null,
+        batchCorrelationId,
+        result: error ? 'failed' : 'succeeded',
+      },
+      resourceType: 'user',
+      targetUserId: userId,
+    },
+    { correlationId: batchCorrelationId, status: error ? 'failed' : 'succeeded' },
+  );
+
+/** Row-locked existence check for a bulk user batch; throws on any missing id. */
+const loadUsersForBulk = async (tx: Transaction, userIds: string[]) => {
+  const rows = await tx.select({ id: users.id }).from(users).where(inArray(users.id, userIds)).for('update');
+  const foundIds = new Set(rows.map((row) => row.id));
+  const missing = userIds.filter((userId) => !foundIds.has(userId));
+  if (missing.length > 0) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'USER_NOT_FOUND' });
+  }
+  return foundIds;
+};
 
 export const adminUsersRouter = router({
+  bulkBan: supportWriteProcedure
+    .input(
+      z.object({
+        command: bulkBanCommand.schema,
+        dryRun: z.boolean().optional(),
+        reason: z.string().max(500).optional(),
+        userIds: z.array(z.string().min(1)).min(1).max(50),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const command = bulkBanCommand.validate(input.command, input.reason);
+      const batchCorrelationId = randomUUID();
+
+      if (input.dryRun) {
+        const rows: Array<{
+          banned: boolean | null;
+          email: string | null;
+          id: string;
+          role: string | null;
+        }> = await ctx.serverDB
+          .select({ banned: users.banned, email: users.email, id: users.id, role: users.role })
+          .from(users)
+          .where(inArray(users.id, input.userIds));
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        return {
+          batchCorrelationId: null,
+          dryRun: true,
+          results: input.userIds.map((userId) => {
+            const user = byId.get(userId);
+            return {
+              error: user ? null : ('USER_NOT_FOUND' as string | null),
+              ok: Boolean(user),
+              orderId: undefined,
+              preview: user
+                ? { alreadyBanned: user.banned, email: user.email, role: user.role }
+                : null,
+              userId,
+            };
+          }),
+          total: input.userIds.length,
+          matched: rows.length,
+          unmatchedOrderIds: input.userIds.filter((id) => !byId.has(id)),
+        };
+      }
+
+      const results = await runRequiredAdminAuditMutation<BulkUserResult[]>(ctx, {
+        audit: (results) => ({
+          action: command.auditAction,
+          payload: {
+            failed: results.filter((result) => !result.ok).length,
+            reason: command.reason,
+            succeeded: results.filter((result) => result.ok).length,
+            total: results.length,
+          },
+          resourceType: 'user',
+        }),
+        mutation: async (tx) => {
+          const userIds = [...new Set(input.userIds)];
+          if (userIds.length !== input.userIds.length) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'DUPLICATE_USER_IDS' });
+          }
+          if (userIds.includes(ctx.userId)) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'CANNOT_BAN_SELF' });
+          }
+          await loadUsersForBulk(tx, userIds);
+
+          const results: BulkUserResult[] = [];
+          for (const userId of userIds) {
+            try {
+              await tx
+                .update(users)
+                .set({ banReason: command.reason ?? null, banned: true })
+                .where(eq(users.id, userId));
+              await recordBulkUserItemAudit({
+                action: 'bulkBan',
+                batchCorrelationId,
+                ctx,
+                payload: { banReason: command.reason ?? null },
+                tx,
+                userId,
+              });
+              results.push({ ok: true, userId });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'UNKNOWN';
+              await recordBulkUserItemAudit({
+                action: 'bulkBan',
+                batchCorrelationId,
+                ctx,
+                error: message,
+                tx,
+                userId,
+              });
+              results.push({ error: message, ok: false, userId });
+            }
+          }
+          return results;
+        },
+        correlationId: batchCorrelationId,
+      });
+      return { batchCorrelationId, dryRun: false, results };
+    }),
+
+  bulkSetRole: adminProcedure
+    .input(
+      z.object({
+        command: bulkSetRoleCommand.schema,
+        dryRun: z.boolean().optional(),
+        reason: z.string().trim().min(1).max(500).optional(),
+        role: z.enum([...ADMIN_ROLE_IDS, 'user']).nullable(),
+        userIds: z.array(z.string().min(1)).min(1).max(50),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const command = bulkSetRoleCommand.validate(input.command, input.reason);
+      const batchCorrelationId = randomUUID();
+
+      if (input.dryRun) {
+        const rows: Array<{
+          banned: boolean | null;
+          email: string | null;
+          id: string;
+          role: string | null;
+        }> = await ctx.serverDB
+          .select({ banned: users.banned, email: users.email, id: users.id, role: users.role })
+          .from(users)
+          .where(inArray(users.id, input.userIds));
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        return {
+          batchCorrelationId: null,
+          dryRun: true,
+          results: input.userIds.map((userId) => {
+            const user = byId.get(userId);
+            const isSelf = userId === ctx.userId;
+            return {
+              error: isSelf
+                ? ('CANNOT_CHANGE_OWN_ROLE' as string | null)
+                : user
+                  ? null
+                  : ('USER_NOT_FOUND' as string | null),
+              ok: Boolean(user) && !isSelf,
+              orderId: undefined,
+              preview: user
+                ? { email: user.email, fromRole: user.role, toRole: input.role }
+                : null,
+              userId,
+            };
+          }),
+          total: input.userIds.length,
+          matched: rows.length,
+          unmatchedOrderIds: input.userIds.filter((id) => !byId.has(id)),
+        };
+      }
+
+      const results = await runRequiredAdminAuditMutation<BulkUserResult[]>(ctx, {
+        audit: (results) => ({
+          action: command.auditAction,
+          payload: {
+            failed: results.filter((result) => !result.ok).length,
+            reason: command.reason,
+            role: input.role,
+            succeeded: results.filter((result) => result.ok).length,
+            total: results.length,
+          },
+          resourceType: 'user',
+        }),
+        mutation: async (tx) => {
+          const userIds = [...new Set(input.userIds)];
+          if (userIds.length !== input.userIds.length) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'DUPLICATE_USER_IDS' });
+          }
+          if (userIds.includes(ctx.userId)) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'CANNOT_CHANGE_OWN_ROLE' });
+          }
+          await loadUsersForBulk(tx, userIds);
+
+          const results: BulkUserResult[] = [];
+          for (const userId of userIds) {
+            try {
+              await tx.update(users).set({ role: input.role }).where(eq(users.id, userId));
+              await recordBulkUserItemAudit({
+                action: 'bulkSetRole',
+                batchCorrelationId,
+                ctx,
+                payload: { role: input.role },
+                tx,
+                userId,
+              });
+              results.push({ ok: true, userId });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'UNKNOWN';
+              await recordBulkUserItemAudit({
+                action: 'bulkSetRole',
+                batchCorrelationId,
+                ctx,
+                error: message,
+                tx,
+                userId,
+              });
+              results.push({ error: message, ok: false, userId });
+            }
+          }
+          return results;
+        },
+        correlationId: batchCorrelationId,
+      });
+      return { batchCorrelationId, dryRun: false, results };
+    }),
+
   ban: supportWriteProcedure
     .input(
       z.object({

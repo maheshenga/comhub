@@ -1,6 +1,6 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { Spin, Tag } from 'antd';
 import {
@@ -20,15 +20,21 @@ import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 import { AdminMetricStrip, AdminPageError, AdminPageShell, AdminSection } from './layout';
 import { overviewStyles } from './Overview/overviewStyles';
+import { WorkbenchTodoCard } from './Overview/workbenchCards';
 
 
 
 const AdminOverviewPage = memo(() => {
   const navigate = useNavigate();
   const { t } = useTranslation('subscription');
+  const currentUserId = useUserStore((s) => (userProfileSelectors as any).userId(s)) as
+    | string
+    | undefined;
   const {
     data: overview,
     error: overviewError,
@@ -39,7 +45,30 @@ const AdminOverviewPage = memo(() => {
     error: pendingChangesError,
     mutate: refreshPendingChanges,
   } = useClientDataSWR(['admin-overview-pending-changes'], () =>
-    adminCommercialService.listChangeRequests({ limit: 1, status: 'pending' }),
+    adminCommercialService.listChangeRequests({ limit: 5, status: 'pending' }),
+  );
+  // M5 §2.3 工作台五卡片：模块审核 / 收益结算 / 最近审计（全部只读查询聚合）。
+  const {
+    data: pendingPackages,
+    error: pendingPackagesError,
+    mutate: refreshPendingPackages,
+  } = useClientDataSWR(['admin-overview-pending-packages'], () =>
+    adminCommercialService.moduleApps.listPackages({ limit: 5, reviewStatus: 'pending_review' }),
+  );
+  const {
+    data: pendingPayouts,
+    error: pendingPayoutsError,
+    mutate: refreshPendingPayouts,
+  } = useClientDataSWR(['admin-overview-pending-payouts'], () =>
+    adminCommercialService.moduleApps.listPayouts({ limit: 5, status: 'pending' }),
+  );
+  const {
+    data: recentAudit,
+    error: recentAuditError,
+    mutate: refreshRecentAudit,
+  } = useClientDataSWR(
+    currentUserId ? ['admin-overview-recent-audit', currentUserId] : null,
+    () => adminCommercialService.listAudit({ actorUserId: currentUserId, cursor: 0, limit: 10 }),
   );
   const {
     data: settings,
@@ -48,6 +77,9 @@ const AdminOverviewPage = memo(() => {
   } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () => adminCommercialService.getAllSettings());
 
   const pendingChangeCount = pendingChanges?.total ?? 0;
+  const pendingPackageItems: any[] = (pendingPackages as any)?.items ?? [];
+  const pendingPayoutItems: any[] = (pendingPayouts as any)?.items ?? [];
+  const recentAuditItems: any[] = (recentAudit as any)?.items ?? [];
   const defaultModel =
     settings?.defaultAgentProvider && settings?.defaultAgentModel
       ? `${settings.defaultAgentProvider}/${settings.defaultAgentModel}`
@@ -130,10 +162,46 @@ const AdminOverviewPage = memo(() => {
               <Spin />
             )}
           </div>
+          <Flexbox gap={12} style={{ marginTop: 12 }}>
+            <WorkbenchTodoCard
+              description="模块应用包待人工审核，按提交时间排序处理。"
+              items={pendingPackageItems.map((item: any) => ({
+                hint: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : undefined,
+                label: item.name ?? item.appId ?? item.id,
+                tag: item.scanStatus === 'flagged' ? '警示' : undefined,
+                tagColor: 'warning',
+              }))}
+              title={t('admin.workbench.pendingPackages', '模块应用审核')}
+              total={pendingPackageItems.length}
+              onViewAll={() => navigate(`${ADMIN_BASE_PATH}/modules`)}
+              viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
+            />
+            <WorkbenchTodoCard
+              description="待处理的收益结算单，确认后进入打款流程。"
+              items={pendingPayoutItems.map((item: any) => ({
+                hint: item.amount != null ? String(item.amount) : undefined,
+                label: item.publisherName ?? item.publisherId ?? item.id,
+              }))}
+              title={t('admin.workbench.pendingPayouts', '收益结算')}
+              total={pendingPayoutItems.length}
+              onViewAll={() => navigate(`${ADMIN_BASE_PATH}/modules`)}
+              viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
+            />
+          </Flexbox>
+          {(pendingPackagesError || pendingPayoutsError || recentAuditError) && (
+            <AdminPageError
+              description="工作台数据加载失败，请重试。"
+              onRetry={() => {
+                refreshPendingPackages();
+                refreshPendingPayouts();
+                refreshRecentAudit();
+              }}
+            />
+          )}
         </AdminSection>
 
         <AdminSection
-          description="快速核对影响全站体验的核心默认值。"
+          description="快速核对影响全站体验的核心默认值与我最近的操作。"
           title="系统状态"
           actions={
             <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/settings`)}>
@@ -159,6 +227,19 @@ const AdminOverviewPage = memo(() => {
                 <strong className={overviewStyles.keyValueValue}>
                   {settings.referralRewardCredits ?? 0} 积分
                 </strong>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <WorkbenchTodoCard
+                  description="按操作者（当前管理员）过滤的最近 10 条审计记录。"
+                  items={recentAuditItems.map((item: any) => ({
+                    hint: item.createdAt ? new Date(item.createdAt).toLocaleString() : undefined,
+                    label: item.action,
+                  }))}
+                  title={t('admin.workbench.recentAuditCard', '我最近的操作')}
+                  total={recentAuditItems.length}
+                  onViewAll={() => navigate(`${ADMIN_BASE_PATH}/audit`)}
+                  viewAllLabel={t('admin.workbench.openAudit', '打开审计记录')}
+                />
               </div>
             </div>
           ) : (

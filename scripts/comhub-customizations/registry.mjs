@@ -694,17 +694,14 @@ const MODULES = [
       ],
       // M2 design-system: the Admin max-lines gate lives in the root eslint
       // config (upstream file, claimed upstream per the deps-pins precedent —
-      // an upstream file the fork deliberately extends) and its exemption
-      // list is a fork-new JSON claimed owned below.
+      // an upstream file the fork deliberately extends). Its legacy exemption
+      // list (fork-new JSON) was emptied by M5 (all 17 remaining offenders
+      // split below the 300-line budget) and deleted together with the
+      // exemption overrides; the scoped Admin max-lines error block remains.
       [
         'p:eslint.config.mjs',
         'upstream',
-        'admin-console M2 max-lines gate: scoped max-lines overrides + exemption-list import appended on top of the upstream config; upstream rule-set changes (alint recalibrations) must be re-merged around the appended Admin block at the tail',
-      ],
-      [
-        'p:eslint-admin-legacy-oversized.json',
-        'owned',
-        'fork-new: Admin >300-line legacy tsx exemption list (38 entries at M2 baseline, warn-only, only shrinks — M3 split the Admin-root pages down to 17; see blueprint §4.5) consumed by eslint.config.mjs max-lines overrides',
+        'admin-console M2 max-lines gate: scoped max-lines error block appended on top of the upstream config (M5 emptied and deleted the legacy exemption list + warn override); upstream rule-set changes (alint recalibrations) must be re-merged around the appended Admin block at the tail',
       ],
       ['p:src/features/Admin/', 'owned', 'admin feature modules + tests'],
       ['p:src/routes/(main)/admin/', 'owned', 'admin routes'],

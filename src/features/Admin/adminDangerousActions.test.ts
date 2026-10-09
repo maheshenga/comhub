@@ -32,13 +32,19 @@ const visibleActionFiles = [
   'src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx',
   'src/features/Admin/Orders/orderColumns.tsx',
   'src/features/Admin/Providers/useInstanceColumns.tsx',
+  'src/features/Admin/AdminOrdersPage.tsx',
+  'src/features/Admin/Orders/orderBulkToolbar.tsx',
   'src/features/Admin/AdminSystemMaintenancePage.tsx',
   'src/features/Admin/AdminUserDetailDrawer.tsx',
   'src/features/Admin/Content/contentColumns.tsx',
   'src/features/Admin/DesktopControlCenter/BuildProfilePage.tsx',
+  'src/features/Admin/DesktopControlCenter/buildProfileHeader.tsx',
   'src/features/Admin/DesktopControlCenter/CreateDesktopReleaseModal.tsx',
   'src/features/Admin/DesktopControlCenter/DesktopBuildAssetUpload.tsx',
   'src/features/Admin/DesktopControlCenter/DesktopBuildHistory.tsx',
+  'src/features/Admin/payments/SubscriptionPaymentsPage.tsx',
+  'src/features/Admin/payments/TopUpPaymentsPage.tsx',
+  'src/features/Admin/payments/paymentListHeader.tsx',
   'src/routes/(main)/admin/credits/index.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
@@ -91,6 +97,9 @@ describe('adminDangerousActions', () => {
       const source = readFileSync(path.resolve(repoRoot, filePath), 'utf8');
       return [
         ...source.matchAll(/actionId="([A-Za-z0-9.]+)"/g),
+        // M5 评审修复：payments 两页把域命令 ID 以对象字段声明（bulkRefund.actionId），
+        // 守卫需同时识别该字面量形态才能看到 payment.subscriptionBulkRefund。
+        ...source.matchAll(/actionId: '([A-Za-z0-9.]+)'/g),
         ...source.matchAll(/buildAdminDangerousActionEnvelope\('([A-Za-z0-9.]+)'/g),
       ].map((match) => match[1]);
     });

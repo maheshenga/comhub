@@ -2,22 +2,8 @@
 
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
-import type { TableColumnsType } from 'antd';
-import {
-  Alert,
-  Descriptions,
-  Empty,
-  Form,
-  Input,
-  message,
-  Result,
-  Skeleton,
-  Table,
-  Tag,
-  Tooltip,
-  Typography,
-} from 'antd';
-import { ExternalLink, RefreshCw, Save } from 'lucide-react';
+import { Alert, Descriptions, Empty, Form, Input, message, Result, Skeleton, Tag, Typography } from 'antd';
+import { RefreshCw, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -25,71 +11,24 @@ import { normalizeDesktopDownloadUrl } from '@/const/desktopUpdate';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
+import { desktopControlCenterStyles } from './styles';
 import {
   buildDistributionUpdates,
   type DesktopSettingsValues,
   getDesktopSettingsValues,
   isDesktopFormValidationError,
 } from './desktopSettingsForm';
-import { desktopControlCenterStyles } from './styles';
-import {
-  DESKTOP_CHANNEL_LABEL_KEYS,
-  DESKTOP_PLATFORM_LABEL_KEYS,
-  DESKTOP_REASON_LABEL_KEYS,
-  type DesktopChannel,
-  type DesktopDiagnosticReason,
-  type DesktopOverviewResource,
-  type DesktopPlatform,
-  type DesktopSettingsResource,
-} from './types';
+import { DistributionDiagnosticsTable } from './distributionDiagnosticsTable';
+import type { DesktopOverviewResource, DesktopSettingsResource } from './types';
 import { useDesktopSettingsFormSync } from './useDesktopSettingsFormSync';
-
-type DistributionRow = {
-  asset?: string;
-  channel: DesktopChannel;
-  key: string;
-  platform: DesktopPlatform;
-  publishedAt?: string;
-  reason?: DesktopDiagnosticReason;
-  sha512?: string;
-  size?: number;
-  status: 'available' | 'missing' | 'unavailable';
-  url?: string;
-  version?: string;
-};
-
-const formatSize = (size?: number) => {
-  if (!size || size < 1) return '-';
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-};
-
-const formatDate = (value?: string) => (value ? new Date(value).toLocaleString() : '-');
-
-const isAllowedDownloadUrl = (value?: string) => 'url' in normalizeDesktopDownloadUrl(value);
-
-const getRows = (resource: DesktopOverviewResource): DistributionRow[] =>
-  resource.data?.diagnostics.channels.flatMap((channel) =>
-    Object.entries(channel.platforms).map(([type, artifact]) => ({
-      asset: artifact.assetName,
-      channel: channel.channel,
-      key: `${channel.channel}:${type}`,
-      platform: type as DesktopPlatform,
-      publishedAt: artifact.publishedAt,
-      reason: artifact.reason,
-      sha512: artifact.sha512,
-      size: artifact.size,
-      status: artifact.status,
-      url: artifact.url,
-      version: artifact.version,
-    })),
-  ) || [];
 
 interface DistributionPageProps {
   onDirtyChange?: (dirty: boolean) => void;
   overview: DesktopOverviewResource;
   settings: DesktopSettingsResource;
 }
+
+const isAllowedDownloadUrl = (value?: string) => 'url' in normalizeDesktopDownloadUrl(value);
 
 const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview, settings }) => {
   const { t } = useTranslation('subscription');
@@ -103,67 +42,6 @@ const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview,
     initialValues,
     onDirtyChange,
   );
-
-  const columns: TableColumnsType<DistributionRow> = [
-    {
-      dataIndex: 'channel',
-      render: (channel: DesktopChannel) => t(DESKTOP_CHANNEL_LABEL_KEYS[channel]),
-      title: t('admin.desktopControl.status.channel'),
-    },
-    {
-      dataIndex: 'platform',
-      render: (platform: DesktopPlatform) => t(DESKTOP_PLATFORM_LABEL_KEYS[platform]),
-      title: t('admin.desktopControl.platform'),
-    },
-    { dataIndex: 'version', title: t('admin.desktopControl.status.version') },
-    {
-      dataIndex: 'asset',
-      ellipsis: true,
-      title: t('admin.desktopControl.asset'),
-    },
-    {
-      dataIndex: 'size',
-      render: (size: number | undefined) => formatSize(size),
-      title: t('admin.desktopControl.size'),
-    },
-    {
-      dataIndex: 'publishedAt',
-      render: (value: string | undefined) => formatDate(value),
-      title: t('admin.desktopControl.publishedAt'),
-    },
-    {
-      dataIndex: 'status',
-      render: (status: DistributionRow['status']) => (
-        <Tag
-          color={status === 'available' ? 'success' : status === 'missing' ? 'warning' : 'error'}
-        >
-          {t(`admin.desktopControl.artifact.${status}`)}
-        </Tag>
-      ),
-      title: t('admin.desktopControl.status.label'),
-    },
-    {
-      key: 'action',
-      render: (_value, row) =>
-        row.url ? (
-          <Tooltip title={t('admin.desktopControl.download')}>
-            <Button
-              aria-label={`${t('admin.desktopControl.download')}: ${row.asset || row.platform}`}
-              href={row.url}
-              icon={<Icon icon={ExternalLink} size={16} />}
-              rel="noreferrer"
-              target="_blank"
-              type="text"
-            />
-          </Tooltip>
-        ) : (
-          <Typography.Text type="secondary">
-            {row.reason ? t(DESKTOP_REASON_LABEL_KEYS[row.reason]) : '-'}
-          </Typography.Text>
-        ),
-      title: '',
-    },
-  ];
 
   const diagnosticsContent = overview.isLoading ? (
     <Skeleton active paragraph={{ rows: 6 }} />
@@ -183,16 +61,7 @@ const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview,
       image={Empty.PRESENTED_IMAGE_SIMPLE}
     />
   ) : (
-    <div className={desktopControlCenterStyles.tableWrapper}>
-      <Table<DistributionRow>
-        columns={columns}
-        dataSource={getRows(overview)}
-        pagination={false}
-        rowKey="key"
-        scroll={{ x: 900 }}
-        size="small"
-      />
-    </div>
+    <DistributionDiagnosticsTable overview={overview} t={t as any} />
   );
 
   const handleSave = async () => {

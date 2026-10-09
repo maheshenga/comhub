@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 
-import { runRequiredAdminAuditExternalEffect } from './audit';
+import { recordAdminAuditStrict, runRequiredAdminAuditExternalEffect } from './audit';
 import { adminPaymentsRouter } from './payments';
 
 const {
@@ -87,6 +87,7 @@ vi.mock('@/server/services/payments/topUpPayment', () => ({
   },
 }));
 vi.mock('./audit', () => ({
+  recordAdminAuditStrict: vi.fn(async () => ({ ok: true, status: 'succeeded' })),
   runRequiredAdminAuditExternalEffect: vi.fn(async (_ctx, options) => options.effect()),
 }));
 
@@ -96,8 +97,14 @@ const idempotencyKey = '00000000-0000-4000-8000-000000000002';
 const createDb = (order?: Record<string, unknown>) => ({
   query: {
     creditSettlementFailures: { findFirst: vi.fn().mockResolvedValue(undefined) },
-    subscriptionPaymentOrders: { findFirst: vi.fn().mockResolvedValue(order) },
-    topUpOrders: { findFirst: vi.fn().mockResolvedValue(order) },
+    subscriptionPaymentOrders: {
+      findFirst: vi.fn().mockResolvedValue(order),
+      findMany: vi.fn().mockResolvedValue(order ? [order] : []),
+    },
+    topUpOrders: {
+      findFirst: vi.fn().mockResolvedValue(order),
+      findMany: vi.fn().mockResolvedValue(order ? [order] : []),
+    },
     users: { findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }) },
   },
 });
@@ -508,6 +515,246 @@ describe('adminPaymentsRouter', () => {
         },
       ],
       nextCursor: null,
+    });
+  });
+
+  describe('bulk refunds (M5 batch paradigm)', () => {
+    const secondOrderId = '00000000-0000-4000-8000-000000000003';
+    const unknownOrderId = '00000000-0000-4000-8000-000000000004';
+    const topUpCommand = {
+      actionId: 'payment.bulkRefund',
+      confirmationText: 'payment.bulkRefund',
+      confirmed: true,
+      reason: 'duplicate charge',
+    } as const;
+    const subscriptionCommand = {
+      actionId: 'payment.subscriptionBulkRefund',
+      confirmationText: 'payment.subscriptionBulkRefund',
+      confirmed: true,
+      reason: 'duplicate purchase',
+    } as const;
+
+    it('previews a top-up bulk refund in dry-run without effects or audit', async () => {
+      const db = createDb() as any;
+      db.query.topUpOrders.findMany.mockResolvedValue([
+        {
+          amount: '19.90',
+          currency: 'CNY',
+          externalOrderId: 'provider-order-1',
+          id: orderId,
+          idempotencyKey,
+          metadata: { method: 'wechat_pay' },
+          provider: 'wechat_pay',
+          refundStatus: null,
+          status: 'paid',
+          userId: 'target-user',
+        },
+      ]);
+      vi.mocked(getServerDB).mockResolvedValue(db);
+      const caller = adminPaymentsRouter.createCaller({ userId: 'finance-user' } as any);
+
+      const result = await caller.bulkRefund({
+        command: topUpCommand,
+        dryRun: true,
+        orderIds: [orderId, unknownOrderId],
+      });
+
+      expect(result).toMatchObject({
+        batchCorrelationId: null,
+        dryRun: true,
+        matched: 1,
+        refundable: 1,
+        results: [
+          { error: null, ok: true, orderId, preview: { currency: 'CNY', status: 'paid' } },
+          { error: 'TOP_UP_ORDER_NOT_FOUND', ok: false, orderId: unknownOrderId, preview: null },
+        ],
+        unmatchedOrderIds: [unknownOrderId],
+      });
+      expect(refundTopUpPayment).not.toHaveBeenCalled();
+      expect(runRequiredAdminAuditExternalEffect).not.toHaveBeenCalled();
+      expect(recordAdminAuditStrict).not.toHaveBeenCalled();
+    });
+
+    it('refunds paid online top-ups in bulk and writes a batch-level summary audit', async () => {
+      const db = createDb() as any;
+      db.query.topUpOrders.findMany.mockResolvedValue([
+        {
+          amount: '19.90',
+          currency: 'CNY',
+          externalOrderId: 'provider-order-1',
+          id: orderId,
+          idempotencyKey,
+          metadata: { method: 'wechat_pay' },
+          provider: 'wechat_pay',
+          refundStatus: null,
+          status: 'paid',
+          userId: 'target-user',
+        },
+      ]);
+      vi.mocked(getServerDB).mockResolvedValue(db);
+      const caller = adminPaymentsRouter.createCaller({ userId: 'finance-user' } as any);
+
+      const result = await caller.bulkRefund({
+        command: topUpCommand,
+        orderIds: [orderId],
+      });
+
+      expect(result).toMatchObject({
+        dryRun: false,
+        failed: 0,
+        results: [{ ok: true, orderId }],
+        succeeded: 1,
+        total: 1,
+      });
+      expect(refundTopUpPayment).toHaveBeenCalledWith({
+        orderId,
+        reason: 'duplicate charge',
+        userId: 'target-user',
+      });
+      expect(recordAdminAuditStrict).toHaveBeenCalledOnce();
+      const [, entry, options] = vi.mocked(recordAdminAuditStrict).mock.calls[0];
+      expect(entry).toMatchObject({
+        action: 'payment.bulkRefund',
+        payload: {
+          batchCorrelationId: result.batchCorrelationId,
+          failed: 0,
+          reason: 'duplicate charge',
+          succeeded: 1,
+          total: 1,
+        },
+        resourceId: 'top-up-payments-bulk-refund',
+        resourceType: 'topUpPayment',
+      });
+      expect(options?.correlationId).toBe(result.batchCorrelationId);
+    });
+
+    it('previews a subscription bulk refund in dry-run without effects or audit', async () => {
+      const db = createDb() as any;
+      db.query.subscriptionPaymentOrders.findMany.mockResolvedValue([
+        {
+          externalOrderId: 'subscription-order-1',
+          id: orderId,
+          refundStatus: null,
+          status: 'paid',
+          userId: 'target-user',
+        },
+      ]);
+      vi.mocked(getServerDB).mockResolvedValue(db);
+      const caller = adminPaymentsRouter.createCaller({ userId: 'finance-user' } as any);
+
+      const result = await caller.subscriptionBulkRefund({
+        command: subscriptionCommand,
+        dryRun: true,
+        orderIds: [orderId, unknownOrderId],
+      });
+
+      expect(result).toMatchObject({
+        batchCorrelationId: null,
+        dryRun: true,
+        matched: 1,
+        refundable: 1,
+        results: [
+          { error: null, ok: true, orderId, preview: { refundStatus: null, status: 'paid' } },
+          {
+            error: 'SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND',
+            ok: false,
+            orderId: unknownOrderId,
+            preview: null,
+          },
+        ],
+        unmatchedOrderIds: [unknownOrderId],
+      });
+      expect(refundSubscriptionPayment).not.toHaveBeenCalled();
+      expect(runRequiredAdminAuditExternalEffect).not.toHaveBeenCalled();
+      expect(recordAdminAuditStrict).not.toHaveBeenCalled();
+    });
+
+    it('refunds paid subscription orders in bulk through SubscriptionPaymentService', async () => {
+      const db = createDb() as any;
+      db.query.subscriptionPaymentOrders.findMany.mockResolvedValue([
+        {
+          externalOrderId: 'subscription-order-1',
+          id: orderId,
+          idempotencyKey,
+          method: 'wechat_pay',
+          provider: 'wechat_pay',
+          refundStatus: null,
+          status: 'paid',
+          userId: 'target-user',
+        },
+        {
+          externalOrderId: 'subscription-order-2',
+          id: secondOrderId,
+          idempotencyKey,
+          method: 'wechat_pay',
+          provider: 'wechat_pay',
+          refundStatus: null,
+          status: 'paid',
+          userId: 'second-user',
+        },
+      ]);
+      vi.mocked(getServerDB).mockResolvedValue(db);
+      refundSubscriptionPayment.mockImplementation(async (input: any) => {
+        if (input?.orderId === secondOrderId) throw new Error('PROVIDER_TIMEOUT');
+        return { debtAmount: 0, status: 'refunded' };
+      });
+      const caller = adminPaymentsRouter.createCaller({ userId: 'finance-user' } as any);
+
+      const result = await caller.subscriptionBulkRefund({
+        command: subscriptionCommand,
+        orderIds: [orderId, secondOrderId],
+      });
+
+      expect(result).toMatchObject({
+        dryRun: false,
+        failed: 1,
+        results: [
+          { ok: true, orderId },
+          { error: 'PROVIDER_TIMEOUT', ok: false, orderId: secondOrderId },
+        ],
+        succeeded: 1,
+        total: 2,
+      });
+      expect(refundSubscriptionPayment).toHaveBeenCalledTimes(2);
+      expect(refundSubscriptionPayment).toHaveBeenCalledWith({
+        orderId,
+        reason: 'duplicate purchase',
+        userId: 'target-user',
+      });
+      expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledTimes(2);
+      expect(recordAdminAuditStrict).toHaveBeenCalledOnce();
+      const [, entry, options] = vi.mocked(recordAdminAuditStrict).mock.calls[0];
+      expect(entry).toMatchObject({
+        action: 'payment.subscriptionBulkRefund',
+        payload: {
+          batchCorrelationId: result.batchCorrelationId,
+          failed: 1,
+          reason: 'duplicate purchase',
+          succeeded: 1,
+          total: 2,
+        },
+        resourceId: 'subscription-payments-bulk-refund',
+        resourceType: 'subscriptionPayment',
+      });
+      expect(options?.correlationId).toBe(result.batchCorrelationId);
+    });
+
+    it('rejects a subscription bulk refund when any order is missing', async () => {
+      const db = createDb() as any;
+      db.query.subscriptionPaymentOrders.findMany.mockResolvedValue([]);
+      vi.mocked(getServerDB).mockResolvedValue(db);
+      const caller = adminPaymentsRouter.createCaller({ userId: 'finance-user' } as any);
+
+      await expect(
+        caller.subscriptionBulkRefund({
+          command: subscriptionCommand,
+          orderIds: [orderId],
+        }),
+      ).rejects.toMatchObject({
+        message: 'SUBSCRIPTION_PAYMENT_ORDER_NOT_FOUND',
+      });
+      expect(refundSubscriptionPayment).not.toHaveBeenCalled();
+      expect(recordAdminAuditStrict).not.toHaveBeenCalled();
     });
   });
 });

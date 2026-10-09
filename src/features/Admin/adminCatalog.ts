@@ -231,7 +231,10 @@ export const ADMIN_CATALOG = [
     path: pathFor('payments'),
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'payments',
-    status: 'active',
+    // PP-12（blueprint §2.1 治理三动作）：统一支付中心降级为兼容入口——
+    // 订单管理（orders）与订阅管理（subscriptions）已覆盖主要支付操作，
+    // 本聚合页保留支付渠道配置与支付诊断，标 compatibility 防双路径发散。
+    status: 'compatibility',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite, ADMIN_CAPABILITIES.financeWrite],
   },
   {
