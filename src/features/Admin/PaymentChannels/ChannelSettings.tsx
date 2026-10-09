@@ -4,7 +4,7 @@ import { Flexbox, Icon } from '@lobehub/ui';
 import { Button, Select, Switch, Tabs } from '@lobehub/ui/base-ui';
 import { Alert, Form, Input, message, Skeleton, Tag } from 'antd';
 import { Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -32,13 +32,18 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
   const [form] = Form.useForm<PaymentFormValues>();
   const [submitting, setSubmitting] = useState(false);
   const data = settings.data as PaymentSettingsData | undefined;
+  // Live toggle for the Alipay certificate/public-key inputs, evaluated
+  // before save (pre-split AdminPaymentsPage kept the same watch + initial
+  // fallback semantics).
+  const initialValues = useMemo(() => buildInitialValues(data), [data]);
+  const certMode = Form.useWatch('alipayCertMode', form) ?? initialValues.alipayCertMode;
 
   useEffect(() => {
     if (data) {
-      form.setFieldsValue(buildInitialValues(data));
+      form.setFieldsValue(initialValues);
       onDirtyChange(false);
     }
-  }, [data, form, onDirtyChange]);
+  }, [data, form, initialValues, onDirtyChange]);
 
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
@@ -217,7 +222,14 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
           <Tabs
             items={[
               {
-                children: <AlipaySettingsCard config={config} t={t} urlRule={urlRule} />,
+                children: (
+                  <AlipaySettingsCard
+                    certMode={certMode}
+                    config={config}
+                    t={t}
+                    urlRule={urlRule}
+                  />
+                ),
                 key: 'alipay',
                 label: t('admin.payments.provider.alipay', 'Alipay'),
               },

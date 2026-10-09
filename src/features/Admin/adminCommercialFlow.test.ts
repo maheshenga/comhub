@@ -687,7 +687,9 @@ describe('admin commercial flow pages', () => {
     expect(plansPage).toContain('<AdminDependencyImpactPreview impact={impact} />');
     expect(instanceColumns).toContain('getAiProviderInstanceDeleteImpact(row.id)');
     expect(modelTypePanel).toContain('getAiProviderModelDeleteImpact(target)');
-    expect(modelTypePanel).toContain('disabled: !impact.canProceed');
+    // Model deletion guards its confirm OK button on the impact verdict
+    // (pre-split AdminProvidersPage.tsx:550); instance deletion goes through
+    // the AdminDangerousActionButton preflight flow instead.
     expect(modelTypePanel).toContain('disabled: !impact.canProceed');
     expect(dangerousButton).toContain('disabled: Boolean(loadPreflight)');
     expect(dangerousButton).toContain('closable={!submitting}');

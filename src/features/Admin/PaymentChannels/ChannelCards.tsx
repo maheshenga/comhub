@@ -7,7 +7,7 @@ import type { TFunction } from 'i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 
-import type { PaymentSettingsData } from './paymentSettingsShared';
+import type { PaymentSettingsData, PaymentFormValues } from './paymentSettingsShared';
 import { SecretHint } from './SecretHint';
 
 const { Text } = Typography;
@@ -18,8 +18,14 @@ interface ChannelCardProps {
   urlRule: object;
 }
 
-export const AlipaySettingsCard = ({ config, t, urlRule }: ChannelCardProps) => {
-  const certMode = config?.alipay?.certMode ?? 'public_key';
+interface AlipaySettingsCardProps extends ChannelCardProps {
+  // Live form value of alipayCertMode (Form.useWatch in ChannelSettings): the
+  // certificate/public-key inputs must toggle immediately on select change,
+  // before save — same semantics as the pre-split AdminPaymentsPage.
+  certMode: PaymentFormValues['alipayCertMode'];
+}
+
+export const AlipaySettingsCard = ({ certMode, config, t, urlRule }: AlipaySettingsCardProps) => {
 
   return (
     <Card>
