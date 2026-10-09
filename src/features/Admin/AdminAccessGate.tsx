@@ -2,7 +2,7 @@
 
 import { type AdminRole, isAdminRole } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Skeleton } from '@lobehub/ui/base-ui';
+import { SkeletonText } from '@lobehub/ui/base-ui';
 import { Navigate, useLocation } from 'react-router';
 
 import {
@@ -53,7 +53,7 @@ export const AdminAccessGate = ({
   if (!isUserStateInit) {
     return (
       <Flexbox data-testid="admin-access-gate-loading" gap={16}>
-        <Skeleton active paragraph={{ rows: 6 }} />
+        <SkeletonText rows={6} />
       </Flexbox>
     );
   }
