@@ -121,6 +121,58 @@ describe('useAdminCursorQuery', () => {
     // The trail resets to the first page on a filter change.
     await waitFor(() => expect(result.current.state.cursor).toBeUndefined());
     expect(result.current.hasNext).toBe(false);
+
+    // No transient request for the old filter's page: the very next fetch
+    // after a filter change must already use the reset (undefined) cursor.
+    const fetchesAfterChange = fetcher.mock.calls.filter(([page]) => page.cursor === 'cursor-2');
+    expect(fetchesAfterChange).toHaveLength(1); // only the advance itself
+    expect(fetcher).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined }));
+  });
+
+  it('masks the stale cursor on the filter-change frame so swrKey never combines old cursor with new deps', async () => {
+    const fetcher = vi.fn(({ cursor }: { cursor?: string }) => ({
+      items: [`${cursor ?? 'first'}`],
+      nextCursor: cursor === undefined ? 'cursor-2' : null,
+    }));
+
+    const seenKeys: readonly unknown[][] = [];
+    await setSwrImplementation((key, fetch) => {
+      seenKeys.push([...key]);
+      return { data: fetch(), error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    const { result, rerender } = renderHook(
+      ({ status }: { status?: string }) =>
+        useAdminCursorQuery<string, { items: string[] }>({
+          key: 'admin-shared-test-transient',
+          deps: [status],
+          fetcher: fetcher as never,
+        }),
+      { initialProps: { status: undefined } as { status?: string } },
+    );
+
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    act(() => result.current.state.advance('cursor-2'));
+    await waitFor(() => expect(result.current.data?.items[0]).toBe('cursor-2'));
+    expect(seenKeys).toHaveLength(2);
+
+    seenKeys.length = 0;
+    rerender({ status: 'published' });
+
+    // The change frame (and any follow-up render the reset triggers) must
+    // only ever combine the new deps with an undefined cursor — the stale
+    // 'cursor-2' trail of the previous filter never enters a key. Real SWR
+    // dedupes identical keys, so repeat renders of the same key fire one
+    // request, not one per render.
+    expect(seenKeys.length).toBeGreaterThan(0);
+    for (const parsedKey of seenKeys) {
+      expect(parsedKey).not.toEqual(['admin-shared-test-transient', 'cursor-2', 50, 'published']);
+      expect(parsedKey[1]).toBeUndefined();
+      expect(parsedKey[3]).toBe('published');
+    }
+    // And the fetcher is never re-invoked for the old filter's page either.
+    const cursor2Calls = fetcher.mock.calls.filter(([page]) => page.cursor === 'cursor-2');
+    expect(cursor2Calls).toHaveLength(1); // only the original advance fetch
   });
 
   it('surfaces the SWR error instead of dropping it', async () => {

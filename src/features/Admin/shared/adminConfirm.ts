@@ -4,9 +4,16 @@ import { getAdminCommandDefinition } from '@lobechat/types';
 /**
  * Severity → interaction-strength mapping for Admin confirmations
  * (blueprint §4.3): `critical` = typed confirmation + mandatory reason,
- * `high` = typed confirmation, `medium` = plain confirm. Commands declared
- * `confirmationMode: 'none'` skip the interactive gate entirely and are
- * flagged in the resolved policy so callers can show a single-step button.
+ * `medium` = plain confirm. The blueprint's literal `high = typed` band is
+ * NOT realized by the merged M4 catalog (§6.3): no `high` command declares
+ * `confirmationMode: 'typed'` — the high band mixes `confirm` and `none`
+ * (plus one `confirm`/optional-reason, subscription.changeRequest.bulkReject)
+ * — so `high` resolves to the plain confirm gate here. Behavior is pinned to
+ * the catalog grades (enforced by validateAdminDangerousActionConfirmation
+ * server-side); revisit if the catalog ever grades a `high` command `typed`.
+ * Commands declared `confirmationMode: 'none'` skip the interactive gate
+ * entirely and are flagged in the resolved policy so callers can show a
+ * single-step button.
  *
  * This is the page-facing twin of `adminDangerousActions.ts` (which validates
  * envelope payloads against the same catalog): resolve the policy here, then

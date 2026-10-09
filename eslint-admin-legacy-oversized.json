@@ -4,157 +4,157 @@
   "files": [
     {
       "path": "src/features/Admin/AdminProvidersPage.tsx",
-      "lines": 1053
+      "lines": 1052
     },
     {
       "path": "src/features/Admin/AdminDefaultSettingsPage.tsx",
-      "lines": 895
+      "lines": 894
     },
     {
       "path": "src/features/Admin/AdminModelBillingMatrixPage.tsx",
-      "lines": 868
+      "lines": 867
     },
     {
       "path": "src/features/Admin/AdminPaymentsPage.tsx",
-      "lines": 824
+      "lines": 823
     },
     {
       "path": "src/features/Admin/moduleApps/apps/runtime/ModuleAppRuntimePage.tsx",
-      "lines": 750
+      "lines": 749
     },
     {
       "path": "src/features/Admin/payments/SubscriptionPaymentsPage.tsx",
-      "lines": 645
+      "lines": 644
     },
     {
       "path": "src/features/Admin/payments/TopUpPaymentsPage.tsx",
-      "lines": 634
+      "lines": 633
     },
     {
       "path": "src/features/Admin/MobileConfigPreview.tsx",
-      "lines": 601
+      "lines": 600
     },
     {
       "path": "src/features/Admin/AdminSettingsPage.tsx",
-      "lines": 586
+      "lines": 585
     },
     {
       "path": "src/features/Admin/AdminContentPages.tsx",
-      "lines": 530
+      "lines": 529
     },
     {
       "path": "src/features/Admin/moduleApps/finance/payments/ModulePaymentsPage.tsx",
-      "lines": 515
+      "lines": 514
     },
     {
       "path": "src/features/Admin/AdminOrdersPage.tsx",
-      "lines": 492
+      "lines": 491
     },
     {
       "path": "src/features/Admin/layout/AdminPage.tsx",
-      "lines": 466
+      "lines": 465
     },
     {
       "path": "src/features/Admin/AdminUserDetailDrawer.tsx",
-      "lines": 461
+      "lines": 460
     },
     {
       "path": "src/features/Admin/moduleApps/ProductManager.tsx",
-      "lines": 459
+      "lines": 458
     },
     {
       "path": "src/features/Admin/moduleApps/apps/ModuleAppsPage.tsx",
-      "lines": 433
+      "lines": 432
     },
     {
       "path": "src/features/Admin/moduleApps/reviews/ModuleReviewsPage.tsx",
-      "lines": 433
+      "lines": 432
     },
     {
       "path": "src/features/Admin/AdminRecommendationsPage.tsx",
-      "lines": 413
+      "lines": 412
     },
     {
       "path": "src/features/Admin/moduleApps/apps/runtime/ModuleAppRuntimeSettings.tsx",
-      "lines": 403
+      "lines": 402
     },
     {
       "path": "src/features/Admin/moduleApps/overview/ModuleOverviewPage.tsx",
-      "lines": 403
+      "lines": 402
     },
     {
       "path": "src/features/Admin/AdminMobileSettingsPage.tsx",
-      "lines": 401
+      "lines": 400
     },
     {
       "path": "src/features/Admin/AdminChangeRequestsPage.tsx",
-      "lines": 398
+      "lines": 397
     },
     {
       "path": "src/features/Admin/AdminOperationsPage.tsx",
-      "lines": 383
+      "lines": 382
     },
     {
       "path": "src/features/Admin/AdminFileStoragePage.tsx",
-      "lines": 373
+      "lines": 372
     },
     {
       "path": "src/features/Admin/AdminSystemMaintenancePage.tsx",
-      "lines": 370
+      "lines": 369
     },
     {
       "path": "src/features/Admin/MobileSettings/DesignAssistantsSections.tsx",
-      "lines": 364
+      "lines": 363
     },
     {
       "path": "src/features/Admin/AdminNotificationsPage.tsx",
-      "lines": 360
-    },
-    {
-      "path": "src/features/Admin/AdminTopUpPackagesPage.tsx",
       "lines": 359
     },
     {
-      "path": "src/features/Admin/AdminExpertPlazaPage.tsx",
-      "lines": 340
+      "path": "src/features/Admin/AdminTopUpPackagesPage.tsx",
+      "lines": 358
     },
     {
-      "path": "src/features/Admin/AdminSubscriptionsPage.tsx",
+      "path": "src/features/Admin/AdminExpertPlazaPage.tsx",
       "lines": 339
     },
     {
+      "path": "src/features/Admin/AdminSubscriptionsPage.tsx",
+      "lines": 338
+    },
+    {
       "path": "src/features/Admin/AdminModelPolicyPage.tsx",
-      "lines": 333
+      "lines": 332
     },
     {
       "path": "src/features/Admin/DesktopControlCenter/DistributionPage.tsx",
-      "lines": 326
-    },
-    {
-      "path": "src/features/Admin/DesktopControlCenter/BuildProfilePage.tsx",
       "lines": 325
     },
     {
+      "path": "src/features/Admin/DesktopControlCenter/BuildProfilePage.tsx",
+      "lines": 332
+    },
+    {
       "path": "src/features/Admin/moduleApps/PaymentReconciliationTable.tsx",
-      "lines": 320
+      "lines": 319
     },
     {
       "path": "src/features/Admin/payments/CreditSettlementFailuresPage.tsx",
-      "lines": 318
+      "lines": 317
     },
     {
       "path": "src/features/Admin/AdminOverviewPage.tsx",
-      "lines": 316
+      "lines": 315
     },
     {
       "path": "src/features/Admin/AdminSidebar.tsx",
-      "lines": 313
+      "lines": 312
     },
     {
       "path": "src/features/Admin/moduleApps/publishers/ModulePublishersPage.tsx",
-      "lines": 302
+      "lines": 301
     }
   ],
-  "measuredWith": "wc -l equivalent (LF/CRLF split), measured 2026-10-09 at HEAD 856f04a504f",
+  "measuredWith": "eslint max-lines rule count (matches the gate consumer exactly; eslint counts source lines with no trailing-newline adjustment), re-measured 2026-10-09 after M4 merged into main",
   "threshold": 300
 }

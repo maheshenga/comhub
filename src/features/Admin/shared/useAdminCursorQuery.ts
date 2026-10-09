@@ -90,6 +90,14 @@ export const useAdminCursorQuery = <Cursor, Data>(
   // the stale cursor trail belongs to the previous filter combination.
   const depsKey = useMemo(() => JSON.stringify(deps), [deps]);
   const depsKeyRef = useRef(depsKey);
+  // Detect the filter change during render, not only in the effect below:
+  // otherwise the old cursor still participates in swrKey for one frame
+  // ([key, oldCursor, newDeps]) and SWR fires a transient request for a page
+  // of the previous filter combination — transient wrong-page data can flash
+  // on screen. Masking the trail here (render-time derivation, not a state
+  // write) keeps key and fetcher consistent with the new deps immediately.
+  const depsChanged = depsKeyRef.current !== depsKey;
+  const activeCursor = depsChanged ? undefined : cursor;
   useEffect(() => {
     if (depsKeyRef.current !== depsKey) {
       depsKeyRef.current = depsKey;
@@ -97,10 +105,13 @@ export const useAdminCursorQuery = <Cursor, Data>(
     }
   }, [depsKey, reset]);
 
-  const swrKey = useMemo(() => [key, cursor, limit, ...deps] as const, [key, cursor, limit, deps]);
+  const swrKey = useMemo(
+    () => [key, activeCursor, limit, ...deps] as const,
+    [key, activeCursor, limit, deps],
+  );
 
   const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
-    fetcher({ cursor, limit }),
+    fetcher({ cursor: activeCursor, limit }),
   );
 
   const dataRecord = data as { nextCursor?: Cursor | null } | undefined;

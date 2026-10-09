@@ -2,6 +2,7 @@
 
 import { Button } from '@lobehub/ui/base-ui';
 import type { TableProps } from 'antd';
+// eslint-disable-next-line no-restricted-imports -- Admin's unified table primitive is the sanctioned antd Table wrapper (blueprint §4.2-1): Admin pages stop importing Table directly and render this instead; the base-ui Table is a separate tanstack-based re-implementation (no rowSelection, mandatory rowKey) and blueprint §4.1 keeps interactive components on antd while base-ui phases out.
 import { Table } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
