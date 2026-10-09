@@ -4,34 +4,46 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { MODULE_ADMIN_ROUTE_IMPORTS } from '@/business/client/moduleAdminRouteImports';
+import { ADMIN_ROUTE_MANIFEST, MODULE_ADMIN_ROUTE_IDS } from '@/features/Admin/adminRouteManifest';
 import {
   MODULE_ADMIN_ROUTE_TREE,
   type ModuleAdminRouteId,
   type ModuleAdminRouteNode,
 } from '@/features/Admin/moduleApps/navigation/catalog';
 
-const routeFiles: Partial<Record<ModuleAdminRouteId, string>> = {
-  'module-app-configuration':
-    'src/routes/(main)/admin/modules/apps/[appId]/configuration/index.tsx',
-  'module-app-detail-layout': 'src/routes/(main)/admin/modules/apps/[appId]/_layout/index.tsx',
-  'module-app-entitlements': 'src/routes/(main)/admin/modules/apps/[appId]/entitlements/index.tsx',
-  'module-app-overview': 'src/routes/(main)/admin/modules/apps/[appId]/index.tsx',
-  'module-app-products': 'src/routes/(main)/admin/modules/apps/[appId]/products/index.tsx',
-  'module-app-runtime': 'src/routes/(main)/admin/modules/apps/[appId]/runtime/index.tsx',
-  'module-apps': 'src/routes/(main)/admin/modules/apps/index.tsx',
-  'module-artifacts': 'src/routes/(main)/admin/modules/operations/artifacts/index.tsx',
-  'module-audit': 'src/routes/(main)/admin/modules/audit/index.tsx',
-  'module-center-layout': 'src/routes/(main)/admin/modules/_layout/index.tsx',
-  'module-installs': 'src/routes/(main)/admin/modules/operations/installs/index.tsx',
-  'module-overview': 'src/routes/(main)/admin/modules/index.tsx',
-  'module-payments': 'src/routes/(main)/admin/modules/finance/payments/index.tsx',
-  'module-payouts': 'src/routes/(main)/admin/modules/finance/payouts/index.tsx',
-  'module-publishers': 'src/routes/(main)/admin/modules/publishers/index.tsx',
-  'module-records': 'src/routes/(main)/admin/modules/operations/records/index.tsx',
-  'module-revenue': 'src/routes/(main)/admin/modules/finance/revenue/index.tsx',
-  'module-reviews': 'src/routes/(main)/admin/modules/reviews/index.tsx',
-  'module-runs': 'src/routes/(main)/admin/modules/operations/runs/index.tsx',
-};
+/**
+ * File-map derivation (admin console redesign §3.1): instead of hand-listing
+ * the 19 routed modules, the expected route file for each Module Center import
+ * is read back from the import map itself — the manifest's lazy imports point
+ * at `@/routes/(main)/admin/...` specifiers, so existence and thin-route shape
+ * assertions stay derived from the single route source of truth.
+ *
+ * Vite SSR transpiles the arrow-bodied dynamic imports to
+ * `__vite_ssr_dynamic_import__("/src/routes/...")` before toString sees them
+ * (double quotes, /src/ prefix) — same duality handled by
+ * adminRouteManifest.bidirectional.test.ts; match both forms and normalize to
+ * cwd-relative paths. Guarded by a non-empty assertion below so a future
+ * transpiler form degrades to a loud failure, not a vacuous pass.
+ */
+const MODULE_IMPORT_SPECIFIERS = /import\(['"](.+?)['"]\)|import__\(["'](.+?)["']\)/;
+
+const routeFiles = Object.entries(MODULE_ADMIN_ROUTE_IMPORTS).flatMap(([routeId, importFn]) => {
+  // Layout-only grouping nodes have no import — nothing to assert on disk.
+  if (typeof importFn !== 'function') return [];
+
+  const source = Function.prototype.toString.call(importFn);
+  const match = source.match(MODULE_IMPORT_SPECIFIERS);
+  if (!match) return [];
+
+  const specifier = (match[1] ?? match[2]).replace(/^(@\/|\/src\/)/, 'src/');
+  // Vite SSR resolves directory imports to their concrete file
+  // (`.../configuration/index.tsx`); authored specifiers stay directory-shaped.
+  const candidates = specifier.endsWith('.tsx')
+    ? [specifier]
+    : [`${specifier}.tsx`, `${specifier}/index.tsx`];
+
+  return [[routeId as ModuleAdminRouteId, candidates] as const];
+});
 
 const flattenRouteIds = (node: ModuleAdminRouteNode): ModuleAdminRouteId[] => [
   node.id,
@@ -45,17 +57,42 @@ describe('Module Center thin route modules', () => {
     expect(Object.keys(MODULE_ADMIN_ROUTE_IMPORTS).sort()).toEqual([...routeIds].sort());
     expect(MODULE_ADMIN_ROUTE_IMPORTS['module-finance']).toBeUndefined();
     expect(MODULE_ADMIN_ROUTE_IMPORTS['module-operations']).toBeUndefined();
-    expect(Object.keys(routeFiles).sort()).toEqual(
-      routeIds.filter((id) => !['module-finance', 'module-operations'].includes(id)).sort(),
+  });
+
+  it('manifest carries every Module Center route id exactly once', () => {
+    const manifestModuleIds = ADMIN_ROUTE_MANIFEST.filter((entry) =>
+      (MODULE_ADMIN_ROUTE_IDS as string[]).includes(entry.id),
+    ).map((entry) => entry.id);
+
+    // Layout-only grouping nodes stay in the manifest without a segment; every
+    // routed node must appear exactly once.
+    expect(manifestModuleIds).toEqual([...MODULE_ADMIN_ROUTE_IDS]);
+    expect(
+      manifestModuleIds.filter(
+        (id) => !['module-finance', 'module-operations'].includes(id as string),
+      ),
+    ).toEqual(
+      MODULE_ADMIN_ROUTE_IDS.filter((id) => !['module-finance', 'module-operations'].includes(id)),
     );
   });
 
   it('keeps every routed page as a thin feature export', () => {
-    for (const [routeId, relativePath] of Object.entries(routeFiles)) {
-      const absolutePath = path.resolve(process.cwd(), relativePath);
-      expect(existsSync(absolutePath), `${routeId} route file is missing`).toBe(true);
+    // Derivation sanity: if specifier extraction ever stops matching (new
+    // transpiler form), this fails loudly instead of iterating zero files.
+    expect(routeFiles.length, 'import-map specifier derivation matched nothing').toBeGreaterThan(
+      15,
+    );
 
-      const source = readFileSync(absolutePath, 'utf8');
+    for (const [routeId, candidates] of routeFiles) {
+      const absolutePath = candidates
+        .map((candidate) => path.resolve(process.cwd(), candidate))
+        .find((candidate) => existsSync(candidate));
+      expect(
+        absolutePath,
+        `${routeId} route file is missing (${candidates.join(' | ')})`,
+      ).toBeDefined();
+
+      const source = readFileSync(absolutePath!, 'utf8');
       expect(source, `${routeId} must import a moduleApps feature`).toMatch(
         /from '@\/features\/Admin\/moduleApps\//,
       );

@@ -28,6 +28,7 @@ import {
 import type { RouteObject } from 'react-router';
 
 import {
+  adminLegacyRedirectRoute,
   BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
   BusinessDesktopRoutesWithSettingsLayout,
@@ -1154,6 +1155,12 @@ const createMainAreaChildrenDefinition = (options: MainAreaRouteOptions = {}): R
     },
     path: 'apps',
   },
+
+  // Legacy `/admin/*` deep links redirect to the canonical `/settings/admin/*`
+  // console (admin console redesign §3.2 ①). Must precede the settings route
+  // so `admin` is not swallowed by the personal settings `:tab` catch-all —
+  // that catch-all renders a blank workspace (the v2.2.18 regression).
+  adminLegacyRedirectRoute,
 
   // Settings routes (personal-only — never mirrored under /:workspaceSlug)
   {

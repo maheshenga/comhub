@@ -463,9 +463,19 @@ const MODULES = [
         'billing/credits/plans/usage/referral pages; conservative over-cover: also claims fork-new files (mobile pages, ledger/plan/referral display, planPurchase)',
       ],
       [
+        'p:src/business/client/features/User/useBusinessMenuItems.tsx',
+        'upstream',
+        'admin console entry item in the user panel menu: entry gating converges on isAdminRole from @lobechat/types (M1 entry surface = gate surface)',
+      ],
+      [
+        'p:src/business/client/moduleAdminRouteImports.ts',
+        'owned',
+        'fork-new: Module Center route import map keyed by ModuleAdminRouteId — dynamic-import source consumed by the admin-console routeManifest',
+      ],
+      [
         'p:src/business/client/',
         'upstream',
-        'business hooks (pricing/rating/guard/signup), model catalog merge; conservative over-cover: also claims fork-new files (adminSettingsRouteRegistry, commercialRefresh, modelCatalog/lobeHub, moduleAdminRouteImports)',
+        'business hooks (pricing/rating/guard/signup), model catalog merge; conservative over-cover: also claims fork-new files (adminSettingsRouteRegistry, commercialRefresh, modelCatalog/lobeHub)',
       ],
       ['p:src/services/chat/', 'upstream', 'request metadata pass-through'],
       ['p:src/features/Settings/stats/', 'upstream', 'UsageTable ledger-aware columns'],
@@ -677,6 +687,11 @@ const MODULES = [
     description:
       'Full admin surface: features (237 files), routes, business-server admin routers, admin types, nav entries.',
     ownershipRules: [
+      [
+        'p:src/spa/router/desktopRouter.shared.tsx',
+        'upstream',
+        'admin deep-link redirect (/admin/* → /settings/admin/*) injected at the main-area route definition (M1 routing); diff kept to a few dozen lines; also limits the earlier mobile-workspace src/spa/router/ over-cover claim on this file',
+      ],
       ['p:src/features/Admin/', 'owned', 'admin feature modules + tests'],
       ['p:src/routes/(main)/admin/', 'owned', 'admin routes'],
       ['p:src/routes/(main)/settings/_layout/index.tsx', 'upstream', 'admin entry for admins'],
