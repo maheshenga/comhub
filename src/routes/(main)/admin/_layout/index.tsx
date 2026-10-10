@@ -3,9 +3,10 @@
 import { isAdminRole } from '@lobechat/types';
 import { ActionIcon, Flexbox, Icon, Skeleton } from '@lobehub/ui';
 import { FloatingSheet } from '@lobehub/ui/base-ui';
-import { createStaticStyles, useResponsive } from 'antd-style';
-import { ChevronRight, Home, Menu, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ConfigProvider } from 'antd';
+import { createStaticStyles, cssVar, useResponsive } from 'antd-style';
+import { ChevronRight, Home, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, Outlet, useLocation } from 'react-router';
 
@@ -17,6 +18,8 @@ import {
 } from '@/features/Admin/adminNavigation';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
+
+const ADMIN_NAV_COLLAPSED_KEY = 'comhub-admin-nav-collapsed';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   breadcrumb: css`
@@ -115,7 +118,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   layout: css`
     overflow: hidden;
     display: grid;
-    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-columns: var(--admin-sidebar-width, 264px) minmax(0, 1fr);
     flex: 1;
 
     width: 100%;
@@ -123,9 +126,17 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     height: 100%;
     min-height: 0;
 
+    transition: grid-template-columns 200ms ease;
+
     @media (width < 992px) {
       grid-template-columns: minmax(0, 1fr);
     }
+  `,
+  layoutCollapsed: css`
+    --admin-sidebar-width: 64px;
+  `,
+  collapseToggle: css`
+    flex-shrink: 0;
   `,
   loading: css`
     box-sizing: border-box;
@@ -168,6 +179,18 @@ const AdminLayout = () => {
   const { lg = true, mobile = false } = useResponsive();
   const useNavigationSheet = shouldUseAdminNavigationSheet({ lg, mobile });
   const [navigationOpen, setNavigationOpen] = useState(false);
+  // ux-redesign-spec §2.3: desktop-only sidebar collapse (≥992px keeps the
+  // FloatingSheet drawer below that width untouched). Persisted as a UI
+  // preference; the openKeys derivation stays untouched (dead value while
+  // collapsed is harmless — antd forces submenus shut under inlineCollapsed).
+  const [navCollapsed, setNavCollapsed] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.localStorage.getItem(ADMIN_NAV_COLLAPSED_KEY) === '1',
+  );
+  useEffect(() => {
+    window.localStorage.setItem(ADMIN_NAV_COLLAPSED_KEY, navCollapsed ? '1' : '0');
+  }, [navCollapsed]);
   const [user, isUserStateInit] = useUserStore((s) => [
     userProfileSelectors.userProfile(s),
     s.isUserStateInit,
@@ -176,6 +199,16 @@ const AdminLayout = () => {
   const context = useMemo(
     () => getAdminNavigationContext(role, location.pathname),
     [location.pathname, role],
+  );
+  // ux-redesign-spec §2.2.2 path ①: Menu selected-state colors go through
+  // antd's official component-token channel, scoped to the Admin subtree only
+  // (colors via antd-style cssVar references — no raw hex). Declared before
+  // the early returns to keep hook order unconditional.
+  const menuThemeComponents = useMemo(
+    () => ({
+      Menu: { itemSelectedBg: cssVar.colorPrimaryBg, itemSelectedColor: cssVar.colorPrimary },
+    }),
+    [],
   );
 
   if (!isUserStateInit) {
@@ -202,78 +235,101 @@ const AdminLayout = () => {
     : '';
 
   return (
-    <div className={styles.layout} data-testid="admin-layout-shell">
-      {!useNavigationSheet ? (
-        <aside aria-label={t('admin.navigation.title', '管理后台')} className={styles.sidebar}>
-          <AdminSidebar />
-        </aside>
-      ) : null}
-      <div className={styles.contentColumn}>
-        <header className={styles.contextBar} data-testid="admin-context-bar">
-          <div className={styles.contextPrimary}>
-            {useNavigationSheet ? (
-              <ActionIcon
-                icon={Menu}
-                title={t('admin.navigation.open', '打开管理导航')}
-                onClick={() => setNavigationOpen(true)}
-              />
-            ) : null}
-            {mobile ? (
-              <strong className={styles.mobileTitle}>{currentTitle}</strong>
-            ) : (
-              <nav
-                aria-label={t('admin.navigation.breadcrumb', '当前位置')}
-                className={styles.breadcrumb}
-              >
-                <Link className={styles.breadcrumbLink} to="/settings/admin">
-                  {t('admin.navigation.title', '管理后台')}
-                </Link>
-                <Icon aria-hidden icon={ChevronRight} size={14} />
-                <span>{currentGroupTitle}</span>
-                <Icon aria-hidden icon={ChevronRight} size={14} />
-                <strong className={styles.breadcrumbCurrent}>{currentTitle}</strong>
-              </nav>
-            )}
+    <ConfigProvider theme={{ components: menuThemeComponents }}>
+      <div
+        data-testid="admin-layout-shell"
+        className={[styles.layout, !useNavigationSheet && navCollapsed ? styles.layoutCollapsed : null]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {!useNavigationSheet ? (
+          <aside aria-label={t('admin.navigation.title', '管理后台')} className={styles.sidebar}>
+            <AdminSidebar collapsed={navCollapsed} />
+          </aside>
+        ) : null}
+        <div className={styles.contentColumn}>
+          <header className={styles.contextBar} data-testid="admin-context-bar">
+            <div className={styles.contextPrimary}>
+              {useNavigationSheet ? (
+                <ActionIcon
+                  icon={Menu}
+                  title={t('admin.navigation.open', '打开管理导航')}
+                  onClick={() => setNavigationOpen(true)}
+                />
+              ) : null}
+              {!useNavigationSheet && !mobile ? (
+                <ActionIcon
+                  className={styles.collapseToggle}
+                  icon={navCollapsed ? PanelLeftOpen : PanelLeftClose}
+                  size={{ blockSize: 28, borderRadius: 6, size: 16 }}
+                  aria-label={t(
+                    'admin.navigation.toggleCollapse',
+                    navCollapsed ? '展开管理导航' : '折叠管理导航',
+                  )}
+                  title={t(
+                    'admin.navigation.toggleCollapse',
+                    navCollapsed ? '展开管理导航' : '折叠管理导航',
+                  )}
+                  onClick={() => setNavCollapsed((v) => !v)}
+                />
+              ) : null}
+              {mobile ? (
+                <strong className={styles.mobileTitle}>{currentTitle}</strong>
+              ) : (
+                <nav
+                  aria-label={t('admin.navigation.breadcrumb', '当前位置')}
+                  className={styles.breadcrumb}
+                >
+                  <Link className={styles.breadcrumbLink} to="/settings/admin">
+                    {t('admin.navigation.title', '管理后台')}
+                  </Link>
+                  <Icon aria-hidden icon={ChevronRight} size={14} />
+                  <span>{currentGroupTitle}</span>
+                  <Icon aria-hidden icon={ChevronRight} size={14} />
+                  <strong className={styles.breadcrumbCurrent}>{currentTitle}</strong>
+                </nav>
+              )}
+            </div>
+            <Link
+              aria-label={t('admin.navigation.backToApp', '返回前台')}
+              className={styles.homeLink}
+              to="/"
+            >
+              <Icon aria-hidden icon={Home} size={16} />
+              {!mobile ? t('admin.navigation.backToApp', '返回前台') : null}
+            </Link>
+          </header>
+          <div className={styles.content} data-testid="admin-layout-content">
+            <Outlet />
           </div>
-          <Link
-            aria-label={t('admin.navigation.backToApp', '返回前台')}
-            className={styles.homeLink}
-            to="/"
-          >
-            <Icon aria-hidden icon={Home} size={16} />
-            {!mobile ? t('admin.navigation.backToApp', '返回前台') : null}
-          </Link>
-        </header>
-        <div className={styles.content} data-testid="admin-layout-content">
-          <Outlet />
         </div>
+        {useNavigationSheet ? (
+          <FloatingSheet
+            dismissible
+            maxHeight={720}
+            minHeight={360}
+            mode="overlay"
+            open={navigationOpen}
+            restingHeight={680}
+            snapPoints={[520, 680]}
+            title={t('admin.navigation.title', '管理后台')}
+            variant="elevated"
+            headerActions={
+              <ActionIcon
+                icon={X}
+                title={t('admin.navigation.close', '关闭管理导航')}
+                onClick={() => setNavigationOpen(false)}
+              />
+            }
+            onOpenChange={setNavigationOpen}
+          >
+            <div className={styles.sheetContent}>
+              <AdminSidebar onNavigate={() => setNavigationOpen(false)} />
+            </div>
+          </FloatingSheet>
+        ) : null}
       </div>
-      {useNavigationSheet ? (
-        <FloatingSheet
-          dismissible
-          maxHeight={720}
-          minHeight={360}
-          mode="overlay"
-          open={navigationOpen}
-          restingHeight={680}
-          snapPoints={[520, 680]}
-          title={t('admin.navigation.title', '管理后台')}
-          variant="elevated"
-          headerActions={
-            <ActionIcon
-              icon={X}
-              title={t('admin.navigation.close', '关闭管理导航')}
-              onClick={() => setNavigationOpen(false)}
-            />
-          }
-          onOpenChange={setNavigationOpen}
-        >
-          <div className={styles.sheetContent}>
-            <AdminSidebar onNavigate={() => setNavigationOpen(false)} />
-          </div>
-        </FloatingSheet>
-      ) : null}
-    </div>
+    </ConfigProvider>
   );
 };
 

@@ -1,6 +1,37 @@
 import { createStaticStyles } from 'antd-style';
 
+/**
+ * Workbench dashboard styles (ux-redesign-spec §5). Five-card grid + metric
+ * band carded variants + quick-link strip; colors and type levels follow the
+ * antd tokens referenced through adminDesignTokens roles.
+ */
 export const overviewStyles = createStaticStyles(({ css, cssVar }) => ({
+  cardGrid: css`
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+
+    @media (width < 1100px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (width < 760px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  `,
+  chartEmpty: css`
+    display: grid;
+    place-items: center;
+
+    min-height: 96px;
+    border-radius: ${cssVar.borderRadiusSM};
+
+    font-size: ${cssVar.fontSizeSM};
+    color: ${cssVar.colorTextTertiary};
+    text-align: center;
+
+    background: ${cssVar.colorFillQuaternary};
+  `,
   group: css`
     display: flex;
     flex-direction: column;
@@ -95,6 +126,23 @@ export const overviewStyles = createStaticStyles(({ css, cssVar }) => ({
     flex-direction: column;
     gap: 2px;
   `,
+  metricCard: css`
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  `,
+  metricHero: css`
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+
+    font-family: ${cssVar.fontFamilyCode};
+    font-size: ${cssVar.fontSizeHeading3};
+    font-weight: ${cssVar.fontWeightStrong};
+    line-height: 32px;
+    color: ${cssVar.colorText};
+  `,
   pending: css`
     display: flex;
     flex-direction: column;
@@ -112,5 +160,11 @@ export const overviewStyles = createStaticStyles(({ css, cssVar }) => ({
     @media (width < 800px) {
       grid-template-columns: minmax(0, 1fr);
     }
+  `,
+  stack: css`
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
   `,
 }));

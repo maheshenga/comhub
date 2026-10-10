@@ -1,6 +1,8 @@
 'use client';
 
-import { createStaticStyles, cssVar } from 'antd-style';
+import { createStaticStyles } from 'antd-style';
+
+import { adminColorRoles } from './adminDesignTokens';
 
 export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
   actions: css`
@@ -41,7 +43,7 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
 
     background: color-mix(in srgb, ${cssVar.colorBgContainer} 94%, transparent);
     backdrop-filter: blur(12px);
-    box-shadow: 0 -4px 16px rgb(0 0 0 / 6%);
+    box-shadow: ${adminColorRoles.stickyTopShadow};
 
     @media (width < 640px) {
       justify-content: stretch;
@@ -96,6 +98,19 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+  `,
+  kicker: css`
+    overflow: hidden;
+    margin: 0;
+
+    font-size: ${cssVar.fontSizeSM};
+    font-weight: ${cssVar.fontWeightStrong};
+    line-height: ${cssVar.lineHeightSM};
+    color: ${cssVar.colorTextTertiary};
+    letter-spacing: 0.08em;
+  `,
+  footerSlot: css`
+    margin-block-start: auto;
   `,
   metric: css`
     display: grid;
@@ -228,6 +243,15 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     gap: 16px;
     min-width: 0;
   `,
+  sectionCarded: css`
+    box-sizing: border-box;
+    padding: 16px;
+    border: ${adminColorRoles.border};
+    border-radius: ${adminColorRoles.cardRadius};
+
+    background: ${adminColorRoles.cardBg};
+    box-shadow: ${adminColorRoles.cardShadow};
+  `,
   sectionDescription: css`
     margin-block: 2px 0;
     margin-inline: 0;
@@ -290,5 +314,6 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
 
     background: color-mix(in srgb, ${cssVar.colorBgLayout} 92%, transparent);
     backdrop-filter: blur(12px);
+    box-shadow: ${adminColorRoles.stickyBottomShadow};
   `,
 }));

@@ -1,5 +1,10 @@
 import { createStaticStyles } from 'antd-style';
 
+/**
+ * Sidebar styles (ux-redesign-spec §2). Visual upgrade of the four-row grid
+ * (brand / search / navigation / footer); group separation, header captions
+ * and collapsed mode are new, while the structural roles stay untouched.
+ */
 export const sidebarStyles = createStaticStyles(({ css, cssVar }) => ({
   brand: css`
     display: flex;
@@ -46,6 +51,58 @@ export const sidebarStyles = createStaticStyles(({ css, cssVar }) => ({
   menu: css`
     border-inline-end: 0 !important;
     background: transparent !important;
+
+    /* Group headers (ux-redesign-spec §2.2): uppercase caption style with the
+       item count as a tertiary mini badge on the right. */
+    .admin-nav-group-count {
+      min-width: 20px;
+      padding-block: 0;
+      padding-inline: 6px;
+      border-radius: ${cssVar.borderRadiusSM};
+
+      font-size: ${cssVar.fontSizeSM};
+      font-weight: ${cssVar.fontWeightStrong};
+      line-height: 18px;
+      color: ${cssVar.colorTextTertiary};
+      text-align: center;
+
+      background: ${cssVar.colorFillQuaternary};
+    }
+
+    /* Submenu titles render as group headers: caption-flavored. */
+    .ant-menu-submenu-title {
+      letter-spacing: 0.02em;
+    }
+
+    /* Selected entry: primary text on primary bg; the 3px rounded accent bar
+       comes from ConfigProvider itemSelectedBg/itemSelectedColor at the Admin
+       layout root (spec §2.2.2 path ①) — this block only adds the bar. */
+    .ant-menu-item.ant-menu-item-selected {
+      position: relative;
+    }
+
+    .ant-menu-item.ant-menu-item-selected::before {
+      position: absolute;
+      inset-block: 6px;
+      inset-inline-start: 0;
+
+      width: 3px;
+      border-radius: 2px;
+
+      content: '';
+
+      background: ${cssVar.colorPrimary};
+    }
+
+    /* Group separation: 8px rhythm + hairline divider between submenus. */
+    .ant-menu-submenu:not(:first-child) {
+      margin-block-start: 8px;
+    }
+
+    .ant-menu-submenu:not(:last-child) {
+      border-block-end: 1px solid ${cssVar.colorSplit};
+      padding-block-end: 4px;
+    }
   `,
   navigation: css`
     scrollbar-gutter: stable;

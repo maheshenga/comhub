@@ -5,6 +5,7 @@ import { Alert } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { AdminPageState } from '../shared/AdminPageState';
 import { adminPageStyles as styles } from './adminPageStyles';
 
 export type AdminPageWidth = 'full' | 'large' | 'medium' | 'small';
@@ -16,11 +17,29 @@ const widthClassName: Record<AdminPageWidth, string> = {
   small: styles.pageSmall,
 };
 
+/** Whole-page three-state pass-through (ux-redesign-spec §3.1). */
+export interface AdminPageShellStateSlot {
+  error?: unknown;
+  errorDescription?: ReactNode;
+  errorTitle?: ReactNode;
+  isEmpty?: boolean;
+  loading?: boolean;
+  onRetry?: () => void;
+}
+
 export interface AdminPageShellProps {
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
   description?: ReactNode;
+  footer?: ReactNode;
+  /** Group-eyebrow caption above the h1 (spec §3.1); breadcrumb stays layout-owned. */
+  kicker?: ReactNode;
+  /** Metric band rendered between header and children via AdminMetricStrip. */
+  metrics?: AdminMetric[];
+  /** Metrics band aria-label; defaults to the contract label 关键指标. */
+  metricsLabel?: string;
+  state?: AdminPageShellStateSlot;
   title: ReactNode;
   width?: AdminPageWidth;
 }
@@ -30,30 +49,53 @@ export const AdminPageShell = ({
   children,
   className,
   description,
+  footer,
+  kicker,
+  metrics,
+  metricsLabel = '关键指标',
+  state,
   title,
   width = 'large',
 }: AdminPageShellProps) => (
   <main className={[styles.page, widthClassName[width], className].filter(Boolean).join(' ')}>
     <header className={styles.header}>
       <div className={styles.headerText}>
+        {kicker ? <p className={styles.kicker}>{kicker}</p> : null}
         <h1 className={styles.title}>{title}</h1>
         {description ? <p className={styles.description}>{description}</p> : null}
       </div>
       {actions ? <div className={styles.actions}>{actions}</div> : null}
     </header>
+    {state ? (
+      <AdminPageStateBridge
+        error={state.error}
+        errorDescription={state.errorDescription}
+        errorTitle={state.errorTitle}
+        isEmpty={state.isEmpty}
+        loading={state.loading}
+        onRetry={state.onRetry}
+      />
+    ) : null}
+    {metrics && metrics.length > 0 && !(state && (state.loading || state.error)) ? (
+      <AdminMetricStrip items={metrics} label={metricsLabel} />
+    ) : null}
     {children}
+    {footer ? <div className={styles.footerSlot}>{footer}</div> : null}
   </main>
 );
 
 export interface AdminSectionProps {
   actions?: ReactNode;
+  carded?: boolean;
   children: ReactNode;
   description?: ReactNode;
   title?: ReactNode;
 }
 
-export const AdminSection = ({ actions, children, description, title }: AdminSectionProps) => (
-  <section className={styles.section}>
+export const AdminSection = ({ actions, children, description, title, carded }: AdminSectionProps) => (
+  <section
+    className={[styles.section, carded ? styles.sectionCarded : null].filter(Boolean).join(' ')}
+  >
     {title ? (
       <header className={styles.sectionHeader}>
         <div>
@@ -172,4 +214,29 @@ export const AdminResponsiveTable = ({
   <div aria-label={label} className={styles.responsiveTable} role="region" tabIndex={0}>
     {children}
   </div>
+);
+
+/**
+ * Bridges the shell `state` slot onto the unified three-state primitive
+ * (loading skeleton → error retry → empty). Only rendered when a state object
+ * is provided, so existing pages keep byte-identical rendering.
+ */const AdminPageStateBridge = ({
+  error,
+  errorDescription,
+  errorTitle,
+  isEmpty,
+  loading,
+  onRetry,
+}: AdminPageShellStateSlot) => (
+  <AdminPageState
+    error={error}
+    errorDescription={errorDescription}
+    errorTitle={errorTitle}
+    isEmpty={Boolean(isEmpty)}
+    loading={loading}
+    skeletonVariant="list"
+    onRetry={onRetry}
+  >
+    {null}
+  </AdminPageState>
 );

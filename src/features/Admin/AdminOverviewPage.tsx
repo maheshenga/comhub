@@ -1,23 +1,15 @@
 'use client';
 
-import { Flexbox, Icon } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { Spin, Tag } from 'antd';
-import {
-  ArrowRight,
-  ChartNoAxesColumn,
-  CircleDollarSign,
-  GitPullRequest,
-  Settings,
-  UserRoundCheck,
-  Users,
-} from 'lucide-react';
-import { memo } from 'react';
+import { ArrowRight, GitPullRequest, Settings } from 'lucide-react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
-import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
+import { ADMIN_BASE_PATH } from '@/features/Admin/adminNavigation';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
@@ -26,8 +18,13 @@ import { userProfileSelectors } from '@/store/user/selectors';
 import { AdminMetricStrip, AdminPageError, AdminPageShell, AdminSection } from './layout';
 import { overviewStyles } from './Overview/overviewStyles';
 import { WorkbenchTodoCard } from './Overview/workbenchCards';
-
-
+import {
+  buildOverviewMetrics,
+  WorkbenchModuleAppsCard,
+  WorkbenchQuickLinks,
+  WorkbenchRevenueCard,
+  WorkbenchUsersCard,
+} from './Overview/workbenchDashboardCards';
 
 const AdminOverviewPage = memo(() => {
   const navigate = useNavigate();
@@ -38,6 +35,7 @@ const AdminOverviewPage = memo(() => {
   const {
     data: overview,
     error: overviewError,
+    isLoading: overviewLoading,
     mutate: refreshOverview,
   } = useClientDataSWR(['admin-overview-stats'], () => adminCommercialService.getStatsOverview());
   const {
@@ -75,6 +73,10 @@ const AdminOverviewPage = memo(() => {
     error: settingsError,
     mutate: refreshSettings,
   } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () => adminCommercialService.getAllSettings());
+  // §5.2 收入卡 30 天活跃走势：复用既有只读端点，不新增请求面。
+  const { data: dauTrend } = useClientDataSWR(['admin-overview-dau-trend'], () =>
+    adminCommercialService.getStatsDauTrend(),
+  );
 
   const pendingChangeCount = pendingChanges?.total ?? 0;
   const pendingPackageItems: any[] = (pendingPackages as any)?.items ?? [];
@@ -84,6 +86,11 @@ const AdminOverviewPage = memo(() => {
     settings?.defaultAgentProvider && settings?.defaultAgentModel
       ? `${settings.defaultAgentProvider}/${settings.defaultAgentModel}`
       : '未设置';
+  const dauSparkValues = useMemo(
+    () => (Array.isArray(dauTrend) ? dauTrend.map((d: { count: number }) => d.count) : []),
+    [dauTrend],
+  );
+  const overviewAny = overview as any;
 
   return (
     <AdminPageShell
@@ -95,42 +102,14 @@ const AdminOverviewPage = memo(() => {
         <AdminPageError description="核心指标加载失败，请重试。" onRetry={refreshOverview} />
       ) : (
         <AdminMetricStrip
+          items={buildOverviewMetrics(overview)}
           label={t('admin.overview.metricsLabel', '关键指标')}
-          items={[
-            {
-              hint: '平台注册账户',
-              icon: <Icon icon={Users} size={18} />,
-              key: 'users',
-              label: '总用户',
-              value: overview ? overview.totalUsers : '...',
-            },
-            {
-              hint: '最近 24 小时',
-              icon: <Icon icon={UserRoundCheck} size={18} />,
-              key: 'dau',
-              label: '日活用户',
-              value: overview ? overview.dau : '...',
-            },
-            {
-              hint: '当前有效状态',
-              icon: <Icon icon={ChartNoAxesColumn} size={18} />,
-              key: 'subscriptions',
-              label: '有效订阅',
-              value: overview ? overview.activeSubscriptions : '...',
-            },
-            {
-              hint: '近 30 天实收充值',
-              icon: <Icon icon={CircleDollarSign} size={18} />,
-              key: 'revenue',
-              label: '充值收入',
-              value: overview ? `$${overview.revenueLast30dUsd}` : '...',
-            },
-          ]}
         />
       )}
 
-      <div className={overviewStyles.split}>
+      <div className={overviewStyles.cardGrid}>
         <AdminSection
+          carded
           description="优先处理会影响用户权益和订阅状态的请求。"
           title="待处理事项"
           actions={
@@ -164,28 +143,15 @@ const AdminOverviewPage = memo(() => {
           </div>
           <Flexbox gap={12} style={{ marginTop: 12 }}>
             <WorkbenchTodoCard
-              description="模块应用包待人工审核，按提交时间排序处理。"
-              items={pendingPackageItems.map((item: any) => ({
-                hint: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : undefined,
-                label: item.name ?? item.appId ?? item.id,
-                tag: item.scanStatus === 'flagged' ? '警示' : undefined,
-                tagColor: 'warning',
-              }))}
-              title={t('admin.workbench.pendingPackages', '模块应用审核')}
-              total={pendingPackageItems.length}
-              onViewAll={() => navigate(`${ADMIN_BASE_PATH}/modules`)}
-              viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
-            />
-            <WorkbenchTodoCard
               description="待处理的收益结算单，确认后进入打款流程。"
+              title={t('admin.workbench.pendingPayouts', '收益结算')}
+              total={pendingPayoutItems.length}
+              viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
               items={pendingPayoutItems.map((item: any) => ({
                 hint: item.amount != null ? String(item.amount) : undefined,
                 label: item.publisherName ?? item.publisherId ?? item.id,
               }))}
-              title={t('admin.workbench.pendingPayouts', '收益结算')}
-              total={pendingPayoutItems.length}
               onViewAll={() => navigate(`${ADMIN_BASE_PATH}/modules`)}
-              viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
             />
           </Flexbox>
           {(pendingPackagesError || pendingPayoutsError || recentAuditError) && (
@@ -201,8 +167,48 @@ const AdminOverviewPage = memo(() => {
         </AdminSection>
 
         <AdminSection
+          carded
+          description="近 30 天充值实收与平台活跃走势。"
+          title="收入与活跃"
+          actions={
+            <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/stats`)}>
+              运营统计
+              <ArrowRight aria-hidden size={14} />
+            </Button>
+          }
+        >
+          <WorkbenchRevenueCard
+            loading={overviewLoading}
+            revenue={overviewAny?.revenueLast30dUsd}
+            sparkValues={dauSparkValues}
+          />
+        </AdminSection>
+
+        <AdminSection carded description="平台规模与健康度速览。" title="用户概览">
+          <WorkbenchUsersCard
+            dau={overviewAny?.dau}
+            loading={overviewLoading}
+            mau={overviewAny?.mau}
+            totalUsers={overviewAny?.totalUsers}
+          />
+        </AdminSection>
+
+        <AdminSection carded description="模块应用平台的审核与结算状态。" title="模块应用">
+          <WorkbenchModuleAppsCard
+            total={pendingPackageItems.length}
+            items={pendingPackageItems.map((item: any) => ({
+              hint: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : undefined,
+              label: item.name ?? item.appId ?? item.id,
+              tag: item.scanStatus === 'flagged' ? '警示' : undefined,
+              tagColor: 'warning',
+            }))}
+          />
+        </AdminSection>
+
+        <AdminSection
+          carded
           description="快速核对影响全站体验的核心默认值与我最近的操作。"
-          title="系统状态"
+          title="系统健康"
           actions={
             <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/settings`)}>
               <Settings aria-hidden size={14} />
@@ -216,7 +222,9 @@ const AdminOverviewPage = memo(() => {
             <div>
               <div className={overviewStyles.keyValue}>
                 <span className={overviewStyles.keyValueLabel}>品牌名称</span>
-                <strong className={overviewStyles.keyValueValue}>{settings.brandName || '未设置'}</strong>
+                <strong className={overviewStyles.keyValueValue}>
+                  {settings.brandName || '未设置'}
+                </strong>
               </div>
               <div className={overviewStyles.keyValue}>
                 <span className={overviewStyles.keyValueLabel}>默认模型</span>
@@ -231,14 +239,14 @@ const AdminOverviewPage = memo(() => {
               <div style={{ marginTop: 12 }}>
                 <WorkbenchTodoCard
                   description="按操作者（当前管理员）过滤的最近 10 条审计记录。"
+                  title={t('admin.workbench.recentAuditCard', '我最近的操作')}
+                  total={recentAuditItems.length}
+                  viewAllLabel={t('admin.workbench.openAudit', '打开审计记录')}
                   items={recentAuditItems.map((item: any) => ({
                     hint: item.createdAt ? new Date(item.createdAt).toLocaleString() : undefined,
                     label: item.action,
                   }))}
-                  title={t('admin.workbench.recentAuditCard', '我最近的操作')}
-                  total={recentAuditItems.length}
                   onViewAll={() => navigate(`${ADMIN_BASE_PATH}/audit`)}
-                  viewAllLabel={t('admin.workbench.openAudit', '打开审计记录')}
                 />
               </div>
             </div>
@@ -252,27 +260,7 @@ const AdminOverviewPage = memo(() => {
         description="入口按职责域组织；日常操作无需在长菜单中反复定位。"
         title="管理模块"
       >
-        <div className={overviewStyles.groupGrid}>
-          {ADMIN_NAV_GROUPS.filter((group) => group.key !== 'overview').map((group) => (
-            <article className={overviewStyles.group} key={group.key}>
-              <h3 className={overviewStyles.groupTitle}>{group.label}</h3>
-              <p className={overviewStyles.groupDescription}>{group.description}</p>
-              <div className={overviewStyles.linkList}>
-                {group.items.map((item) => (
-                  <button
-                    className={overviewStyles.link}
-                    key={item.path}
-                    type="button"
-                    onClick={() => navigate(item.path)}
-                  >
-                    <span>{item.label}</span>
-                    <ArrowRight aria-hidden size={14} />
-                  </button>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
+        <WorkbenchQuickLinks />
       </AdminSection>
     </AdminPageShell>
   );
