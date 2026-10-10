@@ -82,10 +82,7 @@ export const renderGroupLabel = (
   group: AdminNavGroup,
   translate: (key: string, fallback: string) => string,
 ): ReactNode => {
-  const translated = translate(
-    `admin.navigation.groups.${group.key}.label`,
-    group.label,
-  );
+  const translated = translate(`admin.navigation.groups.${group.key}.label`, group.label);
   const countSuffix = ` (${group.items.length})`;
 
   return (

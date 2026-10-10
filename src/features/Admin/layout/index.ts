@@ -1,10 +1,4 @@
-export {
-  ADMIN_CONTROL_HEIGHT,
-  ADMIN_SPACE,
-  adminChartPalette,
-  adminColorRoles,
-  adminDesignStyles,
-} from './adminDesignTokens';
+export { adminChartPalette, adminColorRoles, adminDesignStyles } from './adminDesignTokens';
 export type {
   AdminFormActionsProps,
   AdminFormGridProps,

@@ -91,7 +91,13 @@ export interface AdminSectionProps {
   title?: ReactNode;
 }
 
-export const AdminSection = ({ actions, children, description, title, carded }: AdminSectionProps) => (
+export const AdminSection = ({
+  actions,
+  children,
+  description,
+  title,
+  carded,
+}: AdminSectionProps) => (
   <section
     className={[styles.section, carded ? styles.sectionCarded : null].filter(Boolean).join(' ')}
   >
@@ -222,7 +228,8 @@ export const AdminResponsiveTable = ({
  * Bridges the shell `state` slot onto the unified three-state primitive
  * (loading skeleton → error retry → empty). Only rendered when a state object
  * is provided, so existing pages keep byte-identical rendering.
- */const AdminPageStateBridge = ({
+ */
+const AdminPageStateBridge = ({
   error,
   errorDescription,
   errorTitle,

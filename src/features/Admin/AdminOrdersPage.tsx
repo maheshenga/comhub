@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router';
 import InlineTable from '@/components/InlineTable';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { buildAdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
@@ -57,10 +57,14 @@ const AdminOrdersPage = memo(() => {
   const [actingId, setActingId] = useState<string | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
   // T1 样板（ux-redesign-spec §3.4/§6 B3）：游标栈与 deps 重置收编进
-  // useAdminCursorQuery。swrKey 形状保持 ['admin-orders', cursor, status,
-  // userId] —— cursor 落 key[1]（AdminPagination.test mock 按位置读取），
-  // status/userId 作为 deps 追加；首页 fetch 序列化层保持 cursor ?? 0。
+  // useAdminCursorQuery。cursor 落 swrKey[1]（AdminPagination.test mock 按位
+  // 置读取），status/userId 作为 deps 追加；首页 fetch 序列化层保持 cursor ?? 0。
+  // refresh 直接用 primitive 的 mutate（swrKey 单一事实源在 hook 内部）。
   const trimUserId = userId.trim();
+  // Draft state for the user-ID filter input: typing must not refetch per
+  // keystroke (userId drives the query deps); the explicit search button and
+  // Enter commit the draft (applyUserIdFilter below).
+  const [userIdDraft, setUserIdDraft] = useState('');
   const ordersQuery = useAdminCursorQuery<number, { items: any[]; nextCursor: number | null }>({
     key: 'admin-orders',
     deps: [status, trimUserId],
@@ -72,12 +76,6 @@ const AdminOrdersPage = memo(() => {
         userId: trimUserId || undefined,
       }),
   });
-  // 兼容既有消费面（refresh mutate 键）：与 useAdminCursorQuery 内部 swrKey
-  // 完全同形（cursor 落 key[1]，status/userId 作为 deps 尾随）。
-  const swrKey = useMemo(
-    () => ['admin-orders', ordersQuery.state.cursor, 50, status, trimUserId] as const,
-    [ordersQuery.state.cursor, status, trimUserId],
-  );
   const { data, isLoading } = ordersQuery;
   const { data: orderDetail, isLoading: orderDetailLoading } = useClientDataSWR(
     orderDetailId ? ['admin-order-detail', orderDetailId] : null,
@@ -109,7 +107,11 @@ const AdminOrdersPage = memo(() => {
     return preview;
   };
 
-  const refresh = async () => mutate(swrKey);
+  const refresh = async () => ordersQuery.mutate();
+  const applyUserIdFilter = () => {
+    setUserId(userIdDraft);
+    ordersQuery.state.reset();
+  };
   const handlePendingAction = async (
     orderId: string,
     action: 'cancel' | 'expire' | 'settle',
@@ -207,18 +209,24 @@ const AdminOrdersPage = memo(() => {
                         ordersQuery.state.reset();
                       }}
                     />
-                    {/* base-ui Input has no Search compound: Enter-to-apply
-                        keeps the antd `onSearch` UX (no test locks this
-                        interaction; value applies on Enter only). */}
+                    {/* base-ui Input has no Search compound: explicit search
+                        button + Enter both apply the draft value (restores
+                        the antd onSearch affordance lost in the migration). */}
                     <Input
                       allowClear
                       className={styles.search}
                       placeholder={t('admin.orders.filter.userId', '用户 ID')}
-                      onPressEnter={(event) => {
-                        setUserId(event.currentTarget.value);
-                        ordersQuery.state.reset();
-                      }}
+                      value={userIdDraft}
+                      onChange={(event) => setUserIdDraft(event.currentTarget.value)}
+                      onPressEnter={() => applyUserIdFilter()}
                     />
+                    <Button
+                      aria-label={t('admin.orders.filter.userId', '用户 ID')}
+                      size="small"
+                      onClick={() => applyUserIdFilter()}
+                    >
+                      {t('admin.orders.filter.search', '搜索')}
+                    </Button>
                   </div>
                   {effectiveSelectedIds.length > 0 ? (
                     <OrderBulkToolbar

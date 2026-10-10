@@ -2,7 +2,7 @@
 
 import { createStaticStyles } from 'antd-style';
 
-import { adminColorRoles } from './adminDesignTokens';
+import { adminColorRoles, adminDesignStyles } from './adminDesignTokens';
 
 export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
   actions: css`
@@ -103,11 +103,10 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     overflow: hidden;
     margin: 0;
 
-    font-size: ${cssVar.fontSizeSM};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: ${cssVar.lineHeightSM};
-    color: ${cssVar.colorTextTertiary};
-    letter-spacing: 0.08em;
+    /* Composed from adminDesignStyles.caption (token consumption, review
+       round 2): adds the hidden-overflow ellipsis the eyebrow needs. */
+    ${adminDesignStyles.caption}
+    text-overflow: ellipsis;
   `,
   footerSlot: css`
     margin-block-start: auto;
@@ -192,11 +191,9 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
   metricValue: css`
     overflow: hidden;
 
-    font-family: ${cssVar.fontFamilyCode};
-    font-size: ${cssVar.fontSizeXL};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 28px;
-    color: ${cssVar.colorText};
+    /* Composed from adminDesignStyles.numericText (token consumption,
+       review round 2): adds the one-line ellipsis the strip cell needs. */
+    ${adminDesignStyles.numericText}
     text-overflow: ellipsis;
     white-space: nowrap;
   `,
@@ -246,7 +243,7 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
   sectionCarded: css`
     box-sizing: border-box;
     padding: 16px;
-    border: ${adminColorRoles.border};
+    border: 1px solid ${adminColorRoles.border};
     border-radius: ${adminColorRoles.cardRadius};
 
     background: ${adminColorRoles.cardBg};
@@ -275,26 +272,14 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     }
   `,
   sectionTitle: css`
-    margin: 0;
-
-    font-size: ${cssVar.fontSizeLG};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 24px;
-    color: ${cssVar.colorText};
+    /* Composed from adminDesignStyles.sectionTitle (token consumption,
+       review round 2). */
+    ${adminDesignStyles.sectionTitle}
   `,
   title: css`
-    margin: 0;
-
-    font-size: ${cssVar.fontSizeHeading3};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 32px;
-    color: ${cssVar.colorText};
-    letter-spacing: 0;
-
-    @media (width < 640px) {
-      font-size: ${cssVar.fontSizeHeading4};
-      line-height: 28px;
-    }
+    /* Composed from adminDesignStyles.pageTitle (token consumption,
+       review round 2). */
+    ${adminDesignStyles.pageTitle}
   `,
   toolbar: css`
     display: flex;
