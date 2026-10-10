@@ -1,8 +1,7 @@
 'use client';
 
-import { Alert, Button, Form, message, Typography } from 'antd';
-
-const { Text } = Typography;
+import { Alert, toast } from '@lobehub/ui/base-ui';
+import { Button, Form, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,6 +20,8 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import AdminSettingsGovernanceCard from './AdminSettingsGovernanceCard';
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 import SettingsTabs from './Settings/SettingsTabs';
+
+const { Text } = Typography;
 
 const AdminSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -59,7 +60,7 @@ const AdminSettingsPage = memo(() => {
       const updates = buildSettingUpdates(values, initialValues);
 
       if (updates.length === 0) {
-        message.info(t('admin.settings.noChanges', '没有需要保存的变更'));
+        toast.info(t('admin.settings.noChanges', '没有需要保存的变更'));
         return;
       }
 
@@ -71,9 +72,9 @@ const AdminSettingsPage = memo(() => {
         await mutate(key);
       }
 
-      message.success(t('admin.settings.saveSuccess', '设置已保存'));
+      toast.success(t('admin.settings.saveSuccess', '设置已保存'));
     } catch {
-      message.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
+      toast.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
     } finally {
       setSubmitting(false);
     }
@@ -94,11 +95,11 @@ const AdminSettingsPage = memo(() => {
         await mutate(key);
       }
 
-      message.success(
+      toast.success(
         t('admin.settings.materializeDefaultsSuccess', '推荐默认配置已同步到后台设置'),
       );
     } catch {
-      message.error(
+      toast.error(
         t('admin.settings.materializeDefaultsFailed', '同步失败，请检查表单内容后重试'),
       );
     } finally {

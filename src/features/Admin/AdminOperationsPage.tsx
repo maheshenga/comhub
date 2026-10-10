@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, message, Switch } from 'antd';
+import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -125,9 +125,9 @@ const AdminOperationsPage = memo(() => {
           },
         ],
       });
-      message.success(t('admin.operations.saveSuccess', '运营配置已保存'));
+      toast.success(t('admin.operations.saveSuccess', '运营配置已保存'));
     } catch {
-      message.error(t('admin.operations.saveFailed', '保存失败'));
+      toast.error(t('admin.operations.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }

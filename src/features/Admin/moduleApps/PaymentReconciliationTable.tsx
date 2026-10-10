@@ -2,8 +2,7 @@
 
 import type { PaymentMethodId, PaymentProvider } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Tag, Typography } from 'antd';
+import { Typography } from 'antd';
 import { memo } from 'react';
 
 import InlineTable from '@/components/InlineTable';

@@ -2,8 +2,8 @@
 
 import type { ModuleAppPayoutStatus } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Tag, Typography } from 'antd';
+import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Typography } from 'antd';
 import { memo } from 'react';
 
 import InlineTable from '@/components/InlineTable';

@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox, Skeleton } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
+import { Alert, Button } from '@lobehub/ui/base-ui';
 
 import { AdminFormActions, AdminPageError } from '../layout';
 

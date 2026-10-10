@@ -1,12 +1,12 @@
 'use client';
 
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { confirmModal, toast } from '@lobehub/ui/base-ui';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 
 import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
-import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
@@ -27,13 +27,13 @@ import type {
   ModuleAppRuntimeDiagnostics,
 } from '../../types';
 import ModuleAppRuntimeSettings from './ModuleAppRuntimeSettings';
-import { RuntimeSection } from './RuntimeSection';
-import { RuntimeDiagnosticsPanel } from './RuntimeDiagnosticsPanel';
 import {
   buildGatewayDiagnosticRows,
   buildRuntimeDiagnosticRows,
   buildSchedulerDiagnosticRows,
 } from './runtimeDiagnostics';
+import { RuntimeDiagnosticsPanel } from './RuntimeDiagnosticsPanel';
+import { RuntimeSection } from './RuntimeSection';
 import { runtimeStyles as styles } from './runtimeStyles';
 
 type ListResponse<T> = { items?: T[]; nextCursor?: null | string };
@@ -181,11 +181,11 @@ const ModuleAppRuntimePage = memo(() => {
               diagnosticsData={diagnostics.data}
               dispatchingSchedules={dispatchingSchedules}
               gatewayRows={buildGatewayDiagnosticRows(diagnosticParams)}
-              onRefresh={() => diagnosticsKey && void mutate(diagnosticsKey)}
-              onScheduleDispatch={confirmScheduleDispatch}
               runtimeRows={buildRuntimeDiagnosticRows(diagnosticParams)}
               schedulerRows={buildSchedulerDiagnosticRows(diagnosticParams)}
               t={t}
+              onRefresh={() => diagnosticsKey && void mutate(diagnosticsKey)}
+              onScheduleDispatch={confirmScheduleDispatch}
             />
           ) : null}
         </ModulePageState>

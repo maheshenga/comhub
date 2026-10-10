@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Form, message } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
+import { Form } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -24,14 +25,8 @@ import {
   RuntimeFields,
   UserDefaultsFields,
 } from './DefaultSettings/SectionFields';
-import type { AdminDefaultSettingsScope } from './DefaultSettings/shared';
-import {
-  DEFAULTS_INITIAL_VALUES,
-  type DefaultSettingsData,
-  type FormValues,
-  RUNTIME_SAVE_ERROR_MESSAGES,
-  scopeCopy,
-} from './DefaultSettings/shared';
+import type { AdminDefaultSettingsScope,DefaultSettingsData, FormValues } from './DefaultSettings/shared';
+import { DEFAULTS_INITIAL_VALUES, RUNTIME_SAVE_ERROR_MESSAGES, scopeCopy } from './DefaultSettings/shared';
 import SyncActionButtons from './DefaultSettings/SyncActionButtons';
 import {
   applyIntegrationsToForm,
@@ -137,7 +132,7 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
             await mutate(USER_STATE_SWR_KEY);
             const skipped = result.skippedFields.length;
             if (skipped > 0) {
-              message.warning(
+              toast.warning(
                 t('admin.defaultSettings.aiRuntime.savedAndSyncedWithSkipped', {
                   fields: result.syncedFields.length,
                   skipped,
@@ -145,7 +140,7 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
                 }),
               );
             } else {
-              message.success(
+              toast.success(
                 t('admin.defaultSettings.aiRuntime.savedAndSynced', {
                   fields: result.syncedFields.length,
                   users: result.syncedUsers,
@@ -153,16 +148,16 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
               );
             }
           } catch {
-            message.warning(t('admin.defaultSettings.aiRuntime.savedSyncFailed'));
+            toast.warning(t('admin.defaultSettings.aiRuntime.savedSyncFailed'));
           }
           return;
         }
-        message.success(t('admin.defaultSettings.aiRuntime.saved'));
+        toast.success(t('admin.defaultSettings.aiRuntime.saved'));
         return;
       }
 
       if (scope === 'integrations') {
-        message.success(t('admin.defaultSettings.integrations.saved'));
+        toast.success(t('admin.defaultSettings.integrations.saved'));
         return;
       }
 
@@ -177,26 +172,26 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
             forceDefaultAgentMeta: true,
           });
           await mutate(USER_STATE_SWR_KEY);
-          message.success(
+          toast.success(
             t('admin.defaultSettings.userDefaults.savedAndSynced', {
               fields: result.syncedFields.length,
               users: result.syncedUsers,
             }),
           );
         } catch {
-          message.warning(t('admin.defaultSettings.userDefaults.savedSyncFailed'));
+          toast.warning(t('admin.defaultSettings.userDefaults.savedSyncFailed'));
         }
         return;
       }
-      message.success(t('admin.defaultSettings.userDefaults.saved'));
+      toast.success(t('admin.defaultSettings.userDefaults.saved'));
     } catch (error) {
       if (error instanceof AdminSettingsRevisionConflictError) {
         setSaveError(error);
       } else if (error instanceof SyntaxError) {
-        message.error(t('admin.defaultSettings.invalidJson'));
+        toast.error(t('admin.defaultSettings.invalidJson'));
       } else {
         const errorMessage = error instanceof Error ? error.message : '';
-        message.error(
+        toast.error(
           RUNTIME_SAVE_ERROR_MESSAGES[errorMessage] ?? t('admin.defaultSettings.saveFailed'),
         );
       }

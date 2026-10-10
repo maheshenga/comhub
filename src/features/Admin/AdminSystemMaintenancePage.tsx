@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, InputNumber, message, Typography } from 'antd';
+import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -61,16 +61,16 @@ const AdminSystemMaintenancePage = memo(() => {
       const updates = buildUpdates(values, initialValues);
 
       if (updates.length === 0) {
-        message.info(t('admin.maintenance.noChanges', '没有需要保存的变更'));
+        toast.info(t('admin.maintenance.noChanges', '没有需要保存的变更'));
         return;
       }
 
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('cronSecret', '');
-      message.success(t('admin.maintenance.saveSuccess', '系统维护设置已保存'));
+      toast.success(t('admin.maintenance.saveSuccess', '系统维护设置已保存'));
     } catch {
-      message.error(t('admin.maintenance.saveFailed', '保存失败，请检查维护配置'));
+      toast.error(t('admin.maintenance.saveFailed', '保存失败，请检查维护配置'));
     } finally {
       setSubmitting(false);
     }
@@ -83,9 +83,9 @@ const AdminSystemMaintenancePage = memo(() => {
     try {
       const result = await adminCommercialService.runMaintenance(command);
       setRunResult(result);
-      message.success(t('admin.maintenance.runSuccess', '维护任务已执行'));
+      toast.success(t('admin.maintenance.runSuccess', '维护任务已执行'));
     } catch {
-      message.error(t('admin.maintenance.runFailed', '维护任务执行失败'));
+      toast.error(t('admin.maintenance.runFailed', '维护任务执行失败'));
     } finally {
       setRunning(false);
     }
@@ -97,13 +97,13 @@ const AdminSystemMaintenancePage = memo(() => {
     setRefreshingCaches(true);
     try {
       const result = await adminCommercialService.refreshRuntimeCaches();
-      message.success(
+      toast.success(
         t('admin.maintenance.refreshCachesSuccess', '已刷新 {{count}} 类运行时缓存', {
           count: result.refreshed.length,
         }),
       );
     } catch {
-      message.error(t('admin.maintenance.refreshCachesFailed', '刷新运行时缓存失败'));
+      toast.error(t('admin.maintenance.refreshCachesFailed', '刷新运行时缓存失败'));
     } finally {
       setRefreshingCaches(false);
     }

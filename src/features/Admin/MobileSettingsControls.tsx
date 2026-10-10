@@ -1,8 +1,7 @@
 'use client';
 
 import { Button, Flexbox } from '@lobehub/ui';
-import { Switch } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
+import { Alert, Switch } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import { type ReactNode, useId } from 'react';

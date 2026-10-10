@@ -1,9 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button, Tag } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Empty, InputNumber, Space, Switch, Table, Tag, Typography } from 'antd';
+import { Empty, InputNumber, Space, Switch, Table, Typography } from 'antd';
 
 import { MATRIX_ACCESS_SAVE_LABEL, MATRIX_DISCARD_LABEL, MATRIX_PRICING_SAVE_LABEL } from '@/features/Admin/adminMatrixCopy';
 import type { MatrixRow } from '@/features/Admin/adminModelBillingMatrix';

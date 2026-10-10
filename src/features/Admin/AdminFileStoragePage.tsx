@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Alert, Button, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -42,16 +42,16 @@ const AdminFileStoragePage = memo(() => {
       const updates = buildUpdates(values, initialValues);
 
       if (updates.length === 0) {
-        message.info(t('admin.fileStorage.noChanges', '没有需要保存的变更'));
+        toast.info(t('admin.fileStorage.noChanges', '没有需要保存的变更'));
         return;
       }
 
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('storageS3SecretAccessKey', '');
-      message.success(t('admin.fileStorage.saveSuccess', '文件存储设置已保存'));
+      toast.success(t('admin.fileStorage.saveSuccess', '文件存储设置已保存'));
     } catch {
-      message.error(t('admin.fileStorage.saveFailed', '保存失败，请检查 S3 配置'));
+      toast.error(t('admin.fileStorage.saveFailed', '保存失败，请检查 S3 配置'));
     } finally {
       setSubmitting(false);
     }
@@ -68,14 +68,14 @@ const AdminFileStoragePage = memo(() => {
           ? 'Bucket、内部上传、读取、删除通过；公共端点 CORS 需由浏览器验证'
           : 'Bucket、CORS、预签名上传、读取、删除均通过'
         : '连接正常';
-      message.success(
+      toast.success(
         t(
           'admin.fileStorage.testSuccess',
           `S3 测试通过：${result.bucket}（${result.filePath}），${checkSummary}`,
         ),
       );
     } catch (error) {
-      message.error(
+      toast.error(
         `${t('admin.fileStorage.testFailed', 'S3 连接失败')}: ${
           error instanceof Error ? error.message : String(error)
         }`,

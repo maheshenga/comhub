@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { confirmModal } from '@lobehub/ui/base-ui';
-import { Button, Empty, Input, message, Table } from 'antd';
+import { confirmModal, toast } from '@lobehub/ui/base-ui';
+import { Button, Empty, Input, Table } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -10,15 +10,16 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useAiInfraStore } from '@/store/aiInfra';
 
+import AdminDependencyImpactPreview from '../AdminDependencyImpactPreview';
 import type { AdminModelAbilities } from '../adminProviderModelAbilities';
 import { buildManualAbilitiesMetadata } from '../adminProviderModelAbilities';
 import {
   buildManualMediaPricingMetadata,
   buildManualTokenPricingMetadata,
 } from '../adminProviderModelPricing';
-import AdminDependencyImpactPreview from '../AdminDependencyImpactPreview';
 import { buildModelTypeColumns } from './ModelTypeColumns';
-import { type ModelRow, MODEL_TYPES, modelsKey, splitToList } from './shared';
+import type { MODEL_TYPES,ModelRow } from './shared';
+import { modelsKey, splitToList } from './shared';
 
 
 const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES)[number] }>(
@@ -54,11 +55,11 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES
             sortOrder: i,
           })),
         });
-        message.success(t('admin.providers.models.addSuccess', '模型已添加'));
+        toast.success(t('admin.providers.models.addSuccess', '模型已添加'));
         setBulkText('');
         await refreshModels();
       } catch {
-        message.error(t('admin.providers.models.addFailed', '添加模型失败'));
+        toast.error(t('admin.providers.models.addFailed', '添加模型失败'));
       } finally {
         setAdding(false);
       }
@@ -75,14 +76,14 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES
           instanceId,
           models: targetRows.map(({ modelId, modelType }) => ({ modelId, modelType })),
         });
-        message.success(
+        toast.success(
           enabled
             ? t('admin.providers.models.enableAllSuccess', '已启用当前类型模型')
             : t('admin.providers.models.disableAllSuccess', '已禁用当前类型模型'),
         );
         await refreshModels();
       } catch {
-        message.error(t('admin.providers.models.batchToggleFailed', '批量更新模型失败'));
+        toast.error(t('admin.providers.models.batchToggleFailed', '批量更新模型失败'));
       } finally {
         setBatchUpdating(null);
       }

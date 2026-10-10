@@ -4,8 +4,6 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
 import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
 import { Form, Input, Typography } from 'antd';
-
-const { Text } = Typography;
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +16,8 @@ import {
   BrandSettingsCard,
   EntryCopySettingsCard,
 } from './SettingsCards';
+
+const { Text } = Typography;
 
 const helpMenuActionOptions = HELP_MENU_ACTIONS.map((value) => ({ label: value, value }));
 const helpMenuIconOptions = HELP_MENU_ICONS.map((value) => ({ label: value, value }));

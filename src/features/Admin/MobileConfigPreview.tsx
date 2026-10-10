@@ -1,12 +1,9 @@
 'use client';
 
 import { Icon, Segmented } from '@lobehub/ui';
-import { createStaticStyles } from 'antd-style';
-import { Boxes } from 'lucide-react';
 import { memo, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
 import { type MobilePublicConfigV1,normalizeMobileConfig } from '@/const/mobileConfig';
 import { getMobileIcon } from '@/features/MobileWorkspace/mobileIcons';
 

@@ -15,8 +15,8 @@ import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { AdminModuleAppOutboundHostPurpose, AdminModuleAppPackageRow } from '../types';
-import { getPackageColumns } from './packageColumns';
 import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
+import { getPackageColumns } from './packageColumns';
 import {
   OutboundHostClassification,
   RejectReasonField,
@@ -179,8 +179,8 @@ const ModuleReviewsPage = memo(() => {
         publisherId={publisherId}
         reviewStatus={reviewStatus}
         submittedByUserId={submittedByUserId}
-        onUpdateFilter={updateFilter}
         t={t as any}
+        onUpdateFilter={updateFilter}
       />
       <ModulePageState
         emptyKind={isFiltered ? 'filtered' : 'initial'}
@@ -222,8 +222,8 @@ const ModuleReviewsPage = memo(() => {
                     <td>
                       <ReviewRowActions
                         item={item}
-                        onOpen={(nextAction) => openAction(nextAction, item)}
                         t={t as any}
+                        onOpen={(nextAction) => openAction(nextAction, item)}
                       />
                     </td>
                   ) : null}
@@ -272,8 +272,8 @@ const ModuleReviewsPage = memo(() => {
           {actionComplete ? <p>{t('moduleApps.admin.reviews.actionSuccess')}</p> : null}
           {action === 'approve' && !actionComplete && outboundHosts.length > 0 ? (
             <OutboundHostClassification
-              outboundHosts={outboundHosts}
               outboundHostPurposes={outboundHostPurposes}
+              outboundHosts={outboundHosts}
               setOutboundHostPurposes={setOutboundHostPurposes}
               t={t as any}
             />

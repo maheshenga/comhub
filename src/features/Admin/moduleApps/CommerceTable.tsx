@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal } from '@lobehub/ui/base-ui';
-import { Checkbox, Tag, Typography } from 'antd';
+import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
+import { Checkbox, Typography } from 'antd';
 import { memo, useMemo, useState } from 'react';
 
 import InlineTable from '@/components/InlineTable';

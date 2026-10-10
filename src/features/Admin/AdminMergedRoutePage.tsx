@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
+import { Alert, Button } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 import { useNavigate } from 'react-router';
 

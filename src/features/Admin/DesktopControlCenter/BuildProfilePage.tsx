@@ -1,8 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Button, confirmModal } from '@lobehub/ui/base-ui';
-import { Alert, Form, message, Skeleton } from 'antd';
+import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
+import { Form, Skeleton } from 'antd';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,8 +19,8 @@ import {
   createDefaultBuildProfileForm,
   hasCompleteWindowsAssets,
 } from './buildProfileForm';
-import CreateDesktopReleaseModal from './CreateDesktopReleaseModal';
 import { BuildProfileHeader } from './buildProfileHeader';
+import CreateDesktopReleaseModal from './CreateDesktopReleaseModal';
 import DesktopBuildHistory, { type DesktopReleaseHistoryItem } from './DesktopBuildHistory';
 import { desktopControlCenterStyles } from './styles';
 
@@ -59,17 +59,17 @@ const withDraftApplied = (
 });
 const LoadFailedAlert = ({ onRetry, t }: { onRetry: () => void; t: any }) => (
   <Alert
+    action={<Button onClick={onRetry}>{t('admin.desktopControl.retry')}</Button>}
     title={t('admin.desktopBuild.loadFailed')}
     type="error"
-    action={<Button onClick={onRetry}>{t('admin.desktopControl.retry')}</Button>}
   />
 );
 const EmptyProfilesAlert = ({ onCreate, t }: { onCreate: () => void; t: any }) => (
   <Alert
+    action={<Button onClick={onCreate}>{t('admin.desktopBuild.profile.create')}</Button>}
     description={t('admin.desktopBuild.emptyDescription')}
     title={t('admin.desktopBuild.empty')}
     type="info"
-    action={<Button onClick={onCreate}>{t('admin.desktopBuild.profile.create')}</Button>}
   />
 );
 const BuildProfilePage = memo<BuildProfilePageProps>(
@@ -167,10 +167,10 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
     }, [form, selectedProfile]);
 
     if (profiles.error) {
-      return <LoadFailedAlert onRetry={() => void profiles.mutate()} t={t as any} />;
+      return <LoadFailedAlert t={t as any} onRetry={() => void profiles.mutate()} />;
     }
     if (profiles.isLoading && !profiles.data) return <Skeleton active paragraph={{ rows: 8 }} />;
-    if (!selectedProfile) return <EmptyProfilesAlert onCreate={handleCreateProfile} t={t as any} />;
+    if (!selectedProfile) return <EmptyProfilesAlert t={t as any} onCreate={handleCreateProfile} />;
 
     const canCreateBuild = hasCompleteWindowsAssets(savedAssets);
     const canSaveDraft = hasCompleteWindowsAssets(assets);
@@ -200,12 +200,12 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
           );
         }
         await profiles.mutate();
-        message.success(t('admin.desktopBuild.saveSuccess'));
+        toast.success(t('admin.desktopBuild.saveSuccess'));
       } catch (error) {
         const conflict = error instanceof Error && error.message.includes(
           'DESKTOP_BUILD_PROFILE_REVISION_CONFLICT',
         );
-        message.error(
+        toast.error(
           conflict ? t('admin.desktopBuild.revisionConflict') : t('admin.desktopBuild.saveFailed'),
         );
       } finally {
@@ -223,9 +223,9 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
         markClean();
         setSelectedProfileId(undefined);
         await profiles.mutate();
-        message.success(t('admin.desktopBuild.profile.archiveSuccess'));
+        toast.success(t('admin.desktopBuild.profile.archiveSuccess'));
       } catch {
-        message.error(t('admin.desktopBuild.profile.archiveFailed'));
+        toast.error(t('admin.desktopBuild.profile.archiveFailed'));
       } finally {
         setArchiving(false);
       }

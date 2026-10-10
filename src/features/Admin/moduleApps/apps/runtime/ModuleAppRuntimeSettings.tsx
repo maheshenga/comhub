@@ -14,8 +14,8 @@ import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import type { ModuleAppRuntimeSettingsData } from '../../types';
 import {
   buildRuntimeSettingUpdates,
-  runtimeSettingsStyles as styles,
   type RuntimeSettingsForm,
+  runtimeSettingsStyles as styles,
 } from './runtimeSettingsShared';
 
 const buildFormValues = (settings: ModuleAppRuntimeSettingsData): RuntimeSettingsForm => ({
@@ -229,8 +229,8 @@ const ModuleAppRuntimeSettings = memo<{
         <SwitchRow
           checked={values.scheduleDispatchEnabled}
           description={t('moduleApps.admin.runtime.settings.scheduleDescription')}
-          label={t('moduleApps.admin.runtime.settings.schedule')}
           disabled={fieldDisabled || (!values.scheduleDispatchEnabled && !values.executionEnabled)}
+          label={t('moduleApps.admin.runtime.settings.schedule')}
           onChange={(checked) => setValue('scheduleDispatchEnabled', checked)}
         />
         <SwitchRow

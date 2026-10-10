@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal } from '@lobehub/ui/base-ui';
-import { Input, Tag } from 'antd';
+import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
+import { Input } from 'antd';
 
 import { REASON_COLORS, STATUS_COLORS } from './shared';
 

@@ -2,7 +2,8 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button, Descriptions, Drawer, Empty, InputNumber, message, Modal, Space, Spin, Tag } from 'antd';
+import { Spin, Tag, toast } from '@lobehub/ui/base-ui';
+import { Button, Descriptions, Drawer, Empty, InputNumber, Modal, Space } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -58,7 +59,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   const handleAdjust = async (command: AdminDangerousActionEnvelope<'credits.adjust'>) => {
     const normalizedReason = command.reason?.trim();
     if (!userId || !adjustAmount || !normalizedReason) {
-      message.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
+      toast.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
       return;
     }
     setAdjusting(true);
@@ -71,12 +72,12 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
         },
         command,
       );
-      message.success(t('admin.adjustCredits.success', '积分已调整'));
+      toast.success(t('admin.adjustCredits.success', '积分已调整'));
       setAdjustOpen(false);
       setAdjustAmount(0);
       if (swrKey) await swrMutate(swrKey);
     } catch {
-      message.error(t('admin.adjustCredits.failed', '操作失败'));
+      toast.error(t('admin.adjustCredits.failed', '操作失败'));
     } finally {
       setAdjusting(false);
     }
@@ -87,7 +88,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
       ? Math.round(assignDurationMonths ?? 0)
       : 1;
     if (!userId || !assignPlan || durationMonths < 1 || !assignReason.trim()) {
-      message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
+      toast.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
 
@@ -100,13 +101,13 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
         reason: assignReason.trim(),
         userId,
       });
-      message.success(t('admin.assignPlan.success', '套餐已设置'));
+      toast.success(t('admin.assignPlan.success', '套餐已设置'));
       setAssignOpen(false);
       setAssignReason('');
       if (swrKey) await swrMutate(swrKey);
       await swrMutate(['admin-subscriptions']);
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setAssigning(false);
     }

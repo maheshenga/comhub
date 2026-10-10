@@ -4,9 +4,9 @@ import { Select } from '@lobehub/ui/base-ui';
 import { Typography } from 'antd';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
-import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
-import { desktopControlCenterStyles } from './styles';
+import type { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
 import type { BuildProfileView } from './BuildProfilePage';
+import { desktopControlCenterStyles } from './styles';
 
 /** 构建配置档案头部（选择器 + 归档按钮，M5 拆页抽出）。 */
 export const BuildProfileHeader = ({

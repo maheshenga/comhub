@@ -1,6 +1,6 @@
 'use client';
 
-import { message } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
 import { useState } from 'react';
 
 import {
@@ -73,7 +73,7 @@ export const useMatrixSaveHandlers = ({
     const updates = buildBillingBasisUpdates(billingBasis, billingBasisInitial);
 
     if (updates.length === 0) {
-      message.info(t('admin.modelBillingMatrix.billingBasisNoChanges', '没有需要保存的变更'));
+      toast.info(t('admin.modelBillingMatrix.billingBasisNoChanges', '没有需要保存的变更'));
       return;
     }
 
@@ -82,9 +82,9 @@ export const useMatrixSaveHandlers = ({
     try {
       await adminCommercialService.setAppSettingsBatch({ updates });
       setBillingBasisOverride(null);
-      message.success(t('admin.modelBillingMatrix.billingBasisSaved', '全局计费设置已保存'));
+      toast.success(t('admin.modelBillingMatrix.billingBasisSaved', '全局计费设置已保存'));
     } catch {
-      message.error(t('admin.modelBillingMatrix.billingBasisSaveFailed', '保存全局计费设置失败'));
+      toast.error(t('admin.modelBillingMatrix.billingBasisSaveFailed', '保存全局计费设置失败'));
     } finally {
       setSavingBillingBasis(false);
     }
@@ -94,7 +94,7 @@ export const useMatrixSaveHandlers = ({
     if (!canWriteSystem || !modelData || !settings) return;
 
     if (['chat', 'image', 'video'].includes(target.modelType) && target.planAccess.free === false) {
-      message.error('该模型未对免费套餐开启，不能设为默认模型。请先开启免费套餐权限。');
+      toast.error('该模型未对免费套餐开启，不能设为默认模型。请先开启免费套餐权限。');
       return;
     }
 
@@ -131,9 +131,9 @@ export const useMatrixSaveHandlers = ({
           isDefault: row.modelType === target.modelType ? row.key === target.key : row.isDefault,
         })),
       );
-      message.success(t('admin.modelBillingMatrix.defaultSaved', '默认模型已保存'));
+      toast.success(t('admin.modelBillingMatrix.defaultSaved', '默认模型已保存'));
     } catch (error: any) {
-      message.error(
+      toast.error(
         t('admin.modelBillingMatrix.defaultSaveFailed', getDefaultModelErrorMessage(error)),
       );
     } finally {
@@ -146,7 +146,7 @@ export const useMatrixSaveHandlers = ({
 
     const conflict = findFreePlanDefaultModelConflict(rows);
     if (conflict) {
-      message.error(
+      toast.error(
         `默认模型 ${conflict.displayName}（${conflict.provider}/${conflict.modelId}）已被免费套餐关闭，新注册用户将无法使用。请先开启免费套餐权限或更换默认模型。`,
       );
       return;
@@ -160,9 +160,9 @@ export const useMatrixSaveHandlers = ({
         Object.entries(rulesByPlan).map(([plan, modelRules]) => ({ modelRules, plan })),
       );
       await mutate(PLANS_KEY);
-      message.success(t('admin.modelBillingMatrix.accessSaved', '套餐模型权限已保存'));
+      toast.success(t('admin.modelBillingMatrix.accessSaved', '套餐模型权限已保存'));
     } catch (error) {
-      message.error(
+      toast.error(
         t('admin.modelBillingMatrix.accessSaveFailed', getPlanModelRulesSaveErrorMessage(error)),
       );
     } finally {
@@ -180,9 +180,9 @@ export const useMatrixSaveHandlers = ({
         key: SETTING_KEYS.pricingModelRules,
         value: buildPricingRulesFromRows(rows),
       });
-      message.success(t('admin.modelBillingMatrix.pricingSaved', '模型计费已保存'));
+      toast.success(t('admin.modelBillingMatrix.pricingSaved', '模型计费已保存'));
     } catch {
-      message.error(t('admin.modelBillingMatrix.pricingSaveFailed', '保存模型计费失败'));
+      toast.error(t('admin.modelBillingMatrix.pricingSaveFailed', '保存模型计费失败'));
     } finally {
       setSaving(false);
     }

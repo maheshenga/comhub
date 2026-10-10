@@ -1,6 +1,6 @@
 'use client';
 
-import { createStaticStyles, cssVar } from 'antd-style';
+import { createStaticStyles } from 'antd-style';
 
 export const moduleOverviewStyles = createStaticStyles(({ css, cssVar }) => ({
   band: css`

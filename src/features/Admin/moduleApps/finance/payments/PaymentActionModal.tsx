@@ -1,7 +1,7 @@
 'use client';
 
-import { Input, Modal } from 'antd';
 import { TextArea } from '@lobehub/ui/base-ui';
+import { Input, Modal } from 'antd';
 
 import type { PaymentFormAction } from './modulePaymentsShared';
 import { modulePaymentStyles as styles } from './modulePaymentsShared';
@@ -13,15 +13,15 @@ export interface PaymentActionModalProps {
   actionError?: string;
   actionIsValid: boolean;
   offlineRefundReference: string;
+  onCancel: () => void;
   onOfflineRefundReferenceChange: (value: string) => void;
+  onOk: () => void;
   onPaymentReferenceChange: (value: string) => void;
   onReasonChange: (value: string) => void;
   paymentReference: string;
   reason: string;
   submitting: boolean;
   t: TFn;
-  onCancel: () => void;
-  onOk: () => void;
 }
 
 /** 支付动作表单弹窗（退款 / 线下退款 / 结算三态，M5 拆页抽出）。 */

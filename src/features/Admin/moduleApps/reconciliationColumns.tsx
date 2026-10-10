@@ -2,8 +2,8 @@
 
 import type { PaymentProvider } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Tag, Typography } from 'antd';
+import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Typography } from 'antd';
 
 import type { ModuleAppPaymentDiagnosticRow } from './PaymentReconciliationTable';
 import { IdList } from './PaymentReconciliationTable';

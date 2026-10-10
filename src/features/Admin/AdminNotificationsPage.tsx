@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, InputNumber, message, Switch, Typography } from 'antd';
+import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Switch, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -59,7 +59,7 @@ const AdminNotificationsPage = memo(() => {
     const updates = buildUpdates(values, initialValues);
 
     if (updates.length === 0) {
-      message.info(t('admin.notifications.noChanges', '没有需要保存的变更'));
+      toast.info(t('admin.notifications.noChanges', '没有需要保存的变更'));
       return;
     }
 
@@ -67,9 +67,9 @@ const AdminNotificationsPage = memo(() => {
     try {
       await adminCommercialService.setAppSettingsBatch({ updates });
       await mutate('public-notification-config');
-      message.success(t('admin.notifications.saveSuccess', '通知配置已保存'));
+      toast.success(t('admin.notifications.saveSuccess', '通知配置已保存'));
     } catch {
-      message.error(t('admin.notifications.saveFailed', '保存通知配置失败'));
+      toast.error(t('admin.notifications.saveFailed', '保存通知配置失败'));
     } finally {
       setSubmitting(false);
     }
@@ -85,9 +85,9 @@ const AdminNotificationsPage = memo(() => {
     try {
       await adminCommercialService.setAppSettingsBatch({ updates });
       await mutate('public-notification-config');
-      message.success(t('admin.notifications.materializeDefaultsSuccess', '通知默认值已同步'));
+      toast.success(t('admin.notifications.materializeDefaultsSuccess', '通知默认值已同步'));
     } catch {
-      message.error(t('admin.notifications.materializeDefaultsFailed', '同步通知默认值失败'));
+      toast.error(t('admin.notifications.materializeDefaultsFailed', '同步通知默认值失败'));
     } finally {
       setMaterializing(false);
     }

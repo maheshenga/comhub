@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Descriptions, Empty, Table, Tag } from 'antd';
+import { Tag } from '@lobehub/ui/base-ui';
+import { Descriptions, Empty, Table } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { formatAdminCredits } from '../adminCreditUnits';

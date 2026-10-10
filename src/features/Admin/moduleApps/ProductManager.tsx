@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal } from '@lobehub/ui/base-ui';
-import { Form, message, Tag } from 'antd';
+import { Button, Modal, Tag, toast } from '@lobehub/ui/base-ui';
+import { Form } from 'antd';
 import { Pencil, Plus } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,13 +11,13 @@ import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { moduleAppCacheKeys } from './shared/cacheKeys';
-import ModulePageState from './shared/ModulePageState';
 import {
   ProductFormFields,
   productFormInitialValues,
   type ProductFormValues,
 } from './productFormFields';
+import { moduleAppCacheKeys } from './shared/cacheKeys';
+import ModulePageState from './shared/ModulePageState';
 
 type ProductType = 'free' | 'one_time' | 'subscription';
 type LicenseScope = 'personal' | 'workspace' | 'workspace_seat';
@@ -148,12 +148,12 @@ const ProductManager = memo<{
         });
       }
       await mutate(key);
-      message.success(
+      toast.success(
         t(editing ? 'moduleApps.admin.products.updated' : 'moduleApps.admin.products.created'),
       );
       close();
     } catch {
-      message.error(t('moduleApps.admin.products.saveError'));
+      toast.error(t('moduleApps.admin.products.saveError'));
     } finally {
       setSaving(false);
     }

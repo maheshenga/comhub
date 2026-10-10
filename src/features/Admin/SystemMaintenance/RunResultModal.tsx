@@ -1,7 +1,7 @@
 'use client';
 
-import { Descriptions } from 'antd';
 import { Modal } from '@lobehub/ui/base-ui';
+import { Descriptions } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import type { MaintenanceResult } from './shared';

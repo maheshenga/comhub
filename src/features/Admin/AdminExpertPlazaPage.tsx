@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert, Form, type FormInstance, message } from 'antd';
+import { Alert, Button, toast } from '@lobehub/ui/base-ui';
+import { Form, type FormInstance } from 'antd';
 import { memo, useEffect, useState } from 'react';
 
 import {
@@ -111,9 +111,9 @@ const AdminExpertPlazaPage = memo(() => {
       });
 
       await mutate(PUBLIC_EXPERT_PLAZA_SWR_KEY);
-      message.success('专家广场配置已保存');
+      toast.success('专家广场配置已保存');
     } catch {
-      message.error('保存失败，请检查卡片必填字段');
+      toast.error('保存失败，请检查卡片必填字段');
     } finally {
       setSubmitting(false);
     }
