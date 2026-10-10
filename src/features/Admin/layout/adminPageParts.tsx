@@ -18,6 +18,7 @@ const widthClassName: Record<AdminPageWidth, string> = {
 
 /** Whole-page three-state pass-through (ux-redesign-spec §3.1). */
 export interface AdminPageShellStateSlot {
+  emptyDescription?: ReactNode;
   error?: unknown;
   errorDescription?: ReactNode;
   errorTitle?: ReactNode;
@@ -67,6 +68,7 @@ export const AdminPageShell = ({
     </header>
     {state ? (
       <AdminPageStateBridge
+        emptyDescription={state.emptyDescription}
         error={state.error}
         errorDescription={state.errorDescription}
         errorTitle={state.errorTitle}
@@ -233,11 +235,13 @@ const AdminPageStateBridge = ({
   error,
   errorDescription,
   errorTitle,
+  emptyDescription,
   isEmpty,
   loading,
   onRetry,
 }: AdminPageShellStateSlot) => (
   <AdminPageState
+    emptyDescription={emptyDescription}
     error={error}
     errorDescription={errorDescription}
     errorTitle={errorTitle}
