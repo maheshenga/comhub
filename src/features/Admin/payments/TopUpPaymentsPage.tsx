@@ -1,15 +1,13 @@
 'use client';
 
-import type * as React from 'react';
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
+import { Alert, Button, toast  } from '@lobehub/ui/base-ui';
 import type { TableProps } from 'antd';
-import { Alert, Space } from 'antd';
-import { RefreshCw } from 'lucide-react';
+import { Space } from 'antd';
+import type * as React from 'react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
-
-import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, toast } from '@lobehub/ui/base-ui';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -17,14 +15,14 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import type { PendingRefundResolution } from './PendingRefundResolutionModal';
-import PendingRefundResolutionModal from './PendingRefundResolutionModal';
 import { PaymentFilterControls, PaymentRefundModal } from './paymentControls';
 import { PaymentListHeader } from './paymentListHeader';
 import type { PendingReconciliationResponse } from './paymentsShared';
 import { parseSearchParam, PAYMENT_STATUSES, paymentStyles as styles, UUID_PATTERN } from './paymentsShared';
-import { buildTopUpPaymentColumns } from './topUpPaymentColumns';
+import type { PendingRefundResolution } from './PendingRefundResolutionModal';
+import PendingRefundResolutionModal from './PendingRefundResolutionModal';
 import type { TopUpPaymentRow as TopUpPaymentRowBase } from './topUpPaymentColumns';
+import { buildTopUpPaymentColumns } from './topUpPaymentColumns';
 import { useManualResolutionLabels } from './useManualResolutionLabels';
 import { useRefundResolutionActions } from './useRefundResolutionActions';
 
@@ -131,12 +129,31 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
       <PaymentListHeader
         busyReconciling={busyAction === 'pending'}
         canWrite={canWrite}
+        i18nNamespace='topups'
+        selectedRefundCount={selectedRefundableIds.length}
+        t={t as any}
+        title={t('admin.payments.topups.title', 'Top-up transactions')}
+        bulkRefund={{
+          actionId: 'payment.bulkRefund' as const,
+          description: t(
+            'admin.payments.topups.bulkRefundDescription',
+            'Requests provider refunds for the selected paid payments. This is a typed-confirmation command: type the command ID to proceed. Each refund is audited with a shared batchCorrelationId.',
+          ),
+          onRun: (command: any) =>
+            adminCommercialService.bulkRefundTopUpPayments(selectedRefundableIds, command),
+          onSuccess: async () => {
+            setSelectedRefundableIds([]);
+            await mutate(swrKey);
+          },
+          title: t('admin.payments.topups.bulkRefundTitle', {
+            count: selectedRefundableIds.length,
+            defaultValue: 'Batch refund {{count}} paid payments?',
+          }),
+        }}
         description={t(
           'admin.payments.topups.description',
           'Review online top-ups and query providers for their latest status.',
         )}
-        title={t('admin.payments.topups.title', 'Top-up transactions')}
-        i18nNamespace='topups'
         onRefresh={() => mutate(swrKey)}
         onReconcilePending={() =>
           runOperation(
@@ -163,41 +180,22 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             },
           )
         }
-        selectedRefundCount={selectedRefundableIds.length}
-        bulkRefund={{
-          actionId: 'payment.bulkRefund' as const,
-          description: t(
-            'admin.payments.topups.bulkRefundDescription',
-            'Requests provider refunds for the selected paid payments. This is a typed-confirmation command: type the command ID to proceed. Each refund is audited with a shared batchCorrelationId.',
-          ),
-          onRun: (command: any) =>
-            adminCommercialService.bulkRefundTopUpPayments(selectedRefundableIds, command),
-          onSuccess: async () => {
-            setSelectedRefundableIds([]);
-            await mutate(swrKey);
-          },
-          title: t('admin.payments.topups.bulkRefundTitle', {
-            count: selectedRefundableIds.length,
-            defaultValue: 'Batch refund {{count}} paid payments?',
-          }),
-        }}
-        t={t as any}
       />
 
       <PaymentFilterControls
         applyTextFilters={applyTextFilters}
         clearFilters={clearFilters}
         filterError={filterError}
+        i18nNamespace='topups'
         orderDraft={orderDraft}
         provider={provider}
         status={status}
+        t={t as any}
         userDraft={userDraft}
         onOrderDraftChange={setOrderDraft}
         onProviderChange={(value) => updateParams({ provider: value })}
         onStatusChange={(value) => updateParams({ status: value })}
         onUserDraftChange={setUserDraft}
-        i18nNamespace='topups'
-        t={t as any}
       />
 
       {error ? (
@@ -257,36 +255,36 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
       )}
       <PaymentRefundModal
         busyRefunding={Boolean(busyAction?.startsWith('refund:'))}
+        i18nNamespace='topups'
         reason={refundReason}
         refundOrder={refundOrder}
+        t={t as any}
         title={t('admin.payments.topups.refundTitle', 'Refund top-up payment')}
         onCancel={closeRefund}
+        onReasonChange={setRefundReason}
         onOk={() => {
           if (refundOrder) void submitRefund(refundOrder, refundReason);
         }}
-        onReasonChange={setRefundReason}
-        i18nNamespace='topups'
-        t={t as any}
       />
       <PendingRefundResolutionModal
         busy={Boolean(busyAction?.startsWith('resolve:'))}
+        labels={useManualResolutionLabels('topups')}
         note={resolutionNote}
         open={Boolean(resolutionOrder)}
         resolution={resolution}
         title={t('admin.payments.topups.manualResolution.title', 'Verify pending refund')}
-        labels={useManualResolutionLabels('topups')}
         summary={
           resolutionOrder
             ? `${resolutionOrder.currency} ${resolutionOrder.amount} · ${resolutionOrder.id}`
             : ''
         }
         onCancel={closeResolution}
+        onNoteChange={setResolutionNote}
+        onResolutionChange={setResolution}
         onConfirm={() => {
           if (resolutionOrder && resolution)
             void submitResolution(resolutionOrder, resolution, resolutionNote);
         }}
-        onNoteChange={setResolutionNote}
-        onResolutionChange={setResolution}
       />
     </section>
   );

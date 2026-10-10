@@ -1,14 +1,13 @@
 'use client';
 
-import type * as React from 'react';
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
+import { Alert, Button, toast  } from '@lobehub/ui/base-ui';
 import type { TableProps } from 'antd';
-import { Alert, Space } from 'antd';
+import { Space } from 'antd';
+import type * as React from 'react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
-
-import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, toast } from '@lobehub/ui/base-ui';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -16,21 +15,21 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import type { PendingRefundResolution } from './PendingRefundResolutionModal';
-import PendingRefundResolutionModal from './PendingRefundResolutionModal';
-import { buildSubscriptionPaymentColumns } from './subscriptionPaymentColumns';
-import type { SubscriptionPaymentRow as SubscriptionPaymentRowBase } from './subscriptionPaymentColumns';
 import { PaymentFilterControls, PaymentRefundModal } from './paymentControls';
 import { PaymentListHeader } from './paymentListHeader';
-import { useManualResolutionLabels } from './useManualResolutionLabels';
-import { useRefundResolutionActions } from './useRefundResolutionActions';
 import {
   parseSearchParam,
   PAYMENT_STATUSES,
-  type PendingReconciliationResponse,
   paymentStyles as styles,
+  type PendingReconciliationResponse,
   UUID_PATTERN,
 } from './paymentsShared';
+import type { PendingRefundResolution } from './PendingRefundResolutionModal';
+import PendingRefundResolutionModal from './PendingRefundResolutionModal';
+import type { SubscriptionPaymentRow as SubscriptionPaymentRowBase } from './subscriptionPaymentColumns';
+import { buildSubscriptionPaymentColumns } from './subscriptionPaymentColumns';
+import { useManualResolutionLabels } from './useManualResolutionLabels';
+import { useRefundResolutionActions } from './useRefundResolutionActions';
 
 type SubscriptionPaymentRow = SubscriptionPaymentRowBase;
 
@@ -132,12 +131,31 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
       <PaymentListHeader
         busyReconciling={busyAction === 'pending'}
         canWrite={canWrite}
+        i18nNamespace='subscriptions'
+        selectedRefundCount={selectedRefundableIds.length}
+        t={t as any}
+        title={t('admin.payments.subscriptions.title', 'Plan payment transactions')}
+        bulkRefund={{
+          actionId: 'payment.subscriptionBulkRefund' as const, // 订阅域端点（非 topUpOrders）
+          description: t(
+            'admin.payments.subscriptions.bulkRefundDescription',
+            'Requests provider refunds for the selected paid subscription payments. This is a typed-confirmation command: type the command ID to proceed. Each refund is audited with a shared batchCorrelationId.',
+          ),
+          onRun: (command: any) =>
+            adminCommercialService.bulkRefundSubscriptionPayments(selectedRefundableIds, command),
+          onSuccess: async () => {
+            setSelectedRefundableIds([]);
+            await mutate(swrKey);
+          },
+          title: t('admin.payments.subscriptions.bulkRefundTitle', {
+            count: selectedRefundableIds.length,
+            defaultValue: 'Batch refund {{count}} paid payments?',
+          }),
+        }}
         description={t(
           'admin.payments.subscriptions.description',
           'Review plan purchases, reconcile provider state, and process full refunds.',
         )}
-        title={t('admin.payments.subscriptions.title', 'Plan payment transactions')}
-        i18nNamespace='subscriptions'
         onRefresh={() => mutate(swrKey)}
         onReconcilePending={() =>
           runOperation(
@@ -164,41 +182,22 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
             },
           )
         }
-        selectedRefundCount={selectedRefundableIds.length}
-        bulkRefund={{
-          actionId: 'payment.subscriptionBulkRefund' as const, // 订阅域端点（非 topUpOrders）
-          description: t(
-            'admin.payments.subscriptions.bulkRefundDescription',
-            'Requests provider refunds for the selected paid subscription payments. This is a typed-confirmation command: type the command ID to proceed. Each refund is audited with a shared batchCorrelationId.',
-          ),
-          onRun: (command: any) =>
-            adminCommercialService.bulkRefundSubscriptionPayments(selectedRefundableIds, command),
-          onSuccess: async () => {
-            setSelectedRefundableIds([]);
-            await mutate(swrKey);
-          },
-          title: t('admin.payments.subscriptions.bulkRefundTitle', {
-            count: selectedRefundableIds.length,
-            defaultValue: 'Batch refund {{count}} paid payments?',
-          }),
-        }}
-        t={t as any}
       />
 
       <PaymentFilterControls
         applyTextFilters={applyTextFilters}
         clearFilters={clearFilters}
         filterError={filterError}
+        i18nNamespace='subscriptions'
         orderDraft={orderDraft}
         provider={provider}
         status={status}
+        t={t as any}
         userDraft={userDraft}
         onOrderDraftChange={setOrderDraft}
         onProviderChange={(value) => updateParams({ provider: value })}
         onStatusChange={(value) => updateParams({ status: value })}
         onUserDraftChange={setUserDraft}
-        i18nNamespace='subscriptions'
-        t={t as any}
       />
 
       {error ? (
@@ -261,35 +260,35 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
       )}
       <PaymentRefundModal
         busyRefunding={Boolean(busyAction?.startsWith('refund:'))}
+        i18nNamespace='subscriptions'
         reason={refundReason}
         refundOrder={refundOrder}
+        t={t as any}
         title={t('admin.payments.subscriptions.refundTitle', 'Refund plan payment')}
         onCancel={closeRefund}
+        onReasonChange={setRefundReason}
         onOk={() => {
           if (refundOrder) void submitRefund(refundOrder, refundReason);
         }}
-        onReasonChange={setRefundReason}
-        i18nNamespace='subscriptions'
-        t={t as any}
       />
       <PendingRefundResolutionModal
         busy={Boolean(busyAction?.startsWith('resolve:'))}
+        labels={manualResolutionLabels}
         note={resolutionNote}
         open={Boolean(resolutionOrder)}
         resolution={resolution}
         title={t('admin.payments.subscriptions.manualResolution.title', 'Verify pending refund')}
-        labels={manualResolutionLabels}
         summary={
           resolutionOrder
             ? `${resolutionOrder.currency} ${resolutionOrder.amount} · ${resolutionOrder.displayName}`
             : ''
         }
         onCancel={closeResolution}
+        onNoteChange={setResolutionNote}
+        onResolutionChange={setResolution}
         onConfirm={() => {
           if (resolutionOrder && resolution) void submitResolution(resolutionOrder, resolution, resolutionNote);
         }}
-        onNoteChange={setResolutionNote}
-        onResolutionChange={setResolution}
       />
     </section>
   );

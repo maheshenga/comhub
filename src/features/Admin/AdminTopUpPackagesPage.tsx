@@ -1,8 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, confirmModal, Modal } from '@lobehub/ui/base-ui';
-import { Empty, Form, message, Tag } from 'antd';
+import { Button, confirmModal, Modal, Tag, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields/setFieldsValue）与 PackageFormFields 受控字段绑定，无 base-ui 等价物（FormKit 迁移另行立项）。
+import { Form } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -90,11 +91,11 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
         sortOrder: Number(values.sortOrder || 0),
         validityMonths: Number(values.validityMonths || 12),
       });
-      message.success(t('admin.topup.saveSuccess', '充值套餐已保存'));
+      toast.success(t('admin.topup.saveSuccess', '充值套餐已保存'));
       setEditing(null);
       await mutate(SWR_KEY);
     } catch {
-      message.error(t('admin.topup.saveFailed', '保存失败'));
+      toast.error(t('admin.topup.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -105,7 +106,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       content: id,
       onOk: async () => {
         await adminCommercialService.deletePackage(id);
-        message.success(t('admin.topup.deleted', '充值套餐已删除'));
+        toast.success(t('admin.topup.deleted', '充值套餐已删除'));
         await mutate(SWR_KEY);
       },
       title: t('admin.topup.confirmDelete', '确认删除这个充值套餐？'),
@@ -211,16 +212,13 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
           })}
         >
           <AdminResponsiveTable label={t('admin.topup.tableLabel', '充值套餐表格')}>
-            {!isLoading && items.length === 0 ? (
-              <Empty description={t('admin.topup.empty', '暂无充值套餐')} />
-            ) : (
-              <InlineTable
-                columns={columns as any}
-                dataSource={items}
-                loading={isLoading}
-                rowKey="id"
-              />
-            )}
+            <InlineTable
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              locale={{ emptyText: t('admin.topup.empty', '暂无充值套餐') }}
+              rowKey="id"
+            />
           </AdminResponsiveTable>
         </AdminSection>
       )}

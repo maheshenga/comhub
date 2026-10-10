@@ -1,11 +1,9 @@
 'use client';
 
+import { Alert, Button, Input, Modal, Select, TextArea  } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
+import { Search } from 'lucide-react';
 import type * as React from 'react';
-import { Alert, Space } from 'antd';
-
-import { Button, Input, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
-
-import { RefreshCw, Search } from 'lucide-react';
 
 import {
   PAYMENT_STATUSES,
@@ -24,6 +22,8 @@ export type PaymentRefundOrderRow = {
 
 export interface PaymentRefundModalProps {
   busyRefunding: boolean;
+  /** 文案键命名空间：subscriptions | topups。 */
+  i18nNamespace?: string;
   onCancel: () => void;
   onOk: () => void;
   onReasonChange: (value: string) => void;
@@ -31,8 +31,6 @@ export interface PaymentRefundModalProps {
   refundOrder?: PaymentRefundOrderRow;
   t: TFn;
   title: string;
-  /** 文案键命名空间：subscriptions | topups。 */
-  i18nNamespace?: string;
 }
 
 /** 退款确认弹窗（M5 拆页：从 SubscriptionPaymentsPage / TopUpPaymentsPage 共用形态抽出）。 */
@@ -82,6 +80,8 @@ export interface PaymentFilterControlsProps {
   applyTextFilters: () => void;
   clearFilters: () => void;
   filterError?: string;
+  /** 文案键命名空间：subscriptions | topups。 */
+  i18nNamespace?: string;
   onOrderDraftChange: (value: string) => void;
   onProviderChange: (value: null | string) => void;
   onStatusChange: (value: null | string) => void;
@@ -91,8 +91,6 @@ export interface PaymentFilterControlsProps {
   status?: string;
   t: TFn;
   userDraft: string;
-  /** 文案键命名空间：subscriptions | topups。 */
-  i18nNamespace?: string;
 }
 
 /** 支付列表筛选控件区（状态 / 渠道 / 订单 ID / 用户 ID）。 */

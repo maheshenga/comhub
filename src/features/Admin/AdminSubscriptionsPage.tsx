@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
-import { Empty, message, Tag } from 'antd';
+import { Button, Select, Tabs, Tag, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -83,17 +82,17 @@ const AdminSubscriptionsPage = memo(() => {
   const handleForceConfirm = async () => {
     const { userId, plan: newPlan, cycle, reason } = forceModal;
     if (!reason.trim()) {
-      message.warning(t('admin.subscriptions.reasonRequired', '请填写变更原因'));
+      toast.warning(t('admin.subscriptions.reasonRequired', '请填写变更原因'));
       return;
     }
     setSubmitting(true);
     try {
       await adminCommercialService.forceChangePlan({ cycle, plan: newPlan, reason, userId });
-      message.success(t('admin.subscriptions.forceSuccess', '套餐已变更'));
+      toast.success(t('admin.subscriptions.forceSuccess', '套餐已变更'));
       closeForceModal();
       await mutate();
     } catch {
-      message.error(t('admin.subscriptions.forceFailed', '变更失败'));
+      toast.error(t('admin.subscriptions.forceFailed', '变更失败'));
     } finally {
       setSubmitting(false);
     }
@@ -214,16 +213,13 @@ const AdminSubscriptionsPage = memo(() => {
                 </AdminToolbar>
 
                 <AdminResponsiveTable label={t('admin.subscriptions.tableLabel', '订阅数据表')}>
-                  {!isLoading && items.length === 0 ? (
-                    <Empty description={t('admin.subscriptions.empty', '暂无订阅数据')} />
-                  ) : (
-                    <InlineTable
-                      columns={columns}
-                      dataSource={items}
-                      loading={isLoading}
-                      rowKey="id"
-                    />
-                  )}
+                  <InlineTable
+                    columns={columns}
+                    dataSource={items}
+                    loading={isLoading}
+                    locale={{ emptyText: t('admin.subscriptions.empty', '暂无订阅数据') }}
+                    rowKey="id"
+                  />
                 </AdminResponsiveTable>
 
                 {(cursorStack.length > 1 || nextCursor != null) && (

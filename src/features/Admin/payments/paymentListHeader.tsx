@@ -11,16 +11,6 @@ import { paymentStyles as styles } from './paymentsShared';
 type TFn = (key: any, defaultValue?: any, values?: any) => any;
 
 export interface PaymentListHeaderProps {
-  busyReconciling: boolean;
-  canWrite: boolean;
-  description: string;
-  /** 文案键命名空间：subscriptions | topups（两页共用形态）。 */
-  i18nNamespace: 'subscriptions' | 'topups';
-  onRefresh: () => void;
-  onReconcilePending: () => void;
-  selectedRefundCount: number;
-  t: TFn;
-  title: string;
   bulkRefund?: {
     /** 勾选域对应的批量退款命令 ID：充值页 payment.bulkRefund / 订阅页 payment.subscriptionBulkRefund。 */
     actionId: 'payment.bulkRefund' | 'payment.subscriptionBulkRefund';
@@ -29,6 +19,16 @@ export interface PaymentListHeaderProps {
     onSuccess: () => Promise<void>;
     title: string;
   };
+  busyReconciling: boolean;
+  canWrite: boolean;
+  description: string;
+  /** 文案键命名空间：subscriptions | topups（两页共用形态）。 */
+  i18nNamespace: 'subscriptions' | 'topups';
+  onReconcilePending: () => void;
+  onRefresh: () => void;
+  selectedRefundCount: number;
+  t: TFn;
+  title: string;
 }
 
 /** 支付列表页头：标题 + 刷新 + 批量退款入口 + 对账（订阅/充值两页共用形态）。 */
@@ -55,19 +55,19 @@ export const PaymentListHeader = ({
       </Button>
       {canWrite && bulkRefund && selectedRefundCount > 0 ? (
         <AdminBulkActionFlow
-          actionId={bulkRefund.actionId}
-          count={selectedRefundCount}
           danger
-          size="small"
-          confirmTitle={bulkRefund.title}
+          actionId={bulkRefund.actionId}
           confirmDescription={bulkRefund.description}
-          onRun={bulkRefund.onRun}
-          onSuccess={bulkRefund.onSuccess}
+          confirmTitle={bulkRefund.title}
+          count={selectedRefundCount}
+          size="small"
           summary={(result: any) => ({
             failed: result?.failed ?? result?.results?.filter((r: any) => !r.ok).length ?? 0,
             requested: result?.total,
             succeeded: result?.succeeded ?? result?.results?.filter((r: any) => r.ok).length ?? 0,
           })}
+          onRun={bulkRefund.onRun}
+          onSuccess={bulkRefund.onSuccess}
         >
           {t(`admin.payments.${i18nNamespace}.bulkRefund`, 'Batch refund')}
         </AdminBulkActionFlow>

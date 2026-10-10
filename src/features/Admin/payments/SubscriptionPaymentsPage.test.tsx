@@ -44,10 +44,10 @@ vi.mock('@/components/InlineTable', () => ({
         <div key={row.id}>
           {rowSelection ? (
             <input
-              type="checkbox"
               aria-label={`select-${row.id}`}
-              disabled={rowSelection.getCheckboxProps?.(row).disabled}
               checked={rowSelection.selectedRowKeys?.includes(row.id)}
+              disabled={rowSelection.getCheckboxProps?.(row).disabled}
+              type="checkbox"
               onChange={(event) =>
                 rowSelection.onChange(
                   event.target.checked
