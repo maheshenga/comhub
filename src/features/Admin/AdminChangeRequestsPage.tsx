@@ -153,7 +153,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         />
       </AdminToolbar>
 
-      {error || isLoading || items.length > 0 ? (
+      {error ? null : (
         <>
           {selectedIds.length > 0 && (
             <AdminToolbar>
@@ -181,6 +181,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
                 columns={columns}
                 dataSource={items}
                 loading={isLoading}
+                locale={{ emptyText: t('admin.changeRequests.empty', '暂无变更请求') }}
                 rowKey="id"
                 rowSelection={{
                   getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),
@@ -191,7 +192,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             </AdminResponsiveTable>
           </AdminSection>
         </>
-      ) : null}
+      )}
 
       {(cursorStack.length > 1 || data?.nextCursor != null) && (
         <AdminToolbar>
