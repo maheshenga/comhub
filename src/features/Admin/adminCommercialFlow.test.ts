@@ -425,7 +425,10 @@ describe('admin commercial flow pages', () => {
   });
 
   it('keeps plan model access visible but editable only through the shared matrix', () => {
-    const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    // B2 拆分：套餐模型权限摘要列与矩阵跳转迁 Plans/ 域目录，契约面同 PR 成对迁移。
+    const plansPage =
+      readRepoFile('src/routes/(main)/admin/plans/index.tsx') +
+      readRepoFile('src/features/Admin/Plans/shared.tsx');
     const planRules = readRepoFile('src/features/Admin/adminPlanModelRules.ts');
 
     expect(plansPage).toContain('getPlanModelRulesSummaryInfo');
@@ -554,7 +557,10 @@ describe('admin commercial flow pages', () => {
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
     const topUpPurchase = readRepoFile('src/features/TopUp/TopUpPurchase.tsx');
     const adminTopupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
-    const adminPlansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    // B2 拆分：套餐编辑弹窗（含 oneTimeHint 文案）迁 Plans/planEditModal，同 PR 成对迁移。
+    const adminPlansPage =
+      readRepoFile('src/routes/(main)/admin/plans/index.tsx') +
+      readRepoFile('src/features/Admin/Plans/planEditModal.tsx');
 
     expect(creditsPage).toContain('isPaidPlan(currentPlan)');
     expect(creditsPage).toContain('<TopUpPurchase />');
@@ -685,6 +691,8 @@ describe('admin commercial flow pages', () => {
   });
 
   it('shows dependency impact before plan, provider, or model deletion', () => {
+    // plansPage 契约字面量（getPlanDeleteImpact/AdminDependencyImpactPreview）
+    // 仍在页面容器 handleDelete，无需拼接拆分块。
     const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
     const instanceColumns = readRepoFile('src/features/Admin/Providers/useInstanceColumns.tsx');
     const modelTypePanel = readRepoFile('src/features/Admin/Providers/ModelTypePanel.tsx');

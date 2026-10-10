@@ -39,8 +39,10 @@ describe('admin credit unit contract', () => {
     // M3 split: order columns/drawer and the user-detail sections moved into
     // the Orders/ and UserDetail/ blocks; the page shells keep the format
     // calls they own.
+    // B2 拆分：plans 每月积分格式化消费点迁 Plans/shared.tsx 列定义
+    // （页面容器不再直接 formatAdminCredits），契约面同 PR 成对迁移。
     const sources = [
-      readSource('src/routes/(main)/admin/plans/index.tsx'),
+      readSource('src/features/Admin/Plans/shared.tsx'),
       readSource('src/features/Admin/AdminTopUpPackagesPage.tsx'),
       readSource('src/features/Admin/Orders/orderColumns.tsx'),
       readSource('src/features/Admin/Orders/OrderDetailDrawer.tsx'),

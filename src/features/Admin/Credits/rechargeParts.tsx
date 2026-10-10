@@ -1,8 +1,8 @@
 'use client';
 
-import { Button, Input, InputNumber, Modal } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields）无 base-ui 等价物：base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，无法行为不变替换；与 Redemption/generateForm 同一豁免（FormKit 迁移另行立项）。
-import { Form } from 'antd';
+import { Button, Input, Modal } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与字段控件（InputNumber addonAfter 受控语义，base-ui InputNumber 无该属性）绑定，无 base-ui 等价物；与 Redemption/generateForm 同一豁免（FormKit 迁移另行立项）。
+import { Form, InputNumber } from 'antd';
 
 import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';

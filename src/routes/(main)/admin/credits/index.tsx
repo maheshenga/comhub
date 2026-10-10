@@ -69,7 +69,7 @@ const AdminCreditsPage = memo(() => {
           order,
           sort,
         },
-        t,
+        t as any,
       );
       toast.success(summary);
     } catch {
@@ -108,7 +108,7 @@ const AdminCreditsPage = memo(() => {
     }
   };
 
-  const columns = buildCreditAccountColumns(t, setDrawerUser);
+  const columns = buildCreditAccountColumns(t as any, setDrawerUser);
 
   return (
     <AdminPageShell
