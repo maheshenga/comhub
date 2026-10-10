@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
+import { Alert, Button } from '@lobehub/ui/base-ui';
 import type * as React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -43,13 +42,18 @@ export const OrderBulkToolbar = ({
         actionId="order.bulkExpire"
         count={effectiveSelectedIds.length}
         size="small"
-        confirmTitle={t('admin.orders.bulkExpireTitle', '批量过期 {{count}} 个待支付订单？', {
-          count: effectiveSelectedIds.length,
-        })}
         confirmDescription={t(
           'admin.orders.bulkExpireDescription',
           '将选中的待支付兑换订单标记为已过期。执行前会先做只读预检。',
         )}
+        confirmTitle={t('admin.orders.bulkExpireTitle', '批量过期 {{count}} 个待支付订单？', {
+          count: effectiveSelectedIds.length,
+        })}
+        summary={(result: any) => ({
+          failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
+          requested: result?.total,
+          succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
+        })}
         onRun={async (command) =>
           adminCommercialService.bulkExpireOrders(effectiveSelectedIds, command)
         }
@@ -58,11 +62,6 @@ export const OrderBulkToolbar = ({
           setBulkDryRun(null);
           await refresh();
         }}
-        summary={(result: any) => ({
-          failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
-          requested: result?.total,
-          succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
-        })}
       >
         {t('admin.orders.bulkExpire', '批量过期')}
       </AdminBulkActionFlow>
@@ -71,13 +70,18 @@ export const OrderBulkToolbar = ({
         actionId="order.bulkCancel"
         count={effectiveSelectedIds.length}
         size="small"
-        confirmTitle={t('admin.orders.bulkCancelTitle', '批量取消 {{count}} 个待支付订单？', {
-          count: effectiveSelectedIds.length,
-        })}
         confirmDescription={t(
           'admin.orders.bulkCancelDescription',
           '将选中的待支付兑换订单标记为已取消。执行前会先做只读预检。',
         )}
+        confirmTitle={t('admin.orders.bulkCancelTitle', '批量取消 {{count}} 个待支付订单？', {
+          count: effectiveSelectedIds.length,
+        })}
+        summary={(result: any) => ({
+          failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
+          requested: result?.total,
+          succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
+        })}
         onRun={async (command) =>
           adminCommercialService.bulkCancelOrders(effectiveSelectedIds, command)
         }
@@ -86,11 +90,6 @@ export const OrderBulkToolbar = ({
           setBulkDryRun(null);
           await refresh();
         }}
-        summary={(result: any) => ({
-          failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
-          requested: result?.total,
-          succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
-        })}
       >
         {t('admin.orders.bulkCancel', '批量取消')}
       </AdminBulkActionFlow>
@@ -126,6 +125,8 @@ export const BulkDryRunAlert = ({
   return (
     <Alert
       closable
+      showIcon
+      type="info"
       description={dryRun.results
         .filter((item) => !item.ok)
         .slice(0, 5)
@@ -135,8 +136,6 @@ export const BulkDryRunAlert = ({
         ok: dryRun.results.filter((item) => item.ok).length,
         total: dryRun.results.length,
       })}
-      showIcon
-      type="info"
       onClose={() => {
         onDismiss();
         void translate;

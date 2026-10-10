@@ -1,8 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Segmented, Switch } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, InputNumber, message, Skeleton, Typography } from 'antd';
+import { Alert, Button, Segmented, Switch, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Skeleton, Typography } from 'antd';
 import { RefreshCw, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -48,19 +48,19 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
       const values = await form.validateFields();
       const updates = buildUpdateSettingsUpdates(initialValues, values, dirtyFields);
       if (updates.length === 0) {
-        message.info(t('admin.desktopUpdate.noChanges'));
+        toast.info(t('admin.desktopUpdate.noChanges'));
         return;
       }
       setSubmitting(true);
       setSaveError(undefined);
       await adminCommercialService.setAppSettingsBatch({ updates });
       markSaved();
-      message.success(t('admin.desktopUpdate.saveSuccess'));
+      toast.success(t('admin.desktopUpdate.saveSuccess'));
     } catch (error) {
       if (!isDesktopFormValidationError(error)) {
         setSaveError(error);
         if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
-          message.error(t('admin.desktopUpdate.saveFailed'));
+          toast.error(t('admin.desktopUpdate.saveFailed'));
         }
       }
     } finally {

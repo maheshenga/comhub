@@ -2,7 +2,8 @@
 
 import type { ModuleAppPublisherStatus } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { type TableProps, Tag, Typography } from 'antd';
+import { Tag } from '@lobehub/ui/base-ui';
+import { type TableProps, Typography } from 'antd';
 import { memo, type ReactNode } from 'react';
 
 import InlineTable from '@/components/InlineTable';

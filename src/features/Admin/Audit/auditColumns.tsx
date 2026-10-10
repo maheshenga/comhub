@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag } from 'antd';
+import { Tag } from '@lobehub/ui/base-ui';
 
 import type { AuditRow } from '@/features/Admin/Audit/auditParts';
 import { isBulkAuditAction, readBatchCorrelationId } from '@/features/Admin/Audit/auditParts';

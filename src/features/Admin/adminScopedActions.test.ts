@@ -8,7 +8,12 @@ const readSource = (relativePath: string) =>
 
 describe('scoped admin user actions', () => {
   it('gates full-admin and finance actions on the user list', () => {
-    const source = readSource('src/routes/(main)/admin/users/index.tsx');
+    // B2 拆分：行内能力门（canSetRoles/canImpersonate/canManageFinance 的列内
+    // 三元）迁 Users/ 域目录，契约面同 PR 成对拼接迁移。
+    const source =
+      readSource('src/routes/(main)/admin/users/index.tsx') +
+      readSource('src/features/Admin/Users/userColumns.tsx') +
+      readSource('src/features/Admin/Users/userBulkToolbar.tsx');
 
     expect(source).toContain('isFullAdminRole(role)');
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite)');

@@ -2,7 +2,8 @@
 
 import { type AdminDependencyImpact, type AdminDependencyImpactItem } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Spin, Tag, Typography } from 'antd';
+import { Alert, Spin, Tag } from '@lobehub/ui/base-ui';
+import { Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

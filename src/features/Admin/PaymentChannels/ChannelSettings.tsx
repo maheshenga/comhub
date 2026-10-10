@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, Select, Switch, Tabs } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, message, Skeleton, Tag } from 'antd';
+import { Alert, Button, Select, Switch, Tabs, Tag, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, Skeleton } from 'antd';
 import { Save } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -62,9 +62,9 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
       await adminCommercialService.setAppSettingsBatch({ updates });
       await mutate(ADMIN_SETTINGS_SECTION_SWR_KEY('payments'));
       onDirtyChange(false);
-      message.success(t('admin.payments.saveSuccess', 'Payment settings saved'));
+      toast.success(t('admin.payments.saveSuccess', 'Payment settings saved'));
     } catch (error) {
-      message.error(
+      toast.error(
         error instanceof Error ? error.message : t('admin.payments.saveFailed', 'Save failed'),
       );
     } finally {

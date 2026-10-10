@@ -1,7 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Empty, message, Table } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
+import { Button, Empty, Table } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -55,7 +56,7 @@ const AdminProvidersPage = memo(() => {
       { id: row.id, reason: command.reason?.trim() },
       command,
     );
-    message.success(t('admin.providers.deleteSuccess', '实例已删除'));
+    toast.success(t('admin.providers.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
   };
 
@@ -64,7 +65,7 @@ const AdminProvidersPage = memo(() => {
     try {
       const result = await adminCommercialService.testAiProviderInstanceConnection(row.id);
       if (result.ok) {
-        message.success(
+        toast.success(
           t(
             'admin.providers.test.success',
             '连接成功：模型 {{modelsCount}} 个，价格 {{pricingCount}} 条',
@@ -75,7 +76,7 @@ const AdminProvidersPage = memo(() => {
           ),
         );
       } else {
-        message.error(
+        toast.error(
           t('admin.providers.test.failed', '连接失败：{{error}}', {
             error: result.error || t('admin.providers.test.unknownError', '未知错误'),
           }),
@@ -90,7 +91,7 @@ const AdminProvidersPage = memo(() => {
     setSyncingId(row.id);
     try {
       const result = await adminCommercialService.syncAiProviderInstanceModels(row.id);
-      message.success(
+      toast.success(
         t(
           'admin.providers.sync.success',
           '同步完成：删除 {{deletedCount}} 个旧模型，导入 {{count}} 个新模型；同步价格 {{pricingCount}} 条，能力信息覆盖 {{abilitiesCount}} 个模型。新模型默认未启用。',
@@ -105,7 +106,7 @@ const AdminProvidersPage = memo(() => {
       await Promise.all(MODEL_TYPES.map((type) => mutate(modelsKey(row.id, type))));
       await refreshAiProviderRuntimeState();
     } catch (error) {
-      message.error(
+      toast.error(
         t('admin.providers.sync.failed', '同步失败：{{error}}', {
           error: error instanceof Error ? error.message : String(error),
         }),
@@ -123,13 +124,13 @@ const AdminProvidersPage = memo(() => {
       const result = await adminCommercialService.refreshAiProviderRuntimeCache();
       await mutate(serverConfigKeys.get);
       await Promise.all([refreshAiProviderRuntimeState(), mutate(INSTANCES_KEY)]);
-      message.success(
+      toast.success(
         t('admin.providers.refreshRuntimeCache.success', '用户模型缓存已更新：{{time}}', {
           time: new Date(result.refreshedAt).toLocaleString(),
         }),
       );
     } catch (error) {
-      message.error(
+      toast.error(
         t('admin.providers.refreshRuntimeCache.failed', '更新用户缓存失败：{{error}}', {
           error: error instanceof Error ? error.message : String(error),
         }),

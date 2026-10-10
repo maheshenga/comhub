@@ -425,7 +425,10 @@ describe('admin commercial flow pages', () => {
   });
 
   it('keeps plan model access visible but editable only through the shared matrix', () => {
-    const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    // B2 拆分：套餐模型权限摘要列与矩阵跳转迁 Plans/ 域目录，契约面同 PR 成对迁移。
+    const plansPage =
+      readRepoFile('src/routes/(main)/admin/plans/index.tsx') +
+      readRepoFile('src/features/Admin/Plans/shared.tsx');
     const planRules = readRepoFile('src/features/Admin/adminPlanModelRules.ts');
 
     expect(plansPage).toContain('getPlanModelRulesSummaryInfo');
@@ -554,7 +557,10 @@ describe('admin commercial flow pages', () => {
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
     const topUpPurchase = readRepoFile('src/features/TopUp/TopUpPurchase.tsx');
     const adminTopupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
-    const adminPlansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    // B2 拆分：套餐编辑弹窗（含 oneTimeHint 文案）迁 Plans/planEditModal，同 PR 成对迁移。
+    const adminPlansPage =
+      readRepoFile('src/routes/(main)/admin/plans/index.tsx') +
+      readRepoFile('src/features/Admin/Plans/planEditModal.tsx');
 
     expect(creditsPage).toContain('isPaidPlan(currentPlan)');
     expect(creditsPage).toContain('<TopUpPurchase />');
@@ -628,9 +634,17 @@ describe('admin commercial flow pages', () => {
   });
 
   it('wires centralized dangerous action confirmations into high-risk admin surfaces', () => {
-    const creditsPage = readRepoFile('src/routes/(main)/admin/credits/index.tsx');
+    // B2 拆分：credits 充值弹窗（含 AdminDangerousActionButton + credits.adjust 信封）
+    // 迁入 Credits/ 域目录，契约面同 PR 成对迁移。
+    const creditsPage =
+      readRepoFile('src/routes/(main)/admin/credits/index.tsx') +
+      readRepoFile('src/features/Admin/Credits/rechargeParts.tsx');
     const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
-    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+    // B2 拆分：users 危险动作按钮/弹窗迁入 Users/ 域目录，契约面同 PR 成对迁移。
+    const usersPage =
+      readRepoFile('src/routes/(main)/admin/users/index.tsx') +
+      readRepoFile('src/features/Admin/Users/userColumns.tsx') +
+      readRepoFile('src/features/Admin/Users/userDangerousParts.tsx');
     const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
     const contentPages = readRepoFile('src/features/Admin/Content/ContentPage.tsx');
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
@@ -677,6 +691,8 @@ describe('admin commercial flow pages', () => {
   });
 
   it('shows dependency impact before plan, provider, or model deletion', () => {
+    // plansPage 契约字面量（getPlanDeleteImpact/AdminDependencyImpactPreview）
+    // 仍在页面容器 handleDelete，无需拼接拆分块。
     const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
     const instanceColumns = readRepoFile('src/features/Admin/Providers/useInstanceColumns.tsx');
     const modelTypePanel = readRepoFile('src/features/Admin/Providers/ModelTypePanel.tsx');

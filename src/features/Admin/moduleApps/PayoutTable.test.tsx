@@ -9,7 +9,9 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
-}));
+
+  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
+  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
 
 describe('PayoutTable', () => {
   it('renders payout, revenue, transaction, and audit links', () => {

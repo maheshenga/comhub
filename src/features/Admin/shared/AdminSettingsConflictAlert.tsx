@@ -1,8 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert, Space, Typography } from 'antd';
+import { Alert, Button } from '@lobehub/ui/base-ui';
+import { Space, Typography } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

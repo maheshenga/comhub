@@ -1,5 +1,6 @@
 'use client';
 
+import type { Dayjs } from 'dayjs';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -21,7 +22,6 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { AuditFilterBar } from './auditFilterBar';
-import type { Dayjs } from 'dayjs';
 
 const PAGE_SIZE = 50;
 
@@ -165,12 +165,12 @@ const AdminAuditPage = memo(() => {
 
   return (
     <AdminPageShell
+      title={t('admin.audit.title', '审计记录')}
+      width="full"
       description={t(
         'admin.audit.description',
         '检索管理员操作、目标对象和资源变更，并按筛选条件导出审计记录。',
       )}
-      title={t('admin.audit.title', '审计记录')}
-      width="full"
     >
       <AdminSection
         description={t('admin.audit.resultSummary', '按操作者、目标、资源或时间范围筛选。')}
@@ -185,14 +185,14 @@ const AdminAuditPage = memo(() => {
             exporting={exporting}
             resourceIdFilter={resourceIdFilter}
             resourceTypeFilter={resourceTypeFilter}
+            t={t as any}
             targetFilter={targetFilter}
+            onExport={handleExport}
+            onFilterChange={handleFilterChange}
             onDateRangeChange={(value) => {
               setDateRangeFilter(value);
               setCursor(0);
             }}
-            onExport={handleExport}
-            onFilterChange={handleFilterChange}
-            t={t as any}
           />
         </AdminToolbar>
 
@@ -205,21 +205,21 @@ const AdminAuditPage = memo(() => {
           <AuditEmptyState description={t('admin.audit.empty', '暂无审计日志')} />
         ) : (
           <AdminAuditTableSection
-            columns={buildAuditColumns({
-              onOpenUser: (userId: string) => setDrawerUser(userId),
-              t: t as any,
-            })}
             groups={groups}
             hasMore={data?.nextCursor != null}
             loading={isLoading}
             nextCursor={data?.nextCursor ?? null}
+            t={t as any}
+            columns={buildAuditColumns({
+              onOpenUser: (userId: string) => setDrawerUser(userId),
+              t: t as any,
+            })}
             onCursor={(next) => setCursor(next)}
             onDetail={setDetail}
             onFilterBatch={(id) => {
               setBatchFilter(id);
               setCursor(0);
             }}
-            t={t as any}
           />
         )}
       </AdminSection>

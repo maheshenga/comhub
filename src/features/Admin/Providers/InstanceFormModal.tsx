@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Modal, Select } from '@lobehub/ui/base-ui';
-import { Form, Input, InputNumber, message, Switch } from 'antd';
+import { Modal, Select, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Switch } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -60,12 +60,12 @@ const InstanceFormModal = memo<{
       } else {
         await adminCommercialService.createAiProviderInstance(payload as any);
       }
-      message.success(t('admin.providers.saveSuccess', '已保存'));
+      toast.success(t('admin.providers.saveSuccess', '已保存'));
       await mutate(INSTANCES_KEY);
       onClose();
     } catch (e) {
       if ((e as { errorFields?: unknown }).errorFields) return;
-      message.error(t('admin.providers.saveFailed', '保存失败'));
+      toast.error(t('admin.providers.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }

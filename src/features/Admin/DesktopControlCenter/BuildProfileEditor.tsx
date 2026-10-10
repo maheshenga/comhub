@@ -1,7 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Alert, Form, Input, Typography } from 'antd';
+import { Alert } from '@lobehub/ui/base-ui';
+import { Form, Input, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

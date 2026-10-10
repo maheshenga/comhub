@@ -20,20 +20,19 @@ import PaymentReconciliationTable, {
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
-
 import { ModulePaymentFilters } from './ModulePaymentFilters';
-import {
-  buildModuleFinanceStatusLabels,
-  buildPaymentReconciliationLabels,
-  PaymentActionModal,
-} from './PaymentActionModal';
-import { useModulePaymentActions } from './useModulePaymentActions';
 import {
   type DiscrepancyStatus,
   modulePaymentStyles as styles,
   type PaymentStatus,
   type RefundStatus,
 } from './modulePaymentsShared';
+import {
+  buildModuleFinanceStatusLabels,
+  buildPaymentReconciliationLabels,
+  PaymentActionModal,
+} from './PaymentActionModal';
+import { useModulePaymentActions } from './useModulePaymentActions';
 
 type ModulePaymentsPageProps = { canWrite?: boolean; embedded?: boolean };
 
@@ -172,8 +171,8 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
         paymentStatus={paymentStatus}
         refundStatus={refundStatus}
         statusLabels={statusLabels}
-        updateFilter={updateFilter}
         t={t as any}
+        updateFilter={updateFilter}
       />
       <ModulePageState
         emptyKind={isFiltered ? 'filtered' : 'initial'}
@@ -199,8 +198,8 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
           <PaymentReconciliationTable
             canWrite={canWrite}
             items={data?.items ?? []}
-            statusLabels={statusLabels}
             labels={reconciliationLabels}
+            statusLabels={statusLabels}
             onOpenOfflineRefund={(row) => openAction('offlineRefund', row)}
             onOpenRefund={(row) => openAction('refund', row)}
             onOpenSettle={(row) => openAction('settle', row)}
@@ -244,15 +243,15 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
           actionError={actionError}
           actionIsValid={actionIsValid}
           offlineRefundReference={offlineRefundReference}
-          onOfflineRefundReferenceChange={setOfflineRefundReference}
-          onPaymentReferenceChange={setPaymentReference}
-          onReasonChange={setReason}
           paymentReference={paymentReference}
           reason={reason}
           submitting={submitting}
           t={t as any}
           onCancel={closeAction}
+          onOfflineRefundReferenceChange={setOfflineRefundReference}
           onOk={submitAction}
+          onPaymentReferenceChange={setPaymentReference}
+          onReasonChange={setReason}
         />
       ) : null}
       <PendingRefundResolutionModal

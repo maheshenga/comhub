@@ -22,11 +22,14 @@ describe('admin credit unit contract', () => {
   });
 
   it('converts every general-commercial admin adjustment before submission', () => {
+    // B2 拆分成对迁移：redemption 兑换码积分换算迁 Redemption/generateForm
+    // （批次 2），credits 充值提交链路留在页面容器 handleRecharge（弹窗迁
+    // Credits/ 后消费点归属不变）。
     const sources = [
       readSource('src/routes/(main)/admin/credits/index.tsx'),
       readSource('src/routes/(main)/admin/users/index.tsx'),
       readSource('src/features/Admin/AdminUserDetailDrawer.tsx'),
-      readSource('src/routes/(main)/admin/redemption/index.tsx'),
+      readSource('src/features/Admin/Redemption/generateForm.tsx'),
     ];
 
     for (const source of sources) expect(source).toContain('toAdminAtomicCredits');
@@ -36,8 +39,10 @@ describe('admin credit unit contract', () => {
     // M3 split: order columns/drawer and the user-detail sections moved into
     // the Orders/ and UserDetail/ blocks; the page shells keep the format
     // calls they own.
+    // B2 拆分：plans 每月积分格式化消费点迁 Plans/shared.tsx 列定义
+    // （页面容器不再直接 formatAdminCredits），契约面同 PR 成对迁移。
     const sources = [
-      readSource('src/routes/(main)/admin/plans/index.tsx'),
+      readSource('src/features/Admin/Plans/shared.tsx'),
       readSource('src/features/Admin/AdminTopUpPackagesPage.tsx'),
       readSource('src/features/Admin/Orders/orderColumns.tsx'),
       readSource('src/features/Admin/Orders/OrderDetailDrawer.tsx'),

@@ -2,8 +2,8 @@
 
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert, InputNumber, Space, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
+import { InputNumber, Space, Switch, Typography } from 'antd';
 
 import { MATRIX_DISCARD_LABEL } from '@/features/Admin/adminMatrixCopy';
 import type { BillingBasisValues } from '@/features/Admin/adminModelBillingMatrix';

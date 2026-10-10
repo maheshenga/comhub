@@ -78,8 +78,8 @@ const AssistantEntry = ({
       <div className={styles.grid}>
         <LabeledField label={tr(...titleKey)}>
           <Input
-            value={assistant.titleOverride ?? ''}
             aria-label={tr(...titleKey)}
+            value={assistant.titleOverride ?? ''}
             onChange={(event) =>
               updateForm(
                 patchAssistants(
@@ -96,8 +96,8 @@ const AssistantEntry = ({
         </LabeledField>
         <LabeledField label={tr(...descriptionKey)}>
           <Input
-            value={assistant.descriptionOverride ?? ''}
             aria-label={tr(...descriptionKey)}
+            value={assistant.descriptionOverride ?? ''}
             onChange={(event) =>
               updateForm(
                 patchAssistants(
@@ -114,9 +114,9 @@ const AssistantEntry = ({
         </LabeledField>
         <LabeledField label={tr(...modelLabelKey)}>
           <Input
+            aria-label={tr(...modelLabelKey)}
             placeholder="推荐"
             value={assistant.modelLabelOverride ?? ''}
-            aria-label={tr(...modelLabelKey)}
             onChange={(event) =>
               updateForm(
                 patchAssistants(
@@ -134,9 +134,9 @@ const AssistantEntry = ({
       </div>
       <Flexbox horizontal gap={4}>
         <OrderButtons
+          label={tr(...targetKey)}
           position={index}
           total={total}
-          label={tr(...targetKey)}
           onMove={(direction) =>
             updateForm(
               patchAssistants(

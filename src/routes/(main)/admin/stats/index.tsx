@@ -1,12 +1,13 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Spin, Tag } from 'antd';
+import { Spin, Tag } from '@lobehub/ui/base-ui';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { BarChart, Sparkline, StackedBarChart } from '@/features/Admin';
 import {
+  adminChartPalette,
   AdminMetricStrip,
   AdminPageError,
   AdminPageShell,
@@ -16,12 +17,15 @@ import {
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+// PLAN_COLORS 收敛到 adminChartPalette 单源（spec §1.2：B2 动 stats 页时迁入令牌面；
+// 数据驱动图表调色板常量，非 css 样式）。free→neutral、hobby→primary、premium→gold、
+// starter→cyan、ultimate→purple 与既有 hex 一一对应，字面值不变（行为不变）。
 const PLAN_COLORS: Record<string, string> = {
-  free: '#999',
-  hobby: '#1677ff',
-  premium: '#faad14',
-  starter: '#13c2c2',
-  ultimate: '#722ed1',
+  free: adminChartPalette.neutral,
+  hobby: adminChartPalette.primary,
+  premium: adminChartPalette.gold,
+  starter: adminChartPalette.cyan,
+  ultimate: adminChartPalette.purple,
 };
 
 const AdminStatsPage = memo(() => {
@@ -81,11 +85,11 @@ const AdminStatsPage = memo(() => {
         label: r.month.slice(2),
         segments: [
           {
-            color: '#1677ff',
+            color: adminChartPalette.primary,
             name: 'subscriptionSnapshotAmount',
             value: Number(r.subscriptionSnapshotAmount ?? r.subscription),
           },
-          { color: '#faad14', name: 'topup', value: Number(r.topup) },
+          { color: adminChartPalette.gold, name: 'topup', value: Number(r.topup) },
         ],
       })),
     [revenue],
@@ -181,7 +185,7 @@ const AdminStatsPage = memo(() => {
                 <Flexbox horizontal align="center" gap={6} key={bar.label}>
                   <span
                     style={{
-                      background: PLAN_COLORS[bar.label] ?? '#888',
+                      background: PLAN_COLORS[bar.label] ?? adminChartPalette.neutral,
                       borderRadius: 4,
                       display: 'inline-block',
                       height: 12,
@@ -217,7 +221,7 @@ const AdminStatsPage = memo(() => {
               <Flexbox horizontal align="center" gap={6}>
                 <span
                   style={{
-                    background: '#1677ff',
+                    background: adminChartPalette.primary,
                     borderRadius: 2,
                     display: 'inline-block',
                     height: 12,
@@ -229,7 +233,7 @@ const AdminStatsPage = memo(() => {
               <Flexbox horizontal align="center" gap={6}>
                 <span
                   style={{
-                    background: '#faad14',
+                    background: adminChartPalette.gold,
                     borderRadius: 2,
                     display: 'inline-block',
                     height: 12,

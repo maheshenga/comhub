@@ -249,7 +249,11 @@ describe('admin Chinese copy', () => {
   });
 
   it('includes default Chinese copy for assigning user plans from the user list', () => {
-    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+    // B2 拆分：users 列定义（含 assignPlan/impersonate 文案）迁入 Users/ 域目录，
+    // readRepoFile 直读路径与断言同 PR 成对迁移。
+    const usersPage =
+      readRepoFile('src/routes/(main)/admin/users/index.tsx') +
+      readRepoFile('src/features/Admin/Users/userColumns.tsx');
 
     expect(subscription['admin.assignPlan']).toBe('设置套餐');
     expect(subscription['admin.assignPlan.title']).toBe('设置用户套餐');

@@ -1,11 +1,12 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button, Tag } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Table, Tag, Tooltip, Typography } from 'antd';
+import { Table, Tooltip, Typography } from 'antd';
 import { ExternalLink } from 'lucide-react';
 
+import { desktopControlCenterStyles } from './styles';
 import {
   DESKTOP_CHANNEL_LABEL_KEYS,
   DESKTOP_PLATFORM_LABEL_KEYS,
@@ -15,7 +16,6 @@ import {
   type DesktopOverviewResource,
   type DesktopPlatform,
 } from './types';
-import { desktopControlCenterStyles } from './styles';
 
 export type DistributionRow = {
   asset?: string;

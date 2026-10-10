@@ -1,13 +1,13 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Select, Switch } from '@lobehub/ui/base-ui';
-import { Form, Input, Tag, Typography } from 'antd';
+import { Select, Switch, Tag } from '@lobehub/ui/base-ui';
+import { Form, Input, Typography } from 'antd';
 import type { TFunction } from 'i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 
-import type { PaymentSettingsData, PaymentFormValues } from './paymentSettingsShared';
+import type { PaymentFormValues,PaymentSettingsData } from './paymentSettingsShared';
 import { SecretHint } from './SecretHint';
 
 const { Text } = Typography;

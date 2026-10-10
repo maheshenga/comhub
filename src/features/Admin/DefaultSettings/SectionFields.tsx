@@ -1,9 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Select } from '@lobehub/ui/base-ui';
+import { Alert, Select } from '@lobehub/ui/base-ui';
 import type { FormInstance } from 'antd';
-import { Alert, Form, Input, Switch } from 'antd';
+import { Form, Input, Switch } from 'antd';
 
 import { Card } from '@/components/antd-compat/Card';
 import type { DefaultModelOption } from '@/features/Admin/adminSettingsForm';

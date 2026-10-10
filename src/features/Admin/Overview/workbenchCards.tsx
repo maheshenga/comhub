@@ -2,8 +2,6 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Tag } from '@lobehub/ui/base-ui';
-import { memo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { ADMIN_BASE_PATH } from '@/features/Admin/adminNavigation';
@@ -18,9 +16,9 @@ export interface WorkbenchTodoCardProps {
     tag?: string;
     tagColor?: string;
   }>;
+  onViewAll: () => void;
   title: string;
   total: number;
-  onViewAll: () => void;
   viewAllLabel: string;
 }
 

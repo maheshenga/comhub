@@ -25,8 +25,8 @@ import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { AdminModuleAppItem } from '../types';
 import AppIdentityModal from './AppIdentityModal';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
-import { moduleAppsDirectoryStyles as styles } from './moduleAppsDirectoryStyles';
 import { ModuleAppsCreateButton, ModuleAppsFilterBar, ModuleAppsTable } from './moduleAppsDirectoryParts';
+import { moduleAppsDirectoryStyles as styles } from './moduleAppsDirectoryStyles';
 
 type ApplicationListResponse = { items: AdminModuleAppItem[]; nextCursor: null | string };
 type ApplicationSort = 'catalog' | 'name_asc' | 'updated_desc';
@@ -131,7 +131,7 @@ const ModuleAppsPage = memo(() => {
             title={t('moduleApps.admin.apps.refresh')}
             onClick={() => mutate(listKey)}
           />
-          <ModuleAppsCreateButton onClick={() => setIdentityOpen(true)} t={t as any} />
+          <ModuleAppsCreateButton t={t as any} onClick={() => setIdentityOpen(true)} />
         </div>
       </header>
       <ModuleAppsFilterBar
@@ -141,9 +141,9 @@ const ModuleAppsPage = memo(() => {
         queryInput={queryInput}
         sort={sort}
         status={status}
+        t={t as any}
         onQueryInput={setQueryInput}
         onUpdateFilter={updateFilter}
-        t={t as any}
       />
       <ModulePageState
         emptyKind={isFiltered ? 'filtered' : 'initial'}
@@ -153,7 +153,7 @@ const ModuleAppsPage = memo(() => {
         onClearFilters={clearFilters}
       >
         <div>
-          <ModuleAppsTable items={data?.items ?? []} onOpen={openApp} t={t as any} />
+          <ModuleAppsTable items={data?.items ?? []} t={t as any} onOpen={openApp} />
           <div className={styles.pagination}>
             <Button
               disabled={!searchParams.getAll('previousCursor').length}

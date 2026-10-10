@@ -132,13 +132,13 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
                   {packageItems.map((item) => (
                     <ModuleOverviewRow
                       key={item.id}
+                      secondary={statusLabel(item.reviewStatus)}
+                      to={MODULE_ADMIN_ROUTE_PATHS['module-reviews']}
                       label={
                         item.manifestSnapshot?.app?.displayName ??
                         item.manifestSnapshot?.app?.slug ??
                         item.id
                       }
-                      secondary={statusLabel(item.reviewStatus)}
-                      to={MODULE_ADMIN_ROUTE_PATHS['module-reviews']}
                     />
                   ))}
                 </div>

@@ -1,54 +1,33 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Select } from '@lobehub/ui/base-ui';
-import {
-  DatePicker,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  message,
-  Tag,
-} from 'antd';
+import { Button, Input, Modal, Select, toast } from '@lobehub/ui/base-ui';
+import TextArea from '@lobehub/ui/es/base-ui/Input/TextArea';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields）与 RedemptionGenerateFormFields 的受控表单契约绑定；base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，均无法行为不变替换；FormKit 迁移另行立项。
+import { Form } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
-import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import {
-  AdminPageError,
   AdminPageShell,
   AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
 } from '@/features/Admin/layout';
+import {
+  buildRedemptionGeneratePayload,
+  RedemptionGenerateFormFields,
+} from '@/features/Admin/Redemption/generateForm';
+import { buildRedemptionColumns } from '@/features/Admin/Redemption/redemptionColumns';
+import { exportRedemptionBatchCsv } from '@/features/Admin/Redemption/resultCsv';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 type RewardType = 'plan' | 'credits' | 'topup_package';
 type Status = 'all' | 'active' | 'redeemed' | 'disabled' | 'expired';
-
-const STATUS_COLORS: Record<string, string> = {
-  active: 'green',
-  disabled: 'default',
-  expired: 'warning',
-  redeemed: 'blue',
-};
-
-const REWARD_COLORS: Record<RewardType, string> = {
-  credits: 'gold',
-  plan: 'purple',
-  topup_package: 'cyan',
-};
-
-const escapeCsv = (v: unknown) => {
-  if (v === null || v === undefined) return '';
-  const s = typeof v === 'string' ? v : JSON.stringify(v);
-  return /[",\n\r]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-};
 
 const AdminRedemptionPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -69,12 +48,7 @@ const AdminRedemptionPage = memo(() => {
     [status, rewardType, batchId, codeQuery, cursor],
   );
 
-  const {
-    data,
-    error,
-    isLoading,
-    mutate,
-  } = useClientDataSWR(swrKey, () =>
+  const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
     adminCommercialService.listRedemptionCodes({
       batchId: batchId || undefined,
       codeQuery: codeQuery || undefined,
@@ -159,32 +133,16 @@ const AdminRedemptionPage = memo(() => {
     try {
       const v = await genForm.validateFields();
       setGenerating(true);
-      const payload: any = {
-        codeLength: v.codeLength,
-        count: v.count,
-        batchId: v.batchId || undefined,
-        expiresAt: v.expiresAt ? v.expiresAt.toISOString() : undefined,
-        note: v.note || undefined,
-        rewardType: v.rewardType,
-      };
-      if (v.rewardType === 'plan') {
-        payload.planCycle = v.planCycle;
-        payload.planDurationMonths = v.planDurationMonths;
-        payload.planKey = v.planKey;
-      } else if (v.rewardType === 'credits') {
-        payload.creditsAmount = toAdminAtomicCredits(v.creditsAmount);
-      } else {
-        payload.topupPackageId = v.topupPackageId;
-      }
-      const res = await adminCommercialService.generateRedemptionCodes(payload);
+      const payload = buildRedemptionGeneratePayload(v);
+      const res = await adminCommercialService.generateRedemptionCodes(payload as any);
       setGenResult(res);
       setGenOpen(false);
       genForm.resetFields();
       await mutate();
-      message.success(t('admin.redemption.genSuccess', `已生成 ${res.codes.length} 个`));
+      toast.success(t('admin.redemption.genSuccess', `已生成 ${res.codes.length} 个`));
     } catch (err: any) {
       if (err?.errorFields) return; // validation
-      message.error(t('admin.redemption.genFailed', '生成失败'));
+      toast.error(t('admin.redemption.genFailed', '生成失败'));
     } finally {
       setGenerating(false);
     }
@@ -193,110 +151,49 @@ const AdminRedemptionPage = memo(() => {
   const handleDisable = async (id: string) => {
     try {
       await adminCommercialService.disableRedemptionCode(id);
-      message.success(t('admin.redemption.disableSuccess', '已停用'));
+      toast.success(t('admin.redemption.disableSuccess', '已停用'));
       await mutate();
     } catch {
-      message.error(t('admin.redemption.actionFailed', '操作失败'));
+      toast.error(t('admin.redemption.actionFailed', '操作失败'));
     }
   };
   const handleEnable = async (id: string) => {
     try {
       await adminCommercialService.enableRedemptionCode(id);
-      message.success(t('admin.redemption.enableSuccess', '已启用'));
+      toast.success(t('admin.redemption.enableSuccess', '已启用'));
       await mutate();
     } catch {
-      message.error(t('admin.redemption.actionFailed', '操作失败'));
+      toast.error(t('admin.redemption.actionFailed', '操作失败'));
     }
   };
 
   const handleExportBatch = () => {
     if (!genResult) return;
-    const blob = new Blob([`code\n${genResult.codes.map((c) => escapeCsv(c)).join('\n')}\n`], {
-      type: 'text/csv;charset=utf-8',
-    });
-    const a = document.createElement('a');
-    a.download = `redemption-${genResult.batchId}.csv`;
-    a.href = URL.createObjectURL(blob);
-    a.click();
-    URL.revokeObjectURL(a.href);
+    exportRedemptionBatchCsv(genResult);
   };
 
-  const columns = [
-    {
-      dataIndex: 'code',
-      key: 'code',
-      render: (v: string) => <code>{v}</code>,
-      title: t('admin.redemption.col.code', '兑换码'),
-    },
-    {
-      dataIndex: 'rewardType',
-      key: 'rewardType',
-      render: (v: RewardType) => <Tag color={REWARD_COLORS[v]}>{v}</Tag>,
-      title: t('admin.redemption.col.type', '类型'),
-    },
-    {
-      key: 'reward',
-      render: (_: unknown, r: any) =>
-        r.rewardType === 'plan'
-          ? `${r.planKey} / ${r.planCycle}${r.planDurationMonths ? ` / ${r.planDurationMonths} 个月` : ''}`
-          : r.rewardType === 'credits'
-            ? formatAdminCredits(r.creditsAmount)
-            : r.topupPackageId,
-      title: t('admin.redemption.col.reward', '奖励'),
-    },
-    {
-      dataIndex: 'status',
-      key: 'status',
-      render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{v}</Tag>,
-      title: t('admin.redemption.col.status', '状态'),
-    },
-    {
-      dataIndex: 'batchId',
-      key: 'batchId',
-      render: (v: string | null) => (v ? <code style={{ fontSize: 11 }}>{v}</code> : '-'),
-      title: t('admin.redemption.col.batch', '批次'),
-    },
-    {
-      dataIndex: 'expiresAt',
-      key: 'expiresAt',
-      render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : '-'),
-      title: t('admin.redemption.col.expires', '过期时间'),
-    },
-    {
-      dataIndex: 'redeemedByUserId',
-      key: 'redeemedByUserId',
-      render: (v: string | null) => (v ? <code>{v.slice(0, 8)}</code> : '-'),
-      title: t('admin.redemption.col.redeemedBy', '兑换用户'),
-    },
-    {
-      dataIndex: 'redeemedAt',
-      key: 'redeemedAt',
-      render: (v: string | null) => (v ? new Date(v).toLocaleString() : '-'),
-      title: t('admin.redemption.col.redeemedAt', '兑换时间'),
-    },
-    {
-      key: 'actions',
-      render: (_: unknown, r: any) =>
-        r.status === 'active' ? (
-          <Button danger size="small" onClick={() => handleDisable(r.id)}>
-            {t('admin.redemption.disable', '停用')}
-          </Button>
-        ) : r.status === 'disabled' ? (
-          <Button size="small" type="primary" onClick={() => handleEnable(r.id)}>
-            {t('admin.redemption.enable', '启用')}
-          </Button>
-        ) : (
-          '-'
-        ),
-      title: t('admin.redemption.col.actions', '操作'),
-    },
-  ];
+  const columns = buildRedemptionColumns({
+    handleDisable,
+    handleEnable,
+    t: t as any,
+  });
 
   return (
     <AdminPageShell
-      description={t('admin.redemption.description', '生成、筛选和维护兑换码；批量操作需要经过受控确认。')}
+      description={t(
+        'admin.redemption.description',
+        '生成、筛选和维护兑换码；批量操作需要经过受控确认。',
+      )}
       title={t('admin.redemption.title', '兑换码管理')}
       width="full"
+      state={{
+        error,
+        errorDescription: t('admin.redemption.loadFailed', '兑换码加载失败，请重试。'),
+        isEmpty: !isLoading && !error && items.length === 0,
+        emptyDescription: t('admin.redemption.empty', '暂无兑换码'),
+        loading: isLoading,
+        onRetry: mutate,
+      }}
     >
       <AdminSection
         description={t('admin.redemption.resultSummary', '按状态、奖励类型、批次或兑换码筛选。')}
@@ -410,10 +307,10 @@ const AdminRedemptionPage = memo(() => {
                 onClick={async () => {
                   try {
                     const r = await adminCommercialService.expireOverdueRedemptionCodes();
-                    message.success(t('admin.redemption.expireDone', `已过期 ${r.expired} 个兑换码`));
+                    toast.success(t('admin.redemption.expireDone', `已过期 ${r.expired} 个兑换码`));
                     await mutate();
                   } catch {
-                    message.error(t('admin.redemption.actionFailed', '操作失败'));
+                    toast.error(t('admin.redemption.actionFailed', '操作失败'));
                   }
                 }}
               >
@@ -423,14 +320,7 @@ const AdminRedemptionPage = memo(() => {
           </Flexbox>
         </AdminToolbar>
 
-        {error ? (
-          <AdminPageError
-            description={t('admin.redemption.loadFailed', '兑换码加载失败，请重试。')}
-            onRetry={mutate}
-          />
-        ) : !isLoading && items.length === 0 ? (
-          <Empty description={t('admin.redemption.empty', '暂无兑换码')} />
-        ) : (
+        {!error && (isLoading || items.length > 0) ? (
           <AdminResponsiveTable label={t('admin.redemption.tableLabel', '兑换码表')}>
             <InlineTable
               columns={columns as any}
@@ -444,7 +334,7 @@ const AdminRedemptionPage = memo(() => {
               }}
             />
           </AdminResponsiveTable>
-        )}
+        ) : null}
 
         {data?.nextCursor != null && (
           <Flexbox align="center">
@@ -464,132 +354,12 @@ const AdminRedemptionPage = memo(() => {
         onCancel={() => setGenOpen(false)}
         onOk={handleGenerate}
       >
-        <Form
+        <RedemptionGenerateFormFields
           form={genForm}
-          initialValues={{ codeLength: 16, count: 10, rewardType: 'credits' }}
-          layout="vertical"
-        >
-          <Form.Item
-            label={t('admin.redemption.field.rewardType', '奖励类型')}
-            name="rewardType"
-            rules={[{ required: true }]}
-          >
-            <Select
-              options={[
-                { label: '积分', value: 'credits' },
-                { label: '套餐（Plan）', value: 'plan' },
-                { label: '充值套餐', value: 'topup_package' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item noStyle shouldUpdate={(p: any, c: any) => p.rewardType !== c.rewardType}>
-            {({ getFieldValue }: { getFieldValue: (name: string) => unknown }) => {
-              const rt = getFieldValue('rewardType') as RewardType;
-              if (rt === 'plan')
-                return (
-                  <>
-                    <Form.Item
-                      label={t('admin.redemption.field.planKey', '套餐')}
-                      name="planKey"
-                      rules={[{ required: true }]}
-                      extra={
-                        planOptions.length === 0
-                          ? t(
-                              'admin.redemption.field.planKey.empty',
-                              '暂无可用套餐，请先在套餐管理中启用套餐',
-                            )
-                          : undefined
-                      }
-                    >
-                      <Select
-                        disabled={planOptions.length === 0}
-                        options={planOptions}
-                        placeholder={t(
-                          'admin.redemption.field.planKey.placeholder',
-                          '请选择兑换后获得的套餐',
-                        )}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      label={t('admin.redemption.field.planCycle', '周期')}
-                      name="planCycle"
-                      rules={[{ required: true }]}
-                    >
-                      <Select
-                        options={[
-                          { label: '月付', value: 'monthly' },
-                          { label: '年付', value: 'yearly' },
-                        ]}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      label={t('admin.redemption.field.planDuration', '套餐使用时长（月）')}
-                      name="planDurationMonths"
-                    >
-                      <InputNumber max={60} min={1} style={{ width: '100%' }} />
-                    </Form.Item>
-                  </>
-                );
-              if (rt === 'credits')
-                return (
-                  <Form.Item
-                    label={t('admin.redemption.field.creditsAmount', '赠送积分数量')}
-                    name="creditsAmount"
-                    rules={[{ required: true }]}
-                  >
-                    <InputNumber
-                      addonAfter={'M'}
-                      min={0.000_001}
-                      precision={6}
-                      style={{ width: '100%' }}
-                    />
-                  </Form.Item>
-                );
-              return (
-                <Form.Item
-                  label={t('admin.redemption.field.topupPackageId', '充值套餐')}
-                  name="topupPackageId"
-                  rules={[{ required: true }]}
-                  extra={
-                    packageOptions.length === 0
-                      ? t(
-                          'admin.redemption.field.topupPackageId.empty',
-                          '暂无可用充值套餐，请先创建并启用',
-                        )
-                      : undefined
-                  }
-                >
-                  <Select
-                    disabled={packageOptions.length === 0}
-                    options={packageOptions}
-                    placeholder={t(
-                      'admin.redemption.field.topupPackageId.placeholder',
-                      '请选择兑换后获得的充值套餐',
-                    )}
-                  />
-                </Form.Item>
-              );
-            }}
-          </Form.Item>
-          <Form.Item label={t('admin.redemption.field.count', '生成数量')} name="count">
-            <InputNumber max={1000} min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label={t('admin.redemption.field.codeLength', '兑换码长度')} name="codeLength">
-            <InputNumber max={32} min={8} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            label={t('admin.redemption.field.expiresAt', '过期时间（可选）')}
-            name="expiresAt"
-          >
-            <DatePicker showTime style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label={t('admin.redemption.field.batchId', '批次 ID（可选）')} name="batchId">
-            <Input />
-          </Form.Item>
-          <Form.Item label={t('admin.redemption.field.note', '备注（可选）')} name="note">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-        </Form>
+          packageOptions={packageOptions}
+          planOptions={planOptions}
+          t={t as any}
+        />
       </Modal>
 
       <Modal
@@ -612,7 +382,7 @@ const AdminRedemptionPage = memo(() => {
             <div>
               {t('admin.redemption.batch', '批次')}: <code>{genResult.batchId}</code>
             </div>
-            <Input.TextArea
+            <TextArea
               readOnly
               rows={Math.min(15, genResult.codes.length)}
               value={genResult.codes.join('\n')}

@@ -1,9 +1,9 @@
 'use client';
 
 import type { DesktopReleaseStatus } from '@lobechat/types';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button, Tag, toast } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { message, Space, Table, Tag, Typography } from 'antd';
+import { Space, Table, Typography } from 'antd';
 import { CheckCircle2, RefreshCw, RotateCcw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -60,7 +60,7 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
         refreshers.map((refresh) => Promise.resolve().then(refresh)),
       );
       if (outcomes.some(({ status }) => status === 'rejected')) {
-        message.warning(t('admin.desktopBuild.history.refreshFailed'));
+        toast.warning(t('admin.desktopBuild.history.refreshFailed'));
       }
     };
 
@@ -72,12 +72,12 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
           buildAdminDangerousActionEnvelope('desktop.release.reconcile', { confirmed: true }),
         );
         if (result.state === 'matched') {
-          message.success(t('admin.desktopBuild.history.reconcileMatched'));
+          toast.success(t('admin.desktopBuild.history.reconcileMatched'));
         } else {
-          message.warning(t('admin.desktopBuild.history.reconcileUnresolved'));
+          toast.warning(t('admin.desktopBuild.history.reconcileUnresolved'));
         }
       } catch {
-        message.error(t('admin.desktopBuild.history.reconcileFailed'));
+        toast.error(t('admin.desktopBuild.history.reconcileFailed'));
       } finally {
         await refreshReleaseData();
         setReconcilingReleaseId(undefined);
@@ -166,9 +166,9 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                     setRetryingReleaseId(release.id);
                     try {
                       await adminCommercialService.retryDesktopRelease(release.id, envelope);
-                      message.success(t('admin.desktopBuild.history.retryStarted'));
+                      toast.success(t('admin.desktopBuild.history.retryStarted'));
                     } catch (error) {
-                      message.error(t('admin.desktopBuild.history.retryFailed'));
+                      toast.error(t('admin.desktopBuild.history.retryFailed'));
                       throw error;
                     } finally {
                       await refreshReleaseData();
@@ -197,9 +197,9 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                     setActivatingReleaseId(release.id);
                     try {
                       await adminCommercialService.activateDesktopRelease(release.id, envelope);
-                      message.success(t('admin.desktopBuild.history.activateSuccess'));
+                      toast.success(t('admin.desktopBuild.history.activateSuccess'));
                     } catch (error) {
-                      message.error(t('admin.desktopBuild.history.activateFailed'));
+                      toast.error(t('admin.desktopBuild.history.activateFailed'));
                       throw error;
                     } finally {
                       await refreshReleaseData(true);

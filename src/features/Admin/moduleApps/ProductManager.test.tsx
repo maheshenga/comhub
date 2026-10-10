@@ -37,6 +37,23 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     </button>
   ),
   Modal: ({ children, open }: any) => (open ? <div>{children}</div> : null),
+
+  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
+  Alert: ({ message, children, description }: any) => (
+    <div role="alert">
+      {message}
+      {description}
+      {children}
+    </div>
+  ),
+  toast: Object.assign(vi.fn(), {
+    error: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+  }),
 }));
 
 vi.mock('react-i18next', () => ({

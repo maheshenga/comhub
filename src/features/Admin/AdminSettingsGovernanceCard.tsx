@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Input, List, message, Modal, Skeleton, Space, Tag, Typography } from 'antd';
+import { Alert, Tag, toast } from '@lobehub/ui/base-ui';
+import { Button, Input, List, Modal, Skeleton, Space, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -64,14 +65,14 @@ const AdminSettingsGovernanceCard = memo(() => {
       okText: t('admin.settings.governance.deleteUnknownConfirm', '删除'),
       onOk: async () => {
         if (typedKey !== key) {
-          message.error(
+          toast.error(
             t('admin.settings.governance.deleteUnknownMismatch', '输入的 key 不匹配'),
           );
           throw new Error('CONFIRMATION_KEY_MISMATCH');
         }
 
         await adminCommercialService.deleteUnknownAppSetting({ confirmKey: key, key });
-        message.success(
+        toast.success(
           t('admin.settings.governance.deleteUnknownSuccess', '未知设置项已删除'),
         );
         await mutate();

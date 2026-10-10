@@ -3,20 +3,20 @@
 import { Button, Input, Select } from '@lobehub/ui/base-ui';
 import { Plus } from 'lucide-react';
 
-import { moduleAppsDirectoryStyles as styles } from './moduleAppsDirectoryStyles';
 import type { AdminModuleAppItem } from '../types';
+import { moduleAppsDirectoryStyles as styles } from './moduleAppsDirectoryStyles';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => any;
 
 interface ModuleAppsFilterBarProps {
   canReadPublishers: boolean;
   category?: string;
+  onQueryInput: (value: string) => void;
+  onUpdateFilter: (name: string, value: string) => void;
   publisherId?: string;
   queryInput: string;
   sort?: string;
   status?: string;
-  onQueryInput: (value: string) => void;
-  onUpdateFilter: (name: string, value: string) => void;
   t: TFn;
 }
 

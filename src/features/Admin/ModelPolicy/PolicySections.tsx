@@ -1,8 +1,8 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
+import { Alert, Button } from '@lobehub/ui/base-ui';
 import type { FormInstance } from 'antd';
-import { Alert, Form, Input, Radio, Switch } from 'antd';
+import { Form, Input, Radio, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 

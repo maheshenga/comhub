@@ -2,8 +2,8 @@
 
 import { Button, Input, Select, TextArea } from '@lobehub/ui/base-ui';
 
-import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
 import type { AdminModuleAppOutboundHostPurpose } from '../types';
+import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => any;
 

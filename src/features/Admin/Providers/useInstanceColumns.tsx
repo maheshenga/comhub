@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Popconfirm, Switch, Tag, Tooltip } from 'antd';
+import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Popconfirm, Switch, Tooltip } from 'antd';
 
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate } from '@/libs/swr';

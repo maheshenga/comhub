@@ -1,6 +1,6 @@
 'use client';
 
-import { createStaticStyles, cssVar } from 'antd-style';
+import { createStaticStyles } from 'antd-style';
 
 export const moduleAppsDirectoryStyles = createStaticStyles(({ css, cssVar }) => ({
   actions: css`

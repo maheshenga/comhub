@@ -1,7 +1,7 @@
 'use client';
 
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { Alert, Empty, Input, message } from 'antd';
+import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+import { Empty, Input } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
@@ -77,10 +77,10 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
         if (action === 'delete-document' && command?.actionId === 'content.deleteDocument') {
           await adminCommercialService.deleteAdminDocument(id, command);
         }
-        message.success('操作已完成');
+        toast.success('操作已完成');
         await refresh();
       } catch {
-        message.error('操作失败，请稍后重试');
+        toast.error('操作失败，请稍后重试');
       } finally {
         setActingId(null);
       }

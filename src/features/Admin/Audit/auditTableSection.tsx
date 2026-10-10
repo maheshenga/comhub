@@ -7,7 +7,6 @@ import InlineTable from '@/components/InlineTable';
 import {
   type AuditRow,
   BulkAuditGroupSummary,
-  readBatchCorrelationId,
 } from '@/features/Admin/Audit/auditParts';
 import { AdminResponsiveTable } from '@/features/Admin/layout';
 
@@ -56,8 +55,8 @@ export const AdminAuditTableSection = ({
           <BulkAuditGroupSummary
             group={group}
             key={group.batchCorrelationId}
-            onFilterBatch={onFilterBatch}
             t={t}
+            onFilterBatch={onFilterBatch}
           />
         ))}
       {hasMore && nextCursor != null ? (

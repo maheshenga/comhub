@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Form, message } from 'antd';
+import { Button, toast } from '@lobehub/ui/base-ui';
+import { Form } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -95,9 +95,9 @@ const AdminModelPolicyPage = memo(() => {
         ],
       });
 
-      message.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
+      toast.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
     } catch {
-      message.error(t('admin.modelPolicy.saveFailed', '保存失败'));
+      toast.error(t('admin.modelPolicy.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }

@@ -18,7 +18,9 @@ vi.mock('@lobehub/ui/base-ui', () => ({
         </button>
       </div>
     ) : null,
-}));
+
+  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
+  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
 
 describe('module app commerce table', () => {
   it('settles only selected pending accrual entries', async () => {

@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -89,9 +89,9 @@ const AdminPptSettingsPage = memo(() => {
 
       form.setFieldValue('apiKey', '');
       form.setFieldValue('clearApiKey', false);
-      message.success(t('admin.ppt.saveSuccess', 'PPT 创作设置已保存'));
+      toast.success(t('admin.ppt.saveSuccess', 'PPT 创作设置已保存'));
     } catch {
-      message.error(t('admin.ppt.saveFailed', '保存失败，请检查配置'));
+      toast.error(t('admin.ppt.saveFailed', '保存失败，请检查配置'));
     } finally {
       setSubmitting(false);
     }

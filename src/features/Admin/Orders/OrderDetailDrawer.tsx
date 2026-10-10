@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Descriptions, Drawer, Tag } from 'antd';
+import { Alert, Tag } from '@lobehub/ui/base-ui';
+import { Button, Descriptions, Drawer } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 

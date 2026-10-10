@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Alert, Button, toast } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -109,9 +109,9 @@ const AdminGrowthPage = memo(() => {
           },
         ],
       });
-      message.success(t('admin.growth.saveSuccess', '增长配置已保存'));
+      toast.success(t('admin.growth.saveSuccess', '增长配置已保存'));
     } catch {
-      message.error(t('admin.growth.saveFailed', '保存失败'));
+      toast.error(t('admin.growth.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }

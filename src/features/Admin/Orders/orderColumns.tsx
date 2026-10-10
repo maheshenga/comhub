@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Space, Tag } from 'antd';
+import { Tag } from '@lobehub/ui/base-ui';
+import { Button, Space } from 'antd';
 import type React from 'react';
 
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';

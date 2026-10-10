@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert, Descriptions, Empty, Form, Input, message, Result, Skeleton, Tag, Typography } from 'antd';
+import { Alert, Button, Result, Tag, toast } from '@lobehub/ui/base-ui';
+import { Descriptions, Empty, Form, Input, Skeleton, Typography } from 'antd';
 import { RefreshCw, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,6 @@ import { normalizeDesktopDownloadUrl } from '@/const/desktopUpdate';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
-import { desktopControlCenterStyles } from './styles';
 import {
   buildDistributionUpdates,
   type DesktopSettingsValues,
@@ -19,6 +18,7 @@ import {
   isDesktopFormValidationError,
 } from './desktopSettingsForm';
 import { DistributionDiagnosticsTable } from './distributionDiagnosticsTable';
+import { desktopControlCenterStyles } from './styles';
 import type { DesktopOverviewResource, DesktopSettingsResource } from './types';
 import { useDesktopSettingsFormSync } from './useDesktopSettingsFormSync';
 
@@ -69,19 +69,19 @@ const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview,
       const values = await form.validateFields();
       const updates = buildDistributionUpdates(initialValues, values, dirtyFields);
       if (updates.length === 0) {
-        message.info(t('admin.desktopUpdate.noChanges'));
+        toast.info(t('admin.desktopUpdate.noChanges'));
         return;
       }
       setSubmitting(true);
       setSaveError(undefined);
       await adminCommercialService.setAppSettingsBatch({ updates });
       markSaved();
-      message.success(t('admin.desktopUpdate.saveSuccess'));
+      toast.success(t('admin.desktopUpdate.saveSuccess'));
     } catch (error) {
       if (!isDesktopFormValidationError(error)) {
         setSaveError(error);
         if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
-          message.error(t('admin.desktopUpdate.saveFailed'));
+          toast.error(t('admin.desktopUpdate.saveFailed'));
         }
       }
     } finally {

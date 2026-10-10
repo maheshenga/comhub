@@ -2,7 +2,8 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
-import { Button, Form, Input, message, Switch } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
+import { Button, Form, Input, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -45,9 +46,9 @@ const AdminPlanFaqCard = memo(() => {
       });
       await mutate(ADMIN_SETTINGS_SECTION_SWR_KEY('plans'));
       await mutate(PUBLIC_PLAN_FAQ_SWR_KEY);
-      message.success(t('admin.plans.faqSaveSuccess', '套餐常见问题已保存'));
+      toast.success(t('admin.plans.faqSaveSuccess', '套餐常见问题已保存'));
     } catch {
-      message.error(t('admin.plans.faqSaveFailed', '保存失败，请检查常见问题内容'));
+      toast.error(t('admin.plans.faqSaveFailed', '保存失败，请检查常见问题内容'));
     } finally {
       setSubmitting(false);
     }

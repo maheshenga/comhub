@@ -1,8 +1,9 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
+import { Tag, toast } from '@lobehub/ui/base-ui';
 import type { UploadProps } from 'antd';
-import { Button, message,Space, Tag, Typography, Upload } from 'antd';
+import { Button, Space, Typography, Upload } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -68,9 +69,9 @@ const DesktopBuildAssetUpload = memo<DesktopBuildAssetUploadProps>(
           profileId,
         });
         onUploaded(trustedAsset as DesktopBuildAsset);
-        message.success(t('admin.desktopBuild.assets.validated'));
+        toast.success(t('admin.desktopBuild.assets.validated'));
       } catch {
-        message.error(t('admin.desktopBuild.assets.failed'));
+        toast.error(t('admin.desktopBuild.assets.failed'));
       } finally {
         setUploading(false);
       }

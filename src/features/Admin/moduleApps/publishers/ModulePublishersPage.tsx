@@ -212,12 +212,12 @@ const ModulePublishersPage = memo(() => {
           destroyOnHidden
           cancelText={t('cancel')}
           confirmLoading={governance.submitting}
-          okButtonProps={{
-            disabled: governance.submitting || (governance.action === 'assign' && !governance.appIdIsValid),
-          }}
           okText={governance.action ? t(`moduleApps.admin.publishers.${governance.action}`) : ''}
           open={Boolean(governance.action)}
           title={governance.action ? t(`moduleApps.admin.publishers.${governance.action}`) : ''}
+          okButtonProps={{
+            disabled: governance.submitting || (governance.action === 'assign' && !governance.appIdIsValid),
+          }}
           onCancel={governance.closeAction}
           onOk={governance.submitAction}
         >

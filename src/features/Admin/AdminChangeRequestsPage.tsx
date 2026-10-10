@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Empty, message } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -67,10 +67,10 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
     setSubmitting(id);
     try {
       await adminCommercialService.approveChangeRequest(id);
-      message.success(t('admin.changeRequests.approveSuccess', '已通过'));
+      toast.success(t('admin.changeRequests.approveSuccess', '已通过'));
       await mutate();
     } catch {
-      message.error(t('admin.changeRequests.approveFailed', '通过失败'));
+      toast.error(t('admin.changeRequests.approveFailed', '通过失败'));
     } finally {
       setSubmitting(null);
     }
@@ -84,11 +84,11 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         reason: rejectTarget.reason || undefined,
         requestId: rejectTarget.id,
       });
-      message.success(t('admin.changeRequests.rejectSuccess', '已拒绝'));
+      toast.success(t('admin.changeRequests.rejectSuccess', '已拒绝'));
       setRejectTarget(null);
       await mutate();
     } catch {
-      message.error(t('admin.changeRequests.rejectFailed', '拒绝失败'));
+      toast.error(t('admin.changeRequests.rejectFailed', '拒绝失败'));
     } finally {
       setSubmitting(null);
     }
@@ -153,9 +153,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         />
       </AdminToolbar>
 
-      {!error && !isLoading && items.length === 0 ? (
-        <Empty description={t('admin.changeRequests.empty', '暂无变更请求')} />
-      ) : (
+      {error ? null : (
         <>
           {selectedIds.length > 0 && (
             <AdminToolbar>
@@ -183,6 +181,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
                 columns={columns}
                 dataSource={items}
                 loading={isLoading}
+                locale={{ emptyText: t('admin.changeRequests.empty', '暂无变更请求') }}
                 rowKey="id"
                 rowSelection={{
                   getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),

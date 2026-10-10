@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Input, message, Space, Upload } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
+import { Button, Input, Space, Upload } from 'antd';
 import { sha256 } from 'js-sha256';
 import { ImageUpIcon } from 'lucide-react';
 import { type CSSProperties, memo, useState } from 'react';
@@ -74,7 +75,7 @@ const ImageUrlUploadInput = memo<ImageUrlUploadInputProps>(
 
     const handleBeforeUpload = async (file: File) => {
       if (!file.type.startsWith('image/')) {
-        message.error('请选择图片文件');
+        toast.error('请选择图片文件');
         return Upload.LIST_IGNORE;
       }
 
@@ -89,9 +90,9 @@ const ImageUrlUploadInput = memo<ImageUrlUploadInputProps>(
           publicUrlPrefix,
         });
         onChange?.(imageUrl);
-        message.success('图片已上传');
+        toast.success('图片已上传');
       } catch {
-        message.error('图片上传失败，请检查文件存储配置');
+        toast.error('图片上传失败，请检查文件存储配置');
       } finally {
         setUploading(false);
       }

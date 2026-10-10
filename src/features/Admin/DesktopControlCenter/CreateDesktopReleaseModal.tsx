@@ -1,7 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Descriptions, Form, Input, message,Modal, Radio } from 'antd';
+import { toast } from '@lobehub/ui/base-ui';
+import { Descriptions, Form, Input, Modal, Radio } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -54,10 +55,10 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
           releaseNotes: values.releaseNotes || '',
           version: values.version,
         });
-        message.success(t('admin.desktopBuild.release.queued'));
+        toast.success(t('admin.desktopBuild.release.queued'));
         onClose();
       } catch {
-        message.error(t('admin.desktopBuild.release.failed'));
+        toast.error(t('admin.desktopBuild.release.failed'));
       } finally {
         setSubmitting(false);
         onReleaseChanged();

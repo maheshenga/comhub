@@ -2,8 +2,7 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
+import { Alert, Button } from '@lobehub/ui/base-ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
