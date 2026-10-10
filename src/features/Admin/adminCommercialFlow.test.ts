@@ -628,7 +628,11 @@ describe('admin commercial flow pages', () => {
   });
 
   it('wires centralized dangerous action confirmations into high-risk admin surfaces', () => {
-    const creditsPage = readRepoFile('src/routes/(main)/admin/credits/index.tsx');
+    // B2 拆分：credits 充值弹窗（含 AdminDangerousActionButton + credits.adjust 信封）
+    // 迁入 Credits/ 域目录，契约面同 PR 成对迁移。
+    const creditsPage =
+      readRepoFile('src/routes/(main)/admin/credits/index.tsx') +
+      readRepoFile('src/features/Admin/Credits/rechargeParts.tsx');
     const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
     // B2 拆分：users 危险动作按钮/弹窗迁入 Users/ 域目录，契约面同 PR 成对迁移。
     const usersPage =

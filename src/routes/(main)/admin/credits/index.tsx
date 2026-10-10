@@ -1,16 +1,18 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Select } from '@lobehub/ui/base-ui';
-import { Empty, Form, Input, InputNumber, message, Switch, Tag } from 'antd';
+import { Button, Select, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields）与 CreditsRechargeModal 的受控表单契约绑定；base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，均无法行为不变替换；FormKit 迁移另行立项。
+import { Form, Switch } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
-import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
-import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
+import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
+import { CreditsRechargeModal, exportCreditAccountsCsv } from '@/features/Admin/Credits/rechargeParts';
+import { buildCreditAccountColumns } from '@/features/Admin/Credits/shared';
 import {
   AdminPageError,
   AdminPageShell,
@@ -21,18 +23,11 @@ import {
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-type SortKey = 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt';
-
-const escapeCsv = (v: unknown) => {
-  if (v === null || v === undefined) return '';
-  const s = typeof v === 'string' ? v : JSON.stringify(v);
-  if (/[",\n\r]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
-  return s;
-};
-
 const AdminCreditsPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [sort, setSort] = useState<SortKey>('balance');
+  const [sort, setSort] = useState<'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt'>(
+    'balance',
+  );
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const [negativeOnly, setNegativeOnly] = useState(false);
   const [cursor, setCursor] = useState(0);
@@ -67,44 +62,18 @@ const AdminCreditsPage = memo(() => {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const res = await adminCommercialService.exportCreditAccounts({
-        limit: 5000,
-        negativeOnly: negativeOnly || undefined,
-        order,
-        sort,
-      });
-      const header = [
-        'userId',
-        'balanceAtomic',
-        'totalCreditedAtomic',
-        'totalDebitedAtomic',
-        'currency',
-        'updatedAt',
-      ];
-      const rows = [header.join(',')];
-      for (const r of res.items as any[]) {
-        rows.push(
-          [
-            r.userId,
-            r.balance,
-            r.totalCredited,
-            r.totalDebited,
-            r.currency,
-            r.updatedAt ? new Date(r.updatedAt).toISOString() : '',
-          ]
-            .map(escapeCsv)
-            .join(','),
-        );
-      }
-      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
-      const a = document.createElement('a');
-      a.download = `admin-credit-accounts-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.href = URL.createObjectURL(blob);
-      a.click();
-      URL.revokeObjectURL(a.href);
-      message.success(t('admin.credits.exportSuccess', `已导出 ${res.items.length} 行`));
+      const summary = await exportCreditAccountsCsv(
+        {
+          limit: 5000,
+          negativeOnly: negativeOnly || undefined,
+          order,
+          sort,
+        },
+        t,
+      );
+      toast.success(summary);
     } catch {
-      message.error(t('admin.credits.exportFailed', '导出失败'));
+      toast.error(t('admin.credits.exportFailed', '导出失败'));
     } finally {
       setExporting(false);
     }
@@ -113,7 +82,7 @@ const AdminCreditsPage = memo(() => {
   const handleRecharge = async (command: AdminDangerousActionEnvelope<'credits.adjust'>) => {
     const normalizedReason = command.reason?.trim();
     if (!normalizedReason) {
-      message.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
+      toast.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
       return;
     }
 
@@ -128,61 +97,18 @@ const AdminCreditsPage = memo(() => {
         },
         command,
       );
-      message.success(t('admin.credits.rechargeSuccess', '积分已充值'));
+      toast.success(t('admin.credits.rechargeSuccess', '积分已充值'));
       setRechargeOpen(false);
       form.resetFields();
       await mutate(swrKey);
     } catch {
-      message.error(t('admin.credits.rechargeFailed', '充值失败'));
+      toast.error(t('admin.credits.rechargeFailed', '充值失败'));
     } finally {
       setRecharging(false);
     }
   };
 
-  const columns = [
-    {
-      dataIndex: 'userId',
-      key: 'userId',
-      render: (v: string) => (
-        <a onClick={() => setDrawerUser(v)}>
-          <code>{v.slice(0, 12)}</code>
-        </a>
-      ),
-      title: t('admin.credits.col.user', '用户'),
-    },
-    {
-      dataIndex: 'balance',
-      key: 'balance',
-      render: (v: number) => (
-        <Tag color={v < 0 ? 'red' : v === 0 ? 'default' : 'green'}>{formatAdminCredits(v)}</Tag>
-      ),
-      title: t('admin.credits.col.balance', '余额'),
-    },
-    {
-      dataIndex: 'totalCredited',
-      key: 'totalCredited',
-      render: (v: number) => formatAdminCredits(v),
-      title: t('admin.credits.col.credited', '累计增加'),
-    },
-    {
-      dataIndex: 'totalDebited',
-      key: 'totalDebited',
-      render: (v: number) => formatAdminCredits(v),
-      title: t('admin.credits.col.debited', '累计扣减'),
-    },
-    {
-      dataIndex: 'currency',
-      key: 'currency',
-      title: t('admin.credits.col.currency', '币种'),
-    },
-    {
-      dataIndex: 'updatedAt',
-      key: 'updatedAt',
-      render: (v: Date) => (v ? new Date(v).toLocaleString() : '—'),
-      title: t('admin.credits.col.updated', '更新时间'),
-      width: 180,
-    },
-  ];
+  const columns = buildCreditAccountColumns(t, setDrawerUser);
 
   return (
     <AdminPageShell
@@ -256,10 +182,18 @@ const AdminCreditsPage = memo(() => {
             onRetry={refresh}
           />
         ) : !isLoading && items.length === 0 ? (
-          <Empty description={t('admin.credits.empty', '暂无积分账户')} />
+          <AdminResponsiveTable label={t('admin.credits.tableLabel', '积分账户表')}>
+            <InlineTable
+              columns={columns as any}
+              dataSource={[]}
+              loading={false}
+              locale={{ emptyText: t('admin.credits.empty', '暂无积分账户') }}
+              rowKey="userId"
+            />
+          </AdminResponsiveTable>
         ) : (
           <AdminResponsiveTable label={t('admin.credits.tableLabel', '积分账户表')}>
-            <InlineTable columns={columns} dataSource={items} loading={isLoading} rowKey="userId" />
+            <InlineTable columns={columns as any} dataSource={items} loading={isLoading} rowKey="userId" />
           </AdminResponsiveTable>
         )}
 
@@ -274,43 +208,14 @@ const AdminCreditsPage = memo(() => {
 
       <AdminUserDetailDrawer userId={drawerUser} onClose={() => setDrawerUser(null)} />
 
-      <Modal
+      <CreditsRechargeModal
+        form={form}
         open={rechargeOpen}
-        style={{ maxWidth: 'calc(100vw - 32px)' }}
-        title={t('admin.credits.recharge', '充值积分')}
-        footer={[
-          <Button key="cancel" onClick={() => setRechargeOpen(false)}>
-            {t('cancel', '取消')}
-          </Button>,
-          <AdminDangerousActionButton
-            actionId="credits.adjust"
-            key="confirm"
-            loading={recharging}
-            type="primary"
-            onConfirm={handleRecharge}
-          >
-            {t('admin.credits.recharge', '充值积分')}
-          </AdminDangerousActionButton>,
-        ]}
+        recharging={recharging}
+        t={t as any}
         onCancel={() => setRechargeOpen(false)}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            label={t('admin.userId', '用户 ID')}
-            name="userId"
-            rules={[{ required: true }]}
-          >
-            <Input placeholder="用户 ID" />
-          </Form.Item>
-          <Form.Item
-            label={t('admin.adjustCredits.amount', '数量（M Credits）')}
-            name="amount"
-            rules={[{ required: true }]}
-          >
-            <InputNumber addonAfter={'M'} min={0.000_001} precision={6} style={{ width: '100%' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onConfirm={handleRecharge}
+      />
     </AdminPageShell>
   );
 });

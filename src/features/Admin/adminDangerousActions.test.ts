@@ -45,7 +45,13 @@ const visibleActionFiles = [
   'src/features/Admin/payments/SubscriptionPaymentsPage.tsx',
   'src/features/Admin/payments/TopUpPaymentsPage.tsx',
   'src/features/Admin/payments/paymentListHeader.tsx',
-  'src/routes/(main)/admin/credits/index.tsx',
+  // B2 拆分成对迁移扫描清单：users 工具条（批次 1 遗漏，本 PR 补登记——
+  // user.bulkBan/bulkSetRole 等 5 个 user.* 字面量落 Users/userBulkToolbar）、
+  // credits 充值确认按钮迁 Credits/。
+  'src/features/Admin/Credits/rechargeParts.tsx',
+  'src/features/Admin/Users/userBulkToolbar.tsx',
+  'src/features/Admin/Users/userColumns.tsx',
+  'src/features/Admin/Users/userDangerousParts.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
 ];
