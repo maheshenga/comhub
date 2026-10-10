@@ -7,20 +7,16 @@ import {
   hasAdminCapability,
   isFullAdminRole,
 } from '@lobechat/types';
-import { Avatar, Flexbox } from '@lobehub/ui';
-import { Button, Modal, Select } from '@lobehub/ui/base-ui';
-import { Empty, Input, InputNumber, message, Space, Tag } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import type * as React from 'react';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Input, Select, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Download } from 'lucide-react';
+import type * as React from 'react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import {
-  AdminBulkActionFlow,
-  AdminDangerousActionButton,
   AdminPageShell,
   AdminResponsiveTable,
   AdminSection,
@@ -33,33 +29,15 @@ import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangero
 import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { AdminPageError } from '@/features/Admin/layout';
+import { type AssignableRole, EMPTY_TEXT, type UserRow } from '@/features/Admin/Users/shared';
+import { UserBulkToolbar } from '@/features/Admin/Users/userBulkToolbar';
+import { buildUserColumns } from '@/features/Admin/Users/userColumns';
+import { AdjustCreditsModal, BanUserModal, ResetAllToFreePlanSection } from '@/features/Admin/Users/userDangerousParts';
+import { exportUsersCsv } from '@/features/Admin/Users/usersCsv';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
-
-type UserSubscription = {
-  cycle: string;
-  endsAt: Date | null;
-  plan: string;
-  startedAt: Date | null;
-  status: string;
-};
-
-type UserRow = {
-  avatar: string | null;
-  banned: boolean | null;
-  createdAt: Date | null;
-  email: string | null;
-  fullName: string | null;
-  id: string;
-  lastActiveAt: Date | null;
-  phone: string | null;
-  role: string | null;
-  subscription: UserSubscription | null;
-};
-
-const EMPTY_TEXT = '-';
 
 const styles = createStaticStyles(({ css }) => ({
   filter: css`
@@ -89,8 +67,6 @@ const styles = createStaticStyles(({ css }) => ({
     }
   `,
 }));
-
-type AssignableRole = AdminRole | 'user' | '__none__';
 
 const AdminUsersPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -209,12 +185,12 @@ const AdminUsersPage = memo(() => {
         banReason: banReason || undefined,
         userId: banTarget,
       });
-      message.success(t('admin.ban.success', '用户已封禁'));
+      toast.success(t('admin.ban.success', '用户已封禁'));
       setBanTarget(null);
       setBanReason('');
       invalidate();
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
@@ -224,10 +200,10 @@ const AdminUsersPage = memo(() => {
     setActionLoading(userId);
     try {
       await adminCommercialService.unbanUser(userId);
-      message.success(t('admin.unban.success', '用户已解封'));
+      toast.success(t('admin.unban.success', '用户已解封'));
       invalidate();
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
@@ -247,10 +223,10 @@ const AdminUsersPage = memo(() => {
         delete next[userId];
         return next;
       });
-      message.success(t('admin.setRole.success', '角色已更新'));
+      toast.success(t('admin.setRole.success', '角色已更新'));
       invalidate();
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
@@ -259,7 +235,7 @@ const AdminUsersPage = memo(() => {
   const handleAdjustCredits = async (command: AdminDangerousActionEnvelope<'credits.adjust'>) => {
     const normalizedReason = command.reason?.trim();
     if (!adjustTarget || !normalizedReason || !adjustAmount) {
-      message.warning(t('admin.adjustCredits.invalid', '请输入积分数量和调整原因'));
+      toast.warning(t('admin.adjustCredits.invalid', '请输入积分数量和调整原因'));
       return;
     }
     setActionLoading(`${adjustTarget}-credits`);
@@ -272,11 +248,11 @@ const AdminUsersPage = memo(() => {
         },
         command,
       );
-      message.success(t('admin.adjustCredits.success', '积分已调整'));
+      toast.success(t('admin.adjustCredits.success', '积分已调整'));
       setAdjustTarget(null);
       setAdjustAmount(0);
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
@@ -303,7 +279,7 @@ const AdminUsersPage = memo(() => {
       ? Math.round(assignDurationMonths)
       : 1;
     if (!assignTarget || !assignPlan || durationMonths < 1 || !assignReason.trim()) {
-      message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
+      toast.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
 
@@ -316,12 +292,12 @@ const AdminUsersPage = memo(() => {
         reason: assignReason.trim(),
         userId: assignTarget,
       });
-      message.success(t('admin.assignPlan.success', '套餐已设置'));
+      toast.success(t('admin.assignPlan.success', '套餐已设置'));
       closeAssignPlan();
       await mutate(['admin-subscriptions']);
       invalidate();
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
@@ -332,7 +308,7 @@ const AdminUsersPage = memo(() => {
     setActionLoading('reset-all-free');
     try {
       const result = await adminCommercialService.resetAllUsersToFreePlan(command);
-      message.success(
+      toast.success(
         t(
           'admin.resetAllToFreePlan.success',
           `已重置：取消 ${result.canceledPaid} 个付费套餐，规范 ${result.normalizedFree} 个免费套餐，新增 ${result.insertedFree} 个免费套餐。`,
@@ -340,7 +316,7 @@ const AdminUsersPage = memo(() => {
       );
       invalidate();
     } catch {
-      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      toast.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
@@ -353,191 +329,55 @@ const AdminUsersPage = memo(() => {
     setActionLoading(`${row.id}-impersonate`);
     try {
       await adminCommercialService.impersonateUser(row.id, command);
-      message.success(t('admin.impersonate.success', '已切换用户身份'));
+      toast.success(t('admin.impersonate.success', '已切换用户身份'));
       window.location.assign('/');
     } catch {
-      message.error(t('admin.impersonate.failed', '切换用户身份失败'));
+      toast.error(t('admin.impersonate.failed', '切换用户身份失败'));
     } finally {
       setActionLoading(null);
     }
   };
 
-  const columns: ColumnsType<UserRow> = [
-    {
-      dataIndex: 'fullName',
-      key: 'name',
-      render: (name: string | null, row) => (
-        <Space>
-          <Avatar avatar={row.avatar ?? undefined} size={28} title={name ?? row.email ?? ''} />
-          <span>{name ?? EMPTY_TEXT}</span>
-        </Space>
-      ),
-      title: t('admin.name', '姓名'),
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const result = await adminCommercialService.exportUsers({
+        limit: 10_000,
+        query: undefined,
+      });
+      exportUsersCsv(result.items as any[], t);
+      toast.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
+    } catch {
+      toast.error(t('admin.exportFailed', '导出失败'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const columns = buildUserColumns({
+    actionLoading,
+    canImpersonate,
+    canManageFinance,
+    canManageSupport,
+    canSetRoles,
+    handleAdjustTarget: (row) => {
+      setAdjustTarget(row.id);
+      setAdjustAmount(0);
     },
-    {
-      dataIndex: 'email',
-      key: 'email',
-      render: (value: string | null) => value ?? EMPTY_TEXT,
-      title: t('admin.email', '邮箱'),
-    },
-    {
-      dataIndex: 'phone',
-      key: 'phone',
-      render: (value: string | null) => value ?? EMPTY_TEXT,
-      title: t('admin.phone', '手机号'),
-    },
-    {
-      dataIndex: 'subscription',
-      key: 'subscription',
-      render: (subscription: UserSubscription | null) =>
-        subscription ? (
-          <Space size={6}>
-            <Tag color="blue">{subscription.plan}</Tag>
-            <span>
-              {subscription.startedAt
-                ? new Date(subscription.startedAt).toLocaleDateString()
-                : EMPTY_TEXT}
-            </span>
-          </Space>
-        ) : (
-          <Tag>{EMPTY_TEXT}</Tag>
-        ),
-      title: t('admin.currentPlanWithStartedAt', '当前套餐 / 开始时间'),
-    },
-    {
-      dataIndex: 'role',
-      key: 'role',
-      render: (value: string | null) =>
-        value ? (
-          <Tag color={value === 'admin' ? 'purple' : 'blue'}>{roleLabel(value)}</Tag>
-        ) : (
-          <span>{EMPTY_TEXT}</span>
-        ),
-      title: t('admin.role', '角色'),
-    },
-    {
-      dataIndex: 'banned',
-      key: 'status',
-      render: (value: boolean | null) =>
-        value ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>,
-      title: t('admin.status', '状态'),
-    },
-    {
-      dataIndex: 'createdAt',
-      key: 'joined',
-      render: (value: Date | null) => (value ? new Date(value).toLocaleDateString() : EMPTY_TEXT),
-      title: t('admin.joined', '注册时间'),
-    },
-    {
-      dataIndex: 'lastActiveAt',
-      key: 'lastActive',
-      render: (value: Date | null) => (value ? new Date(value).toLocaleDateString() : EMPTY_TEXT),
-      title: t('admin.lastActive', '最近活跃'),
-    },
-    {
-      key: 'actions',
-      render: (_: unknown, row: UserRow) => (
-        <Space>
-          {canManageSupport ? (
-            row.banned ? (
-              <Button
-                loading={actionLoading === row.id}
-                size="small"
-                onClick={() => handleUnban(row.id)}
-              >
-                {t('admin.unban', '解封')}
-              </Button>
-            ) : (
-              <Button
-                danger
-                loading={actionLoading === row.id}
-                size="small"
-                onClick={() => setBanTarget(row.id)}
-              >
-                {t('admin.ban', '封禁')}
-              </Button>
-            )
-          ) : null}
-          {canSetRoles ? (
-            <Space.Compact>
-              <Select
-                loading={actionLoading === `${row.id}-role`}
-                options={roleOptions}
-                placeholder={t('admin.setRole', '设置角色')}
-                size="small"
-                style={{ width: 132 }}
-                value={roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole)}
-                onChange={(value) => {
-                  if (!value) return;
-                  setRoleDrafts((current) => ({
-                    ...current,
-                    [row.id]: value as AssignableRole,
-                  }));
-                }}
-              />
-              <AdminDangerousActionButton
-                actionId="user.setRole"
-                loading={actionLoading === `${row.id}-role`}
-                size="small"
-                disabled={
-                  (roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole)) ===
-                  ((row.role ?? '__none__') as AssignableRole)
-                }
-                onConfirm={(command) =>
-                  handleSetRole(
-                    row.id,
-                    roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole),
-                    command,
-                  )
-                }
-              >
-                {t('admin.setRole', '设置角色')}
-              </AdminDangerousActionButton>
-            </Space.Compact>
-          ) : null}
-          {canManageFinance ? (
-            <>
-              <Button
-                size="small"
-                onClick={() => {
-                  setAdjustTarget(row.id);
-                  setAdjustAmount(0);
-                }}
-              >
-                {t('admin.adjustCredits', '调整积分')}
-              </Button>
-              <Button
-                loading={actionLoading === `${row.id}-plan`}
-                size="small"
-                onClick={() => openAssignPlan(row.id)}
-              >
-                {t('admin.assignPlan', '设置套餐')}
-              </Button>
-            </>
-          ) : null}
-          {canImpersonate ? (
-            <AdminDangerousActionButton
-              actionId="user.impersonate.attempt"
-              confirmTitle={t('admin.impersonate.confirmTitle', '以该用户身份登录？')}
-              loading={actionLoading === `${row.id}-impersonate`}
-              size="small"
-              confirmDescription={t(
-                'admin.impersonate.confirmContent',
-                '系统会把当前管理员会话切换为该用户，用于排查套餐、模型和前台体验问题。完成排查后请退出登录并重新登录管理员账号。',
-              )}
-              onConfirm={(command) => handleImpersonate(row, command)}
-            >
-              {t('admin.impersonate', '以用户身份登录')}
-            </AdminDangerousActionButton>
-          ) : null}
-          <Button size="small" onClick={() => setDetailUserId(row.id)}>
-            {t('admin.viewDetail', '详情')}
-          </Button>
-        </Space>
-      ),
-      title: t('admin.actions', '操作'),
-    },
-  ];
+    handleAssignPlan: openAssignPlan,
+    handleImpersonate,
+    handleSetRole,
+    handleUnban,
+    roleDrafts,
+    roleLabel,
+    roleOptions,
+    setAdjustAmount,
+    setAdjustTarget,
+    setBanTarget,
+    setDetailUserId,
+    setRoleDrafts,
+    t: t as any,
+  });
 
   return (
     <AdminPageShell
@@ -559,11 +399,12 @@ const AdminUsersPage = memo(() => {
       >
         <AdminToolbar>
           <div className={styles.filters}>
-            <Input.Search
+            {/* base-ui Input 无 Search 复合件：Enter 提交搜索（onSearch 语义由 onPressEnter 承接）。 */}
+            <Input
               allowClear
               className={styles.search}
               placeholder={t('admin.search', '搜索用户')}
-              onSearch={handleSearch}
+              onPressEnter={(event) => handleSearch((event.target as HTMLInputElement).value)}
             />
             <Select
               allowClear
@@ -595,144 +436,18 @@ const AdminUsersPage = memo(() => {
             />
           </div>
           {selectedUserIds.length > 0 && canManageSupport ? (
-            <Flexbox horizontal gap={8}>
-              <AdminBulkActionFlow
-                actionId="user.bulkBan"
-                count={selectedUserIds.length}
-                danger
-                size="small"
-                confirmTitle={t('admin.users.bulkBanTitle', '批量封禁 {{count}} 个用户？', {
-                  count: selectedUserIds.length,
-                })}
-                confirmDescription={t(
-                  'admin.users.bulkBanDescription',
-                  '将选中的用户标记为封禁状态，同批次同事务逐条审计（batchCorrelationId 可在审计页聚合检索）。',
-                )}
-                onRun={async (command) =>
-                  adminCommercialService.bulkBanUsers(selectedUserIds, command)
-                }
-                onSuccess={async () => {
-                  onClearSelection();
-                  await invalidate();
-                }}
-                summary={(result: any) => ({
-                  failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
-                  requested: result?.total,
-                  succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
-                })}
-              >
-                {t('admin.users.bulkBan', '批量封禁')}
-              </AdminBulkActionFlow>
-              {canSetRoles ? (
-                <>
-                  <Select
-                    allowClear
-                    className={styles.filter}
-                    placeholder={t('admin.users.bulkRolePlaceholder', '选择目标角色')}
-                    value={bulkRole ?? undefined}
-                    options={roleOptions.filter((option) => option.value !== '__none__')}
-                    onChange={(value: AssignableRole) => setBulkRole(value ?? null)}
-                  />
-                  <AdminBulkActionFlow
-                    actionId="user.bulkSetRole"
-                    count={bulkRole && selectedUserIds.length ? selectedUserIds.length : 0}
-                    size="small"
-                    confirmTitle={t(
-                      'admin.users.bulkSetRoleTitle',
-                      '批量调整 {{count}} 个用户角色为 {{role}}？',
-                      { count: selectedUserIds.length, role: bulkRole ?? '' },
-                    )}
-                    confirmDescription={t(
-                      'admin.users.bulkSetRoleDescription',
-                      '将选中的用户角色统一变更为所选目标角色。此为 typed 确认命令，需要输入命令 ID。',
-                    )}
-                    onRun={async (command) =>
-                      adminCommercialService.bulkSetUserRole(
-                        {
-                          role: (bulkRole === '__none__' ? null : (bulkRole ?? 'user')) as any,
-                          userIds: selectedUserIds,
-                        },
-                        command,
-                      )
-                    }
-                    onSuccess={async () => {
-                      onClearSelection();
-                      await invalidate();
-                    }}
-                    summary={(result: any) => ({
-                      failed: result?.results?.filter((r: any) => !r.ok).length ?? 0,
-                      requested: result?.total,
-                      succeeded: result?.results?.filter((r: any) => r.ok).length ?? 0,
-                    })}
-                  >
-                    {t('admin.users.bulkSetRole', '批量改角色')}
-                  </AdminBulkActionFlow>
-                </>
-              ) : null}
-              <Button size="small" onClick={onClearSelection}>
-                {t('admin.users.clearSelection', '清空选择')}
-              </Button>
-            </Flexbox>
+            <UserBulkToolbar
+              bulkRole={bulkRole}
+              canSetRoles={canSetRoles}
+              invalidate={invalidate}
+              roleOptions={roleOptions}
+              selectedUserIds={selectedUserIds}
+              setBulkRole={setBulkRole}
+              t={t as any}
+              onClearSelection={onClearSelection}
+            />
           ) : null}
-          <Button
-            disabled={exporting}
-            loading={exporting}
-            onClick={async () => {
-              setExporting(true);
-              try {
-                const result = await adminCommercialService.exportUsers({
-                  limit: 10_000,
-                  query: undefined,
-                });
-                const header = [
-                  'id',
-                  'email',
-                  'username',
-                  'fullName',
-                  'phone',
-                  'role',
-                  'banned',
-                  'createdAt',
-                  'lastActiveAt',
-                ];
-                const escape = (value: unknown) => {
-                  if (value === null || value === undefined) return '';
-                  const text = typeof value === 'string' ? value : JSON.stringify(value);
-
-                  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-                };
-                const lines = [header.join(',')];
-                for (const user of result.items as any[]) {
-                  lines.push(
-                    [
-                      user.id,
-                      user.email,
-                      user.username,
-                      user.fullName,
-                      user.phone,
-                      user.role,
-                      user.banned,
-                      user.createdAt ? new Date(user.createdAt).toISOString() : '',
-                      user.lastActiveAt ? new Date(user.lastActiveAt).toISOString() : '',
-                    ]
-                      .map(escape)
-                      .join(','),
-                  );
-                }
-                const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-                const link = document.createElement('a');
-                link.download = `admin-users-${new Date().toISOString().slice(0, 10)}.csv`;
-                link.href = URL.createObjectURL(blob);
-                link.click();
-                URL.revokeObjectURL(link.href);
-                message.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
-              } catch {
-                message.error(t('admin.exportFailed', '导出失败'));
-              } finally {
-                setExporting(false);
-              }
-            }}
-          >
+          <Button disabled={exporting} loading={exporting} onClick={handleExport}>
             <Download aria-hidden size={16} />
             {t('admin.exportCsv', '导出 CSV')}
           </Button>
@@ -748,7 +463,7 @@ const AdminUsersPage = memo(() => {
               columns={columns as any}
               dataSource={allItems}
               loading={isLoading && cursor === 0}
-              locale={{ emptyText: <Empty description={t('admin.noData', '暂无数据')} /> }}
+              locale={{ emptyText: t('admin.noData', '暂无数据') }}
               rowKey="id"
               rowSelection={{
                 // 评审修复（对齐订单页 isBulkEligibleOrder 防线）：已封禁、
@@ -785,94 +500,33 @@ const AdminUsersPage = memo(() => {
             '批量动作会影响大量用户权益，仅在完成影响预检后执行。',
           )}
         >
-          <AdminDangerousActionButton
-            danger
-            actionId="user.resetAllToFreePlan"
-            loading={actionLoading === 'reset-all-free' || resetPreviewLoading}
-            confirmDescription={
-              <Flexbox gap={8}>
-                <div>
-                  {t(
-                    'admin.resetAllToFreePlan.confirmContent',
-                    '这会取消所有当前付费套餐，并确保每个用户都有一个无限期免费套餐。用户已有积分余额不会被清零。',
-                  )}
-                </div>
-                {resetAllToFreePlanPreview ? (
-                  <div>
-                    {t(
-                      'admin.resetAllToFreePlan.preview',
-                      `预计影响：取消 ${resetAllToFreePlanPreview.canceledPaid} 个付费套餐，规范 ${resetAllToFreePlanPreview.normalizedFree} 个免费套餐，补充 ${resetAllToFreePlanPreview.insertedFree} 个免费套餐。`,
-                    )}
-                  </div>
-                ) : null}
-              </Flexbox>
-            }
-            onConfirm={handleResetAllToFreePlan}
-          >
-            {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
-          </AdminDangerousActionButton>
+          <ResetAllToFreePlanSection
+            actionLoading={actionLoading}
+            handleResetAllToFreePlan={handleResetAllToFreePlan}
+            resetPreview={resetAllToFreePlanPreview ?? null}
+            resetPreviewLoading={resetPreviewLoading}
+            t={t as any}
+          />
         </AdminSection>
       ) : null}
-      <Modal
-        confirmLoading={actionLoading === banTarget}
-        open={!!banTarget}
-        style={{ maxWidth: 'calc(100vw - 32px)' }}
-        title={t('admin.ban', '封禁用户')}
-        onOk={handleBan}
-        onCancel={() => {
-          setBanTarget(null);
-          setBanReason('');
-        }}
-      >
-        <Input.TextArea
-          placeholder={t('admin.ban.reason', '请输入封禁原因')}
-          rows={3}
-          value={banReason}
-          onChange={(event: { target: { value: string } }) => setBanReason(event.target.value)}
-        />
-      </Modal>
-      <Modal
-        open={!!adjustTarget}
-        style={{ maxWidth: 'calc(100vw - 32px)' }}
-        title={t('admin.adjustCredits', '调整积分')}
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => {
-              setAdjustTarget(null);
-              setAdjustAmount(0);
-            }}
-          >
-            {t('cancel', '取消')}
-          </Button>,
-          <AdminDangerousActionButton
-            actionId="credits.adjust"
-            key="confirm"
-            loading={actionLoading === `${adjustTarget ?? ''}-credits`}
-            type="primary"
-            onConfirm={handleAdjustCredits}
-          >
-            {t('admin.adjustCredits', '调整积分')}
-          </AdminDangerousActionButton>,
-        ]}
-        onCancel={() => {
-          setAdjustTarget(null);
-          setAdjustAmount(0);
-        }}
-      >
-        <Flexbox gap={12}>
-          <Flexbox gap={4}>
-            <div>{t('admin.adjustCredits.amount', '积分数量（可输入负数扣减）')}</div>
-            <InputNumber
-              addonAfter={'M'}
-              precision={6}
-              style={{ width: '100%' }}
-              value={adjustAmount}
-              onChange={(value: number | null) => setAdjustAmount(Number(value ?? 0))}
-            />
-          </Flexbox>
-        </Flexbox>
-      </Modal>
+      <BanUserModal
+        actionLoading={actionLoading}
+        banReason={banReason}
+        banTarget={banTarget}
+        handleBan={handleBan}
+        setBanReason={setBanReason}
+        setBanTarget={setBanTarget}
+        t={t as any}
+      />
+      <AdjustCreditsModal
+        actionLoading={actionLoading}
+        adjustAmount={adjustAmount}
+        adjustTarget={adjustTarget}
+        handleAdjustCredits={handleAdjustCredits}
+        setAdjustAmount={setAdjustAmount}
+        setAdjustTarget={setAdjustTarget}
+        t={t as any}
+      />
       {canManageFinance ? (
         <AdminAssignPlanModal
           confirmLoading={actionLoading === `${assignTarget ?? ''}-plan`}

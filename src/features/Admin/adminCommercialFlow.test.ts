@@ -630,7 +630,11 @@ describe('admin commercial flow pages', () => {
   it('wires centralized dangerous action confirmations into high-risk admin surfaces', () => {
     const creditsPage = readRepoFile('src/routes/(main)/admin/credits/index.tsx');
     const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
-    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+    // B2 拆分：users 危险动作按钮/弹窗迁入 Users/ 域目录，契约面同 PR 成对迁移。
+    const usersPage =
+      readRepoFile('src/routes/(main)/admin/users/index.tsx') +
+      readRepoFile('src/features/Admin/Users/userColumns.tsx') +
+      readRepoFile('src/features/Admin/Users/userDangerousParts.tsx');
     const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
     const contentPages = readRepoFile('src/features/Admin/Content/ContentPage.tsx');
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
