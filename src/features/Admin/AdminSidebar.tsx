@@ -1,7 +1,7 @@
 'use client';
 
+import { Menu } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
-import { Menu } from 'antd';
 import {
   ArrowLeft,
   Search,

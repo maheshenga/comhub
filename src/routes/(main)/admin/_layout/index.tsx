@@ -1,8 +1,8 @@
 'use client';
 
 import { isAdminRole } from '@lobechat/types';
-import { ActionIcon, Flexbox, Icon, Skeleton } from '@lobehub/ui';
-import { FloatingSheet } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, FloatingSheet, Skeleton } from '@lobehub/ui/base-ui';
 import { ConfigProvider } from 'antd';
 import { createStaticStyles, cssVar, useResponsive } from 'antd-style';
 import { ChevronRight, Home, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
@@ -203,7 +203,12 @@ const AdminLayout = () => {
   // ux-redesign-spec §2.2.2 path ①: Menu selected-state colors go through
   // antd's official component-token channel, scoped to the Admin subtree only
   // (colors via antd-style cssVar references — no raw hex). Declared before
-  // the early returns to keep hook order unconditional.
+  // the early returns to keep hook order unconditional. NOTE: since the
+  // sidebar Menu now comes from the @lobehub/ui wrapper (which pins
+  // itemSelectedBg to colorFillSecondary in its own ConfigProvider), the
+  // selected look is enforced by the sidebarStyles post-class selectors (path
+  // ②) — this token block remains for any future antd Menu direct use and is
+  // harmless where the wrapper wins.
   const menuThemeComponents = useMemo(
     () => ({
       Menu: { itemSelectedBg: cssVar.colorPrimaryBg, itemSelectedColor: cssVar.colorPrimary },
@@ -214,7 +219,8 @@ const AdminLayout = () => {
   if (!isUserStateInit) {
     return (
       <Flexbox className={styles.loading} data-testid="admin-layout-loading" gap={16}>
-        <Skeleton active paragraph={{ rows: 6 }} />
+        <Skeleton animated height={18} />
+        <Skeleton.Text rows={6} />
       </Flexbox>
     );
   }

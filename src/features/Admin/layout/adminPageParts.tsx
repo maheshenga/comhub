@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
-import { Alert } from 'antd';
+import { Alert, Button } from '@lobehub/ui/base-ui';
 import { RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -169,10 +168,13 @@ export const AdminPageError = ({
   retryLabel = '重试',
   title = '数据加载失败',
 }: AdminPageErrorProps) => (
+  // base-ui Alert renders with role="alert" by default, keeping the
+  // AdminPage.test.tsx `getByRole('alert')` anchor intact (`title` is the
+  // non-deprecated spelling of the antd `message` prop).
   <Alert
     showIcon
     description={description}
-    message={title}
+    title={title}
     type="error"
     action={
       <Button size="small" onClick={() => void onRetry()}>

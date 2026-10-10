@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Spin, Tag } from 'antd';
+import { Button, Spin, Tag } from '@lobehub/ui/base-ui';
 import { ArrowRight, GitPullRequest, Settings } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

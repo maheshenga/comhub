@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
-import { Input, message } from 'antd';
+import { Button, Input, Select, Tabs, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -128,10 +127,10 @@ const AdminOrdersPage = memo(() => {
           command,
         );
       }
-      message.success(t('admin.orders.actionSuccess', '订单已更新'));
+      toast.success(t('admin.orders.actionSuccess', '订单已更新'));
       await refresh();
     } catch {
-      message.error(t('admin.orders.actionFailed', '订单更新失败'));
+      toast.error(t('admin.orders.actionFailed', '订单更新失败'));
     } finally {
       setActingId(null);
     }
@@ -208,12 +207,15 @@ const AdminOrdersPage = memo(() => {
                         ordersQuery.state.reset();
                       }}
                     />
-                    <Input.Search
+                    {/* base-ui Input has no Search compound: Enter-to-apply
+                        keeps the antd `onSearch` UX (no test locks this
+                        interaction; value applies on Enter only). */}
+                    <Input
                       allowClear
                       className={styles.search}
                       placeholder={t('admin.orders.filter.userId', '用户 ID')}
-                      onSearch={(value: string) => {
-                        setUserId(value);
+                      onPressEnter={(event) => {
+                        setUserId(event.currentTarget.value);
                         ordersQuery.state.reset();
                       }}
                     />

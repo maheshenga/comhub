@@ -75,10 +75,15 @@ export const sidebarStyles = createStaticStyles(({ css, cssVar }) => ({
     }
 
     /* Selected entry: primary text on primary bg; the 3px rounded accent bar
-       comes from ConfigProvider itemSelectedBg/itemSelectedColor at the Admin
-       layout root (spec §2.2.2 path ①) — this block only adds the bar. */
+       rides on top. ux-redesign-spec §2.2.2 path ②: the sidebar Menu is the
+       @lobehub/ui wrapper, which pins itemSelectedBg/itemSelectedColor through
+       its own nested ConfigProvider — post-class selectors + cssVar refs are
+       the sanctioned fallback channel (no raw hex). */
     .ant-menu-item.ant-menu-item-selected {
       position: relative;
+
+      color: ${cssVar.colorPrimary} !important;
+      background: ${cssVar.colorPrimaryBg} !important;
     }
 
     .ant-menu-item.ant-menu-item-selected::before {
