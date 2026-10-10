@@ -1,6 +1,8 @@
 'use client';
 
-import { createStaticStyles, cssVar } from 'antd-style';
+import { createStaticStyles } from 'antd-style';
+
+import { adminColorRoles, adminDesignStyles } from './adminDesignTokens';
 
 export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
   actions: css`
@@ -41,7 +43,7 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
 
     background: color-mix(in srgb, ${cssVar.colorBgContainer} 94%, transparent);
     backdrop-filter: blur(12px);
-    box-shadow: 0 -4px 16px rgb(0 0 0 / 6%);
+    box-shadow: ${adminColorRoles.stickyTopShadow};
 
     @media (width < 640px) {
       justify-content: stretch;
@@ -96,6 +98,18 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+  `,
+  kicker: css`
+    overflow: hidden;
+    margin: 0;
+
+    /* Composed from adminDesignStyles.caption (token consumption, review
+       round 2): adds the hidden-overflow ellipsis the eyebrow needs. */
+    ${adminDesignStyles.caption}
+    text-overflow: ellipsis;
+  `,
+  footerSlot: css`
+    margin-block-start: auto;
   `,
   metric: css`
     display: grid;
@@ -177,11 +191,9 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
   metricValue: css`
     overflow: hidden;
 
-    font-family: ${cssVar.fontFamilyCode};
-    font-size: ${cssVar.fontSizeXL};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 28px;
-    color: ${cssVar.colorText};
+    /* Composed from adminDesignStyles.numericText (token consumption,
+       review round 2): adds the one-line ellipsis the strip cell needs. */
+    ${adminDesignStyles.numericText}
     text-overflow: ellipsis;
     white-space: nowrap;
   `,
@@ -228,6 +240,15 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     gap: 16px;
     min-width: 0;
   `,
+  sectionCarded: css`
+    box-sizing: border-box;
+    padding: 16px;
+    border: 1px solid ${adminColorRoles.border};
+    border-radius: ${adminColorRoles.cardRadius};
+
+    background: ${adminColorRoles.cardBg};
+    box-shadow: ${adminColorRoles.cardShadow};
+  `,
   sectionDescription: css`
     margin-block: 2px 0;
     margin-inline: 0;
@@ -251,26 +272,14 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
     }
   `,
   sectionTitle: css`
-    margin: 0;
-
-    font-size: ${cssVar.fontSizeLG};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 24px;
-    color: ${cssVar.colorText};
+    /* Composed from adminDesignStyles.sectionTitle (token consumption,
+       review round 2). */
+    ${adminDesignStyles.sectionTitle}
   `,
   title: css`
-    margin: 0;
-
-    font-size: ${cssVar.fontSizeHeading3};
-    font-weight: ${cssVar.fontWeightStrong};
-    line-height: 32px;
-    color: ${cssVar.colorText};
-    letter-spacing: 0;
-
-    @media (width < 640px) {
-      font-size: ${cssVar.fontSizeHeading4};
-      line-height: 28px;
-    }
+    /* Composed from adminDesignStyles.pageTitle (token consumption,
+       review round 2). */
+    ${adminDesignStyles.pageTitle}
   `,
   toolbar: css`
     display: flex;
@@ -290,5 +299,6 @@ export const adminPageStyles = createStaticStyles(({ css, cssVar }) => ({
 
     background: color-mix(in srgb, ${cssVar.colorBgLayout} 92%, transparent);
     backdrop-filter: blur(12px);
+    box-shadow: ${adminColorRoles.stickyBottomShadow};
   `,
 }));

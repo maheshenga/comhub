@@ -70,6 +70,12 @@ export interface AdminCursorQueryResult<Cursor, Data> {
   /** Derived pager state for `AdminDataTable.pager`. */
   pager: { hasNext: boolean; hasPrevious: boolean; onNext: () => void; onPrevious: () => void };
   state: AdminCursorState<Cursor>;
+  /**
+   * The exact SWR key the primitive feeds useClientDataSWR — pages must
+   * mutate/refresh through `mutate()` or this key, never re-derive the shape
+   * locally (single source of truth; review round 2).
+   */
+  swrKey: readonly unknown[];
 }
 
 /**
@@ -137,6 +143,7 @@ export const useAdminCursorQuery = <Cursor, Data>(
     nextCursor,
     pager,
     state: { ...state, reset },
+    swrKey,
   };
 };
 

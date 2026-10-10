@@ -1,11 +1,11 @@
 'use client';
 
 import { isAdminRole } from '@lobechat/types';
-import { ActionIcon, Flexbox, Icon, Skeleton } from '@lobehub/ui';
-import { FloatingSheet } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, FloatingSheet, Skeleton } from '@lobehub/ui/base-ui';
 import { createStaticStyles, useResponsive } from 'antd-style';
-import { ChevronRight, Home, Menu, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ChevronRight, Home, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, Outlet, useLocation } from 'react-router';
 
@@ -17,6 +17,8 @@ import {
 } from '@/features/Admin/adminNavigation';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
+
+const ADMIN_NAV_COLLAPSED_KEY = 'comhub-admin-nav-collapsed';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   breadcrumb: css`
@@ -115,7 +117,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   layout: css`
     overflow: hidden;
     display: grid;
-    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-columns: var(--admin-sidebar-width, 264px) minmax(0, 1fr);
     flex: 1;
 
     width: 100%;
@@ -123,9 +125,17 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     height: 100%;
     min-height: 0;
 
+    transition: grid-template-columns 200ms ease;
+
     @media (width < 992px) {
       grid-template-columns: minmax(0, 1fr);
     }
+  `,
+  layoutCollapsed: css`
+    --admin-sidebar-width: 64px;
+  `,
+  collapseToggle: css`
+    flex-shrink: 0;
   `,
   loading: css`
     box-sizing: border-box;
@@ -168,6 +178,21 @@ const AdminLayout = () => {
   const { lg = true, mobile = false } = useResponsive();
   const useNavigationSheet = shouldUseAdminNavigationSheet({ lg, mobile });
   const [navigationOpen, setNavigationOpen] = useState(false);
+  // ux-redesign-spec §2.3: desktop-only sidebar collapse (≥992px keeps the
+  // FloatingSheet drawer below that width untouched). Persisted as a UI
+  // preference; the openKeys derivation stays untouched (dead value while
+  // collapsed is harmless — antd forces submenus shut under inlineCollapsed).
+  // SSR-safe: the initial render always claims the expanded layout so server
+  // and client markup match; the persisted preference applies post-hydration
+  // via the effect (review round 2: lazy localStorage read caused hydration
+  // attribute mismatch + first-frame width jump).
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  useEffect(() => {
+    if (window.localStorage.getItem(ADMIN_NAV_COLLAPSED_KEY) === '1') setNavCollapsed(true);
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem(ADMIN_NAV_COLLAPSED_KEY, navCollapsed ? '1' : '0');
+  }, [navCollapsed]);
   const [user, isUserStateInit] = useUserStore((s) => [
     userProfileSelectors.userProfile(s),
     s.isUserStateInit,
@@ -177,11 +202,11 @@ const AdminLayout = () => {
     () => getAdminNavigationContext(role, location.pathname),
     [location.pathname, role],
   );
-
   if (!isUserStateInit) {
     return (
       <Flexbox className={styles.loading} data-testid="admin-layout-loading" gap={16}>
-        <Skeleton active paragraph={{ rows: 6 }} />
+        <Skeleton animated height={18} />
+        <Skeleton.Text rows={6} />
       </Flexbox>
     );
   }
@@ -202,10 +227,22 @@ const AdminLayout = () => {
     : '';
 
   return (
-    <div className={styles.layout} data-testid="admin-layout-shell">
+    // Menu selected-state styling is owned by sidebarStyles post-class
+    // selectors (ux-redesign-spec §2.2.2 path ②) — no ConfigProvider token
+    // wrapper here: the @lobehub/ui Menu wrapper pins its own Menu tokens in
+    // a nested provider, which would dead-store anything declared outside.
+    <div
+      data-testid="admin-layout-shell"
+      className={[
+        styles.layout,
+        !useNavigationSheet && navCollapsed ? styles.layoutCollapsed : null,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {!useNavigationSheet ? (
         <aside aria-label={t('admin.navigation.title', '管理后台')} className={styles.sidebar}>
-          <AdminSidebar />
+          <AdminSidebar collapsed={navCollapsed} />
         </aside>
       ) : null}
       <div className={styles.contentColumn}>
@@ -216,6 +253,22 @@ const AdminLayout = () => {
                 icon={Menu}
                 title={t('admin.navigation.open', '打开管理导航')}
                 onClick={() => setNavigationOpen(true)}
+              />
+            ) : null}
+            {!useNavigationSheet && !mobile ? (
+              <ActionIcon
+                className={styles.collapseToggle}
+                icon={navCollapsed ? PanelLeftOpen : PanelLeftClose}
+                size={{ blockSize: 28, borderRadius: 6, size: 16 }}
+                aria-label={t(
+                  'admin.navigation.toggleCollapse',
+                  navCollapsed ? '展开管理导航' : '折叠管理导航',
+                )}
+                title={t(
+                  'admin.navigation.toggleCollapse',
+                  navCollapsed ? '展开管理导航' : '折叠管理导航',
+                )}
+                onClick={() => setNavCollapsed((v) => !v)}
               />
             ) : null}
             {mobile ? (

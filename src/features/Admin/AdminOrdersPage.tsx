@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
-import { Input, message } from 'antd';
+import { Button, Input, Select, Tabs, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,22 +10,23 @@ import { useNavigate } from 'react-router';
 import InlineTable from '@/components/InlineTable';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { buildAdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
 import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
-import { buildOrderColumns } from './Orders/orderColumns';
-import { OrderDetailDrawer } from './Orders/OrderDetailDrawer';
 import {
   BulkDryRunAlert,
+  type BulkOrderDryRun,
   isBulkEligibleOrder,
   OrderBulkToolbar,
-  type BulkOrderDryRun,
   orderRowSelection,
 } from './Orders/orderBulkToolbar';
+import { buildOrderColumns } from './Orders/orderColumns';
+import { OrderDetailDrawer } from './Orders/OrderDetailDrawer';
 import type { AdminOrderDetail, OrderStatus, PendingOrderCommand } from './Orders/shared';
 import { buildTopUpPaymentUrl } from './Orders/shared';
+import { useAdminCursorQuery } from './shared/useAdminCursorQuery';
 
 const styles = createStaticStyles(({ css }) => ({
   filters: css`
@@ -52,24 +52,31 @@ const styles = createStaticStyles(({ css }) => ({
 const AdminOrdersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const navigate = useNavigate();
-  const [cursorStack, setCursorStack] = useState([0]);
-  const cursor = cursorStack.at(-1) ?? 0;
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [userId, setUserId] = useState('');
   const [actingId, setActingId] = useState<string | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
-  const swrKey = useMemo(
-    () => ['admin-orders', cursor, status, userId.trim()] as const,
-    [cursor, status, userId],
-  );
-  const { data, isLoading } = useClientDataSWR(swrKey, () =>
-    adminCommercialService.listOrders({
-      cursor,
-      limit: 50,
-      status,
-      userId: userId.trim() || undefined,
-    }),
-  );
+  // T1 样板（ux-redesign-spec §3.4/§6 B3）：游标栈与 deps 重置收编进
+  // useAdminCursorQuery。cursor 落 swrKey[1]（AdminPagination.test mock 按位
+  // 置读取），status/userId 作为 deps 追加；首页 fetch 序列化层保持 cursor ?? 0。
+  // refresh 直接用 primitive 的 mutate（swrKey 单一事实源在 hook 内部）。
+  const trimUserId = userId.trim();
+  // Draft state for the user-ID filter input: typing must not refetch per
+  // keystroke (userId drives the query deps); the explicit search button and
+  // Enter commit the draft (applyUserIdFilter below).
+  const [userIdDraft, setUserIdDraft] = useState('');
+  const ordersQuery = useAdminCursorQuery<number, { items: any[]; nextCursor: number | null }>({
+    key: 'admin-orders',
+    deps: [status, trimUserId],
+    fetcher: ({ cursor, limit }) =>
+      adminCommercialService.listOrders({
+        cursor: cursor ?? 0,
+        limit,
+        status,
+        userId: trimUserId || undefined,
+      }),
+  });
+  const { data, isLoading } = ordersQuery;
   const { data: orderDetail, isLoading: orderDetailLoading } = useClientDataSWR(
     orderDetailId ? ['admin-order-detail', orderDetailId] : null,
     async (): Promise<AdminOrderDetail> =>
@@ -100,8 +107,11 @@ const AdminOrdersPage = memo(() => {
     return preview;
   };
 
-  const refresh = async () => mutate(swrKey);
-
+  const refresh = async () => ordersQuery.mutate();
+  const applyUserIdFilter = () => {
+    setUserId(userIdDraft);
+    ordersQuery.state.reset();
+  };
   const handlePendingAction = async (
     orderId: string,
     action: 'cancel' | 'expire' | 'settle',
@@ -119,10 +129,10 @@ const AdminOrdersPage = memo(() => {
           command,
         );
       }
-      message.success(t('admin.orders.actionSuccess', '订单已更新'));
+      toast.success(t('admin.orders.actionSuccess', '订单已更新'));
       await refresh();
     } catch {
-      message.error(t('admin.orders.actionFailed', '订单更新失败'));
+      toast.error(t('admin.orders.actionFailed', '订单更新失败'));
     } finally {
       setActingId(null);
     }
@@ -196,18 +206,27 @@ const AdminOrdersPage = memo(() => {
                       ).map((value) => ({ label: value, value }))}
                       onChange={(value: OrderStatus) => {
                         setStatus(value);
-                        setCursorStack([0]);
+                        ordersQuery.state.reset();
                       }}
                     />
-                    <Input.Search
+                    {/* base-ui Input has no Search compound: explicit search
+                        button + Enter both apply the draft value (restores
+                        the antd onSearch affordance lost in the migration). */}
+                    <Input
                       allowClear
                       className={styles.search}
                       placeholder={t('admin.orders.filter.userId', '用户 ID')}
-                      onSearch={(value: string) => {
-                        setUserId(value);
-                        setCursorStack([0]);
-                      }}
+                      value={userIdDraft}
+                      onChange={(event) => setUserIdDraft(event.currentTarget.value)}
+                      onPressEnter={() => applyUserIdFilter()}
                     />
+                    <Button
+                      aria-label={t('admin.orders.filter.userId', '用户 ID')}
+                      size="small"
+                      onClick={() => applyUserIdFilter()}
+                    >
+                      {t('admin.orders.filter.search', '搜索')}
+                    </Button>
                   </div>
                   {effectiveSelectedIds.length > 0 ? (
                     <OrderBulkToolbar
@@ -223,8 +242,8 @@ const AdminOrdersPage = memo(() => {
                 </AdminToolbar>
                 <BulkDryRunAlert
                   dryRun={bulkDryRun}
-                  onDismiss={() => setBulkDryRun(null)}
                   t={t as any}
+                  onDismiss={() => setBulkDryRun(null)}
                 />
                 <AdminResponsiveTable label={t('admin.orders.tableLabel', '订单数据表')}>
                   <InlineTable
@@ -235,22 +254,18 @@ const AdminOrdersPage = memo(() => {
                     rowSelection={orderRowSelection(effectiveSelectedIds, setSelectedOrderIds)}
                   />
                 </AdminResponsiveTable>
-                {(cursorStack.length > 1 || data?.nextCursor != null) && (
+                {(ordersQuery.hasPrevious || ordersQuery.hasNext) && (
                   <Flexbox horizontal align="center" gap={8}>
                     <Button
-                      disabled={cursorStack.length === 1}
-                      onClick={() =>
-                        setCursorStack((current) =>
-                          current.length > 1 ? current.slice(0, -1) : current,
-                        )
-                      }
+                      disabled={!ordersQuery.hasPrevious}
+                      onClick={ordersQuery.pager.onPrevious}
                     >
                       {t('admin.pagination.previous', '上一页')}
                     </Button>
                     <Button
-                      disabled={data?.nextCursor == null}
+                      disabled={!ordersQuery.hasNext}
                       loading={isLoading}
-                      onClick={() => setCursorStack((current) => [...current, data!.nextCursor!])}
+                      onClick={ordersQuery.pager.onNext}
                     >
                       {t('admin.pagination.next', '下一页')}
                     </Button>
