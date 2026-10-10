@@ -54,7 +54,8 @@ describe('admin system management experience', () => {
     expect(page).toContain('AdminDangerousActionButton');
     // M3 split: the page kept Button/Select from base-ui; the result modal's
     // base-ui Modal import moved with the RunResultModal block.
-    expect(page).toContain("import { Button, Select } from '@lobehub/ui/base-ui'");
+    // B4/B5 收敛：base-ui 导入并集含 Alert/toast（message→toast、Alert→base-ui）。
+    expect(page).toContain("import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui'");
     expect(readRepoFile('src/features/Admin/SystemMaintenance/RunResultModal.tsx')).toContain(
       "import { Modal } from '@lobehub/ui/base-ui'",
     );
@@ -65,7 +66,8 @@ describe('admin system management experience', () => {
 
     expect(page).toContain('AdminPageShell');
     expect(page).toContain('AdminSection');
-    expect(page).toContain("import { Button } from '@lobehub/ui/base-ui'");
+    // B4/B5 收敛：Alert 随全域 no-restricted-imports 收敛并入 base-ui 导入。
+    expect(page).toContain("import { Alert, Button } from '@lobehub/ui/base-ui'");
     expect(page).not.toContain('padding={24}');
     expect(page).not.toContain('style={{ maxWidth');
   });

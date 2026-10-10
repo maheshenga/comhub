@@ -56,7 +56,9 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     </select>
   ),
   toast: { error: vi.fn(), success: vi.fn() },
-}));
+
+  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
+  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 describe('ModuleRevenuePage', () => {

@@ -106,7 +106,9 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   ),
   TextArea: (props: any) => <textarea {...props} />,
   toast,
-}));
+
+  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
+  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
 vi.mock('antd', () => ({
   Alert: ({ message }: any) => <div role="alert">{message}</div>,
   Space: ({ children }: any) => <div>{children}</div>,
