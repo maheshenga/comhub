@@ -36,7 +36,40 @@ const navKeysForItems = ADMIN_CATALOG.flatMap((item) => [
   `admin.navigation.items.${item.id}.label`,
   `admin.navigation.items.${item.id}.description`,
 ]);
-const allNavKeys = [...navKeysForGroups, ...navKeysForItems];
+// 子栏目标签（方案 §2.2）。B6 先备齐三源文案，B8 才渲染；缺一边英文用户就会
+// 看到裸 key 或中文标签。取值范围含尚未被 catalog 引用的 4 个模块分区键
+// （module-finance / module-operations / module-audit / workbench-quick）——
+// 它们在 B7/B8 接线时才被引用，文案现在就位免得接线时再补三处。
+const declaredSubSections = [
+  'ai-catalog',
+  'ai-generate',
+  'ai-sources',
+  'audit-log',
+  'client-desktop',
+  'content-growth',
+  'content-operations',
+  'content-resources',
+  'finance-accounts',
+  'finance-analytics',
+  'finance-products',
+  'finance-settlement',
+  'module-audit',
+  'module-catalog',
+  'module-finance',
+  'module-operations',
+  'platform-brand',
+  'platform-infra',
+  'platform-maintenance',
+  'platform-runtime',
+  'user-support-defaults',
+  'user-support-identity',
+  'workbench-overview',
+  'workbench-quick',
+];
+const navKeysForSubSections = declaredSubSections.map(
+  (key) => `admin.navigation.subSections.${key}.label`,
+);
+const allNavKeys = [...navKeysForGroups, ...navKeysForItems, ...navKeysForSubSections];
 
 describe('adminNavigationLocales', () => {
   it('translates every catalog group key in all three locale sources', () => {
@@ -62,6 +95,19 @@ describe('adminNavigationLocales', () => {
       const missing = navKeysForItems.filter((key) => !dictionary[key]);
 
       expect(missing, `${name} is missing admin item translations`).toEqual([]);
+    }
+  });
+
+  it('translates every sub-section key in all three locale sources', () => {
+    for (const source of [
+      ['default', defaultSubscription],
+      ['en-US', enUS],
+      ['zh-CN', zhCN],
+    ] as const) {
+      const [name, dictionary] = source;
+      const missing = navKeysForSubSections.filter((key) => !dictionary[key]);
+
+      expect(missing, `${name} is missing admin sub-section translations`).toEqual([]);
     }
   });
 
