@@ -4,10 +4,7 @@ import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 
 import InlineTable from '@/components/InlineTable';
-import {
-  type AuditRow,
-  BulkAuditGroupSummary,
-} from '@/features/Admin/Audit/auditParts';
+import { type AuditRow, BulkAuditGroupSummary } from '@/features/Admin/Audit/auditParts';
 import { AdminResponsiveTable } from '@/features/Admin/layout';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => string;
@@ -62,11 +59,10 @@ export const AdminAuditTableSection = ({
       {hasMore && nextCursor != null ? (
         <Flexbox align="center">
           <Button loading={loading} onClick={() => onCursor(nextCursor)}>
-            {t('admin.audit.loadMore', '加载更多')}
+            {t('admin.audit.nextPage', '下一页')}
           </Button>
         </Flexbox>
       ) : null}
     </>
   );
 };
-

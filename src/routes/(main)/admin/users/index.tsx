@@ -32,7 +32,11 @@ import { AdminPageError } from '@/features/Admin/layout';
 import { type AssignableRole, EMPTY_TEXT, type UserRow } from '@/features/Admin/Users/shared';
 import { UserBulkToolbar } from '@/features/Admin/Users/userBulkToolbar';
 import { buildUserColumns } from '@/features/Admin/Users/userColumns';
-import { AdjustCreditsModal, BanUserModal, ResetAllToFreePlanSection } from '@/features/Admin/Users/userDangerousParts';
+import {
+  AdjustCreditsModal,
+  BanUserModal,
+  ResetAllToFreePlanSection,
+} from '@/features/Admin/Users/userDangerousParts';
 import { exportUsersCsv } from '@/features/Admin/Users/usersCsv';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -341,9 +345,11 @@ const AdminUsersPage = memo(() => {
   const handleExport = async () => {
     setExporting(true);
     try {
+      // 导出跟随当前搜索词：管理员筛选后再导出，拿到的应当就是屏幕上这份名单，
+      // 而不是全站前 1 万条（此前硬编码 query: undefined，导出与列表对不上）。
       const result = await adminCommercialService.exportUsers({
         limit: 10_000,
-        query: undefined,
+        query: query || undefined,
       });
       exportUsersCsv(result.items as any[], t);
       toast.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
@@ -495,7 +501,7 @@ const AdminUsersPage = memo(() => {
       </AdminSection>
       {canSetRoles ? (
         <AdminSection
-        carded
+          carded
           title={t('admin.users.dangerTitle', '批量危险操作')}
           description={t(
             'admin.users.dangerDescription',

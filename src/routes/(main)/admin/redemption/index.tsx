@@ -340,7 +340,7 @@ const AdminRedemptionPage = memo(() => {
         {data?.nextCursor != null && (
           <Flexbox align="center">
             <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-              {t('admin.redemption.loadMore', '加载更多')}
+              {t('admin.redemption.nextPage', '下一页')}
             </Button>
           </Flexbox>
         )}

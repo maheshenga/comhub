@@ -11,7 +11,10 @@ import InlineTable from '@/components/InlineTable';
 import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
-import { CreditsRechargeModal, exportCreditAccountsCsv } from '@/features/Admin/Credits/rechargeParts';
+import {
+  CreditsRechargeModal,
+  exportCreditAccountsCsv,
+} from '@/features/Admin/Credits/rechargeParts';
 import { buildCreditAccountColumns } from '@/features/Admin/Credits/shared';
 import {
   AdminPageError,
@@ -194,14 +197,19 @@ const AdminCreditsPage = memo(() => {
           </AdminResponsiveTable>
         ) : (
           <AdminResponsiveTable label={t('admin.credits.tableLabel', '积分账户表')}>
-            <InlineTable columns={columns as any} dataSource={items} loading={isLoading} rowKey="userId" />
+            <InlineTable
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              rowKey="userId"
+            />
           </AdminResponsiveTable>
         )}
 
         {data?.nextCursor != null && (
           <Flexbox align="center">
             <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-              {t('admin.credits.loadMore', '加载更多')}
+              {t('admin.credits.nextPage', '下一页')}
             </Button>
           </Flexbox>
         )}
