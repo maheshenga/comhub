@@ -258,6 +258,15 @@ export default defineConfig({
             '@lobehub/ui/brand',
             '@lobehub/ui/mdx',
             '@lobehub/fluent-emoji',
+            // 41 Admin source files import it (every `createStaticStyles` module). Left
+            // unprebundled, each test file that pulls it in transitively re-evaluates
+            // its whole graph — an isolated `import('antd-style')` measured ~1.9s.
+            // Prebundling shaves ~6% off the Admin suite (79.1s -> 74.4s, measured
+            // with a cold optimizer cache). It does NOT let the per-test timeouts in
+            // AdminMobileSettingsPage.test.tsx be removed: the slow tests render the
+            // mobile preview 20+ times and still need 5.5-9.6s each, so those
+            // overrides stay.
+            'antd-style',
             'motion',
             'motion/react',
           ],
