@@ -357,7 +357,7 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
       align: 'end',
       dataIndex: 'credits',
       key: 'credits',
-      render: (_, record) => formatNumber(record.credits ?? 0),
+      render: (_, record) => formatCredits(record.credits ?? 0),
       sorter: true,
       sortOrder: sort?.field === 'credits' ? sort.order : null,
       title: '\u6D88\u8017\u79EF\u5206',

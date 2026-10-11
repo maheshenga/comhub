@@ -12,7 +12,7 @@ import { commercialService } from '@/services/commercial';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
-import { subscriptionPageStyles, useBusinessSubscriptionProfile } from './shared';
+import { formatCredits, subscriptionPageStyles, useBusinessSubscriptionProfile } from './shared';
 
 const styles = createStaticStyles(({ css }) => ({
   overviewHeader: css`
@@ -53,9 +53,6 @@ const styles = createStaticStyles(({ css }) => ({
     width: 100%;
   `,
 }));
-
-const formatAtomicCredits = (value: number) =>
-  new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 
 const formatStorage = (bytes: number) =>
   `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(bytes / 1024 / 1024)} MB`;
@@ -130,13 +127,13 @@ const Usage = memo<{ mobile?: boolean }>(({ mobile }) => {
       <div className={styles.quotaGrid}>
         {[
           {
-            formatter: formatAtomicCredits,
+            formatter: formatCredits,
             quota: subscriptionQuota,
             title: '积分',
             used: subscriptionUsed,
           },
           {
-            formatter: formatAtomicCredits,
+            formatter: formatCredits,
             quota: referralQuota,
             title: '返利积分',
             used: referralUsed,
