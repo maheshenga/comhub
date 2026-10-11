@@ -242,6 +242,11 @@ export const useCategory = () => {
         key: SettingsTabs.Creds,
         label: t('tab.creds'),
       },
+      // APIKey 在 Agent（受服务端 feature flag showApiKeyManage）与 Developer
+      // （受用户设置 isDevMode）各有一个入口。两个条件互相独立、可同时为真，
+      // 此时侧栏会渲染两行同名同图标条目并同时高亮。这是既有实现，按方案
+      // §3.5.1 决定原样保留（两条件语义不同，更像有意的双入口），此处仅补
+      // 注释说明，不擅自去重——真要去重应先由产品裁定保留哪一个入口。
       showApiKeyManage && {
         icon: KeyIcon,
         key: SettingsTabs.APIKey,
@@ -303,6 +308,7 @@ export const useCategory = () => {
         key: SettingsTabs.Advanced,
         label: t('tab.advanced'),
       },
+      // 见 Agent 组的同名条目：双入口为既有实现，按方案 §3.5.1 原样保留。
       isDevMode && {
         icon: KeyIcon,
         key: SettingsTabs.APIKey,
