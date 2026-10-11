@@ -99,6 +99,8 @@ const runtimeState = vi.hoisted(() => ({
   adminRole: 'admin',
   errorDomain: undefined as string | undefined,
   scheduleDispatchEnabled: false,
+  // 区块拉满 limit 且服务端返回 nextCursor = 该区块被截断。
+  truncated: false,
 }));
 
 vi.mock('@/services/adminCommercial', () => ({
@@ -181,22 +183,23 @@ vi.mock('@/libs/swr', () => ({
         isLoading: false,
       };
     }
+    const record = {
+      collectionKey: 'records',
+      fileName: 'result.md',
+      mimeType: 'text/markdown',
+      scopeType: 'personal',
+      status: 'succeeded',
+      storageKey: 'module-apps/app-1/result.md',
+    };
+
     return {
       data: {
         items: error
           ? []
-          : [
-              {
-                collectionKey: 'records',
-                fileName: 'result.md',
-                id: `${domain}-1`,
-                mimeType: 'text/markdown',
-                scopeType: 'personal',
-                status: 'succeeded',
-                storageKey: 'module-apps/app-1/result.md',
-              },
-            ],
-        nextCursor: null,
+          : runtimeState.truncated
+            ? Array.from({ length: 10 }, (_, index) => ({ ...record, id: `${domain}-${index}` }))
+            : [{ ...record, id: `${domain}-1` }],
+        nextCursor: runtimeState.truncated ? 'next-page-cursor' : null,
       },
       error,
       isLoading: false,
@@ -233,6 +236,7 @@ describe('ModuleAppRuntimePage', () => {
     runtimeState.adminRole = 'admin';
     runtimeState.errorDomain = undefined;
     runtimeState.scheduleDispatchEnabled = false;
+    runtimeState.truncated = false;
     vi.clearAllMocks();
   });
 
@@ -335,6 +339,36 @@ describe('ModuleAppRuntimePage', () => {
       'href',
       '/settings/admin/modules/operations/installs?appId=app-1',
     );
+  });
+
+  // 四个内联区块都按 limit 拉取且不翻页，服务端在满额时会返回 nextCursor。
+  // 此前该字段被丢弃，管理员看到 10 行时分不清「一共就 10 条」和「被截断到
+  // 10 条」——后者意味着可能漏看了故障多发的早期运行记录。
+  it('tells the admin when a section is truncated rather than showing a full-looking list', async () => {
+    runtimeState.truncated = true;
+
+    renderPage();
+
+    await waitFor(() => {
+      for (const section of ['installs', 'records', 'runs', 'artifacts']) {
+        expect(screen.getByTestId(`module-runtime-${section}-truncated`)).toBeInTheDocument();
+      }
+    });
+
+    expect(
+      screen.getAllByText('moduleApps.admin.runtime.truncated'),
+    ).toHaveLength(4);
+  });
+
+  it('does not claim truncation when a section returned everything it asked for', async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('module-runtime-installs')).toBeInTheDocument(),
+    );
+
+    expect(screen.queryByTestId('module-runtime-installs-truncated')).not.toBeInTheDocument();
+    expect(screen.queryByText('moduleApps.admin.runtime.truncated')).not.toBeInTheDocument();
   });
 
   it('keeps section errors and retries independent', () => {
