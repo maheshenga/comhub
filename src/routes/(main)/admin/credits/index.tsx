@@ -117,6 +117,7 @@ const AdminCreditsPage = memo(() => {
       width="full"
     >
       <AdminSection
+        carded
         description={t('admin.credits.resultSummary', '按余额或变动情况筛选账户。')}
         title={t('admin.credits.listTitle', '账户列表')}
       >

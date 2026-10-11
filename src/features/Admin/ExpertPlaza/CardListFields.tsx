@@ -12,6 +12,7 @@ import SpacePreview from './SpacePreview';
 
 const CardListFields = ({ form }: { form: FormInstance<any> }) => (
   <AdminSection
+        carded
     description="卡片按列表顺序展示；必填标题和描述，ID 留空时会根据标题生成。"
     title="卡片信息"
   >

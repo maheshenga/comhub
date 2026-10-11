@@ -14,6 +14,7 @@ const FeaturedSection = ({ isLoading }: { isLoading: boolean }) => {
 
   return (
           <AdminSection
+        carded
             title={t('admin.operations.featuredSection', '精选模块')}
             description={t(
               'admin.operations.featuredSectionDescription',

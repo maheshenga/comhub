@@ -154,6 +154,7 @@ const AdminGrowthPage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.growth.signupSection', '注册')}
             description={t(
               'admin.growth.signupSectionDescription',
@@ -189,6 +190,7 @@ const AdminGrowthPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.growth.onboardingSection', '新用户初始化')}
             description={t(
               'admin.growth.onboardingSectionDescription',
@@ -217,6 +219,7 @@ const AdminGrowthPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.growth.referralSection', '邀请与推荐')}
             description={t(
               'admin.growth.referralSectionDescription',
@@ -238,6 +241,7 @@ const AdminGrowthPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.growth.uploadSection', '上传限制')}
             description={t(
               'admin.growth.uploadSectionDescription',

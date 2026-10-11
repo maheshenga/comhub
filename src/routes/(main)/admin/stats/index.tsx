@@ -101,7 +101,8 @@ const AdminStatsPage = memo(() => {
       title={t('admin.stats.title', '运营统计')}
       width="full"
     >
-      <AdminSection title={t('admin.stats.overview', '核心指标')}>
+      <AdminSection
+        carded title={t('admin.stats.overview', '核心指标')}>
         {overviewError ? (
           <AdminPageError
             description={t('admin.stats.overviewLoadFailed', '核心指标加载失败，请重试。')}
@@ -148,7 +149,8 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection title={t('admin.stats.dauTrend', '最近 30 天日活趋势')}>
+      <AdminSection
+        carded title={t('admin.stats.dauTrend', '最近 30 天日活趋势')}>
         {dauTrendError ? (
           <AdminPageError
             description={t('admin.stats.dauLoadFailed', '日活趋势加载失败，请重试。')}
@@ -165,7 +167,8 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection title={t('admin.stats.subsByPlan', '订阅按套餐分布')}>
+      <AdminSection
+        carded title={t('admin.stats.subsByPlan', '订阅按套餐分布')}>
         {byPlanError ? (
           <AdminPageError
             description={t('admin.stats.subscriptionsLoadFailed', '套餐分布加载失败，请重试。')}
@@ -202,7 +205,8 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection title={t('admin.stats.revenueByMonth', '最近 6 个月实收收入与订阅快照估算')}>
+      <AdminSection
+        carded title={t('admin.stats.revenueByMonth', '最近 6 个月实收收入与订阅快照估算')}>
         {revenueError ? (
           <AdminPageError
             description={t('admin.stats.revenueLoadFailed', '收入趋势加载失败，请重试。')}
@@ -247,7 +251,8 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection title={t('admin.stats.redemption.title', '兑换码')}>
+      <AdminSection
+        carded title={t('admin.stats.redemption.title', '兑换码')}>
         {redemptionError ? (
           <AdminPageError
             description={t('admin.stats.redemptionLoadFailed', '兑换码统计加载失败，请重试。')}

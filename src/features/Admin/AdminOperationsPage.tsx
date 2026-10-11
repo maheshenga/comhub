@@ -172,6 +172,7 @@ const AdminOperationsPage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.operations.bannerSection', '社区横幅')}
             description={t(
               'admin.operations.bannerSectionDescription',

@@ -389,6 +389,7 @@ const AdminUsersPage = memo(() => {
       )}
     >
       <AdminSection
+        carded
         title={t('admin.users.listTitle', '用户列表')}
         description={
           t('admin.users.resultSummary', {
@@ -494,6 +495,7 @@ const AdminUsersPage = memo(() => {
       </AdminSection>
       {canSetRoles ? (
         <AdminSection
+        carded
           title={t('admin.users.dangerTitle', '批量危险操作')}
           description={t(
             'admin.users.dangerDescription',

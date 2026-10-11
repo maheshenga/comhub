@@ -174,7 +174,8 @@ const AdminPlansPage = memo(() => {
       title={t('admin.plans.title', '套餐管理')}
       width="full"
     >
-      <AdminSection>
+      <AdminSection
+        carded>
         <Alert
           showIcon
           type="info"
@@ -222,7 +223,8 @@ const AdminPlansPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection title={t('admin.plans.faqTitle', '套餐配置说明')}>
+      <AdminSection
+        carded title={t('admin.plans.faqTitle', '套餐配置说明')}>
         <AdminPlanFaqCard />
       </AdminSection>
 

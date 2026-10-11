@@ -184,6 +184,7 @@ const AdminProvidersPage = memo(() => {
       ) : null}
 
       <AdminSection
+        carded
         title={t('admin.providers.instanceSection', '服务商实例')}
         description={t('admin.providers.instanceSummary', '共 {{count}} 个服务商实例', {
           count: items.length,

@@ -120,6 +120,7 @@ const AdminNotificationsPage = memo(() => {
       <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.notifications.channels', '通知渠道')}
             description={t(
               'admin.notifications.channelsDescription',
@@ -177,6 +178,7 @@ const AdminNotificationsPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.notifications.compatibility', '兼容与保留策略')}
             description={t(
               'admin.notifications.compatibilityDescription',
@@ -209,6 +211,7 @@ const AdminNotificationsPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.notifications.system', '系统公告')}
             description={t(
               'admin.notifications.systemDescription',

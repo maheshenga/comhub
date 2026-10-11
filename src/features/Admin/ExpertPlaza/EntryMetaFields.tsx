@@ -5,7 +5,8 @@ import { Form, Input, Switch } from 'antd';
 import { AdminFormGrid, AdminSection } from '../layout';
 
 const EntryMetaFields = () => (
-  <AdminSection description="设置侧栏入口状态、公开栏目名称和页面分类。" title="入口与页面">
+  <AdminSection
+        carded description="设置侧栏入口状态、公开栏目名称和页面分类。" title="入口与页面">
     <AdminFormGrid>
       <Form.Item label="启用侧栏入口" name="enabled" valuePropName="checked">
         <Switch />

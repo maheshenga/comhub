@@ -141,6 +141,7 @@ const AdminSystemMaintenancePage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.maintenance.cronSection', '定时维护配置')}
             description={t(
               'admin.maintenance.cronSectionDescription',
@@ -185,6 +186,7 @@ const AdminSystemMaintenancePage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.maintenance.runtimeActions', '运行时操作')}
             description={t(
               'admin.maintenance.runtimeActionsDescription',
@@ -211,6 +213,7 @@ const AdminSystemMaintenancePage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.maintenance.memorySection', '记忆系统')}
             description={t(
               'admin.maintenance.memorySectionDescription',

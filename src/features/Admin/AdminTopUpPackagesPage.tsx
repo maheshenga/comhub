@@ -205,6 +205,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
         />
       ) : (
         <AdminSection
+        carded
           title={t('admin.topup.listTitle', '充值套餐列表')}
           description={t('admin.topup.resultSummary', {
             count: items.length,

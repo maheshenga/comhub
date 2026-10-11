@@ -173,6 +173,7 @@ const AdminAuditPage = memo(() => {
       )}
     >
       <AdminSection
+        carded
         description={t('admin.audit.resultSummary', '按操作者、目标、资源或时间范围筛选。')}
         title={t('admin.audit.listTitle', '操作日志')}
       >

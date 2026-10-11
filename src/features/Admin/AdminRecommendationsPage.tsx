@@ -181,6 +181,7 @@ const AdminRecommendationsPage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.recommendations.criteria', '推荐条件')}
             description={t(
               'admin.recommendations.criteriaDescription',

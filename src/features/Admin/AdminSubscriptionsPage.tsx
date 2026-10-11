@@ -175,6 +175,7 @@ const AdminSubscriptionsPage = memo(() => {
           {
             children: (
               <AdminSection
+        carded
                 title={t('admin.subscriptions.listTitle', '订阅记录')}
                 description={t('admin.subscriptions.resultSummary', {
                   count: items.length,

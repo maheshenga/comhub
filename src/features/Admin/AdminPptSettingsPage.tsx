@@ -139,6 +139,7 @@ const AdminPptSettingsPage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.ppt.connectionSection', '服务连接')}
             description={t(
               'admin.ppt.connectionSectionDescription',
@@ -192,6 +193,7 @@ const AdminPptSettingsPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.ppt.defaultsSection', '创作默认值')}
             description={t(
               'admin.ppt.defaultsSectionDescription',
@@ -234,6 +236,7 @@ const AdminPptSettingsPage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.ppt.permissionsSection', '导出权限与审计')}
             description={t(
               'admin.ppt.permissionsSectionDescription',
