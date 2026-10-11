@@ -116,4 +116,11 @@ export const runtimeStyles = createStaticStyles(({ css, cssVar }) => ({
     padding-block: 16px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
+  truncated: css`
+    margin: 0;
+
+    font-size: 13px;
+    line-height: 1.5;
+    color: ${cssVar.colorTextSecondary};
+  `,
 }));

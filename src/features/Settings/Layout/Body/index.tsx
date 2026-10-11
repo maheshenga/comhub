@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Accordion, Text } from '@lobehub/ui/base-ui';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 
 import NavItem from '@/features/NavPanel/components/NavItem';
@@ -13,6 +13,14 @@ import { SettingsTabs } from '@/store/global/initialState';
 import { isModifierClick } from '@/utils/navigation';
 
 import { SettingsGroupKey, useCategory } from '../../hooks/useCategory';
+
+/** 当前 tab 所属的分组；找不到时兜底为 Account。 */
+const getActiveGroupKey = (
+  groups: { items: { key: SettingsTabs }[]; key: SettingsGroupKey }[],
+  activeTab: SettingsTabs,
+): SettingsGroupKey =>
+  groups.find((group) => group.items.some((item) => item.key === activeTab))?.key ??
+  SettingsGroupKey.Account;
 
 const Body = memo(() => {
   const categoryGroups = useCategory();
@@ -29,6 +37,18 @@ const Body = memo(() => {
     return SettingsTabs.Profile;
   }, [location.pathname]);
 
+  // 只展开当前 tab 所在分组。此前 defaultValue 硬编码 6 个分组全开且与
+  // activeTab 无联动：首屏把 23~33 行条目全铺出来，要滚动才能定位当前页，
+  // 且离开 /settings 再回来折叠状态被重置。按 Admin 侧栏（AdminSidebar +
+  // getAdminOpenKeys）已验证的受控写法对齐。
+  const routeOpenKeys = useMemo(
+    () => [getActiveGroupKey(categoryGroups, activeTab)],
+    [activeTab, categoryGroups],
+  );
+  const [openKeys, setOpenKeys] = useState<string[]>(routeOpenKeys);
+
+  useEffect(() => setOpenKeys(routeOpenKeys), [routeOpenKeys]);
+
   return (
     <Flexbox gap={4} paddingInline={4}>
       <SearchSection>
@@ -36,14 +56,7 @@ const Body = memo(() => {
           gap={8}
           indicatorPlacement="inline"
           styles={{ trigger: { paddingBlock: 4, paddingInline: '8px 4px' } }}
-          defaultValue={[
-            SettingsGroupKey.Account,
-            SettingsGroupKey.General,
-            SettingsGroupKey.Subscription,
-            SettingsGroupKey.Agent,
-            SettingsGroupKey.System,
-            SettingsGroupKey.Developer,
-          ]}
+          value={openKeys}
           items={categoryGroups.map((group) => ({
             key: group.key,
             title: (
@@ -76,6 +89,7 @@ const Body = memo(() => {
               </Flexbox>
             ),
           }))}
+          onValueChange={(next) => setOpenKeys(next as string[])}
         />
       </SearchSection>
     </Flexbox>

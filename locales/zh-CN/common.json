@@ -1087,6 +1087,7 @@
   "moduleApps.admin.runtime.diagnostics.workflowExecutors": "特权工作流执行器",
   "moduleApps.admin.runtime.emptyDescription": "此模块应用的近期活动将在这里显示。",
   "moduleApps.admin.runtime.emptyTitle": "暂无近期活动",
+  "moduleApps.admin.runtime.truncated": "仅显示最近记录，完整列表请前往对应页面查看。",
   "moduleApps.admin.runtime.installs": "安装记录",
   "moduleApps.admin.runtime.records": "数据记录",
   "moduleApps.admin.runtime.runs": "运行记录",

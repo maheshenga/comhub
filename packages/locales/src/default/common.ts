@@ -1591,6 +1591,7 @@ export default {
   'moduleApps.admin.runtime.emptyDescription':
     'Recent activity for this module app will appear here.',
   'moduleApps.admin.runtime.emptyTitle': 'No recent activity',
+  'moduleApps.admin.runtime.truncated': 'Only the most recent records are shown. Open the full list to see everything.',
   'moduleApps.admin.runtime.installs': 'Installs',
   'moduleApps.admin.runtime.records': 'Records',
   'moduleApps.admin.runtime.runs': 'Runs',
