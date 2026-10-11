@@ -2,10 +2,10 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd DatePicker 无 base-ui 等价物；Input 与 RangePicker 同排构成筛选栏，Input 迁 base-ui 属 B4 筛选器收敛批次统一处理。
+// eslint-disable-next-line no-restricted-imports -- base-ui 虽有 DatePicker，但值模型为 Date 而非 Dayjs，无 Dayjs drop-in 等价物；Input 与 RangePicker 同排构成筛选栏，迁 base-ui 属 B4 筛选器收敛批次统一处理。
 import { DatePicker, Input } from 'antd';
 import { type Dayjs } from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { AuditFilterKey } from '@/features/Admin/Audit/auditParts';
 
@@ -100,9 +100,25 @@ export const AuditFilterBar = ({
   };
   const [drafts, setDrafts] = useState<Record<AuditFilterKey, string>>(appliedByKey);
 
-  // 外部重置（如空态的「清除筛选」）要同步回草稿，否则输入框残留旧词。
+  // 外部重置（如「检索该批次」回填 batchCorrelationId）要同步回草稿，否则输入框残留旧词。
+  // 按 key 局部合并：只回写本轮真正变化的筛选项——整表回滚会把其他输入框里
+  // 未提交的草稿一起吞掉（例如正打 A 框时点了 B 框的清空叉，B 的立即提交
+  // 会触发本 effect，A 的半截草稿不应丢失）。
+  const appliedRef = useRef(appliedByKey);
   useEffect(() => {
-    setDrafts(appliedByKey);
+    const previous = appliedRef.current;
+    appliedRef.current = appliedByKey;
+    setDrafts((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const key of Object.keys(appliedByKey) as AuditFilterKey[]) {
+        if (appliedByKey[key] !== previous[key] && current[key] !== appliedByKey[key]) {
+          next[key] = appliedByKey[key];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appliedByKey 每次渲染都是新对象，依赖六个具体的筛选值
   }, [actionFilter, actorFilter, batchFilter, resourceIdFilter, resourceTypeFilter, targetFilter]);
 

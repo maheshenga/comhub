@@ -345,8 +345,9 @@ const AdminUsersPage = memo(() => {
   const handleExport = async () => {
     setExporting(true);
     try {
-      // 导出跟随当前搜索词：管理员筛选后再导出，拿到的应当就是屏幕上这份名单，
+      // 导出跟随当前搜索词：管理员搜索后再导出，拿到的应与屏幕列表同源，
       // 而不是全站前 1 万条（此前硬编码 query: undefined，导出与列表对不上）。
+      // 套餐/排序维度待 exportAll 扩参后跟上（后端 schema 目前只有 limit+query）。
       const result = await adminCommercialService.exportUsers({
         limit: 10_000,
         query: query || undefined,

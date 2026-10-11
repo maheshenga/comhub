@@ -2,8 +2,8 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
-import { toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List 动态增删字段（Form.List 无 base-ui 等价物），Button/Input/Switch 为受控表单字段控件，属 #135 keep-antd 豁免清单。
+import { Alert, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List 动态增删字段；base-ui FormKit 虽有 FormList 等价能力，但 API 形态不同（render-props + 按字段校验需改写），迁移属 FormKit 另行立项；Button/Input/Switch 为受控表单字段控件，属 #135 keep-antd 豁免清单。
 import { Button, Form, Input, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -61,78 +61,106 @@ const AdminPlanFaqCard = memo(() => {
     }
   };
 
+  // 尚无服务端数据时一律不给保存入口（不只是「报错时」）：validateFields 对
+  // 未连接的表单会以空 values resolve，normalizePlanFaqSettings(undefined)
+  // 返回 DEFAULT_PLAN_FAQ_ITEMS —— 误点一次就把服务端 FAQ 覆盖成默认。
+  // 该状态有三个来源：首次请求失败、请求失败且无缓存、以及 SWR 以空值收敛
+  // （无 error、无 data），只有按「有没有拿到过服务端数据」判定才能全盖住。
+  const hasServerData = data !== undefined && data !== null;
+  const blocked = !isLoading && !hasServerData;
+
   return (
     <Card
       title={t('admin.plans.faqTitle', '套餐页常见问题')}
       extra={
-        <Button disabled={isLoading} loading={submitting} type="primary" onClick={handleSave}>
-          {t('admin.plans.faqSave', '保存常见问题')}
-        </Button>
+        blocked ? null : (
+          <Button disabled={isLoading} loading={submitting} type="primary" onClick={handleSave}>
+            {t('admin.plans.faqSave', '保存常见问题')}
+          </Button>
+        )
       }
     >
-      {error ? (
+      {blocked ? (
         <AdminPageError
           description={t('admin.plans.faqLoadFailed', '常见问题配置加载失败，请重试。')}
           onRetry={() => refreshSection()}
         />
       ) : (
-        <Form disabled={isLoading} form={form} layout="vertical">
-          <Form.List name="planFaqItems">
-            {(fields, { add, remove }) => (
-              <Flexbox gap={8}>
-                {fields.map(({ key, name, ...restField }) => (
-                  <Flexbox horizontal align="center" gap={8} key={key} style={{ flexWrap: 'wrap' }}>
-                    <Form.Item {...restField} hidden name={[name, 'id']}>
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      {...restField}
-                      noStyle
-                      name={[name, 'question']}
-                      rules={[{ message: '请填写问题', required: true }]}
+        <>
+          {error ? (
+            <Alert
+              showIcon
+              type="warning"
+              message={t(
+                'admin.plans.faqRefreshFailed',
+                '刷新失败，当前显示的是缓存数据；保存前请先重试刷新。',
+              )}
+            />
+          ) : null}
+          <Form disabled={isLoading} form={form} layout="vertical">
+            <Form.List name="planFaqItems">
+              {(fields, { add, remove }) => (
+                <Flexbox gap={8}>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Flexbox
+                      horizontal
+                      align="center"
+                      gap={8}
+                      key={key}
+                      style={{ flexWrap: 'wrap' }}
                     >
-                      <Input
-                        placeholder={t('admin.plans.faqQuestion', '问题')}
-                        style={{ flex: 1 }}
+                      <Form.Item {...restField} hidden name={[name, 'id']}>
+                        <Input />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        noStyle
+                        name={[name, 'question']}
+                        rules={[{ message: '请填写问题', required: true }]}
+                      >
+                        <Input
+                          placeholder={t('admin.plans.faqQuestion', '问题')}
+                          style={{ flex: 1 }}
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        noStyle
+                        name={[name, 'answer']}
+                        rules={[{ message: '请填写答案', required: true }]}
+                      >
+                        <Input
+                          placeholder={t('admin.plans.faqAnswer', '答案')}
+                          style={{ flex: 1.8 }}
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        noStyle
+                        name={[name, 'enabled']}
+                        valuePropName="checked"
+                      >
+                        <Switch size="small" />
+                      </Form.Item>
+                      <MinusCircleOutlined
+                        style={{ color: '#ff4d4f' }}
+                        onClick={() => remove(name)}
                       />
-                    </Form.Item>
-                    <Form.Item
-                      {...restField}
-                      noStyle
-                      name={[name, 'answer']}
-                      rules={[{ message: '请填写答案', required: true }]}
-                    >
-                      <Input
-                        placeholder={t('admin.plans.faqAnswer', '答案')}
-                        style={{ flex: 1.8 }}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      {...restField}
-                      noStyle
-                      name={[name, 'enabled']}
-                      valuePropName="checked"
-                    >
-                      <Switch size="small" />
-                    </Form.Item>
-                    <MinusCircleOutlined
-                      style={{ color: '#ff4d4f' }}
-                      onClick={() => remove(name)}
-                    />
-                  </Flexbox>
-                ))}
-                <Button
-                  block
-                  icon={<PlusOutlined />}
-                  type="dashed"
-                  onClick={() => add({ answer: '', enabled: true, id: '', question: '' })}
-                >
-                  {t('admin.plans.faqAdd', '添加常见问题')}
-                </Button>
-              </Flexbox>
-            )}
-          </Form.List>
-        </Form>
+                    </Flexbox>
+                  ))}
+                  <Button
+                    block
+                    icon={<PlusOutlined />}
+                    type="dashed"
+                    onClick={() => add({ answer: '', enabled: true, id: '', question: '' })}
+                  >
+                    {t('admin.plans.faqAdd', '添加常见问题')}
+                  </Button>
+                </Flexbox>
+              )}
+            </Form.List>
+          </Form>
+        </>
       )}
     </Card>
   );
