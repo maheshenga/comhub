@@ -12,7 +12,6 @@ import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import { toAdminAtomicCredits, toAdminDisplayCredits } from '@/features/Admin/adminCreditUnits';
 import AdminDependencyImpactPreview from '@/features/Admin/AdminDependencyImpactPreview';
 import AdminPlanFaqCard from '@/features/Admin/AdminPlanFaqCard';
-import { ADMIN_PLAN_MODEL_MATRIX_PATH } from '@/features/Admin/adminPlanModelRules';
 import {
   AdminPageError,
   AdminPageShell,
@@ -174,16 +173,10 @@ const AdminPlansPage = memo(() => {
       title={t('admin.plans.title', '套餐管理')}
       width="full"
     >
-      <AdminSection
-        carded>
+      <AdminSection carded>
         <Alert
           showIcon
           type="info"
-          action={
-            <Button size="small" onClick={() => navigate(ADMIN_PLAN_MODEL_MATRIX_PATH)}>
-              打开矩阵
-            </Button>
-          }
           message={t(
             'admin.plans.modelRulesMoved',
             '套餐模型权限已统一移动到“模型与计费矩阵”。此页只维护套餐价格、积分和权益，避免同一权限在多个入口重复编辑。',
@@ -223,8 +216,7 @@ const AdminPlansPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection
-        carded title={t('admin.plans.faqTitle', '套餐配置说明')}>
+      <AdminSection carded title={t('admin.plans.faqTitle', '套餐配置说明')}>
         <AdminPlanFaqCard />
       </AdminSection>
 

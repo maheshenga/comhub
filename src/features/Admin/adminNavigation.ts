@@ -136,7 +136,7 @@ export const getAdminOpenKeys = (pathname: string): AdminNavGroupKey[] => {
   const selectedKey = getAdminSelectedKey(pathname);
   const group = allAdminItems.find((item) => item.path === selectedKey)?.groupKey;
 
-  return group ? [group] : ['overview'];
+  return group ? [group] : ['workbench'];
 };
 
 export const getAdminNavigationContext = (role: string | null | undefined, pathname: string) => {

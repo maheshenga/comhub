@@ -6,14 +6,15 @@ export type AdminFeatureStatus =
   'active' | 'compatibility' | 'deprecated' | 'experimental' | 'planned';
 
 export type AdminNavGroupKey =
-  | 'overview'
-  | 'user-access'
-  | 'commercial'
+  | 'workbench'
+  | 'user-support'
+  | 'finance-commerce'
   | 'ai-platform'
-  | 'module-apps'
-  | 'content-operations'
-  | 'client-integrations'
-  | 'system-security';
+  | 'module-ecosystem'
+  | 'content-ops'
+  | 'client-release'
+  | 'platform-ops'
+  | 'audit-compliance';
 
 export type AdminNavIcon =
   | 'audit'
@@ -72,52 +73,58 @@ export type AdminCatalogItem = {
 
 export const ADMIN_CATALOG_GROUPS: readonly AdminCatalogGroup[] = [
   {
-    description: '关键指标、待处理事项、运行健康和版本信息',
+    description: '关键指标、跨域待办与运行健康的只读聚合',
     icon: 'overview',
-    key: 'overview',
+    key: 'workbench',
     label: '工作台',
   },
   {
-    description: '用户身份、角色、支持动作和用户级审计',
+    description: '用户身份、权限档案与用户级默认值',
     icon: 'users',
-    key: 'user-access',
-    label: '用户与权限',
+    key: 'user-support',
+    label: '用户与支持',
   },
   {
-    description: '套餐、订阅、平台订单、积分、兑换码和商业统计',
+    description: '套餐、订阅、订单、积分、兑换码、支付渠道与商业统计',
     icon: 'orders',
-    key: 'commercial',
-    label: '商业化',
+    key: 'finance-commerce',
+    label: '资金与商业化',
   },
   {
-    description: '服务商、模型目录、价格、策略、默认值和生成服务',
+    description: '服务商、模型目录、访问策略与生成服务',
     icon: 'models',
     key: 'ai-platform',
-    label: 'AI 平台',
+    label: '模型与生成',
   },
   {
-    description: '模块应用目录、审核、商业化、运行数据和审计',
+    description: '模块应用目录、审核、商业化、运行数据与审计',
     icon: 'plugins',
-    key: 'module-apps',
-    label: '模块应用',
+    key: 'module-ecosystem',
+    label: '模块生态',
   },
   {
-    description: '内容治理、推荐运营、专家广场、通知和增长',
+    description: '内容资源治理与推荐、专家广场、通知和增长运营',
     icon: 'documents',
-    key: 'content-operations',
-    label: '内容与运营',
+    key: 'content-ops',
+    label: '内容与曝光运营',
   },
   {
-    description: '桌面客户端、文件存储和外部集成状态',
+    description: '桌面安装包构建、版本发布与客户端更新',
     icon: 'desktop',
-    key: 'client-integrations',
-    label: '客户端与集成',
+    key: 'client-release',
+    label: '桌面端发版',
   },
   {
-    description: '站点品牌、系统默认值、维护和审计日志',
+    description: '站点品牌、存储、集成、移动端与运行时维护',
     icon: 'settings',
-    key: 'system-security',
-    label: '系统与安全',
+    key: 'platform-ops',
+    label: '平台配置与运维',
+  },
+  {
+    description: '后台操作与敏感动作的审计记录',
+    icon: 'audit',
+    key: 'audit-compliance',
+    label: '审计与合规',
   },
 ];
 
@@ -128,7 +135,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['stats', 'subscriptions', 'settings'],
     debugId: 'Desktop > Admin > overview',
     description: '查看核心指标、待处理事项和运行健康状态',
-    group: 'overview',
+    group: 'workbench',
     icon: 'overview',
     id: 'overview',
     label: '工作台',
@@ -143,7 +150,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['users', 'credits', 'subscriptions'],
     debugId: 'Desktop > Admin > users',
     description: '管理用户身份、角色、状态和支持动作',
-    group: 'user-access',
+    group: 'user-support',
     icon: 'users',
     id: 'users',
     label: '用户管理',
@@ -162,7 +169,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > user-defaults',
     description: '配置新用户继承的模型、工具、头像和兴趣领域默认值',
-    group: 'user-access',
+    group: 'user-support',
     icon: 'users',
     id: 'user-defaults',
     label: '用户默认值',
@@ -177,7 +184,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['plans'],
     debugId: 'Desktop > Admin > plans',
     description: '配置套餐价格、积分和权益',
-    group: 'commercial',
+    group: 'finance-commerce',
     icon: 'plans',
     id: 'plans',
     label: '套餐与权益',
@@ -192,7 +199,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['subscriptions'],
     debugId: 'Desktop > Admin > subscriptions',
     description: '查看订阅并处理套餐变更',
-    group: 'commercial',
+    group: 'finance-commerce',
     icon: 'subscriptions',
     id: 'subscriptions',
     label: '订阅管理',
@@ -206,11 +213,11 @@ export const ADMIN_CATALOG = [
   {
     backendDomains: ['orders', 'topupPackages'],
     debugId: 'Desktop > Admin > orders',
-    description: '查看平台订单和充值状态',
-    group: 'commercial',
+    description: '管理平台订单和充值套餐商品',
+    group: 'finance-commerce',
     icon: 'orders',
     id: 'orders',
-    label: '平台订单与充值',
+    label: '订单与充值套餐',
     owner: 'commercial',
     path: pathFor('orders'),
     readCapability: ADMIN_CAPABILITIES.financeRead,
@@ -222,8 +229,8 @@ export const ADMIN_CATALOG = [
     accessCapabilities: [ADMIN_CAPABILITIES.systemRead, ADMIN_CAPABILITIES.financeRead],
     backendDomains: ['settings', 'payment', 'moduleApps'],
     debugId: 'Desktop > Admin > payments',
-    description: '统一配置支付渠道并处理充值交易与模块支付诊断',
-    group: 'commercial',
+    description: '统一配置支付渠道并处理订阅与充值交易',
+    group: 'finance-commerce',
     icon: 'billing',
     id: 'payments',
     label: '支付中心',
@@ -231,20 +238,21 @@ export const ADMIN_CATALOG = [
     path: pathFor('payments'),
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'payments',
-    // PP-12（blueprint §2.1 治理三动作）：统一支付中心降级为兼容入口——
-    // 订单管理（orders）与订阅管理（subscriptions）已覆盖主要支付操作，
-    // 本聚合页保留支付渠道配置与支付诊断，标 compatibility 防双路径发散。
+    // PP-12 / IA 重设计 §3.3：支付中心是渠道配置与退款执行的唯一 UI 入口，
+    // 但转 active 会让 finance_admin 首次可见退款执行入口（授权增量，§7.2-1），
+    // 须业务签字后再放开；签字前保留 compatibility 继续隐藏，moduleApps
+    // 重复标签页已删除（1c），模块支付对账以 /settings/admin/modules/finance/payments 为唯一入口。
     status: 'compatibility',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite, ADMIN_CAPABILITIES.financeWrite],
   },
   {
     backendDomains: ['credits'],
     debugId: 'Desktop > Admin > credits',
-    description: '查看积分账户、余额和流水',
-    group: 'commercial',
+    description: '查看积分账户余额，支持排序、筛选与导出',
+    group: 'finance-commerce',
     icon: 'credits',
     id: 'credits',
-    label: '积分账户与流水',
+    label: '积分账户',
     owner: 'commercial',
     path: pathFor('credits'),
     readCapability: ADMIN_CAPABILITIES.financeRead,
@@ -256,7 +264,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['redemption'],
     debugId: 'Desktop > Admin > redemption',
     description: '生成、查询和停用兑换码',
-    group: 'commercial',
+    group: 'finance-commerce',
     icon: 'redemption',
     id: 'redemption',
     label: '兑换码',
@@ -268,10 +276,10 @@ export const ADMIN_CATALOG = [
     writeCapabilities: [ADMIN_CAPABILITIES.financeWrite],
   },
   {
-    backendDomains: ['stats', 'referral'],
+    backendDomains: ['stats'],
     debugId: 'Desktop > Admin > stats',
-    description: '查看收入、订阅和推荐统计',
-    group: 'commercial',
+    description: '查看平台概览、活跃、订阅、收入与兑换统计',
+    group: 'finance-commerce',
     icon: 'stats',
     id: 'stats',
     label: '商业统计',
@@ -343,7 +351,7 @@ export const ADMIN_CATALOG = [
     group: 'ai-platform',
     icon: 'ppt',
     id: 'ppt',
-    label: '生成服务',
+    label: 'PPT 生成服务',
     owner: 'ai-platform',
     path: pathFor('ppt'),
     readCapability: ADMIN_CAPABILITIES.systemRead,
@@ -355,7 +363,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > ai-runtime-defaults',
     description: '配置向量检索和记忆抽取的 AI 运行时默认模型',
-    group: 'ai-platform',
+    group: 'platform-ops',
     icon: 'system-defaults',
     id: 'ai-runtime-defaults',
     label: 'AI 运行时默认值',
@@ -371,26 +379,22 @@ export const ADMIN_CATALOG = [
     backendDomains: ['moduleApps'],
     debugId: 'Desktop > Admin > modules',
     description: '治理模块应用、审核、商业化和运行数据',
-    group: 'module-apps',
+    group: 'module-ecosystem',
     icon: 'plugins',
     id: 'modules',
-    label: '模块应用中心',
+    label: '模块生态',
     owner: 'module-apps',
     path: pathFor('modules'),
     readCapability: ADMIN_CAPABILITIES.moduleAppRead,
     segment: 'modules',
-    status: 'experimental',
-    writeCapabilities: [
-      ADMIN_CAPABILITIES.moduleAppWrite,
-      ADMIN_CAPABILITIES.financeWrite,
-      ADMIN_CAPABILITIES.auditRead,
-    ],
+    status: 'active',
+    writeCapabilities: [ADMIN_CAPABILITIES.moduleAppWrite, ADMIN_CAPABILITIES.financeWrite],
   },
   {
     backendDomains: ['content'],
     debugId: 'Desktop > Admin > content-resources',
     description: '集中管理话题、资源文件和用户文档',
-    group: 'content-operations',
+    group: 'content-ops',
     icon: 'documents',
     id: 'content-resources',
     label: '内容资源',
@@ -405,7 +409,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > content-operations',
     description: '集中管理推荐、专家广场、公告通知和运营开关',
-    group: 'content-operations',
+    group: 'content-ops',
     icon: 'recommendations',
     id: 'content-operations',
     label: '内容运营',
@@ -420,7 +424,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings', 'referral'],
     debugId: 'Desktop > Admin > growth',
     description: '配置注册、推荐和增长策略',
-    group: 'content-operations',
+    group: 'content-ops',
     icon: 'growth',
     id: 'growth',
     label: '注册与增长',
@@ -435,10 +439,10 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings', 'desktop-release'],
     debugId: 'Desktop > Admin > desktop-update',
     description: '统一管理桌面安装、版本、客户端状态和更新设置',
-    group: 'client-integrations',
+    group: 'client-release',
     icon: 'desktop',
     id: 'desktop-update',
-    label: '桌面端控制中心',
+    label: '桌面端发版',
     owner: 'client',
     path: pathFor('desktop-update'),
     readCapability: ADMIN_CAPABILITIES.systemRead,
@@ -449,8 +453,8 @@ export const ADMIN_CATALOG = [
   {
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > mobile',
-    description: '统一管理移动端品牌、底部导航、发现内容和应用入口',
-    group: 'client-integrations',
+    description: '统一管理移动端品牌、底部导航、发现内容、应用入口与配置发布',
+    group: 'platform-ops',
     icon: 'mobile',
     id: 'mobile',
     label: '移动端控制中心',
@@ -464,8 +468,8 @@ export const ADMIN_CATALOG = [
   {
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > integrations',
-    description: '配置 Composio 等外部工具集成',
-    group: 'client-integrations',
+    description: '配置 Composio 外部工具集成',
+    group: 'platform-ops',
     icon: 'plugins',
     id: 'integrations',
     label: '外部集成',
@@ -480,7 +484,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings', 's3'],
     debugId: 'Desktop > Admin > file-storage',
     description: '配置对象存储、CDN 和预签名 URL',
-    group: 'client-integrations',
+    group: 'platform-ops',
     icon: 'file-storage',
     id: 'file-storage',
     label: '文件存储',
@@ -495,7 +499,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > settings',
     description: '配置站点品牌、登录页和帮助入口',
-    group: 'system-security',
+    group: 'platform-ops',
     icon: 'settings',
     id: 'settings',
     label: '站点与品牌',
@@ -510,7 +514,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['settings'],
     debugId: 'Desktop > Admin > maintenance',
     description: '管理缓存、数据保留和维护任务',
-    group: 'system-security',
+    group: 'platform-ops',
     icon: 'maintenance',
     id: 'maintenance',
     label: '缓存与维护',
@@ -525,7 +529,7 @@ export const ADMIN_CATALOG = [
     backendDomains: ['audit'],
     debugId: 'Desktop > Admin > audit',
     description: '查询后台操作和敏感动作记录',
-    group: 'system-security',
+    group: 'audit-compliance',
     icon: 'audit',
     id: 'audit',
     label: '审计日志',

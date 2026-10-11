@@ -8,16 +8,17 @@ import {
 } from './adminCatalog';
 
 describe('adminCatalog', () => {
-  it('defines the approved eight admin groups in order', () => {
+  it('defines the approved nine admin groups in order', () => {
     expect(ADMIN_CATALOG_GROUPS.map((group) => group.key)).toEqual([
-      'overview',
-      'user-access',
-      'commercial',
+      'workbench',
+      'user-support',
+      'finance-commerce',
       'ai-platform',
-      'module-apps',
-      'content-operations',
-      'client-integrations',
-      'system-security',
+      'module-ecosystem',
+      'content-ops',
+      'client-release',
+      'platform-ops',
+      'audit-compliance',
     ]);
   });
 
@@ -31,21 +32,21 @@ describe('adminCatalog', () => {
     const byId = Object.fromEntries(ADMIN_CATALOG.map((item) => [item.id, item]));
 
     expect(byId['ai-runtime-defaults']).toMatchObject({
-      group: 'ai-platform',
+      group: 'platform-ops',
       segment: 'ai-runtime-defaults',
     });
     expect(byId['user-defaults']).toMatchObject({
-      group: 'user-access',
+      group: 'user-support',
       segment: 'user-defaults',
     });
     expect(byId.integrations).toMatchObject({
-      group: 'client-integrations',
+      group: 'platform-ops',
       segment: 'integrations',
     });
     expect(byId.mobile).toMatchObject({
       backendDomains: ['settings'],
-      description: '统一管理移动端品牌、底部导航、发现内容和应用入口',
-      group: 'client-integrations',
+      description: '统一管理移动端品牌、底部导航、发现内容、应用入口与配置发布',
+      group: 'platform-ops',
       label: '移动端控制中心',
       owner: 'client',
       path: '/settings/admin/mobile',
@@ -56,12 +57,16 @@ describe('adminCatalog', () => {
     });
   });
 
-  it('publishes the desktop control center as an active client surface', () => {
-    expect(ADMIN_CATALOG.find(({ id }) => id === 'desktop-update')).toMatchObject({
+  it('publishes the desktop release surface as an active standalone group entry', () => {
+    const desktop = ADMIN_CATALOG.find(({ id }) => id === 'desktop-update');
+    expect(desktop).toMatchObject({
       description: '统一管理桌面安装、版本、客户端状态和更新设置',
-      label: '桌面端控制中心',
+      label: '桌面端发版',
       status: 'active',
     });
+    expect(ADMIN_CATALOG_GROUPS.find(({ key }) => key === 'client-release')?.label).toBe(
+      '桌面端发版',
+    );
   });
 
   it('assigns read capabilities to high-risk domains', () => {
@@ -93,6 +98,12 @@ describe('adminCatalog', () => {
     expect(moduleApps?.accessCapabilities).toEqual([
       ADMIN_CAPABILITIES.moduleAppRead,
       ADMIN_CAPABILITIES.financeRead,
+    ]);
+    // IA 重设计步骤 2：模块生态转 active，写能力剔除只读的 auditRead。
+    expect(moduleApps?.status).toBe('active');
+    expect(moduleApps?.writeCapabilities).toEqual([
+      ADMIN_CAPABILITIES.moduleAppWrite,
+      ADMIN_CAPABILITIES.financeWrite,
     ]);
   });
 });

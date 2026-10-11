@@ -27,9 +27,9 @@ describe('ModuleSectionNav', () => {
         .getAllByRole('link')
         .map((link) => link.getAttribute('href')?.split('/').at(-1)),
     ).toEqual(['revenue', 'payments', 'payouts']);
-    // PP-10：compatibility 分区带状态徽标（对可访问名不可见）。
+    // IA 重设计 2′：module-payments 为唯一支付对账入口，状态转 active、不再带 compatibility 徽标。
     const paymentsLink = screen.getByRole('link', { name: 'payments' });
-    expect(paymentsLink.querySelector('[data-status="compatibility"]')).toBeInTheDocument();
+    expect(paymentsLink.querySelector('[data-status]')).toBeNull();
     expect(screen.queryByRole('link', { name: 'apps' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'operations' })).not.toBeInTheDocument();
   });

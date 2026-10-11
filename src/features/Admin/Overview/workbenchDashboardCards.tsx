@@ -12,7 +12,9 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
+import { ADMIN_BASE_PATH, getAdminNavGroupsForRole } from '@/features/Admin/adminNavigation';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 import { Sparkline } from '../charts';
 import type { AdminMetric } from '../layout';
@@ -141,31 +143,36 @@ export const WorkbenchModuleAppsCard = memo<{
 
 WorkbenchModuleAppsCard.displayName = 'WorkbenchModuleAppsCard';
 
-/** 末位快捷入口带：按职责域分组的页面直达（h2 管理模块）。 */
+/** 末位快捷入口带：按职责域分组的页面直达（h2 管理模块）。仅展示当前角色可达的分组（M8）。 */
 export const WorkbenchQuickLinks = memo(() => {
   const navigate = useNavigate();
+  const role = useUserStore(
+    (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
+  );
 
   return (
     <div className={overviewStyles.groupGrid}>
-      {ADMIN_NAV_GROUPS.filter((group) => group.key !== 'overview').map((group) => (
-        <article className={overviewStyles.group} key={group.key}>
-          <h3 className={overviewStyles.groupTitle}>{group.label}</h3>
-          <p className={overviewStyles.groupDescription}>{group.description}</p>
-          <div className={overviewStyles.linkList}>
-            {group.items.map((item) => (
-              <button
-                className={overviewStyles.link}
-                key={item.path}
-                type="button"
-                onClick={() => navigate(item.path)}
-              >
-                <span>{item.label}</span>
-                <ArrowRight aria-hidden size={14} />
-              </button>
-            ))}
-          </div>
-        </article>
-      ))}
+      {getAdminNavGroupsForRole(role)
+        .filter((group) => group.key !== 'workbench')
+        .map((group) => (
+          <article className={overviewStyles.group} key={group.key}>
+            <h3 className={overviewStyles.groupTitle}>{group.label}</h3>
+            <p className={overviewStyles.groupDescription}>{group.description}</p>
+            <div className={overviewStyles.linkList}>
+              {group.items.map((item) => (
+                <button
+                  className={overviewStyles.link}
+                  key={item.path}
+                  type="button"
+                  onClick={() => navigate(item.path)}
+                >
+                  <span>{item.label}</span>
+                  <ArrowRight aria-hidden size={14} />
+                </button>
+              ))}
+            </div>
+          </article>
+        ))}
     </div>
   );
 });
