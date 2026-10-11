@@ -45,7 +45,48 @@ export type AdminNavIcon =
   | 'system-defaults'
   | 'topup'
   | 'topics'
-  | 'users';
+  | 'users'
+  // 子栏目图标（方案 §2.2）。与 iconMap 双向零差集由 adminCatalog.test.ts
+  // 断言锁住——两侧必须同步增删，否则 B8 接线时 iconMap[item.icon] 会静默
+  // 取到 undefined 而不报错。
+  | 'module-catalog'
+  | 'module-finance'
+  | 'module-operations'
+  | 'module-audit'
+  | 'content-growth';
+
+/**
+ * 一级栏目下的子栏目键。方案 §2.2 定稿 25 个子栏目。
+ *
+ * 数据层先落地（不改渲染、不改 URL），B7 再用它做选中态解析，B8 才接线。
+ * 注意 `payments` 归属 finance-settlement 但 `status: 'compatibility'` 被
+ * isVisibleInNavigation 过滤，不进侧栏——归属与可见性是两件事。
+ */
+export type AdminSubSectionKey =
+  | 'workbench-overview'
+  | 'workbench-quick'
+  | 'user-support-identity'
+  | 'user-support-defaults'
+  | 'finance-products'
+  | 'finance-accounts'
+  | 'finance-settlement'
+  | 'finance-analytics'
+  | 'ai-sources'
+  | 'ai-catalog'
+  | 'ai-generate'
+  | 'module-catalog'
+  | 'module-finance'
+  | 'module-operations'
+  | 'module-audit'
+  | 'content-resources'
+  | 'content-operations'
+  | 'content-growth'
+  | 'client-desktop'
+  | 'platform-brand'
+  | 'platform-infra'
+  | 'platform-runtime'
+  | 'platform-maintenance'
+  | 'audit-log';
 
 export type AdminCatalogGroup = {
   description: string;
@@ -68,6 +109,12 @@ export type AdminCatalogItem = {
   readCapability: AdminCapability;
   segment: string;
   status: AdminFeatureStatus;
+  /**
+   * 所属子栏目（方案 §2.2）。B6 先把归属写进数据层，B7 用它解析选中态，
+   * B8 才接到侧栏渲染——三步分开落地，每步都可独立回滚。optional 是为了
+   * 让 B6 能在不改动全部 28 个条目的前提下先加字段。
+   */
+  subSection?: AdminSubSectionKey;
   writeCapabilities: AdminCapability[];
 };
 
@@ -144,6 +191,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.adminAccess,
     segment: '',
     status: 'active',
+    subSection: 'workbench-overview',
     writeCapabilities: [],
   },
   {
@@ -159,6 +207,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.userRead,
     segment: 'users',
     status: 'active',
+    subSection: 'user-support-identity',
     writeCapabilities: [
       ADMIN_CAPABILITIES.supportWrite,
       ADMIN_CAPABILITIES.financeWrite,
@@ -178,6 +227,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'user-defaults',
     status: 'active',
+    subSection: 'user-support-defaults',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -193,6 +243,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.financeRead,
     segment: 'plans',
     status: 'active',
+    subSection: 'finance-products',
     writeCapabilities: [ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -208,6 +259,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.financeRead,
     segment: 'subscriptions',
     status: 'active',
+    subSection: 'finance-accounts',
     writeCapabilities: [ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -223,6 +275,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.financeRead,
     segment: 'orders',
     status: 'active',
+    subSection: 'finance-products',
     writeCapabilities: [ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -243,6 +296,7 @@ export const ADMIN_CATALOG = [
     // 须业务签字后再放开；签字前保留 compatibility 继续隐藏，moduleApps
     // 重复标签页已删除（1c），模块支付对账以 /settings/admin/modules/finance/payments 为唯一入口。
     status: 'compatibility',
+    subSection: 'finance-settlement',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite, ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -258,6 +312,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.financeRead,
     segment: 'credits',
     status: 'active',
+    subSection: 'finance-accounts',
     writeCapabilities: [ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -273,6 +328,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.financeRead,
     segment: 'redemption',
     status: 'active',
+    subSection: 'finance-settlement',
     writeCapabilities: [ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -288,6 +344,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.financeRead,
     segment: 'stats',
     status: 'active',
+    subSection: 'finance-analytics',
     writeCapabilities: [],
   },
   {
@@ -303,6 +360,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.modelOpsRead,
     segment: 'providers',
     status: 'active',
+    subSection: 'ai-sources',
     writeCapabilities: [ADMIN_CAPABILITIES.modelOpsWrite],
   },
   {
@@ -323,6 +381,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'model-billing-matrix',
     status: 'active',
+    subSection: 'ai-catalog',
     writeCapabilities: [
       ADMIN_CAPABILITIES.modelOpsWrite,
       ADMIN_CAPABILITIES.financeWrite,
@@ -342,6 +401,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'model-policy',
     status: 'active',
+    subSection: 'ai-catalog',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -357,6 +417,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'ppt',
     status: 'experimental',
+    subSection: 'ai-generate',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -372,6 +433,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'ai-runtime-defaults',
     status: 'active',
+    subSection: 'platform-runtime',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -388,6 +450,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.moduleAppRead,
     segment: 'modules',
     status: 'active',
+    subSection: 'module-catalog',
     writeCapabilities: [ADMIN_CAPABILITIES.moduleAppWrite, ADMIN_CAPABILITIES.financeWrite],
   },
   {
@@ -403,6 +466,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.contentRead,
     segment: 'content-resources',
     status: 'active',
+    subSection: 'content-resources',
     writeCapabilities: [ADMIN_CAPABILITIES.contentWrite],
   },
   {
@@ -418,6 +482,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'content-operations',
     status: 'active',
+    subSection: 'content-operations',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -433,6 +498,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'growth',
     status: 'active',
+    subSection: 'content-growth',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -448,6 +514,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'desktop-update',
     status: 'active',
+    subSection: 'client-desktop',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -463,6 +530,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'mobile',
     status: 'active',
+    subSection: 'platform-brand',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -478,6 +546,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'integrations',
     status: 'active',
+    subSection: 'platform-infra',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -493,6 +562,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'file-storage',
     status: 'active',
+    subSection: 'platform-infra',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -508,6 +578,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'settings',
     status: 'active',
+    subSection: 'platform-brand',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -523,6 +594,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'maintenance',
     status: 'active',
+    subSection: 'platform-maintenance',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
@@ -538,6 +610,7 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.auditRead,
     segment: 'audit',
     status: 'active',
+    subSection: 'audit-log',
     writeCapabilities: [],
   },
 ] as const satisfies readonly AdminCatalogItem[];

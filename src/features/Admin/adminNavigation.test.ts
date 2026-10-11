@@ -194,6 +194,31 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['workbench']);
   });
 
+  // 选中态此前只按 catalog 的顶层路径做前缀匹配，于是模块中心的真实路由
+  // （深达 modules/finance/payments）一路回落到父级，侧栏看不出当前在哪个分区；
+  // 而 payments 是 compatibility 条目、不在侧栏集合里，直达时整个侧栏无高亮。
+  it('resolves module-center and compatibility routes to their own nav key', () => {
+    expect(getAdminSelectedKey('/settings/admin/modules/finance/payments')).toBe(
+      `${ADMIN_BASE_PATH}/modules/finance/payments`,
+    );
+    expect(getAdminOpenKeys('/settings/admin/modules/finance/payments')).toEqual([
+      'module-ecosystem',
+    ]);
+
+    expect(getAdminSelectedKey('/settings/admin/payments')).toBe(`${ADMIN_BASE_PATH}/payments`);
+    expect(getAdminOpenKeys('/settings/admin/payments')).toEqual(['finance-commerce']);
+  });
+
+  // 反向保护：应用详情页的页签按方案 §2.4 留在详情页内、**不入主侧栏**，
+  // 选中态必须继续折叠在顶层 modules；findModuleAdminSectionByPath 对这些
+  // 分区返回的是带 :appId 的 pattern，绝不能当作高亮路径泄漏出去。
+  it('keeps app-detail tabs collapsed on the top-level modules entry', () => {
+    expect(getAdminSelectedKey('/settings/admin/modules/apps/app-1/products')).toBe(
+      `${ADMIN_BASE_PATH}/modules`,
+    );
+    expect(getAdminSelectedKey('/settings/admin/modules/apps/app-1/products')).not.toContain(':');
+  });
+
   it('keeps storage and maintenance settings in their approved modules', () => {
     const platformItems =
       ADMIN_NAV_GROUPS.find((group) => group.key === 'platform-ops')?.items ?? [];

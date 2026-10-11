@@ -69,6 +69,63 @@ describe('adminCatalog', () => {
     );
   });
 
+  // 方案 §2.2 的 25 个子栏目归属表。B6 只加数据不改渲染，但归属一旦写错，
+  // B7 的选中态解析与 B8 的接线都会指错地方，因此在此逐条锁定。
+  it('assigns every catalog item to the sub-section agreed in the IA plan', () => {
+    const EXPECTED: Record<string, string> = {
+      'ai-runtime-defaults': 'platform-runtime',
+      'audit': 'audit-log',
+      'content-operations': 'content-operations',
+      'content-resources': 'content-resources',
+      'credits': 'finance-accounts',
+      'desktop-update': 'client-desktop',
+      'file-storage': 'platform-infra',
+      'growth': 'content-growth',
+      'integrations': 'platform-infra',
+      'maintenance': 'platform-maintenance',
+      'mobile': 'platform-brand',
+      'model-billing-matrix': 'ai-catalog',
+      'model-policy': 'ai-catalog',
+      modules: 'module-catalog',
+      orders: 'finance-products',
+      // payments 是 compatibility 状态、不进侧栏，但仍归属 finance-settlement。
+      payments: 'finance-settlement',
+      plans: 'finance-products',
+      ppt: 'ai-generate',
+      providers: 'ai-sources',
+      redemption: 'finance-settlement',
+      settings: 'platform-brand',
+      stats: 'finance-analytics',
+      subscriptions: 'finance-accounts',
+      'user-defaults': 'user-support-defaults',
+      users: 'user-support-identity',
+    };
+
+    const byId = Object.fromEntries(ADMIN_CATALOG.map((item) => [item.id, item]));
+
+    expect(ADMIN_CATALOG.every((item) => Boolean(item.subSection))).toBe(true);
+
+    for (const [id, subSection] of Object.entries(EXPECTED)) {
+      expect(byId[id]?.subSection).toBe(subSection);
+    }
+  });
+
+  // 编译期只保证 iconMap 满足 Record<AdminNavIcon, …>，反向（联合类型里有、
+  // map 里漏了）不会报错，只会在 B8 渲染时静默取到 undefined。把这条双向零
+  // 差集变成可回归的运行时断言。
+  it('keeps the nav icon union and the icon map in exact agreement', async () => {
+    const { iconMap } = await import('./Sidebar/navigation');
+    const declaredIcons = [
+      'audit','billing','credits','desktop','documents','expert-plaza','file-storage','files',
+      'growth','maintenance','mobile','models','notifications','orders','overview','plans',
+      'plugins','ppt','pricing','providers','redemption','recommendations','settings','stats',
+      'subscriptions','system-defaults','topup','topics','users',
+      'module-catalog','module-finance','module-operations','module-audit','content-growth',
+    ];
+
+    expect(Object.keys(iconMap).sort()).toEqual([...declaredIcons].sort());
+  });
+
   it('assigns read capabilities to high-risk domains', () => {
     const byId = Object.fromEntries(ADMIN_CATALOG.map((item) => [item.id, item]));
 

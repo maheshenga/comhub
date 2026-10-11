@@ -3,6 +3,7 @@
 import { Flexbox, Icon, type MenuProps } from '@lobehub/ui';
 import { Tag } from '@lobehub/ui/base-ui';
 import {
+  Activity,
   BarChart3,
   Bell,
   Blocks,
@@ -70,6 +71,13 @@ export const iconMap: Record<AdminNavIcon, typeof Gauge> = {
   'topup': CircleDollarSign,
   'topics': MessageSquareText,
   'users': Users,
+  // 子栏目图标（方案 §2.2）。B6 先把容量备好：AdminNavIcon 与 iconMap 必须
+  // 双向零差集，adminCatalog.test.ts 会断言；B8 接线时才真正渲染它们。
+  'module-catalog': Blocks,
+  'module-finance': ReceiptText,
+  'module-operations': Activity,
+  'module-audit': ScrollText,
+  'content-growth': ShieldCheck,
 };
 
 /**
