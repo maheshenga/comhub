@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, Modal } from '@lobehub/ui/base-ui';
+import { Button, Modal, toast } from '@lobehub/ui/base-ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -16,7 +16,7 @@ import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { AdminModuleAppOutboundHostPurpose, AdminModuleAppPackageRow } from '../types';
 import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
-import { getPackageColumns } from './packageColumns';
+import { actionReceipt, getPackageColumns } from './packageColumns';
 import {
   OutboundHostClassification,
   RejectReasonField,
@@ -158,6 +158,9 @@ const ModuleReviewsPage = memo(() => {
         await mutate(listKey);
       }
       setActionComplete(true);
+      // 原文案只有一句「操作已完成。」，不告诉管理员批的是哪个包，弹窗一关
+      // 队列就停在这里；带上可定位信息后才能继续处理下一条。
+      toast.success(actionReceipt(t, actionTarget));
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : t('moduleApps.admin.reviews.actionError'),

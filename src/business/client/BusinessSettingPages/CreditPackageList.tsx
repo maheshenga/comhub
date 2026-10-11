@@ -22,7 +22,7 @@ import {
   buildCreditPackageRecord,
   type BusinessRecordFormatters,
 } from './mobile/businessRecordBuilders';
-import { formatBusinessDate, formatCredits } from './shared';
+import { BusinessTableError, formatBusinessDate, formatCredits } from './shared';
 
 const styles = createStaticStyles(({ css }) => ({
   controls: css`
@@ -171,7 +171,7 @@ const CreditPackageList = memo<CreditPackageListProps>(({ mobile }) => {
         activeKey={status}
         items={(Object.keys(statusLabels) as CreditPackageStatusType[]).map((key) => ({
           key,
-          label: `${statusLabels[key]}（${counts[key]}）`,
+          label: `${statusLabels[key]}（${error || isLoading ? '—' : counts[key]}）`,
         }))}
         onChange={(key) => setStatus(key as CreditPackageStatusType)}
       />
@@ -184,6 +184,8 @@ const CreditPackageList = memo<CreditPackageListProps>(({ mobile }) => {
           sheetTitle="积分包详情"
           onRetry={() => void mutate()}
         />
+      ) : error ? (
+        <BusinessTableError onRetry={() => void mutate()} />
       ) : (
         <InlineTable
           columns={columns as any}

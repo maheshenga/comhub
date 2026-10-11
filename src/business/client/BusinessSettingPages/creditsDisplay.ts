@@ -1,3 +1,20 @@
+import { toDisplayCredits } from '@lobechat/const/currency';
+
+/**
+ * 积分展示精度必须覆盖 1e-6 量级：1 原子积分 = 0.000001 M。若沿用通用的 2 位
+ * 小数 formatter，atomic=5000 会被显示成 "0.01 M"（真实值 0.005，误差 2 倍）、
+ * atomic=100 直接显示成 "0 M"。6 位口径与 Admin 侧 formatAdminCredits 对齐，
+ * 两边不得再各自漂移。
+ */
+export const formatCreditsAmount = (value: number) =>
+  new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 }).format(value);
+
+export const formatCredits = (value: number) =>
+  `${formatCreditsAmount(toDisplayCredits(value))} M`;
+
+export const formatSignedCredits = (value: number) =>
+  `${value > 0 ? '+' : ''}${formatCreditsAmount(toDisplayCredits(value))} M`;
+
 export type LedgerAllocationDisplayRecord = {
   metadata?: {
     allocations?: unknown;

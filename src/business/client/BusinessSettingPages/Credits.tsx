@@ -31,6 +31,7 @@ import {
 } from './mobile/businessRecordBuilders';
 import RedemptionPanel from './RedemptionPanel';
 import {
+  BusinessTableError,
   formatBusinessDate,
   formatCredits,
   formatSignedCredits,
@@ -311,6 +312,8 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
                 </Button>
               ) : null}
             </Flexbox>
+          ) : ledgerError ? (
+            <BusinessTableError onRetry={() => void refreshLedger()} />
           ) : (
             <InlineTable
               columns={ledgerColumns as any}

@@ -1,5 +1,7 @@
-import { memo } from 'react';
+import { type TableColumnType } from 'antd';
+import { memo, useMemo } from 'react';
 
+import { AdminDataTable } from '../shared';
 import type { ModuleAppInstallRow } from './types';
 
 export type InstallsTableLabels = {
@@ -14,50 +16,63 @@ export type InstallsTableLabels = {
 interface InstallsTableProps {
   items?: ModuleAppInstallRow[];
   labels?: InstallsTableLabels;
-  loading?: boolean;
+  /** 无障碍滚动区名字；三态由页面层 ModulePageState 先行拦截。 */
+  regionLabel?: string;
 }
 
-const formatDate = (value?: Date | string) => (value ? String(value) : '-');
+const InstallsTable = memo<InstallsTableProps>(({ items = [], labels, regionLabel }) => {
+  const resolvedLabels = useMemo(
+    () => ({
+      install: 'Install',
+      installed: 'Installed',
+      scope: 'Scope',
+      status: 'Status',
+      user: 'User',
+      workspace: 'Workspace',
+      ...labels,
+    }),
+    [labels],
+  );
 
-const InstallsTable = memo<InstallsTableProps>(({ items = [], labels, loading }) => {
-  const resolvedLabels = {
-    install: 'Install',
-    installed: 'Installed',
-    scope: 'Scope',
-    status: 'Status',
-    user: 'User',
-    workspace: 'Workspace',
-    ...labels,
-  };
-
-  if (loading) return <div data-testid="admin-module-app-installs">Loading installs</div>;
-  if (items.length === 0) return <div data-testid="admin-module-app-installs">No installs</div>;
+  const columns = useMemo<TableColumnType<ModuleAppInstallRow>[]>(
+    () => [
+      { dataIndex: 'id', key: 'install', title: resolvedLabels.install },
+      {
+        dataIndex: 'scopeType',
+        key: 'scope',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.scope,
+      },
+      {
+        dataIndex: 'status',
+        key: 'status',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.status,
+      },
+      { dataIndex: 'userId', key: 'user', render: (value) => value ?? '-', title: resolvedLabels.user },
+      {
+        dataIndex: 'workspaceId',
+        key: 'workspace',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.workspace,
+      },
+      {
+        dataIndex: 'installedAt',
+        key: 'installed',
+        render: (value) => (value ? String(value) : '-'),
+        title: resolvedLabels.installed,
+      },
+    ],
+    [resolvedLabels],
+  );
 
   return (
-    <table data-testid="admin-module-app-installs">
-      <thead>
-        <tr>
-          <th>{resolvedLabels.install}</th>
-          <th>{resolvedLabels.scope}</th>
-          <th>{resolvedLabels.status}</th>
-          <th>{resolvedLabels.user}</th>
-          <th>{resolvedLabels.workspace}</th>
-          <th>{resolvedLabels.installed}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.id}>
-            <td>{item.id}</td>
-            <td>{item.scopeType ?? '-'}</td>
-            <td>{item.status ?? '-'}</td>
-            <td>{item.userId ?? '-'}</td>
-            <td>{item.workspaceId ?? '-'}</td>
-            <td>{formatDate(item.installedAt)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <AdminDataTable
+      columns={columns}
+      dataSource={items}
+      regionLabel={regionLabel ?? resolvedLabels.install}
+      rowKey="id"
+    />
   );
 });
 

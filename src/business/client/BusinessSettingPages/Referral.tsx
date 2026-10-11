@@ -28,6 +28,7 @@ import {
   normalizeReferralCodeInput,
 } from './referralDisplay';
 import {
+  BusinessTableError,
   formatBusinessDate,
   formatBusinessNumber,
   formatCredits,
@@ -414,6 +415,8 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
             )}
             onRetry={() => void refreshReferralHistory()}
           />
+        ) : referralHistoryError ? (
+          <BusinessTableError onRetry={() => void refreshReferralHistory()} />
         ) : (
           <InlineTable
             columns={columns as any}

@@ -1,5 +1,7 @@
-import { memo } from 'react';
+import { type TableColumnType } from 'antd';
+import { memo, useMemo } from 'react';
 
+import { AdminDataTable } from '../shared';
 import type { ModuleAppArtifactRow } from './types';
 
 export type ArtifactsTableLabels = {
@@ -14,55 +16,68 @@ export type ArtifactsTableLabels = {
 interface ArtifactsTableProps {
   items?: ModuleAppArtifactRow[];
   labels?: ArtifactsTableLabels;
-  loading?: boolean;
+  /** 无障碍滚动区名字；三态由页面层 ModulePageState 先行拦截。 */
+  regionLabel?: string;
 }
 
-const ArtifactsTable = memo<ArtifactsTableProps>(({ items = [], labels, loading }) => {
-  const resolvedLabels = {
-    artifact: 'Artifact',
-    file: 'File',
-    mime: 'MIME',
-    scope: 'Scope',
-    size: 'Size',
-    storageKey: 'Storage key',
-    ...labels,
-  };
+const ArtifactsTable = memo<ArtifactsTableProps>(({ items = [], labels, regionLabel }) => {
+  const resolvedLabels = useMemo(
+    () => ({
+      artifact: 'Artifact',
+      file: 'File',
+      mime: 'MIME',
+      scope: 'Scope',
+      size: 'Size',
+      storageKey: 'Storage key',
+      ...labels,
+    }),
+    [labels],
+  );
 
-  if (loading) {
-    return <div data-testid="admin-module-app-artifacts">Loading artifacts</div>;
-  }
-
-  if (items.length === 0) {
-    return <div data-testid="admin-module-app-artifacts">No artifacts</div>;
-  }
+  const columns = useMemo<TableColumnType<ModuleAppArtifactRow>[]>(
+    () => [
+      { dataIndex: 'id', key: 'artifact', title: resolvedLabels.artifact },
+      {
+        dataIndex: 'scopeType',
+        key: 'scope',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.scope,
+      },
+      {
+        dataIndex: 'fileName',
+        key: 'file',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.file,
+      },
+      {
+        dataIndex: 'mimeType',
+        key: 'mime',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.mime,
+      },
+      {
+        key: 'size',
+        render: (_, record) =>
+          record.sizeBytes === undefined || record.sizeBytes === null ? '-' : record.sizeBytes,
+        title: resolvedLabels.size,
+      },
+      {
+        dataIndex: 'storageKey',
+        key: 'storageKey',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.storageKey,
+      },
+    ],
+    [resolvedLabels],
+  );
 
   return (
-    <table data-testid="admin-module-app-artifacts">
-      <thead>
-        <tr>
-          <th>{resolvedLabels.artifact}</th>
-          <th>{resolvedLabels.scope}</th>
-          <th>{resolvedLabels.file}</th>
-          <th>{resolvedLabels.mime}</th>
-          <th>{resolvedLabels.size}</th>
-          <th>{resolvedLabels.storageKey}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.id}>
-            <td>{item.id}</td>
-            <td>{item.scopeType ?? '-'}</td>
-            <td>{item.fileName ?? '-'}</td>
-            <td>{item.mimeType ?? '-'}</td>
-            <td>
-              {item.sizeBytes === undefined || item.sizeBytes === null ? '-' : item.sizeBytes}
-            </td>
-            <td>{item.storageKey ?? '-'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <AdminDataTable
+      columns={columns}
+      dataSource={items}
+      regionLabel={regionLabel ?? resolvedLabels.artifact}
+      rowKey="id"
+    />
   );
 });
 

@@ -2,10 +2,11 @@
 
 import { DISPLAY_CREDITS_UNIT, toAtomicCredits, toDisplayCredits } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
+import { Button, Flexbox } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs from 'dayjs';
 import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 import { OFFICIAL_URL } from '@/const/url';
@@ -13,6 +14,12 @@ import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 import { useUserStore } from '@/store/user';
 import { authSelectors, userProfileSelectors } from '@/store/user/selectors';
+
+import {
+  formatCredits,
+  formatCreditsAmount,
+  formatSignedCredits,
+} from './creditsDisplay';
 
 export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
   actionRow: css`
@@ -155,6 +162,14 @@ export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
   tableSection: css`
     margin-block-start: 8px;
   `,
+  tableError: css`
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+
+    padding-block: 20px;
+  `,
   tileTitle: css`
     font-size: 13px;
     line-height: 1.5;
@@ -193,11 +208,9 @@ export { DISPLAY_CREDITS_UNIT, toDisplayCredits };
 
 export const toRawCredits = toAtomicCredits;
 
-export const formatCredits = (value: number) =>
-  `${formatBusinessNumber(toDisplayCredits(value))} M`;
-
-export const formatSignedCredits = (value: number) =>
-  `${value > 0 ? '+' : ''}${formatBusinessNumber(toDisplayCredits(value))} M`;
+// 积分格式化是纯函数，定义在 creditsDisplay.ts 以便单测直接覆盖精度契约；
+// 这里只做再导出，既有调用点（shared / UsageTable 等）无需改路径。
+export { formatCredits, formatCreditsAmount, formatSignedCredits };
 
 export const formatCreditBreakdownStats = ({
   credited,
@@ -375,6 +388,28 @@ interface SummaryTileProps {
   title: ReactNode;
   value: ReactNode;
 }
+
+/**
+ * 桌面端的加载失败态。桌面表格分支过去直接消费 data（失败时为空数组），
+ * 于是「加载失败」与「真的没有记录」渲染成同一张空表，且没有重试入口。
+ * 移动端早就有 role="alert" + 重试，这里让桌面端对齐同一套语义。
+ */
+export const BusinessTableError = ({
+  description,
+  onRetry,
+}: {
+  description?: ReactNode;
+  onRetry?: () => void;
+}) => {
+  const { t } = useTranslation('subscription');
+
+  return (
+    <div className={subscriptionPageStyles.tableError} role="alert">
+      <div>{description ?? t('mobile.error.title')}</div>
+      {onRetry ? <Button onClick={onRetry}>{t('mobile.error.retry')}</Button> : null}
+    </div>
+  );
+};
 
 export const SummaryTile = memo<SummaryTileProps>(({ title, value, caption, extra }) => {
   return (

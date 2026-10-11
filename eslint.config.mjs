@@ -588,6 +588,42 @@ export default eslint(
       'max-lines': ['error', adminMaxLinesOptions],
     },
   },
+  // Admin pages must not reach for antd's `Table` directly: AdminDataTable is
+  // the sanctioned wrapper and carries the accessible scroll region, the
+  // unified density, the three-state gate and CSV export. Bare <table> (as
+  // moduleApps' five operational tables were) or a raw antd Table silently
+  // loses all of it.
+  //
+  // Scoped to the single `Table` member on purpose — a blanket antd ban would
+  // flag Button/Empty/Tooltip and break the domain wholesale. The six legacy
+  // violations are exempted by path and shrink as they migrate; AdminDataTable
+  // itself must stay exempt or the rule bans its own implementation.
+  {
+    files: ['src/features/Admin/**/*.{ts,tsx}'],
+    ignores: [
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      'src/features/Admin/shared/AdminDataTable.tsx',
+      'src/features/Admin/AdminProvidersPage.tsx',
+      'src/features/Admin/DesktopControlCenter/DesktopBuildHistory.tsx',
+      'src/features/Admin/DesktopControlCenter/distributionDiagnosticsTable.tsx',
+      'src/features/Admin/ModelBillingMatrix/MatrixTable.tsx',
+      'src/features/Admin/Providers/ModelTypePanel.tsx',
+      'src/features/Admin/UserDetail/DetailSections.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': createRestrictedImportRule({
+        paths: [
+          {
+            importNames: ['Table'],
+            message:
+              'Use AdminDataTable from "../shared" (or "@/features/Admin/shared"): it wraps antd Table with the accessible scroll region, unified density, three-state gate and CSV export. Adding a direct antd Table import silently loses all of it.',
+            name: 'antd',
+          },
+        ],
+      }),
+    },
+  },
   // Global rule overrides
   {
     rules: {
