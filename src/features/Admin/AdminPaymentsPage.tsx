@@ -62,6 +62,11 @@ const AdminPaymentsPage = () => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('tab', key);
+      // 游标参数不能跨 Tab 带过去：topups 与 subscriptions 共用 ?cursor=，
+      // 带过去会让新 Tab 直接落到第 N 页（跳过前面全部记录）；
+      // settlements 用独立的 settlementCursor，同样一并清掉，各 Tab 从第一页开始。
+      next.delete('cursor');
+      next.delete('settlementCursor');
       return next;
     });
   };

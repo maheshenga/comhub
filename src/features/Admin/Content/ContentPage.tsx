@@ -1,9 +1,11 @@
 'use client';
 
 import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- base-ui barrel 无 Empty（@lobehub/ui 顶层的自研 Empty 属另一迁移面）；Input 为话题/文件/文档三个 tab 的筛选输入，迁 base-ui 属 B4 筛选器收敛批次统一处理。
 import { Empty, Input } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -23,6 +25,7 @@ import {
 import { contentStyles } from './styles';
 
 const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
+  const { t } = useTranslation('subscription');
   const copy = getModeCopy(mode);
   const [cursor, setCursor] = useState(0);
   const [query, setQuery] = useState('');
@@ -185,7 +188,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
         {data?.nextCursor != null ? (
           <div className={contentStyles.pagination}>
             <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-              加载更多
+              {t('admin.content.nextPage', '下一页')}
             </Button>
           </div>
         ) : null}

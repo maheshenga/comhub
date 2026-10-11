@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from '@lobehub/ui/base-ui';
 import type { Dayjs } from 'dayjs';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +18,12 @@ import {
   readBatchCorrelationId,
 } from '@/features/Admin/Audit/auditParts';
 import { AdminAuditTableSection } from '@/features/Admin/Audit/auditTableSection';
-import { AdminPageError, AdminPageShell, AdminSection, AdminToolbar } from '@/features/Admin/layout';
+import {
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+  AdminToolbar,
+} from '@/features/Admin/layout';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -157,7 +163,9 @@ const AdminAuditPage = memo(() => {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch {
-      // 导出失败保持静默（错误态由页面级 error 处理）。
+      // 导出失败必须让管理员知道：此前静默吞掉，按钮转完圈即恢复，
+      // 管理员会去找一个根本不存在（或不完整）的 CSV 文件。
+      toast.error(t('admin.audit.exportFailed', '导出失败，请稍后重试'));
     } finally {
       setExporting(false);
     }
@@ -239,4 +247,3 @@ const AdminAuditPage = memo(() => {
 AdminAuditPage.displayName = 'AdminAuditPage';
 
 export default AdminAuditPage;
-

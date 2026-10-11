@@ -9,7 +9,6 @@ const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, f
 describe('admin commercial flow pages', () => {
   it('uses the shared admin UX shell on high-frequency management pages', () => {
     for (const filePath of [
-      'src/features/Admin/AdminOrdersPage.tsx',
       'src/features/Admin/AdminSubscriptionsPage.tsx',
       'src/routes/(main)/admin/users/index.tsx',
     ]) {
@@ -19,6 +18,17 @@ describe('admin commercial flow pages', () => {
       expect(page, filePath).toContain('AdminResponsiveTable');
       expect(page, filePath).toContain('AdminToolbar');
     }
+
+    // 订单页把表格区抽进了域组件（B2 拆页方向），shell 契约跟着拆到两份源上：
+    // 页面文件持有 AdminPageShell/AdminToolbar，表格区组件持有 AdminResponsiveTable 与错误态。
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+    const orderTableArea = readRepoFile('src/features/Admin/Orders/orderTableArea.tsx');
+
+    expect(ordersPage).toContain('AdminPageShell');
+    expect(ordersPage).toContain('AdminToolbar');
+    expect(ordersPage).toContain('OrderTableArea');
+    expect(orderTableArea).toContain('AdminResponsiveTable');
+    expect(orderTableArea).toContain('AdminPageError');
 
     const overviewPage = readRepoFile('src/features/Admin/AdminOverviewPage.tsx');
     const adminLayout = readRepoFile('src/routes/(main)/admin/_layout/index.tsx');
@@ -154,9 +164,7 @@ describe('admin commercial flow pages', () => {
     const adminReadModel = readRepoFile(
       'packages/business-server/src/appSettings/adminReadModel.ts',
     );
-    const recommendationCards = readRepoFile(
-      'src/features/Admin/Recommendations/SectionCards.tsx',
-    );
+    const recommendationCards = readRepoFile('src/features/Admin/Recommendations/SectionCards.tsx');
     const publicRecommendations = readRepoFile('src/features/CommunityRecommendations/index.tsx');
 
     for (const key of [
@@ -212,14 +220,14 @@ describe('admin commercial flow pages', () => {
       readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx'),
       readRepoFile('src/features/Admin/ModelBillingMatrix/useMatrixData.ts'),
     ].join(String.fromCharCode(10));
-  const matrixTableSource = () => readRepoFile('src/features/Admin/ModelBillingMatrix/MatrixTable.tsx');
+  const matrixTableSource = () =>
+    readRepoFile('src/features/Admin/ModelBillingMatrix/MatrixTable.tsx');
   const matrixBillingBasisSource = () =>
     readRepoFile('src/features/Admin/ModelBillingMatrix/BillingBasisSection.tsx');
   const matrixConfigHealthSource = () =>
     readRepoFile('src/features/Admin/ModelBillingMatrix/ConfigHealthSection.tsx');
 
   it('uses provider-neutral i18n keys for the admin provider page', () => {
-
     expect(providersPageSource()).toContain('admin.providers.');
     expect(providersPageSource()).not.toContain('admin.newapi.');
   });
@@ -250,12 +258,12 @@ describe('admin commercial flow pages', () => {
     }
 
     expect(modelTypePanel).toContain('adminCommercialService.updateAiProviderInstanceModel');
-    expect(
-      readRepoFile('src/features/Admin/Providers/InstanceFormModal.tsx'),
-    ).toContain('adminCommercialService.createAiProviderInstance');
-    expect(
-      readRepoFile('src/features/Admin/Providers/InstanceFormModal.tsx'),
-    ).toContain('adminCommercialService.updateAiProviderInstance');
+    expect(readRepoFile('src/features/Admin/Providers/InstanceFormModal.tsx')).toContain(
+      'adminCommercialService.createAiProviderInstance',
+    );
+    expect(readRepoFile('src/features/Admin/Providers/InstanceFormModal.tsx')).toContain(
+      'adminCommercialService.updateAiProviderInstance',
+    );
 
     for (const legacyMethod of [
       'listNewapiInstances',
@@ -298,7 +306,9 @@ describe('admin commercial flow pages', () => {
     expect(service).toContain('refreshAiProviderRuntimeCache');
     expect(service).toContain('newapiProviders.refreshRuntimeCache.mutate()');
     expect(providersPageSource()).toContain('handleRefreshRuntimeCache');
-    expect(providersPageSource()).toContain('adminCommercialService.refreshAiProviderRuntimeCache()');
+    expect(providersPageSource()).toContain(
+      'adminCommercialService.refreshAiProviderRuntimeCache()',
+    );
     expect(providersPageSource()).toContain('mutate(serverConfigKeys.get)');
     expect(providersPageSource()).toContain('refreshAiProviderRuntimeState()');
     expect(providersPageSource()).toContain("t('admin.providers.refreshRuntimeCache.action'");
@@ -791,7 +801,9 @@ describe('admin commercial flow pages', () => {
 
   it('uses a modal state machine for change request bulk operations', () => {
     const changeRequestsPage = readRepoFile('src/features/Admin/AdminChangeRequestsPage.tsx');
-    const bulkActionsToolbar = readRepoFile('src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx');
+    const bulkActionsToolbar = readRepoFile(
+      'src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx',
+    );
     const bulkActionFlow = readRepoFile('src/features/Admin/AdminBulkActionFlow.tsx');
 
     expect(bulkActionsToolbar).toContain('AdminBulkActionFlow');
@@ -822,7 +834,9 @@ describe('admin commercial flow pages', () => {
   it('keeps all selected-row admin bulk mutations on the shared state machine', () => {
     const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
     const changeRequestsPage = readRepoFile('src/features/Admin/AdminChangeRequestsPage.tsx');
-    const bulkActionsToolbar = readRepoFile('src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx');
+    const bulkActionsToolbar = readRepoFile(
+      'src/features/Admin/ChangeRequests/BulkActionsToolbar.tsx',
+    );
     const modelTypePanel = readRepoFile('src/features/Admin/Providers/ModelTypePanel.tsx');
 
     for (const page of [redemptionPage, changeRequestsPage, bulkActionsToolbar]) {

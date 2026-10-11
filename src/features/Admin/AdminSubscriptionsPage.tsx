@@ -18,8 +18,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import AdminChangeRequestsPage from './AdminChangeRequestsPage';
 import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
 import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
+import { AdminPageError } from './shared/AdminPageState';
 import ForcePlanModal from './Subscriptions/ForcePlanModal';
-import { PLAN_COLORS, type PlanFilter,STATUS_COLORS } from './Subscriptions/shared';
+import { PLAN_COLORS, type PlanFilter, STATUS_COLORS } from './Subscriptions/shared';
 
 const styles = createStaticStyles(({ css }) => ({
   filter: css`
@@ -47,7 +48,7 @@ const AdminSubscriptionsPage = memo(() => {
 
   const swrKey = useMemo(() => ['admin-subscriptions', plan, cursor] as const, [plan, cursor]);
 
-  const { data, isLoading, mutate } = useClientDataSWR(swrKey, () =>
+  const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
     adminCommercialService.listSubscriptions({
       cursor,
       limit: 20,
@@ -175,7 +176,7 @@ const AdminSubscriptionsPage = memo(() => {
           {
             children: (
               <AdminSection
-        carded
+                carded
                 title={t('admin.subscriptions.listTitle', '订阅记录')}
                 description={t('admin.subscriptions.resultSummary', {
                   count: items.length,
@@ -213,15 +214,22 @@ const AdminSubscriptionsPage = memo(() => {
                   />
                 </AdminToolbar>
 
-                <AdminResponsiveTable label={t('admin.subscriptions.tableLabel', '订阅数据表')}>
-                  <InlineTable
-                    columns={columns}
-                    dataSource={items}
-                    loading={isLoading}
-                    locale={{ emptyText: t('admin.subscriptions.empty', '暂无订阅数据') }}
-                    rowKey="id"
+                {error ? (
+                  <AdminPageError
+                    description={t('admin.subscriptions.loadFailed', '订阅列表加载失败，请重试。')}
+                    onRetry={() => mutate()}
                   />
-                </AdminResponsiveTable>
+                ) : (
+                  <AdminResponsiveTable label={t('admin.subscriptions.tableLabel', '订阅数据表')}>
+                    <InlineTable
+                      columns={columns}
+                      dataSource={items}
+                      loading={isLoading}
+                      locale={{ emptyText: t('admin.subscriptions.empty', '暂无订阅数据') }}
+                      rowKey="id"
+                    />
+                  </AdminResponsiveTable>
+                )}
 
                 {(cursorStack.length > 1 || nextCursor != null) && (
                   <Flexbox horizontal align="center" gap={8}>

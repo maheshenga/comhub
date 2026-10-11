@@ -7,14 +7,13 @@ import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import InlineTable from '@/components/InlineTable';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { buildAdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
-import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
+import { AdminPageShell, AdminSection, AdminToolbar } from './layout';
 import {
   BulkDryRunAlert,
   type BulkOrderDryRun,
@@ -24,6 +23,8 @@ import {
 } from './Orders/orderBulkToolbar';
 import { buildOrderColumns } from './Orders/orderColumns';
 import { OrderDetailDrawer } from './Orders/OrderDetailDrawer';
+import { OrderPager } from './Orders/orderPager';
+import { OrderTableArea } from './Orders/orderTableArea';
 import type { AdminOrderDetail, OrderStatus, PendingOrderCommand } from './Orders/shared';
 import { buildTopUpPaymentUrl } from './Orders/shared';
 import { useAdminCursorQuery } from './shared/useAdminCursorQuery';
@@ -76,7 +77,7 @@ const AdminOrdersPage = memo(() => {
         userId: trimUserId || undefined,
       }),
   });
-  const { data, isLoading } = ordersQuery;
+  const { data, error, isLoading } = ordersQuery;
   const { data: orderDetail, isLoading: orderDetailLoading } = useClientDataSWR(
     orderDetailId ? ['admin-order-detail', orderDetailId] : null,
     async (): Promise<AdminOrderDetail> =>
@@ -188,7 +189,7 @@ const AdminOrdersPage = memo(() => {
           {
             children: (
               <AdminSection
-        carded
+                carded
                 title={t('admin.orders.listTitle', '订单记录')}
                 description={t('admin.orders.resultSummary', {
                   count: data?.items?.length ?? 0,
@@ -246,31 +247,24 @@ const AdminOrdersPage = memo(() => {
                   t={t as any}
                   onDismiss={() => setBulkDryRun(null)}
                 />
-                <AdminResponsiveTable label={t('admin.orders.tableLabel', '订单数据表')}>
-                  <InlineTable
-                    columns={columns}
-                    dataSource={data?.items ?? []}
-                    loading={isLoading}
-                    rowKey="id"
-                    rowSelection={orderRowSelection(effectiveSelectedIds, setSelectedOrderIds)}
-                  />
-                </AdminResponsiveTable>
+                <OrderTableArea
+                  columns={columns}
+                  data={data}
+                  error={error}
+                  isLoading={isLoading}
+                  rowSelection={orderRowSelection(effectiveSelectedIds, setSelectedOrderIds)}
+                  t={t as any}
+                  onRetry={() => void refresh()}
+                />
                 {(ordersQuery.hasPrevious || ordersQuery.hasNext) && (
-                  <Flexbox horizontal align="center" gap={8}>
-                    <Button
-                      disabled={!ordersQuery.hasPrevious}
-                      onClick={ordersQuery.pager.onPrevious}
-                    >
-                      {t('admin.pagination.previous', '上一页')}
-                    </Button>
-                    <Button
-                      disabled={!ordersQuery.hasNext}
-                      loading={isLoading}
-                      onClick={ordersQuery.pager.onNext}
-                    >
-                      {t('admin.pagination.next', '下一页')}
-                    </Button>
-                  </Flexbox>
+                  <OrderPager
+                    hasNext={ordersQuery.hasNext}
+                    hasPrevious={ordersQuery.hasPrevious}
+                    isLoading={isLoading}
+                    t={t as any}
+                    onNext={ordersQuery.pager.onNext}
+                    onPrevious={ordersQuery.pager.onPrevious}
+                  />
                 )}
               </AdminSection>
             ),
