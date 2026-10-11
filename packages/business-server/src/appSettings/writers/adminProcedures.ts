@@ -5,7 +5,6 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
-  APP_SETTINGS_SECTIONS,
   type AppSettingKey,
   type AppSettingsSection,
   getAppSettingsSectionForKey,
@@ -27,7 +26,6 @@ import { invalidateServerBrand } from '@/server/services/brand';
 
 import { createAdminCommand } from '../../lambda-routers/admin/adminCommand';
 import { runRequiredAdminAuditMutation } from '../../lambda-routers/admin/audit';
-import { MODULE_APP_RUNTIME_SETTING_KEYS } from '../../module-apps/runtimeConfig';
 import {
   APP_SETTING_WRITE_SURFACES,
   GENERIC_WRITABLE_APP_SETTING_KEYS,
@@ -44,6 +42,10 @@ import {
   toString,
   validateDefaultAgentModelUsability,
 } from '../procedureShared';
+import {
+  expectedSettingRevisionsSchema,
+  setModuleAppRuntimeSettingsInputSchema,
+} from './setModuleAppRuntimeSettingsInput';
 
 const setAppSettingCommand = createAdminCommand('setting.setAppSetting');
 const setModuleAppRuntimeSettingsCommand = createAdminCommand('moduleApp.setRuntimeSettings');
@@ -89,14 +91,6 @@ const appSettingUpdateInputSchema = z.object({
   key: z.enum(GENERIC_WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
   value: z.unknown(),
 });
-const moduleAppRuntimeSettingUpdateSchema = z.object({
-  key: z.enum(MODULE_APP_RUNTIME_SETTING_KEYS),
-  value: z.unknown(),
-});
-const expectedSettingRevisionsSchema = z.partialRecord(
-  z.enum(APP_SETTINGS_SECTIONS),
-  z.number().int().nonnegative(),
-);
 const syncUserGlobalSettingsDefaultsInputSchema = z
   .object({
     forceDefaultAgentMeta: z.boolean().optional(),
@@ -807,12 +801,7 @@ export const adminSettingsWriteProcedures = {
       return { count: input.updates.length, ok: true, revisions };
     }),
   setModuleAppRuntimeSettings: moduleAppWriteProcedure
-    .input(
-      z.object({
-        expectedRevisions: expectedSettingRevisionsSchema,
-        updates: z.array(moduleAppRuntimeSettingUpdateSchema).min(1).max(100),
-      }),
-    )
+    .input(setModuleAppRuntimeSettingsInputSchema)
     .mutation(async ({ ctx, input }) => {
       const correlationId = randomUUID();
       const normalizedUpdates = await Promise.all(

@@ -1,0 +1,8 @@
+name: "ComHub CodeQL config"
+
+paths-ignore:
+  # Linter-rule calibration fixtures (alint ruleset): bad-* files intentionally
+  # contain the vulnerability patterns each rule detects, good-* files are their
+  # carve-out counterparts. They are never shipped — scanning them buries real
+  # alerts under known false positives.
+  - packages/alint/fixtures

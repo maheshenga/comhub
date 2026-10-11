@@ -28,6 +28,9 @@ jobs:
         with:
           build-mode: none
           languages: javascript-typescript
+          # Excludes packages/alint/fixtures (linter calibration fixtures):
+          # see .github/codeql-config.yml paths-ignore.
+          config-file: ./.github/codeql-config.yml
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
