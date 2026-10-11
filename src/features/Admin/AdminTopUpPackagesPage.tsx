@@ -24,6 +24,7 @@ import {
   AdminSection,
   AdminToolbar,
 } from './layout';
+import { isFormValidationError } from './shared/adminFormErrors';
 import PackageFormFields from './TopUpPackages/PackageFormFields';
 import { type PackageRow, SWR_KEY } from './TopUpPackages/shared';
 
@@ -94,8 +95,8 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       toast.success(t('admin.topup.saveSuccess', '充值套餐已保存'));
       setEditing(null);
       await mutate(SWR_KEY);
-    } catch {
-      toast.error(t('admin.topup.saveFailed', '保存失败'));
+    } catch (error) {
+      if (!isFormValidationError(error)) toast.error(t('admin.topup.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -205,7 +206,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
         />
       ) : (
         <AdminSection
-        carded
+          carded
           title={t('admin.topup.listTitle', '充值套餐列表')}
           description={t('admin.topup.resultSummary', {
             count: items.length,

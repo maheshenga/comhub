@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, Input, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,9 +12,16 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { SkillSorts } from '@/types/discover';
 
-import { AdminFormActions, AdminFormGrid, AdminPageError, AdminPageShell, AdminSection } from './layout';
+import {
+  AdminFormActions,
+  AdminFormGrid,
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+} from './layout';
 import FeaturedSection from './Operations/FeaturedSection';
 import { type FormValues, SETTING_KEYS } from './Operations/shared';
+import { isFormValidationError } from './shared/adminFormErrors';
 
 const AdminOperationsPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -126,8 +134,8 @@ const AdminOperationsPage = memo(() => {
         ],
       });
       toast.success(t('admin.operations.saveSuccess', '运营配置已保存'));
-    } catch {
-      toast.error(t('admin.operations.saveFailed', '保存失败'));
+    } catch (error) {
+      if (!isFormValidationError(error)) toast.error(t('admin.operations.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -172,7 +180,7 @@ const AdminOperationsPage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
-        carded
+            carded
             title={t('admin.operations.bannerSection', '社区横幅')}
             description={t(
               'admin.operations.bannerSectionDescription',

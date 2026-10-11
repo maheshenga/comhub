@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, Input, InputNumber, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,7 @@ import {
   AdminPageShell,
   AdminSection,
 } from './layout';
+import { isFormValidationError } from './shared/adminFormErrors';
 import RunResultModal from './SystemMaintenance/RunResultModal';
 import {
   buildInitialValues,
@@ -69,8 +71,9 @@ const AdminSystemMaintenancePage = memo(() => {
       await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('cronSecret', '');
       toast.success(t('admin.maintenance.saveSuccess', '系统维护设置已保存'));
-    } catch {
-      toast.error(t('admin.maintenance.saveFailed', '保存失败，请检查维护配置'));
+    } catch (error) {
+      if (!isFormValidationError(error))
+        toast.error(t('admin.maintenance.saveFailed', '保存失败，请检查维护配置'));
     } finally {
       setSubmitting(false);
     }
@@ -141,7 +144,7 @@ const AdminSystemMaintenancePage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
-        carded
+            carded
             title={t('admin.maintenance.cronSection', '定时维护配置')}
             description={t(
               'admin.maintenance.cronSectionDescription',
@@ -186,7 +189,7 @@ const AdminSystemMaintenancePage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.maintenance.runtimeActions', '运行时操作')}
             description={t(
               'admin.maintenance.runtimeActionsDescription',
@@ -213,7 +216,7 @@ const AdminSystemMaintenancePage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.maintenance.memorySection', '记忆系统')}
             description={t(
               'admin.maintenance.memorySectionDescription',
