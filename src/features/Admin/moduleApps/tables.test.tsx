@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import ArtifactsTable from './ArtifactsTable';
@@ -79,5 +80,22 @@ describe('module app admin operational tables', () => {
     expect(screen.getByText('result.md')).toBeInTheDocument();
     expect(screen.getByText('personal')).toBeInTheDocument();
     expect(screen.getByText('module-apps/app-1/result.md')).toBeInTheDocument();
+  });
+
+  // 无障碍滚动区是这批迁移的核心收益：裸 <table> 没有 role="region"，键盘用户
+  // 无法聚焦到横向滚动的容器。必须用 role 断言——空态与 loading 共用同一个
+  // data-testid，用 testid 断言锁不住无障碍语义。
+  it.each([
+    ['installs', InstallsTable, { id: 'install-1', scopeType: 'personal' }],
+    ['runs', RunsTable, { id: 'run-1', status: 'succeeded' }],
+    ['records', RecordsTable, { collectionKey: 'records', id: 'record-1', scopeType: 'personal' }],
+    ['artifacts', ArtifactsTable, { id: 'artifact-1', scopeType: 'personal' }],
+    ['audit events', AuditEventsTable, { eventType: 'module_app.upserted', id: 'audit-1' }],
+  ])('exposes %s as a labelled scroll region', (_name, Table, item) => {
+    const Component = Table as (props: { items: unknown[]; regionLabel: string }) => ReactElement;
+
+    render(<Component items={[item]} regionLabel={`${_name} table`} />);
+
+    expect(screen.getByRole('region', { name: `${_name} table` })).toBeInTheDocument();
   });
 });

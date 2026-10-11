@@ -1,5 +1,7 @@
-import { memo } from 'react';
+import { type TableColumnType } from 'antd';
+import { memo, useMemo } from 'react';
 
+import { AdminDataTable } from '../shared';
 import type { ModuleAppAuditRow } from './types';
 
 export type AuditEventsTableLabels = {
@@ -12,45 +14,49 @@ export type AuditEventsTableLabels = {
 interface AuditEventsTableProps {
   items?: ModuleAppAuditRow[];
   labels?: AuditEventsTableLabels;
-  loading?: boolean;
+  /** 无障碍滚动区名字；三态由页面层 ModulePageState 先行拦截。 */
+  regionLabel?: string;
 }
 
-const formatDate = (value?: Date | string) => (value ? String(value) : '-');
+const AuditEventsTable = memo<AuditEventsTableProps>(({ items = [], labels, regionLabel }) => {
+  const resolvedLabels = useMemo(
+    () => ({
+      actor: 'Actor',
+      audit: 'Audit',
+      created: 'Created',
+      event: 'Event',
+      ...labels,
+    }),
+    [labels],
+  );
 
-const AuditEventsTable = memo<AuditEventsTableProps>(({ items = [], labels, loading }) => {
-  const resolvedLabels = {
-    actor: 'Actor',
-    audit: 'Audit',
-    created: 'Created',
-    event: 'Event',
-    ...labels,
-  };
-
-  if (loading) return <div data-testid="admin-module-app-audit-events">Loading audit events</div>;
-  if (items.length === 0)
-    return <div data-testid="admin-module-app-audit-events">No audit events</div>;
+  const columns = useMemo<TableColumnType<ModuleAppAuditRow>[]>(
+    () => [
+      { dataIndex: 'id', key: 'audit', title: resolvedLabels.audit },
+      { dataIndex: 'eventType', key: 'event', title: resolvedLabels.event },
+      {
+        dataIndex: 'actorUserId',
+        key: 'actor',
+        render: (value) => value ?? '-',
+        title: resolvedLabels.actor,
+      },
+      {
+        dataIndex: 'createdAt',
+        key: 'created',
+        render: (value) => (value ? String(value) : '-'),
+        title: resolvedLabels.created,
+      },
+    ],
+    [resolvedLabels],
+  );
 
   return (
-    <table data-testid="admin-module-app-audit-events">
-      <thead>
-        <tr>
-          <th>{resolvedLabels.audit}</th>
-          <th>{resolvedLabels.event}</th>
-          <th>{resolvedLabels.actor}</th>
-          <th>{resolvedLabels.created}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.id}>
-            <td>{item.id}</td>
-            <td>{item.eventType}</td>
-            <td>{item.actorUserId ?? '-'}</td>
-            <td>{formatDate(item.createdAt)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <AdminDataTable
+      columns={columns}
+      dataSource={items}
+      regionLabel={regionLabel ?? resolvedLabels.audit}
+      rowKey="id"
+    />
   );
 });
 
