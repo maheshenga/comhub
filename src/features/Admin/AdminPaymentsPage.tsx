@@ -10,20 +10,18 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import { AdminPageShell } from './layout';
-import ModulePaymentsPage from './moduleApps/finance/payments/ModulePaymentsPage';
 import ChannelSettings from './PaymentChannels/ChannelSettings';
 import CreditSettlementFailuresPage from './payments/CreditSettlementFailuresPage';
 import SubscriptionPaymentsPage from './payments/SubscriptionPaymentsPage';
 import TopUpPaymentsPage from './payments/TopUpPaymentsPage';
 import { useUnsavedChangesGuard } from './shared/useUnsavedChangesGuard';
 
-type PaymentCenterTab = 'channels' | 'moduleApps' | 'settlements' | 'subscriptions' | 'topups';
+type PaymentCenterTab = 'channels' | 'settlements' | 'subscriptions' | 'topups';
 
 const PAYMENT_CENTER_TABS = new Set<PaymentCenterTab>([
   'channels',
   'subscriptions',
   'topups',
-  'moduleApps',
   'settlements',
 ]);
 
@@ -39,7 +37,7 @@ const AdminPaymentsPage = () => {
   const requestedTab = searchParams.get('tab') as PaymentCenterTab | null;
   const allowedTabs = new Set<PaymentCenterTab>([
     ...(canViewChannels ? (['channels'] as const) : []),
-    ...(canViewFinance ? (['subscriptions', 'topups', 'moduleApps', 'settlements'] as const) : []),
+    ...(canViewFinance ? (['subscriptions', 'topups', 'settlements'] as const) : []),
   ]);
   const defaultTab: PaymentCenterTab = canViewChannels ? 'channels' : 'topups';
   const activeTab = requestedTab && allowedTabs.has(requestedTab) ? requestedTab : defaultTab;
@@ -92,13 +90,6 @@ const AdminPaymentsPage = () => {
       : null,
     canViewFinance
       ? {
-          children: <ModulePaymentsPage embedded />,
-          key: 'moduleApps' as const,
-          label: t('admin.payments.tabs.moduleApps', 'Module payments'),
-        }
-      : null,
-    canViewFinance
-      ? {
           children: <CreditSettlementFailuresPage />,
           key: 'settlements' as const,
           label: t('admin.payments.tabs.settlements', 'Settlement failures'),
@@ -112,7 +103,7 @@ const AdminPaymentsPage = () => {
       width="full"
       description={t(
         'admin.payments.subtitle',
-        'Manage payment methods, plan purchases, online top-ups, and module-payment diagnostics.',
+        'Manage payment methods, plan purchases, and online top-ups. Module-payment reconciliation lives in the module center.',
       )}
     >
       <Tabs activeKey={activeTab} items={tabItems} onChange={changeTab} />

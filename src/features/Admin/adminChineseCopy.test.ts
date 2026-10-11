@@ -66,7 +66,7 @@ describe('admin Chinese copy', () => {
 
   it('uses readable Chinese navigation labels for billing pages', () => {
     const commercialItems =
-      ADMIN_NAV_GROUPS.find((group) => group.key === 'commercial')?.items ?? [];
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'finance-commerce')?.items ?? [];
 
     expect(commercialItems.find((item) => item.path.endsWith('/subscriptions'))).toMatchObject({
       label: '订阅管理',
@@ -75,7 +75,12 @@ describe('admin Chinese copy', () => {
       label: '兑换码',
     });
     expect(commercialItems.find((item) => item.path.endsWith('/orders'))).toMatchObject({
-      label: '平台订单与充值',
+      label: '订单与充值套餐',
+    });
+    // IA 重设计步骤 6：积分页无流水列表，标签与描述不得再承诺「流水」。
+    expect(commercialItems.find((item) => item.path.endsWith('/credits'))).toMatchObject({
+      description: '查看积分账户余额，支持排序、筛选与导出',
+      label: '积分账户',
     });
   });
 
@@ -236,9 +241,7 @@ describe('admin Chinese copy', () => {
 
   it('includes default Chinese copy for the M5 three-domain batch actions', () => {
     expect(subscription['admin.orders.bulkExpire']).toBe('批量过期');
-    expect(subscription['admin.orders.bulkExpireTitle']).toBe(
-      '批量过期 {{count}} 个待支付订单？',
-    );
+    expect(subscription['admin.orders.bulkExpireTitle']).toBe('批量过期 {{count}} 个待支付订单？');
     expect(subscription['admin.orders.bulkCancel']).toBe('批量取消');
     expect(subscription['admin.orders.bulkDryRun']).toBe('预检');
     expect(subscription['admin.users.bulkBan']).toBe('批量封禁');
@@ -267,12 +270,10 @@ describe('admin Chinese copy', () => {
     const catalog = readRepoFile('src/features/Admin/adminCatalog.ts');
     const contentPages = readRepoFile('src/features/Admin/Content/shared.tsx');
     const expertPlazaPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
-    const systemDefaultsPage = readRepoFile(
-      'src/features/Admin/DefaultSettings/SectionFields.tsx',
-    );
+    const systemDefaultsPage = readRepoFile('src/features/Admin/DefaultSettings/SectionFields.tsx');
     const systemDefaultsShared = readRepoFile('src/features/Admin/DefaultSettings/shared.ts');
 
-    expect(catalog).toContain("label: '内容与运营'");
+    expect(catalog).toContain("label: '内容与曝光运营'");
     expect(catalog).toContain("label: 'AI 运行时默认值'");
     expect(contentPages).toContain('话题管理');
     expect(contentPages).toContain('资源文件管理');

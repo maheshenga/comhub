@@ -18,10 +18,10 @@ export const MODULE_SECTION_STATUS: Partial<Record<string, ModuleSectionStatus>>
   'module-app-entitlements': 'active',
   'module-app-products': 'active',
   'module-app-runtime': 'active',
-  // 财务：收入与提现主路径可用；支付对账聚合页保留兼容入口。
+  // 财务：收入与提现主路径可用；模块支付对账为唯一入口（payments 聚合页 moduleApps 标签页已删，IA 重设计 1c）。
   'module-revenue': 'active',
   'module-payouts': 'active',
-  'module-payments': 'compatibility',
+  'module-payments': 'active',
   // 运维观测子页为最近接通的聚合视图，口径仍在收敛。
   'module-installs': 'experimental',
   'module-records': 'experimental',

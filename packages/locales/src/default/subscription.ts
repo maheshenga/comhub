@@ -881,12 +881,14 @@ export default {
   'admin.changeRequests.bulkApproveProgress': '正在通过选中的套餐变更请求，请勿关闭页面。',
   'admin.changeRequests.bulkRejectProgress': '正在拒绝选中的套餐变更请求，请勿关闭页面。',
   'admin.orders.bulkCancel': '批量取消',
-  'admin.orders.bulkCancelDescription': '将选中的待支付兑换订单标记为已取消。执行前会先做只读预检。',
+  'admin.orders.bulkCancelDescription':
+    '将选中的待支付兑换订单标记为已取消。执行前会先做只读预检。',
   'admin.orders.bulkCancelTitle': '批量取消 {{count}} 个待支付订单？',
   'admin.orders.bulkDryRun': '预检',
   'admin.orders.bulkDryRunSummary': '预检完成：{{ok}} 个可处理 / {{total}} 个',
   'admin.orders.bulkExpire': '批量过期',
-  'admin.orders.bulkExpireDescription': '将选中的待支付兑换订单标记为已过期。执行前会先做只读预检。',
+  'admin.orders.bulkExpireDescription':
+    '将选中的待支付兑换订单标记为已过期。执行前会先做只读预检。',
   'admin.orders.bulkExpireTitle': '批量过期 {{count}} 个待支付订单？',
   'admin.payments.subscriptions.bulkRefund': '批量退款',
   'admin.payments.subscriptions.bulkRefundDescription':
@@ -1353,30 +1355,33 @@ export default {
   'admin.navigation.status.deprecated': '已弃用',
   'admin.navigation.status.experimental': '实验性',
   'admin.navigation.status.planned': '规划中',
-  'admin.navigation.groups.overview.label': 'Dashboard',
-  'admin.navigation.groups.overview.description':
-    'Key metrics, pending work, runtime health, and version information',
-  'admin.navigation.groups.user-access.label': 'Users and access',
-  'admin.navigation.groups.user-access.description':
-    'User identity, roles, support actions, and user audit',
-  'admin.navigation.groups.commercial.label': 'Commercial',
-  'admin.navigation.groups.commercial.description':
-    'Plans, subscriptions, orders, credits, redemption, and statistics',
-  'admin.navigation.groups.ai-platform.label': 'AI platform',
+  'admin.navigation.groups.workbench.label': 'Workbench',
+  'admin.navigation.groups.workbench.description':
+    'Read-only aggregation of key metrics, cross-domain to-dos, and runtime health',
+  'admin.navigation.groups.user-support.label': 'Users and support',
+  'admin.navigation.groups.user-support.description':
+    'User identity, permission profiles, and user-level defaults',
+  'admin.navigation.groups.finance-commerce.label': 'Finance and commerce',
+  'admin.navigation.groups.finance-commerce.description':
+    'Plans, subscriptions, orders, credits, redemption, payment channels, and statistics',
+  'admin.navigation.groups.ai-platform.label': 'Models and generation',
   'admin.navigation.groups.ai-platform.description':
-    'Providers, model catalog, pricing, policies, defaults, and generation services',
-  'admin.navigation.groups.module-apps.label': 'Module apps',
-  'admin.navigation.groups.module-apps.description':
+    'Providers, model catalog, access policies, and generation services',
+  'admin.navigation.groups.module-ecosystem.label': 'Module ecosystem',
+  'admin.navigation.groups.module-ecosystem.description':
     'Module catalog, reviews, commerce, runtime data, and audit',
-  'admin.navigation.groups.content-operations.label': 'Content and operations',
-  'admin.navigation.groups.content-operations.description':
-    'Content governance, recommendations, experts, notifications, and growth',
-  'admin.navigation.groups.client-integrations.label': 'Clients and integrations',
-  'admin.navigation.groups.client-integrations.description':
-    'Desktop client, file storage, and external integrations',
-  'admin.navigation.groups.system-security.label': 'System and security',
-  'admin.navigation.groups.system-security.description':
-    'Site branding, system defaults, maintenance, and audit logs',
+  'admin.navigation.groups.content-ops.label': 'Content and exposure',
+  'admin.navigation.groups.content-ops.description':
+    'Content resource governance plus recommendation, plaza, notification, and growth operations',
+  'admin.navigation.groups.client-release.label': 'Desktop releases',
+  'admin.navigation.groups.client-release.description':
+    'Desktop package builds, version releases, and client updates',
+  'admin.navigation.groups.platform-ops.label': 'Platform and operations',
+  'admin.navigation.groups.platform-ops.description':
+    'Site branding, storage, integrations, mobile, and runtime maintenance',
+  'admin.navigation.groups.audit-compliance.label': 'Audit and compliance',
+  'admin.navigation.groups.audit-compliance.description':
+    'Audit records of admin operations and sensitive actions',
   'admin.navigation.items.overview.label': 'Dashboard',
   'admin.navigation.items.overview.description':
     'View key metrics, pending work, and runtime health',
@@ -1391,11 +1396,11 @@ export default {
   'admin.navigation.items.subscriptions.label': 'Subscriptions',
   'admin.navigation.items.subscriptions.description':
     'Review subscriptions and process plan changes',
-  'admin.navigation.items.orders.label': 'Orders and top-ups',
-  'admin.navigation.items.orders.description': 'Review platform orders and top-up status',
+  'admin.navigation.items.orders.label': 'Orders and top-up packages',
+  'admin.navigation.items.orders.description': 'Manage platform orders and top-up package catalog',
   'admin.navigation.items.payments.label': 'Payment center',
   'admin.navigation.items.payments.description':
-    'Configure payment channels and manage top-up and module-payment operations',
+    'Configure payment channels and manage subscription and top-up transactions',
   'admin.payments.alipay.appCertSn': 'Application certificate serial number',
   'admin.payments.alipay.certificate': 'Alipay public-key certificate',
   'admin.payments.alipay.certificateMode': 'Certificate',
@@ -1521,7 +1526,6 @@ export default {
   'admin.payments.subscriptions.status.refunded': 'Refunded',
   'admin.payments.subscriptions.title': 'Plan payment transactions',
   'admin.payments.tabs.channels': 'Channel configuration',
-  'admin.payments.tabs.moduleApps': 'Module payments',
   'admin.payments.tabs.settlements': 'Settlement failures',
   'admin.payments.tabs.subscriptions': 'Plan transactions',
   'admin.payments.tabs.topups': 'Top-up transactions',
@@ -1604,12 +1608,12 @@ export default {
   'admin.payments.zpay.wechat': 'WeChat sub-channel',
   'admin.navigation.items.credits.label': 'Credit accounts',
   'admin.navigation.items.credits.description':
-    'Review credit accounts, balances, and ledger entries',
+    'Review credit account balances with sorting, filtering, and export',
   'admin.navigation.items.redemption.label': 'Redemption codes',
   'admin.navigation.items.redemption.description': 'Create, inspect, and disable redemption codes',
   'admin.navigation.items.stats.label': 'Commercial statistics',
   'admin.navigation.items.stats.description':
-    'Review revenue, subscription, and referral statistics',
+    'View platform overview, activity, subscription, revenue, and redemption statistics',
   'admin.navigation.items.providers.label': 'Providers and instances',
   'admin.navigation.items.providers.description':
     'Maintain provider instances, scopes, and model catalogs',
@@ -1619,12 +1623,12 @@ export default {
   'admin.navigation.items.model-policy.label': 'Model access policy',
   'admin.navigation.items.model-policy.description':
     'Configure platform model allow and deny policies',
-  'admin.navigation.items.ppt.label': 'Generation services',
+  'admin.navigation.items.ppt.label': 'PPT generation service',
   'admin.navigation.items.ppt.description': 'Configure presentation generation and plan quotas',
   'admin.navigation.items.ai-runtime-defaults.label': 'AI runtime defaults',
   'admin.navigation.items.ai-runtime-defaults.description':
     'Configure default models for retrieval and memory extraction',
-  'admin.navigation.items.modules.label': 'Module app center',
+  'admin.navigation.items.modules.label': 'Module ecosystem',
   'admin.navigation.items.modules.description':
     'Govern module apps, reviews, commerce, and runtime data',
   'admin.navigation.items.content-resources.label': 'Content resources',
@@ -1635,15 +1639,15 @@ export default {
     'Manage recommendations, experts, announcements, and operation switches',
   'admin.navigation.items.growth.label': 'Signup and growth',
   'admin.navigation.items.growth.description': 'Configure signup, referral, and growth policies',
-  'admin.navigation.items.desktop-update.label': 'Desktop control center',
+  'admin.navigation.items.desktop-update.label': 'Desktop releases',
   'admin.navigation.items.desktop-update.description':
     'Manage desktop installation, versions, client status, and updates',
   'admin.navigation.items.mobile.label': 'Mobile control center',
   'admin.navigation.items.mobile.description':
-    'Manage mobile branding, navigation, discovery, and app entries',
+    'Manage mobile branding, tab bar, discovery content, app entries, and config publishing',
   'admin.navigation.items.integrations.label': 'External integrations',
   'admin.navigation.items.integrations.description':
-    'Configure Composio and other external tool integrations',
+    'Configure Composio external tool integrations',
   'admin.navigation.items.file-storage.label': 'File storage',
   'admin.navigation.items.file-storage.description':
     'Configure object storage, CDN, and presigned URLs',
