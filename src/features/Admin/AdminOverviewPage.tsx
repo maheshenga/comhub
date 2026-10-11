@@ -256,6 +256,7 @@ const AdminOverviewPage = memo(() => {
       </div>
 
       <AdminSection
+        carded
         description="入口按职责域组织；日常操作无需在长菜单中反复定位。"
         title="管理模块"
       >

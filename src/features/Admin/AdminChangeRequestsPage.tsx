@@ -170,6 +170,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             </AdminToolbar>
           )}
           <AdminSection
+        carded
             title={t('admin.changeRequests.tableTitle', '套餐变更请求')}
             description={t(
               'admin.changeRequests.tableDescription',

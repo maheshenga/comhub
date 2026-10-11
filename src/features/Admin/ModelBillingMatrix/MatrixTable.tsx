@@ -185,6 +185,7 @@ export const MatrixTable = ({
   return (
     <>
       <AdminSection
+        carded
         description={`当前显示 ${displayRows.length}/${rows.length} 个模型`}
         title={t('admin.modelBillingMatrix.matrixSection', '模型权限与计费')}
       >

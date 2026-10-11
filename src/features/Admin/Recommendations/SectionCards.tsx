@@ -14,6 +14,7 @@ const SectionCards = ({ isLoading }: { isLoading: boolean }) => {
 
   return (
           <AdminSection
+        carded
             title={t('admin.recommendations.sections', '推荐版块')}
             description={t(
               'admin.recommendations.sectionsDescription',

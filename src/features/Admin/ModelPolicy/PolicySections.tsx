@@ -46,6 +46,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
       />
 
       <AdminSection
+        carded
         title={t('admin.modelPolicy.statusSection', '策略状态')}
         description={t(
           'admin.modelPolicy.statusSectionDescription',
@@ -78,6 +79,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
       </AdminSection>
 
       <AdminSection
+        carded
         title={t('admin.modelPolicy.listsSection', '全局模型列表')}
         description={t(
           'admin.modelPolicy.listsSectionDescription',
@@ -117,6 +119,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
       </AdminSection>
 
       <AdminSection
+        carded
         title={t('admin.modelPolicy.scopeSection', '作用范围与兜底')}
         description={t(
           'admin.modelPolicy.scopeSectionDescription',

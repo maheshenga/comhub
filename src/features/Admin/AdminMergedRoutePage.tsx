@@ -30,7 +30,8 @@ const AdminMergedRoutePage = memo<AdminMergedRoutePageProps>(
           message="此旧入口不再提供独立保存表单，避免同一配置在多个页面被覆盖。"
           type="info"
         />
-        <AdminSection description="继续前往当前负责该配置的管理页面。" title="配置入口">
+        <AdminSection
+        carded description="继续前往当前负责该配置的管理页面。" title="配置入口">
           <Flexbox horizontal gap={8} style={{ flexWrap: 'wrap' }}>
             <Button type="primary" onClick={() => navigate(primaryAction.path)}>
               {primaryAction.label}

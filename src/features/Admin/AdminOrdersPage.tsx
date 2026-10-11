@@ -188,6 +188,7 @@ const AdminOrdersPage = memo(() => {
           {
             children: (
               <AdminSection
+        carded
                 title={t('admin.orders.listTitle', '订单记录')}
                 description={t('admin.orders.resultSummary', {
                   count: data?.items?.length ?? 0,

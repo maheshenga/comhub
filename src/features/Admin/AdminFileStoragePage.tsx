@@ -117,6 +117,7 @@ const AdminFileStoragePage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
+        carded
             title={t('admin.fileStorage.connectionSection', '连接与凭据')}
             actions={
               <Button
@@ -190,6 +191,7 @@ const AdminFileStoragePage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.fileStorage.objectAddressSection', '对象地址')}
             description={t(
               'admin.fileStorage.objectAddressDescription',
@@ -221,6 +223,7 @@ const AdminFileStoragePage = memo(() => {
           </AdminSection>
 
           <AdminSection
+        carded
             title={t('admin.fileStorage.accessPolicySection', '访问策略')}
             description={t(
               'admin.fileStorage.accessPolicyDescription',

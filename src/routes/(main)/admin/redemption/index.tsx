@@ -180,12 +180,12 @@ const AdminRedemptionPage = memo(() => {
 
   return (
     <AdminPageShell
+      title={t('admin.redemption.title', '兑换码管理')}
+      width="full"
       description={t(
         'admin.redemption.description',
         '生成、筛选和维护兑换码；批量操作需要经过受控确认。',
       )}
-      title={t('admin.redemption.title', '兑换码管理')}
-      width="full"
       state={{
         error,
         errorDescription: t('admin.redemption.loadFailed', '兑换码加载失败，请重试。'),
@@ -196,6 +196,7 @@ const AdminRedemptionPage = memo(() => {
       }}
     >
       <AdminSection
+        carded
         description={t('admin.redemption.resultSummary', '按状态、奖励类型、批次或兑换码筛选。')}
         title={t('admin.redemption.listTitle', '兑换码列表')}
       >

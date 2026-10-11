@@ -97,6 +97,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
     <AdminPageShell description={copy.subtitle} title={copy.title} width="full">
       <Alert showIcon title={copy.actionHint} type="info" />
       <AdminSection
+        carded
         description={`当前加载 ${data?.items?.length ?? 0} 条记录`}
         title={copy.listTitle}
         actions={
