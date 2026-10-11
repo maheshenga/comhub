@@ -16,6 +16,8 @@ import { AdminPageError } from '@/features/Admin/shared/AdminPageState';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { isFormValidationError } from './shared/adminFormErrors';
+
 type PlanFaqFormValues = {
   planFaqItems: PlanFaqItem[];
 };
@@ -54,8 +56,9 @@ const AdminPlanFaqCard = memo(() => {
       await mutate(ADMIN_SETTINGS_SECTION_SWR_KEY('plans'));
       await mutate(PUBLIC_PLAN_FAQ_SWR_KEY);
       toast.success(t('admin.plans.faqSaveSuccess', '套餐常见问题已保存'));
-    } catch {
-      toast.error(t('admin.plans.faqSaveFailed', '保存失败，请检查常见问题内容'));
+    } catch (error) {
+      if (!isFormValidationError(error))
+        toast.error(t('admin.plans.faqSaveFailed', '保存失败，请检查常见问题内容'));
     } finally {
       setSubmitting(false);
     }

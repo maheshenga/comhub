@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, type FormInstance } from 'antd';
 import { memo, useEffect, useState } from 'react';
 
@@ -17,6 +18,7 @@ import CardListFields from './ExpertPlaza/CardListFields';
 import EntryMetaFields from './ExpertPlaza/EntryMetaFields';
 import type { CardFormValue, FormValues } from './ExpertPlaza/shared';
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
+import { isFormValidationError } from './shared/adminFormErrors';
 
 const SETTING_KEYS = {
   cards: 'expertPlaza.cards',
@@ -112,8 +114,8 @@ const AdminExpertPlazaPage = memo(() => {
 
       await mutate(PUBLIC_EXPERT_PLAZA_SWR_KEY);
       toast.success('专家广场配置已保存');
-    } catch {
-      toast.error('保存失败，请检查卡片必填字段');
+    } catch (error) {
+      if (!isFormValidationError(error)) toast.error('保存失败，请检查卡片必填字段');
     } finally {
       setSubmitting(false);
     }

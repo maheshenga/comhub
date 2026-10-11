@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Button, Form, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +21,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import AdminSettingsGovernanceCard from './AdminSettingsGovernanceCard';
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 import SettingsTabs from './Settings/SettingsTabs';
+import { isFormValidationError } from './shared/adminFormErrors';
 
 const { Text } = Typography;
 
@@ -73,8 +75,9 @@ const AdminSettingsPage = memo(() => {
       }
 
       toast.success(t('admin.settings.saveSuccess', '设置已保存'));
-    } catch {
-      toast.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
+    } catch (error) {
+      if (!isFormValidationError(error))
+        toast.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
     } finally {
       setSubmitting(false);
     }
@@ -95,13 +98,9 @@ const AdminSettingsPage = memo(() => {
         await mutate(key);
       }
 
-      toast.success(
-        t('admin.settings.materializeDefaultsSuccess', '推荐默认配置已同步到后台设置'),
-      );
+      toast.success(t('admin.settings.materializeDefaultsSuccess', '推荐默认配置已同步到后台设置'));
     } catch {
-      toast.error(
-        t('admin.settings.materializeDefaultsFailed', '同步失败，请检查表单内容后重试'),
-      );
+      toast.error(t('admin.settings.materializeDefaultsFailed', '同步失败，请检查表单内容后重试'));
     } finally {
       setMaterializing(false);
     }

@@ -2,6 +2,7 @@
 
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Alert, Button, Select, Switch, Tabs, Tag, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, Input, Skeleton } from 'antd';
 import { Save } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -13,6 +14,7 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { AdminFormActions, AdminPageError } from '../layout';
+import { isFormValidationError } from '../shared/adminFormErrors';
 import { AlipaySettingsCard, WechatSettingsCard, ZpaySettingsCard } from './ChannelCards';
 import {
   buildInitialValues,
@@ -21,8 +23,6 @@ import {
   type PaymentSettingsData,
   SECRET_FIELDS,
 } from './paymentSettingsShared';
-
-
 
 const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => {
   const { t } = useTranslation('subscription');
@@ -64,6 +64,9 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
       onDirtyChange(false);
       toast.success(t('admin.payments.saveSuccess', 'Payment settings saved'));
     } catch (error) {
+      // 字段校验没过 ≠ 保存失败：rc-field-form 会 reject validateFields，
+      // 红字已标在出错字段下方，这里再弹错误只会掩盖真实原因。
+      if (isFormValidationError(error)) return;
       toast.error(
         error instanceof Error ? error.message : t('admin.payments.saveFailed', 'Save failed'),
       );
@@ -223,12 +226,7 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
             items={[
               {
                 children: (
-                  <AlipaySettingsCard
-                    certMode={certMode}
-                    config={config}
-                    t={t}
-                    urlRule={urlRule}
-                  />
+                  <AlipaySettingsCard certMode={certMode} config={config} t={t} urlRule={urlRule} />
                 ),
                 key: 'alipay',
                 label: t('admin.payments.provider.alipay', 'Alipay'),
@@ -261,6 +259,5 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
     </Flexbox>
   );
 };
-
 
 export default ChannelSettings;

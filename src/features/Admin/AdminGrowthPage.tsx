@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, Input, InputNumber, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +18,7 @@ import {
   AdminPageShell,
   AdminSection,
 } from './layout';
+import { isFormValidationError } from './shared/adminFormErrors';
 
 const SETTING_KEYS = {
   initialCredits: 'onboarding.initialCredits',
@@ -110,8 +112,8 @@ const AdminGrowthPage = memo(() => {
         ],
       });
       toast.success(t('admin.growth.saveSuccess', '增长配置已保存'));
-    } catch {
-      toast.error(t('admin.growth.saveFailed', '保存失败'));
+    } catch (error) {
+      if (!isFormValidationError(error)) toast.error(t('admin.growth.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -154,7 +156,7 @@ const AdminGrowthPage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
-        carded
+            carded
             title={t('admin.growth.signupSection', '注册')}
             description={t(
               'admin.growth.signupSectionDescription',
@@ -190,7 +192,7 @@ const AdminGrowthPage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.growth.onboardingSection', '新用户初始化')}
             description={t(
               'admin.growth.onboardingSectionDescription',
@@ -219,7 +221,7 @@ const AdminGrowthPage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.growth.referralSection', '邀请与推荐')}
             description={t(
               'admin.growth.referralSectionDescription',
@@ -241,7 +243,7 @@ const AdminGrowthPage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.growth.uploadSection', '上传限制')}
             description={t(
               'admin.growth.uploadSectionDescription',

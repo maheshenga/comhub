@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,13 +12,10 @@ import { GLOBAL_MODEL_POLICY_DENIED_MESSAGE } from '@/features/Admin/adminModelP
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import {
-  AdminFormActions,
-  AdminPageError,
-  AdminPageShell,
-} from './layout';
-import { type FormValues, normalizeListText,SETTING_KEYS } from './ModelPolicy/keys';
+import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
+import { type FormValues, normalizeListText, SETTING_KEYS } from './ModelPolicy/keys';
 import PolicySections from './ModelPolicy/PolicySections';
+import { isFormValidationError } from './shared/adminFormErrors';
 
 const AdminModelPolicyPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -96,8 +94,8 @@ const AdminModelPolicyPage = memo(() => {
       });
 
       toast.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
-    } catch {
-      toast.error(t('admin.modelPolicy.saveFailed', '保存失败'));
+    } catch (error) {
+      if (!isFormValidationError(error)) toast.error(t('admin.modelPolicy.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }

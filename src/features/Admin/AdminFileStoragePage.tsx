@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, Input, InputNumber, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,8 +11,15 @@ import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { buildInitialValues, buildUpdates,type FileStorageFormValues } from './FileStorage/shared';
-import { AdminFormActions, AdminFormGrid, AdminPageError, AdminPageShell, AdminSection } from './layout';
+import { buildInitialValues, buildUpdates, type FileStorageFormValues } from './FileStorage/shared';
+import {
+  AdminFormActions,
+  AdminFormGrid,
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+} from './layout';
+import { isFormValidationError } from './shared/adminFormErrors';
 
 const AdminFileStoragePage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -50,8 +58,9 @@ const AdminFileStoragePage = memo(() => {
       await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('storageS3SecretAccessKey', '');
       toast.success(t('admin.fileStorage.saveSuccess', '文件存储设置已保存'));
-    } catch {
-      toast.error(t('admin.fileStorage.saveFailed', '保存失败，请检查 S3 配置'));
+    } catch (error) {
+      if (!isFormValidationError(error))
+        toast.error(t('admin.fileStorage.saveFailed', '保存失败，请检查 S3 配置'));
     } finally {
       setSubmitting(false);
     }
@@ -117,7 +126,7 @@ const AdminFileStoragePage = memo(() => {
       >
         <Flexbox gap={24}>
           <AdminSection
-        carded
+            carded
             title={t('admin.fileStorage.connectionSection', '连接与凭据')}
             actions={
               <Button
@@ -191,7 +200,7 @@ const AdminFileStoragePage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.fileStorage.objectAddressSection', '对象地址')}
             description={t(
               'admin.fileStorage.objectAddressDescription',
@@ -223,7 +232,7 @@ const AdminFileStoragePage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.fileStorage.accessPolicySection', '访问策略')}
             description={t(
               'admin.fileStorage.accessPolicyDescription',
