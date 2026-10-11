@@ -30,6 +30,7 @@
   "admin.bulkAction.succeeded": "成功",
   "admin.changeRequests.bulkApproveProgress": "正在通过选中的套餐变更请求，请勿关闭页面。",
   "admin.changeRequests.bulkRejectProgress": "正在拒绝选中的套餐变更请求，请勿关闭页面。",
+  "admin.content.nextPage": "下一页",
   "admin.credits.nextPage": "下一页",
   "admin.dangerousAction.errors.confirmation_required": "请先确认此操作。",
   "admin.dangerousAction.errors.confirmation_text_mismatch": "确认文本不匹配。",

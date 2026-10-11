@@ -5,6 +5,7 @@ import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
 import { Empty, Input } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -24,6 +25,7 @@ import {
 import { contentStyles } from './styles';
 
 const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
+  const { t } = useTranslation('subscription');
   const copy = getModeCopy(mode);
   const [cursor, setCursor] = useState(0);
   const [query, setQuery] = useState('');
@@ -186,7 +188,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
         {data?.nextCursor != null ? (
           <div className={contentStyles.pagination}>
             <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-              下一页
+              {t('admin.content.nextPage', '下一页')}
             </Button>
           </div>
         ) : null}

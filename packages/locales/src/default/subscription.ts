@@ -915,6 +915,7 @@ export default {
   'admin.credits': '积分',
   'admin.credits.recharge': '充值积分',
   'admin.credits.nextPage': 'Next page',
+  'admin.content.nextPage': 'Next page',
   'admin.credits.rechargeFailed': '充值失败',
   'admin.credits.rechargeSuccess': '积分已充值',
   'admin.console': '后台管理',
