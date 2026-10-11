@@ -13,6 +13,7 @@ const moduleApps = vi.hoisted(() => ({
   rescanPackage: vi.fn(),
 }));
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 const state = vi.hoisted(() => ({
   data: { items: [], nextCursor: null } as { items: any[]; nextCursor: null | string },
   error: undefined as Error | undefined,
@@ -57,6 +58,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     </select>
   ),
   TextArea: (props: any) => <textarea {...props} />,
+  toast,
   Modal: (props: any) => {
     baseUi.modal(props);
     return props.open ? (
@@ -213,6 +215,68 @@ describe('ModuleReviewsPage', () => {
           key(['admin-module-apps', 'apps', 'filters', 'cursor']) === true,
       ),
     ).toBe(true);
+  });
+
+  // 「操作已完成。」不告诉管理员批的是哪个包，弹窗一关队列就停在这里。
+  it('reports which package an approval action covered', async () => {
+    const approvedAppId = '00000000-0000-4000-8000-000000000001';
+    state.role = 'admin';
+    state.data = {
+      items: [
+        {
+          appId: 'comhub-demo',
+          buildStatus: 'ready',
+          id: '00000000-0000-4000-8000-000000000011',
+          manifestSnapshot: { app: { displayName: 'New package' }, packageVersion: '2.1.0' },
+          reviewStatus: 'pending_review',
+          scanStatus: 'clean',
+        },
+      ],
+      nextCursor: null,
+    };
+    moduleApps.approvePackage.mockResolvedValueOnce({ appId: approvedAppId });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/reviews']}>
+        <ModuleReviewsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.admin.reviews.approve' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'moduleApps.admin.reviews.approve' })[1]);
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'moduleApps.admin.reviews.actionSuccess comhub-demo 2.1.0',
+      ),
+    );
+  });
+
+  // 驳回原因此前只在开发者端/市场端渲染，管理员这一侧看不到自己写了什么。
+  it('shows the rejection reason in the review table', () => {
+    state.role = 'admin';
+    state.data = {
+      items: [
+        {
+          appId: 'comhub-demo',
+          buildStatus: 'ready',
+          id: '00000000-0000-4000-8000-000000000011',
+          manifestSnapshot: { app: { displayName: 'New package' } },
+          rejectionReason: 'outbound host is not declared',
+          reviewStatus: 'rejected',
+          scanStatus: 'clean',
+        },
+      ],
+      nextCursor: null,
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/reviews']}>
+        <ModuleReviewsPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('outbound host is not declared')).toBeInTheDocument();
   });
 
   it('requires an administrator classification for every outbound host before approval', async () => {

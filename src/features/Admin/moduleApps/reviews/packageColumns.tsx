@@ -42,6 +42,7 @@ type PackageStatusTranslationKey =
 type PackageColumnTitle =
   | 'moduleApps.admin.reviews.columns.app'
   | 'moduleApps.admin.reviews.columns.buildStatus'
+  | 'moduleApps.admin.reviews.columns.rejectionReason'
   | 'moduleApps.admin.reviews.columns.reviewStatus'
   | 'moduleApps.admin.reviews.columns.scanStatus'
   | 'moduleApps.admin.reviews.columns.submitted'
@@ -82,7 +83,30 @@ export const getPackageColumns = (
     title: 'moduleApps.admin.reviews.columns.submitter',
   },
   {
+    // 驳回原因此前只在开发者端/市场端可见，管理员这一侧看不到自己写了什么，
+    // 申诉时也无从对照。
+    render: (row) => row.rejectionReason ?? '-',
+    title: 'moduleApps.admin.reviews.columns.rejectionReason',
+  },
+  {
     render: (row) => formatDate(row.createdAt),
     title: 'moduleApps.admin.reviews.columns.submitted',
   },
 ];
+
+/**
+ * 审核动作的成功回执。原文案只有一句「操作已完成。」，不告诉管理员批的是
+ * 哪个包、哪个版本，队列在弹窗关闭后被动停住；带上可定位信息后既能继续处理
+ * 下一条，回看失败时也知道该找哪一个包。
+ */
+export const actionReceipt = (
+  translate: (key: 'moduleApps.admin.reviews.actionSuccess') => string,
+  row: AdminModuleAppPackageRow,
+) => {
+  const app = row.appId ?? row.manifestSnapshot?.app?.slug ?? row.id;
+  const version = row.manifestSnapshot?.packageVersion;
+
+  return [translate('moduleApps.admin.reviews.actionSuccess'), app, version]
+    .filter(Boolean)
+    .join(' ');
+};

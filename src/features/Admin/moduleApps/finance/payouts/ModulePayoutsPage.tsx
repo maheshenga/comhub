@@ -5,7 +5,7 @@ import {
   hasAdminCapability,
   type ModuleAppPayoutStatus,
 } from '@lobechat/types';
-import { Button, Input, Select } from '@lobehub/ui/base-ui';
+import { Button, Input, Select, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Plus } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
@@ -82,6 +82,9 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
   };
   const mutationSucceeded = async () => {
     await mutate(listKey);
+    // 提现是资金写动作，提交后弹窗直接关闭会让管理员拿不到受理确认；同工作面
+    // 的 revenue/payments 都有 toast，这里补齐。
+    toast.success(t('moduleApps.admin.payouts.actionSuccess'));
     closeModal();
   };
   const isFiltered = Boolean(status || publisherId || cursor);
