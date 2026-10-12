@@ -136,7 +136,7 @@ export const getAdminNavGroupsForRole = (role: string | null | undefined): Admin
  * 模块分区伪条目（B8 需求 4）：moduleApps 的各分区从「藏在二级树」上提为
  * 主侧栏 module-ecosystem 组下的子栏目条目，与其他后台栏目并列。细节：
  * - 顶层 catalog 条目 modules（/settings/admin/modules）与 module-overview
- *   是同一个页面（modules/_layout 的 index 路由），两者互为别名，**不重复**
+ *   是同一个页面（modules 目录的 index 路由），两者互为别名，**不重复**
  *   上提 module-overview；
  * - MODULE_APP_DETAIL_SECTIONS 里带 :appId 的详情页签（module-app-overview /
  *   configuration / entitlements / products / runtime）按方案 §2.4 **不进侧

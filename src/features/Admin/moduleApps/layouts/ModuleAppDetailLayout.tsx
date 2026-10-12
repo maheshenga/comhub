@@ -165,7 +165,8 @@ const ModuleAppDetailLayout = memo(() => {
         <span className={styles.status}>{app.status}</span>
       </header>
       <div className={styles.nav}>
-        <ModuleSectionNav appId={app.id} mode="detail" />
+        {/* B8b：组件已收窄为详情页签导航，center 模式随二级树侧栏一并下线。 */}
+        <ModuleSectionNav appId={app.id} />
       </div>
       <div className={styles.content}>
         <Outlet context={context} />

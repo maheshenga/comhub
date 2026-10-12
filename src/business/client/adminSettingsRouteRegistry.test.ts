@@ -33,7 +33,10 @@ describe('adminSettingsRouteRegistry', () => {
     expect(modules?.children?.map((route) => route.id)).toEqual(
       MODULE_ADMIN_ROUTE_TREE.children?.map((route) => route.id),
     );
-    expect(modules?.importPage).toBe(MODULE_ADMIN_ROUTE_IMPORTS['module-center-layout']);
+    // B8b：二级树形侧栏布局壳已下线——modules 分组节点不再挂任何布局组件，
+    // 各分区页直接并入后台主栏（element-less 路由，URL 空间零变更）。
+    expect(modules?.importPage).toBeUndefined();
+    expect(MODULE_ADMIN_ROUTE_IMPORTS['module-center-layout']).toBeUndefined();
   });
 
   it('keeps finance and operations grouping nodes layout-only', () => {
