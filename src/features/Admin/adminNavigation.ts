@@ -1,10 +1,4 @@
-import {
-  type AdminAccessPolicy,
-  type AdminRole,
-  hasAdminCapability,
-  isAdminRole,
-  isFullAdminRole,
-} from '@lobechat/types';
+import { type AdminRole, hasAdminCapability, isAdminRole, isFullAdminRole } from '@lobechat/types';
 
 import {
   ADMIN_BASE_PATH,
@@ -24,6 +18,7 @@ import {
   type ModuleAdminRouteId,
 } from './moduleApps/navigation/catalog';
 import {
+  type AdminAccessPolicy,
   canAccessAdminPolicy,
   getModuleCenterSectionsForRole,
   MODULE_ADMIN_ROUTE_POLICIES,
@@ -317,7 +312,7 @@ export type AdminNavSubSection = {
 export const ADMIN_NAV_SUB_SECTIONS: Readonly<
   Record<AdminNavGroupKey, readonly AdminNavSubSection[]>
 > = Object.fromEntries(
-  ADMIN_NAV_GROUPS.map((group) => {
+  ADMIN_NAV_GROUPS.map((group): [AdminNavGroupKey, readonly AdminNavSubSection[]] => {
     const items = [...group.items];
     if (group.key === 'module-ecosystem') {
       items.push(...MODULE_SECTION_NAV_SEEDS.map(toModuleSectionNavItem));
@@ -332,13 +327,13 @@ export const ADMIN_NAV_SUB_SECTIONS: Readonly<
 
     return [
       group.key,
-      [...bySubSection.entries()].map(([key, entries]) => ({
+      [...bySubSection.entries()].map(([key, entries]): AdminNavSubSection => ({
         items: entries,
         key,
         label: SUB_SECTION_LABELS[key],
         status: SUB_SECTION_STATUS_OVERRIDES[key] ?? entries[0].status,
       })),
-    ];
+    ] as const;
   }),
 ) as Record<AdminNavGroupKey, readonly AdminNavSubSection[]>;
 
@@ -365,7 +360,7 @@ export const getAdminNavSectionsForRole = (role: string | null | undefined): Adm
       .filter((subSection) => subSection.items.length > 0);
 
     if (subSections.length === 0) {
-      return group.items.length > 0 ? [{ ...group, items: group.items }] : [];
+      return group.items.length > 0 ? [{ ...group, items: group.items, subSections: [] }] : [];
     }
 
     return [
