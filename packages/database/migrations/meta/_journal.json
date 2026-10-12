@@ -1617,6 +1617,13 @@
       "when": 1791169090046,
       "tag": "0187_environment_visibility_and_build_state",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1791828457022,
+      "tag": "0188_module_app_publisher_suspension_reason",
+      "breakpoints": true
     }
   ],
   "version": "6"

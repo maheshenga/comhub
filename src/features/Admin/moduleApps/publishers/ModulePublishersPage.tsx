@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, Input, Modal, Select, toast } from '@lobehub/ui/base-ui';
+import { Button, Input, Modal, Select, TextArea, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +30,11 @@ const styles = createStaticStyles(({ css }) => ({
     display: grid;
     gap: 16px;
     max-width: 1180px;
+  `,
+  reasonHint: css`
+    color: var(--ant-color-text-secondary);
+    font-size: 12px;
+    margin-top: 4px;
   `,
 }));
 
@@ -180,6 +185,7 @@ const ModulePublishersPage = memo(() => {
               suspended: t('moduleApps.admin.publishers.status.suspended'),
               verified: t('moduleApps.admin.publishers.status.verified'),
             },
+            suspensionReasonEmpty: t('moduleApps.admin.publishers.suspensionReasonEmpty'),
           }}
           renderActions={
             canWrite
@@ -238,6 +244,20 @@ const ModulePublishersPage = memo(() => {
           ) : null}
           {governance.action === 'assign' && governance.appId && !governance.appIdIsValid ? (
             <p role="alert">{t('moduleApps.admin.publishers.appIdError')}</p>
+          ) : null}
+          {governance.action === 'suspend' ? (
+            <div>
+              <label>
+                {t('moduleApps.admin.publishers.suspensionReason')}
+                <TextArea
+                  maxLength={500}
+                  placeholder={t('moduleApps.admin.publishers.suspensionReasonPlaceholder')}
+                  value={governance.reason}
+                  onChange={(event) => governance.setReason(event.target.value)}
+                />
+              </label>
+              <p className={styles.reasonHint}>{t('moduleApps.admin.publishers.suspensionReasonHint')}</p>
+            </div>
           ) : null}
           {governance.error ? <p role="alert">{governance.error}</p> : null}
         </Modal>

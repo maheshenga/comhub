@@ -71,9 +71,12 @@ describe('ModuleAppPublisherModel', () => {
         where: (rows, { eq }) => eq(rows.id, approvedPackage.id),
       }),
     ).resolves.toMatchObject({ publisherId: publisher.id });
-    await expect(model.suspendPublisher({ publisherId: publisher.id })).resolves.toMatchObject({
-      status: 'suspended',
-    });
+    await expect(
+      model.suspendPublisher({
+        publisherId: publisher.id,
+        suspensionReason: 'policy violation',
+      }),
+    ).resolves.toMatchObject({ status: 'suspended', suspensionReason: 'policy violation' });
     await expect(model.assignApplication({ appId: app.id, publisherId: publisher.id })).rejects.toThrow(
       'MODULE_APP_PUBLISHER_NOT_VERIFIED',
     );

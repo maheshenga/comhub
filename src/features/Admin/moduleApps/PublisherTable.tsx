@@ -20,6 +20,7 @@ export type ModuleAppPublisherRow = {
   id: string;
   recipientMask?: null | string;
   status: ModuleAppPublisherStatus;
+  suspensionReason?: null | string;
   userId: string;
 };
 
@@ -38,6 +39,7 @@ export type PublisherTableLabels = {
   previous: string;
   retry: string;
   status: Record<ModuleAppPublisherRow['status'], string>;
+  suspensionReasonEmpty: string;
 };
 
 type PublisherTableLabelOverrides = Omit<Partial<PublisherTableLabels>, 'columns' | 'status'> & {
@@ -64,6 +66,7 @@ const defaultLabels: PublisherTableLabels = {
     suspended: 'Suspended',
     verified: 'Verified',
   },
+  suspensionReasonEmpty: '—',
 };
 
 const PublisherTable = memo(
@@ -127,10 +130,17 @@ const PublisherTable = memo(
       {
         dataIndex: 'status',
         key: 'status',
-        render: (value: ModuleAppPublisherStatus) => (
-          <Tag color={value === 'verified' ? 'green' : value === 'suspended' ? 'red' : 'gold'}>
-            {resolvedLabels.status[value]}
-          </Tag>
+        render: (value: ModuleAppPublisherStatus, record) => (
+          <Flexbox gap={4}>
+            <Tag color={value === 'verified' ? 'green' : value === 'suspended' ? 'red' : 'gold'}>
+              {resolvedLabels.status[value]}
+            </Tag>
+            {value === 'suspended' ? (
+              <Text ellipsis={{ tooltip: record.suspensionReason || undefined }} type="secondary">
+                {record.suspensionReason || resolvedLabels.suspensionReasonEmpty}
+              </Text>
+            ) : null}
+          </Flexbox>
         ),
         title: resolvedLabels.columns.status,
       },

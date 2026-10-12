@@ -46,6 +46,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     </button>
   ),
   Input: (props: any) => <input {...props} />,
+  TextArea: (props: any) => <textarea {...props} />,
   Select: ({ options, onChange, ...props }: any) => (
     <select {...props} onChange={(event) => onChange?.(event.target.value)}>
       {options?.map((option: any) => (
@@ -170,7 +171,10 @@ describe('ModulePublishersPage', () => {
       screen.getAllByRole('button', { name: 'moduleApps.admin.publishers.suspend' })[1],
     );
     await waitFor(() =>
-      expect(moduleApps.suspendPublisher).toHaveBeenCalledWith({ publisherId: 'publisher-1' }),
+      expect(moduleApps.suspendPublisher).toHaveBeenCalledWith({
+        publisherId: 'publisher-1',
+        suspensionReason: undefined,
+      }),
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'moduleApps.admin.publishers.assign' }));
@@ -193,6 +197,53 @@ describe('ModulePublishersPage', () => {
     expect(baseUi.toastSuccess).toHaveBeenCalledWith('moduleApps.admin.publishers.assignSuccess');
     expect(screen.getAllByLabelText('moduleApps.admin.publishers.next')).toHaveLength(1);
     expect(screen.getAllByLabelText('moduleApps.admin.publishers.previous')).toHaveLength(1);
+  });
+
+  it('sends the suspension reason filled in the suspend modal', async () => {
+    state.role = 'admin';
+    state.data = {
+      items: [
+        {
+          appCount: 0,
+          displayName: 'Studio',
+          id: 'publisher-1',
+          status: 'verified',
+          userId: 'user-1',
+        },
+      ],
+      nextCursor: null,
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/publishers']}>
+        <ModulePublishersPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('button', { name: 'moduleApps.admin.publishers.suspend' }).length,
+      ).toBeGreaterThan(0),
+    );
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'moduleApps.admin.publishers.suspend' })[0],
+    );
+    const reasonBox = await screen.findByLabelText(
+      'moduleApps.admin.publishers.suspensionReason',
+      {},
+      { timeout: 3000 },
+    );
+    fireEvent.change(reasonBox, { target: { value: '  内容违规  ' } });
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'moduleApps.admin.publishers.suspend' })[1],
+    );
+    await waitFor(() =>
+      expect(moduleApps.suspendPublisher).toHaveBeenCalledWith({
+        publisherId: 'publisher-1',
+        suspensionReason: '内容违规',
+      }),
+    );
+    expect(screen.getByTestId('module-publishers-page')).toBeInTheDocument();
   });
 
   it('rejects a non-UUID assignment without calling the mutation', () => {
