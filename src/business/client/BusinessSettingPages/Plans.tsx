@@ -29,6 +29,7 @@ import {
 } from '@/features/Payments/SubscriptionCheckoutModal';
 import { readSubscriptionPaymentIntent } from '@/features/Payments/subscriptionIntent';
 import PlanIcon from '@/features/PlanIcon';
+import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
 import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 import { useServerConfigStore } from '@/store/serverConfig';
@@ -1082,7 +1083,9 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
           defaultOpen={false}
           desktopClassName={styles.pricingCard}
           mobile={mobile}
-          title="文本模型价格"
+          title={
+            <SettingsSearchAnchor id="plans-model-pricing">文本模型价格</SettingsSearchAnchor>
+          }
         >
           <Flexbox gap={12}>
             <Flexbox gap={4}>
@@ -1105,7 +1108,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
           defaultOpen={false}
           desktopClassName={styles.pricingCard}
           mobile={mobile}
-          title="常见问题"
+          title={<SettingsSearchAnchor id="plans-qa">常见问题</SettingsSearchAnchor>}
         >
           <Flexbox gap={12}>
             <Flexbox gap={4}>

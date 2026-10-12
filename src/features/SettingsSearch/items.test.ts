@@ -115,32 +115,12 @@ describe('settings search index', () => {
   // 切换，不报错、不记日志，此前没有任何检查能发现。这条断言把「声明了却没挂载」
   // 变成可见缺口：新增 anchor 而忘了挂载点时测试即红。
   //
-  // 白名单里的 20 个是计费/推荐/通知一类，由 business slot 渲染
-  // （src/business/client/BusinessSettingPages/*），而那些页面一个 anchor 都没挂：
-  // 「tab 可见性即有效门控」是当前的折中设计。这些条目逐个登记在此，谁给对应页面
-  // 补上挂载点，就从这里删一行——白名单只减不增。
-  const ANCHORS_WITHOUT_MOUNT_POINT = new Set([
-    'billing-current-plan',
-    'billing-history',
-    'billing-summary',
-    'credits-balance',
-    'credits-cost-estimate-hint',
-    'credits-packages',
-    'credits-top-up',
-    'notification-email',
-    'notification-inbox',
-    'notification-push',
-    'plans-model-pricing',
-    'plans-qa',
-    'referral-invite-code',
-    'referral-invite-link',
-    'referral-rules',
-    'referral-stats',
-    'referral-table',
-    'storage-account-deletion',
-    'usage-overview',
-    'usage-spend',
-  ]);
+  // 白名单剩余 1 个：storage-account-deletion。本 fork 的
+  // src/business/client/features/AccountDeletion/index.tsx 是 return null 的
+  // 占位实现（Advanced.tsx:151 渲染的 slot 无真实 UI），anchor 无处可挂。
+  // 其余 19 个（计费/推荐/通知/用量）已于 2026-10-12 全部补上
+  // SettingsSearchAnchor 挂载点。白名单只减不增。
+  const ANCHORS_WITHOUT_MOUNT_POINT = new Set(['storage-account-deletion']);
 
   it('mounts every declared search anchor somewhere in the app', async () => {
     const declared = new Set(
@@ -153,8 +133,14 @@ describe('settings search index', () => {
       await Promise.all(ANCHOR_MOUNT_ROOTS.map(collectMountSources))
     ).join('\n');
 
+    // 裸 substring 比对会把 `id="billing-history-x"`（或任何更长的键）误判为
+    // billing-history 的挂载点 —— 变异验证实证过这个假绿。按「完整引号 token」
+    // 比对：锚点必须以成对引号独立出现（id="x"、id={'x'}、anchor: 'x'、映射表
+    // key: 'x' 值皆命中；billing-history-x 的 -x 后缀不命中）。
+    const isMounted = (anchor: string) => corpus.includes(`'${anchor}'`) || corpus.includes(`"${anchor}"`);
+
     const unmounted = [...declared]
-      .filter((anchor) => !corpus.includes(anchor))
+      .filter((anchor) => !isMounted(anchor))
       // labs-* 由模板串 `labs-${flag}` 声明，运行时才成形，静态比对天然找不到。
       .filter((anchor) => !anchor.startsWith('labs-'))
       .sort();

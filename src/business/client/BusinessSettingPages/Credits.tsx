@@ -13,6 +13,7 @@ import { refreshCommercialEntitlementState } from '@/business/client/commercialR
 import InlineTable from '@/components/InlineTable';
 import { useBrand } from '@/features/Brand/BrandProvider';
 import PlanIcon from '@/features/PlanIcon';
+import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
 import { TopUpPurchase } from '@/features/TopUp/TopUpPurchase';
 import { commercialService } from '@/services/commercial';
 import { type CreditLedgerEntryItem } from '@/types/business';
@@ -207,12 +208,15 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
   };
 
   const mobileAction = mobile
-    ? { href: '#credit-purchase', label: t('topup.online.title', '购买积分') }
+    ? { href: '#credits-top-up', label: t('topup.online.title', '购买积分') }
     : undefined;
 
   return (
     <BusinessSettingsPageShell mobile={mobile} mobileAction={mobileAction} title={'积分'}>
-      <BusinessSettingsSection mobile={mobile} title={'余额'}>
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="credits-balance">余额</SettingsSearchAnchor>}
+      >
         <div className={styles.balanceGrid}>
           <div className={styles.balancePanel}>
             <div className={styles.balanceStats}>
@@ -258,41 +262,44 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
           </div>
         </div>
       </BusinessSettingsSection>
-      <div id="credit-purchase">
-        <BusinessSettingsSection mobile={mobile} title={'购买积分'}>
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="credits-top-up">购买积分</SettingsSearchAnchor>}
+      >
           <TopUpPurchase />
         </BusinessSettingsSection>
-      </div>
-      <div id="credits-cost-estimate">
-        <BusinessSettingsSection
-          defaultOpen={false}
-          mobile={mobile}
-          title={t('credits.costEstimateHint.title')}
-        >
+      <BusinessSettingsSection
+        defaultOpen={false}
+        mobile={mobile}
+        title={
+          <SettingsSearchAnchor id="credits-cost-estimate-hint">
+            {t('credits.costEstimateHint.title')}
+          </SettingsSearchAnchor>
+        }
+      >
           <CostEstimateAlert />
         </BusinessSettingsSection>
-      </div>
-      <div id="credits-auto-top-up">
-        <BusinessSettingsSection
-          defaultOpen={false}
-          mobile={mobile}
-          title={t('credits.autoTopUp.title')}
-        >
+      <BusinessSettingsSection
+        defaultOpen={false}
+        mobile={mobile}
+        title={
+          <SettingsSearchAnchor id="credits-auto-top-up">
+            {t('credits.autoTopUp.title')}
+          </SettingsSearchAnchor>
+        }
+      >
           <AutoTopUpSettings isPaidPlan={isPaidPlan(currentPlan)} />
         </BusinessSettingsSection>
-      </div>
-      <div id="credit-packages">
-        <BusinessSettingsSection mobile={mobile} title={'积分包'}>
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="credits-packages">积分包</SettingsSearchAnchor>}
+      >
           <CreditPackageList mobile={mobile} />
         </BusinessSettingsSection>
-      </div>
-      <div id="credit-redemption">
-        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'兑换码'}>
+      <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'兑换码'}>
           <RedemptionPanel onSuccess={refreshCreditData} />
         </BusinessSettingsSection>
-      </div>
-      <div id="credit-ledger">
-        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'积分使用详情'}>
+      <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'积分使用详情'}>
           {mobile ? (
             <Flexbox gap={8}>
               <BusinessMobileRecordList
@@ -324,7 +331,6 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
             />
           )}
         </BusinessSettingsSection>
-      </div>
     </BusinessSettingsPageShell>
   );
 });

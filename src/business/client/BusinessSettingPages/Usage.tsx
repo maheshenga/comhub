@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useClientDataSWR } from '@/libs/swr';
 import UsageTable from '@/features/Settings/stats/features/usage/UsageTable';
+import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
 import { commercialService } from '@/services/commercial';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
@@ -102,7 +103,10 @@ const Usage = memo<{ mobile?: boolean }>(({ mobile }) => {
   };
 
   const detailsSection = (
-    <BusinessSettingsSection mobile={mobile} title={'明细'}>
+    <BusinessSettingsSection
+      mobile={mobile}
+      title={<SettingsSearchAnchor id="usage-spend">明细</SettingsSearchAnchor>}
+    >
       <div className={subscriptionPageStyles.tableSection}>
         <UsageTable mobile={mobile} />
       </div>
@@ -112,7 +116,11 @@ const Usage = memo<{ mobile?: boolean }>(({ mobile }) => {
   const coreSection = (
     <BusinessSettingsSection
       mobile={mobile}
-      title={'总览'}
+      title={
+        <SettingsSearchAnchor id="usage-overview">
+          <span>总览</span>
+        </SettingsSearchAnchor>
+      }
       desktopExtra={
         mobile ? undefined : (
           <Button href="/settings/plans" size="small" type="primary">

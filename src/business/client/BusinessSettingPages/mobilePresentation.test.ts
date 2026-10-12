@@ -57,7 +57,8 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('buildBillingOrderRecord');
     expect(source).toContain('buildBillingChangeRecord');
     expect(source).toContain('commercialService.listBillingOrders');
-    expect(source).toContain("title={'账单历史'}");
+    // 账单历史标题包了 SettingsSearchAnchor（搜索深链挂载点），断言锚点 id。
+    expect(source).toContain('SettingsSearchAnchor id="billing-history"');
     expect(source).toContain('href="/settings/usage"');
     expect(source).toContain("href: '/settings/plans'");
     expect(source).toContain('defaultOpen={false}');
@@ -81,21 +82,23 @@ describe('mobile business settings presentation', () => {
   it('matches the upstream usage information architecture without legacy charts', async () => {
     const usagePage = await readBusinessPage('Usage');
     const pageReturn = usagePage.slice(usagePage.lastIndexOf('return ('));
+    // stats 目录已从 routes/(main)/settings 收敛进 features/Settings/stats，
+    // 旧路径在 #142 之后不存在。
     const usageTable = await readFile(
-      path.join(process.cwd(), 'src/routes/(main)/settings/stats/features/usage/UsageTable.tsx'),
+      path.join(process.cwd(), 'src/features/Settings/stats/features/usage/UsageTable.tsx'),
       'utf8',
     );
     const usageBarChart = await readFile(
       path.join(
         process.cwd(),
-        'src/routes/(main)/settings/stats/features/components/UsageBarChart.tsx',
+        'src/features/Settings/stats/features/components/UsageBarChart.tsx',
       ),
       'utf8',
     );
 
     expect(usagePage).toContain('<UsageTable mobile={mobile} />');
     expect(usagePage).toContain('commercialService.getResourceUsage');
-    expect(usagePage).toContain("title={'总览'}");
+    expect(usagePage).toContain('总览');
     expect(usagePage).not.toContain('UsageCards');
     expect(usagePage).not.toContain('UsageTrends');
     expect(usagePage).not.toContain('DatePicker');
