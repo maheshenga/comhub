@@ -174,4 +174,24 @@ describe('AdminLayout', () => {
 
     expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/settings/admin/modules');
   });
+
+  // B8：两级侧栏接线后，面包屑中段跟随子栏目名（而非一级组名），与侧栏层级
+  // 一一对应——模块分区叶子路径的三段式：管理后台 → 模块财务 → 支付。
+  it('shows the sub-section label as the breadcrumb middle segment', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/modules/finance/payments';
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: { id: 'admin-1', role: 'admin', username: 'admin' },
+      });
+    });
+
+    render(<AdminLayout />);
+
+    const breadcrumb = screen.getByTestId('admin-context-bar');
+    expect(breadcrumb).toHaveTextContent('模块财务');
+    // 叶子标题取 catalog 条目 label（此测试环境未 mock i18n，t 回退
+    // defaultValue = item.label）。
+    expect(breadcrumb).toHaveTextContent('Payments');
+  });
 });

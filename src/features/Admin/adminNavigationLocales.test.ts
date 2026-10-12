@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { ADMIN_CATALOG, ADMIN_CATALOG_GROUPS } from './adminCatalog';
+import { ADMIN_CATALOG, ADMIN_CATALOG_GROUPS, type AdminSubSectionKey } from './adminCatalog';
 
 const repoFile = (relative: string) =>
   JSON.parse(readFileSync(path.resolve(process.cwd(), relative), 'utf8')) as Record<string, string>;
@@ -65,7 +65,7 @@ const declaredSubSections = [
   'user-support-identity',
   'workbench-overview',
   'workbench-quick',
-];
+] as const satisfies readonly AdminSubSectionKey[];
 const navKeysForSubSections = declaredSubSections.map(
   (key) => `admin.navigation.subSections.${key}.label`,
 );
@@ -166,6 +166,36 @@ describe('adminNavigationLocales', () => {
       .map(([key, value]) => `${key}: zh-CN=${zhCN[key]} catalog=${value}`);
 
     expect(drifted, 'zh-CN navigation copy drifted from the catalog').toEqual([]);
+  });
+
+  it('keeps zh-CN and en-US sub-section labels in step with the sidebar fallbacks', async () => {
+    // B8 起 subSections.*.label 被侧栏真实渲染：zh-CN 值必须与
+    // adminNavigation.ts 的 SUB_SECTION_LABELS fallback 逐字一致（否则改
+    // fallback 静默无效），en-US 必须与 default 命名空间镜像（否则英文用户
+    // 看到两套文案）。B6 时该断言只锁「键存在」，这里升级为锁值。
+    const { ADMIN_NAV_SUB_SECTIONS } = await import('./adminNavigation');
+
+    const fallbacks = new Map<string, string>();
+    for (const subSections of Object.values(ADMIN_NAV_SUB_SECTIONS)) {
+      for (const subSection of subSections) {
+        fallbacks.set(`admin.navigation.subSections.${subSection.key}.label`, subSection.label);
+      }
+    }
+
+    // workbench-quick 无任何 catalog 条目归属，不进入侧栏结构（B8 设计：
+    // 有归属才渲染），因此 fallback 表 = 24 键 - workbench-quick = 23。
+    expect(fallbacks.size).toBe(declaredSubSections.length - 1);
+    expect(fallbacks.has('admin.navigation.subSections.workbench-quick.label')).toBe(false);
+
+    const zhDrifted = [...fallbacks].filter(
+      ([key, value]) => zhCN[key] !== undefined && zhCN[key] !== value,
+    );
+    expect(zhDrifted, 'zh-CN sub-section labels drifted from sidebar fallbacks').toEqual([]);
+
+    const enDrifted = [...fallbacks].filter(
+      ([key]) => defaultSubscription[key] !== undefined && enUS[key] !== defaultSubscription[key],
+    );
+    expect(enDrifted, 'en-US sub-section labels drifted from default namespace').toEqual([]);
   });
 
   it('removes locale keys for retired navigation surfaces', () => {
