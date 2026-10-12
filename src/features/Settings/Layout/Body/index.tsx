@@ -41,13 +41,20 @@ const Body = memo(() => {
   // activeTab 无联动：首屏把 23~33 行条目全铺出来，要滚动才能定位当前页，
   // 且离开 /settings 再回来折叠状态被重置。按 Admin 侧栏（AdminSidebar +
   // getAdminOpenKeys）已验证的受控写法对齐。
-  const routeOpenKeys = useMemo(
-    () => [getActiveGroupKey(categoryGroups, activeTab)],
+  //
+  // effect 的依赖刻意是 `activeGroupKey`（字符串标量）而不是 routeOpenKeys /
+  // categoryGroups（数组引用）：useCategory 虽自身 useMemo 稳定，但它返回的
+  // 引用稳定性不是它的契约——任何未 memo 的实现或测试 mock（activeTab.desktop
+  // .test.ts 就每次调用返回新字面量）都会让数组引用每渲染都变，而
+  // setOpenKeys 每次都写入新数组，于是形成 setState → 重渲染 → 依赖变 → 再
+  // setState 的死循环（实测 worker 以 exit code 134 崩掉，不是断言失败）。
+  const activeGroupKey = useMemo(
+    () => getActiveGroupKey(categoryGroups, activeTab),
     [activeTab, categoryGroups],
   );
-  const [openKeys, setOpenKeys] = useState<string[]>(routeOpenKeys);
+  const [openKeys, setOpenKeys] = useState<string[]>([activeGroupKey]);
 
-  useEffect(() => setOpenKeys(routeOpenKeys), [routeOpenKeys]);
+  useEffect(() => setOpenKeys([activeGroupKey]), [activeGroupKey]);
 
   return (
     <Flexbox gap={4} paddingInline={4}>

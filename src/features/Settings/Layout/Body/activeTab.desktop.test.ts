@@ -14,6 +14,14 @@ import { useElectronStore } from '@/store/electron';
 // Critical-2 regression (raw useLocation would freeze at the boot url).
 vi.mock('@/hooks/useActiveLocation', async () => await import('@/hooks/useActiveLocation.desktop'));
 
+// NOTE: this mock deliberately does NOT memoize — `useCategory: () => [...]`
+// returns a fresh array on every call, so `categoryGroups` changes identity each
+// render. That is intentional regression coverage: Body's openKeys sync must key
+// its effect on the resolved group *string*, not on the array identity. Keying it
+// on the array makes setOpenKeys fire every render, which loops until the vitest
+// worker dies with exit code 134 (a crash, not an assertion failure — it shows up
+// as `Test Files (1)` with no pass/fail word). Do not "tidy" this mock into a
+// stable reference; that would silently delete the guard.
 vi.mock('../../hooks/useCategory', () => ({
   SettingsGroupKey: { Account: 'account', General: 'general' },
   useCategory: () => [
