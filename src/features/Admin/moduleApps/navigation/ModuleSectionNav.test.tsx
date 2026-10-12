@@ -7,42 +7,45 @@ import { describe, expect, it, vi } from 'vitest';
 
 import ModuleSectionNav from './ModuleSectionNav';
 
+/**
+ * B8b：模块中心二级树形侧栏已下线，本组件收窄为应用详情页的页签导航。
+ * 分区级导航（角色过滤 / 状态徽标 / 空组抑制）由主侧栏接管，其行为锁定在
+ * adminNavigation.test.ts；这里锁定 detail 页签的角色过滤与状态徽标语义。
+ */
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key.split('.').at(-1) }),
 }));
 
-describe('ModuleSectionNav', () => {
-  it('renders only finance policy sections for finance admins', () => {
-    render(
-      <MemoryRouter initialEntries={['/settings/admin/modules/finance/revenue']}>
-        <ModuleSectionNav role="finance_admin" />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByRole('link', { name: 'overview' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'publishers' })).toBeInTheDocument();
-    const finance = screen.getByRole('group', { name: 'finance' });
-    expect(
-      within(finance)
-        .getAllByRole('link')
-        .map((link) => link.getAttribute('href')?.split('/').at(-1)),
-    ).toEqual(['revenue', 'payments', 'payouts']);
-    // IA 重设计 2′：module-payments 为唯一支付对账入口，状态转 active、不再带 compatibility 徽标。
-    const paymentsLink = screen.getByRole('link', { name: 'payments' });
-    expect(paymentsLink.querySelector('[data-status]')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'apps' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'operations' })).not.toBeInTheDocument();
-  });
-
-  it('keeps finance and operations as separate groups for full admins', () => {
+describe('ModuleSectionNav (app detail tabs)', () => {
+  it('renders no tabs for finance admins (moduleAppRead denied)', () => {
     render(
       <MemoryRouter>
-        <ModuleSectionNav role="admin" />
+        <ModuleSectionNav appId="app-1" role="finance_admin" />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('group', { name: 'finance' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'operations' })).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('renders the detail tabs for module-capable roles without status badges', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/admin/modules/apps/app-1']}>
+        <ModuleSectionNav appId="app-1" role="admin" />
+      </MemoryRouter>,
+    );
+
+    const nav = screen.getByRole('navigation');
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')?.split('/').at(-1)),
+    ).toEqual(['app-1', 'configuration', 'entitlements', 'products', 'runtime']);
+    // 详情页签的五个分区在 sectionStatus.ts 里均为 active，无 [data-status] 徽标。
+    for (const link of within(nav).getAllByRole('link')) {
+      expect(link.querySelector('[data-status]')).toBeNull();
+    }
+    expect(screen.queryByRole('link', { name: 'audit' })).not.toBeInTheDocument();
   });
 
   it('uses localized labels for every center and detail section', () => {

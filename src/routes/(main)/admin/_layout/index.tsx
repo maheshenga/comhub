@@ -215,16 +215,22 @@ const AdminLayout = () => {
     return <Navigate replace to={getAdminUnauthorizedFallbackPath(role, location.pathname)} />;
   }
 
+  // B8：context 现在带 subSection——面包屑中段优先显示子栏目名，两级导航的
+  // 中间层级与侧栏结构一一对应；无子栏目（理论上不发生）时回落组名。
   const currentTitle = context
     ? t(`admin.navigation.items.${context.item.id}.label`, {
         defaultValue: context.item.label,
       })
     : t('admin.navigation.title', '管理后台');
-  const currentGroupTitle = context
-    ? t(`admin.navigation.groups.${context.group.key}.label`, {
-        defaultValue: context.group.label,
+  const currentGroupTitle = context?.subSection
+    ? t(`admin.navigation.subSections.${context.subSection.key}.label`, {
+        defaultValue: context.subSection.label,
       })
-    : '';
+    : context
+      ? t(`admin.navigation.groups.${context.group.key}.label`, {
+          defaultValue: context.group.label,
+        })
+      : '';
 
   return (
     // Menu selected-state styling is owned by sidebarStyles post-class

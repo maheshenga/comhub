@@ -4,7 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AdminModuleAppDetail } from '../types';
 import ModuleAppDetailLayout, { type ModuleAppDetailOutletContext } from './ModuleAppDetailLayout';
-import ModuleCenterLayout, { shouldUseModuleNavigationSheet } from './ModuleCenterLayout';
+
+/**
+ * B8b：模块中心二级树形侧栏布局壳（ModuleCenterLayout / 216px aside）已下线，
+ * 分区页并入后台主栏单栏形态——本文件只保留仍挂载的应用详情布局断言；center
+ * 模式的角色过滤 / 状态徽标 / 空组抑制由主侧栏两级导航接管
+ * （adminNavigation.ts 的 getAdminNavSectionsForRole / SUB_SECTION_STATUS_OVERRIDES）。
+ */
 
 const detailState = vi.hoisted(() => ({
   app: undefined as AdminModuleAppDetail | undefined,
@@ -18,7 +24,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key.split('.').at(-1) }),
 }));
 vi.mock('../navigation/ModuleSectionNav', () => ({
-  default: ({ mode }: { mode?: string }) => <nav data-testid={`module-nav-${mode ?? 'center'}`} />,
+  default: () => <nav data-testid="module-nav-detail" />,
 }));
 
 const DetailChild = () => {
@@ -27,27 +33,6 @@ const DetailChild = () => {
 };
 
 describe('module layouts', () => {
-  it('moves module navigation into a sheet below the extra-large breakpoint', () => {
-    expect(shouldUseModuleNavigationSheet({ mobile: false, xl: false })).toBe(true);
-    expect(shouldUseModuleNavigationSheet({ mobile: false, xl: true })).toBe(false);
-    expect(shouldUseModuleNavigationSheet({ mobile: true, xl: true })).toBe(true);
-  });
-
-  it('renders center navigation beside nested route content', () => {
-    render(
-      <MemoryRouter initialEntries={['/settings/admin/modules']}>
-        <Routes>
-          <Route element={<ModuleCenterLayout />} path="/settings/admin/modules">
-            <Route index element={<div>center content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByTestId('module-nav-center')).toBeInTheDocument();
-    expect(screen.getByText('center content')).toBeInTheDocument();
-  });
-
   it('renders a stable app header and provides app context to nested routes', () => {
     detailState.app = {
       actions: [],

@@ -111,8 +111,8 @@ export type AdminCatalogItem = {
   status: AdminFeatureStatus;
   /**
    * 所属子栏目（方案 §2.2）。B6 先把归属写进数据层，B7 用它解析选中态，
-   * B8 才接到侧栏渲染——三步分开落地，每步都可独立回滚。optional 是为了
-   * 让 B6 能在不改动全部 28 个条目的前提下先加字段。
+   * B8 才接到侧栏渲染——三步分开落地，每步都可独立回滚。optional 是历史
+   * 兼容；B8 起全部条目必填（adminCatalog.test.ts 断言全覆盖）。
    */
   subSection?: AdminSubSectionKey;
   writeCapabilities: AdminCapability[];

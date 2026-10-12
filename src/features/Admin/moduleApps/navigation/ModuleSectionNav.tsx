@@ -13,23 +13,16 @@ import {
   type ModuleAdminRouteId,
   type ModuleAdminSection,
 } from './catalog';
-import { getModuleAppSectionsForRole, getModuleCenterSectionsForRole } from './policy';
+import { getModuleAppSectionsForRole } from './policy';
 import { getModuleSectionStatus } from './sectionStatus';
 
+/**
+ * B8b：本组件收窄为应用详情页的页签导航（mode=center 的模块中心二级树形侧栏
+ * 已随 ModuleCenterLayout 下线）。分区级导航（角色过滤 / 状态徽标 / 空组抑
+ * 制）由后台主侧栏的两级结构接管（adminNavigation.ts 的
+ * getAdminNavSectionsForRole / SUB_SECTION_STATUS_OVERRIDES）。
+ */
 const styles = createStaticStyles(({ css, cssVar }) => ({
-  group: css`
-    display: grid;
-    gap: 4px;
-  `,
-  groupLabel: css`
-    padding-block: 6px;
-    padding-inline: 10px;
-
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 18px;
-    color: ${cssVar.colorTextTertiary};
-  `,
   link: css`
     display: flex;
     align-items: center;
@@ -55,9 +48,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
       background: ${cssVar.colorFillSecondary};
     }
   `,
-  nestedLink: css`
-    padding-inline-start: 20px;
-  `,
   statusBadge: css`
     display: inline-flex;
     flex: none;
@@ -71,6 +61,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 11px;
     line-height: 16px;
     color: ${cssVar.colorTextTertiary};
+
     background: ${cssVar.colorFillTertiary};
 
     &[data-status='experimental'] {
@@ -84,27 +75,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     }
   `,
   nav: css`
-    display: grid;
-    gap: 8px;
-    align-content: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
     width: 100%;
   `,
 }));
-
-const CENTER_LABEL_KEYS: Partial<Record<ModuleAdminRouteId, string>> = {
-  'module-artifacts': 'artifacts',
-  'module-audit': 'audit',
-  'module-apps': 'apps',
-  'module-installs': 'installs',
-  'module-overview': 'overview',
-  'module-payments': 'payments',
-  'module-payouts': 'payouts',
-  'module-publishers': 'publishers',
-  'module-records': 'records',
-  'module-revenue': 'revenue',
-  'module-reviews': 'reviews',
-  'module-runs': 'runs',
-};
 
 const DETAIL_LABEL_KEYS: Partial<Record<ModuleAdminRouteId, string>> = {
   'module-app-configuration': 'configuration',
@@ -114,146 +90,73 @@ const DETAIL_LABEL_KEYS: Partial<Record<ModuleAdminRouteId, string>> = {
   'module-app-runtime': 'runtime',
 };
 
-const FINANCE_IDS = new Set<ModuleAdminRouteId>([
-  'module-revenue',
-  'module-payments',
-  'module-payouts',
-]);
-const OPERATIONS_IDS = new Set<ModuleAdminRouteId>([
-  'module-installs',
-  'module-records',
-  'module-runs',
-  'module-artifacts',
-]);
-
 export interface ModuleSectionNavProps {
   appId?: string;
-  mode?: 'center' | 'detail';
-  onNavigate?: () => void;
   role?: null | string;
-  variant?: 'center' | 'detail';
 }
 
 const resolveDetailPath = (path: string, appId?: string) =>
   appId ? path.replace(':appId', encodeURIComponent(appId)) : path;
 
-const ModuleSectionNav = memo<ModuleSectionNavProps>(
-  ({ appId, mode, onNavigate, role, variant }) => {
-    const { t } = useTranslation('common');
-    const translate = (key: string) => t(key as any);
-    const profileRole = useUserStore(
-      (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
-    );
-    const resolvedRole = role ?? profileRole;
-    const resolvedMode = mode ?? variant ?? 'center';
-    const sections =
-      resolvedMode === 'detail'
-        ? getModuleAppSectionsForRole(resolvedRole)
-        : getModuleCenterSectionsForRole(resolvedRole);
-    const labelKeys = resolvedMode === 'detail' ? DETAIL_LABEL_KEYS : CENTER_LABEL_KEYS;
+const ModuleSectionNav = memo<ModuleSectionNavProps>(({ appId, role }) => {
+  const { t } = useTranslation('common');
+  const translate = (key: string) => t(key as any);
+  const profileRole = useUserStore(
+    (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
+  );
+  const resolvedRole = role ?? profileRole;
+  const sections = getModuleAppSectionsForRole(resolvedRole);
 
-    // PP-10：分区状态徽标（experimental/compatibility 显式标注）。
-    const statusBadge = (id: ModuleAdminRouteId) => {
-      const status = getModuleSectionStatus(id);
-      if (status === 'active') return null;
-      return (
-        <span
-          aria-hidden
-          className={styles.statusBadge}
-          data-status={status}
-          title={
-            status === 'experimental'
-              ? translate('moduleApps.admin.center.sectionStatus.experimental')
-              : translate('moduleApps.admin.center.sectionStatus.compatibility')
-          }
-        >
-          {status === 'experimental'
+  // PP-10：分区状态徽标（experimental/compatibility 显式标注）。
+  const statusBadge = (id: ModuleAdminRouteId) => {
+    const status = getModuleSectionStatus(id);
+    if (status === 'active') return null;
+    return (
+      <span
+        aria-hidden
+        className={styles.statusBadge}
+        data-status={status}
+        title={
+          status === 'experimental'
             ? translate('moduleApps.admin.center.sectionStatus.experimental')
-            : translate('moduleApps.admin.center.sectionStatus.compatibility')}
-        </span>
-      );
-    };
-
-    const renderLink = (section: ModuleAdminSection, nested = false) => {
-      const labelKey = labelKeys[section.id];
-      if (!labelKey) return null;
-
-      return (
-        <NavLink
-          end
-          className={`${styles.link}${nested ? ` ${styles.nestedLink}` : ''}`}
-          key={section.id}
-          title={translate(`moduleApps.admin.center.sectionDescriptions.${labelKey}`)}
-          to={resolveDetailPath(MODULE_ADMIN_ROUTE_PATHS[section.id], appId)}
-          onClick={onNavigate}
-        >
-          {translate(
-            `moduleApps.admin.center.${
-              resolvedMode === 'detail' ? 'detailNavigation' : 'navigation'
-            }.${labelKey}`,
-          )}
-          {/* PP-10：非 active 分区显式标注真实状态，避免「看起来是主路径」的误导。 */}
-          {statusBadge(section.id)}
-        </NavLink>
-      );
-    };
-
-    if (resolvedMode === 'detail') {
-      return (
-        <nav
-          aria-label={translate('moduleApps.admin.center.detailNavigation.label')}
-          className={styles.nav}
-        >
-          {sections.map((section) => renderLink(section))}
-        </nav>
-      );
-    }
-
-    const financeSections = sections.filter((section) => FINANCE_IDS.has(section.id));
-    const operationsSections = sections.filter((section) => OPERATIONS_IDS.has(section.id));
-    const ungroupedSections = sections.filter(
-      (section) => !FINANCE_IDS.has(section.id) && !OPERATIONS_IDS.has(section.id),
+            : translate('moduleApps.admin.center.sectionStatus.compatibility')
+        }
+      >
+        {status === 'experimental'
+          ? translate('moduleApps.admin.center.sectionStatus.experimental')
+          : translate('moduleApps.admin.center.sectionStatus.compatibility')}
+      </span>
     );
+  };
+
+  const renderLink = (section: ModuleAdminSection) => {
+    const labelKey = DETAIL_LABEL_KEYS[section.id];
+    if (!labelKey) return null;
 
     return (
-      <nav
-        aria-label={translate('moduleApps.admin.center.navigation.label')}
-        className={styles.nav}
+      <NavLink
+        end
+        className={styles.link}
+        key={section.id}
+        title={translate(`moduleApps.admin.center.sectionDescriptions.${labelKey}`)}
+        to={resolveDetailPath(MODULE_ADMIN_ROUTE_PATHS[section.id], appId)}
       >
-        {ungroupedSections
-          .filter((section) => section.id !== 'module-audit')
-          .map((section) => renderLink(section))}
-        {financeSections.length ? (
-          <div
-            aria-label={translate('moduleApps.admin.center.navigation.finance')}
-            className={styles.group}
-            role="group"
-          >
-            <div className={styles.groupLabel}>
-              {translate('moduleApps.admin.center.navigation.finance')}
-            </div>
-            {financeSections.map((section) => renderLink(section, true))}
-          </div>
-        ) : null}
-        {operationsSections.length ? (
-          <div
-            aria-label={translate('moduleApps.admin.center.navigation.operations')}
-            className={styles.group}
-            role="group"
-          >
-            <div className={styles.groupLabel}>
-              {translate('moduleApps.admin.center.navigation.operations')}
-            </div>
-            {operationsSections.map((section) => renderLink(section, true))}
-          </div>
-        ) : null}
-        {ungroupedSections
-          .filter((section) => section.id === 'module-audit')
-          .map((section) => renderLink(section))}
-      </nav>
+        {translate(`moduleApps.admin.center.detailNavigation.${labelKey}`)}
+        {/* PP-10：非 active 分区显式标注真实状态，避免「看起来是主路径」的误导。 */}
+        {statusBadge(section.id)}
+      </NavLink>
     );
-  },
-);
+  };
+
+  return (
+    <nav
+      aria-label={translate('moduleApps.admin.center.detailNavigation.label')}
+      className={styles.nav}
+    >
+      {sections.map((section) => renderLink(section))}
+    </nav>
+  );
+});
 
 ModuleSectionNav.displayName = 'ModuleSectionNav';
 

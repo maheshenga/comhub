@@ -28,7 +28,11 @@ vi.mock('@/utils/router', () => ({
 
 describe('BusinessDesktopRoutes', () => {
   it('registers every visible catalog route exactly once', () => {
-    const visibleSegments = ADMIN_CATALOG.map((item) => item.segment);
+    // 两侧同口径排除 compatibility（payments 468a7d9a1d 起隐藏不挂载）；
+    // 修复前 expected 侧含 compatibility 条目、与 registry 过滤口径错位。
+    const visibleSegments = ADMIN_CATALOG.filter((item) => item.status !== 'compatibility').map(
+      (item) => item.segment,
+    );
     const registryVisibleSegments = ADMIN_SETTINGS_ROUTE_REGISTRY.filter(
       (item) => item.status !== 'compatibility',
     ).map((item) => item.segment ?? '');
@@ -128,7 +132,13 @@ describe('BusinessDesktopRoutes', () => {
 
     for (const node of nodes) {
       expect(MODULE_ADMIN_ROUTE_IMPORTS).toHaveProperty(node.id);
-      if (node.id === 'module-finance' || node.id === 'module-operations') {
+      // B8b：module-center-layout 的布局壳已下线，与 finance/operations 分组节点
+      // 同为无 element 的中间路由（子分区页直接并入后台主栏）。
+      if (
+        node.id === 'module-center-layout' ||
+        node.id === 'module-finance' ||
+        node.id === 'module-operations'
+      ) {
         expect(MODULE_ADMIN_ROUTE_IMPORTS[node.id]).toBeUndefined();
       } else {
         expect(MODULE_ADMIN_ROUTE_IMPORTS[node.id]).toBeTypeOf('function');

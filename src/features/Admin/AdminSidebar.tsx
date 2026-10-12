@@ -2,10 +2,7 @@
 
 import { Menu } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
-import {
-  ArrowLeft,
-  Search,
-} from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
@@ -13,16 +10,15 @@ import { useLocation, useNavigate } from 'react-router';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import { filterAdminNavGroups,
-  getAdminNavGroupsForRole,
+import {
+  filterAdminNavSections,
+  getAdminActiveLeafKey,
   getAdminNavigationContext,
+  getAdminNavSectionsForRole,
   getAdminOpenKeys,
-  getAdminSelectedKey,
 } from './adminNavigation';
 import { buildMenuItems } from './Sidebar/navigation';
 import { sidebarStyles } from './Sidebar/sidebarStyles';
-
-
 
 const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
   ({ collapsed = false, onNavigate }) => {
@@ -30,7 +26,7 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
     const location = useLocation();
     const { t } = useTranslation('subscription');
     const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
-    const groups = useMemo(() => getAdminNavGroupsForRole(role), [role]);
+    const groups = useMemo(() => getAdminNavSectionsForRole(role), [role]);
     const context = useMemo(
       () => getAdminNavigationContext(role, location.pathname),
       [location.pathname, role],
@@ -38,7 +34,14 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
     const routeOpenKeys = useMemo(() => getAdminOpenKeys(location.pathname), [location.pathname]);
     const [openKeys, setOpenKeys] = useState<string[]>(routeOpenKeys);
     const [query, setQuery] = useState('');
-    const filteredGroups = useMemo(() => filterAdminNavGroups(groups, query), [groups, query]);
+    // 搜索过滤必须与界面显示值同语言：translate 取 t(key,{defaultValue})，
+    // 否则 en 用户按显示的英文（如 'Module finance'）搜索时 raw 中文匹配不上，
+    // 整个侧栏清空（复核发现 2）。
+    const translate = useMemo(() => (key: string, fallback: string) => t(key, { defaultValue: fallback }), [t]);
+    const filteredGroups = useMemo(
+      () => filterAdminNavSections(groups, query, translate),
+      [groups, query, translate],
+    );
 
     useEffect(() => setOpenKeys(routeOpenKeys), [routeOpenKeys]);
 
@@ -55,7 +58,10 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
         ),
       [filteredGroups, t],
     );
-    const selectedKey = getAdminSelectedKey(location.pathname);
+    // B8 需求 3：选中态解析到叶子（getAdminSelectedKey），再映射到子栏目代
+    // 表路径——两级侧栏的 Menu item key 是子栏目代表条目，直接用叶子路径会
+    // 指向不存在的 key 而无高亮。
+    const selectedKey = getAdminActiveLeafKey(role, location.pathname);
     const visibleOpenKeys = query ? filteredGroups.map((group) => group.key) : openKeys;
 
     return (

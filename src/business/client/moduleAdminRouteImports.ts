@@ -16,7 +16,11 @@ export const MODULE_ADMIN_ROUTE_IMPORTS: Record<ModuleAdminRouteId, ImportPage |
   'module-apps': () => import('@/routes/(main)/admin/modules/apps'),
   'module-artifacts': () => import('@/routes/(main)/admin/modules/operations/artifacts'),
   'module-audit': () => import('@/routes/(main)/admin/modules/audit'),
-  'module-center-layout': () => import('@/routes/(main)/admin/modules/_layout'),
+  // B8b：模块中心二级树形侧栏（216px aside）已下线，module-center-layout 不再
+  // 挂任何布局组件——各分区页直接并入后台主栏。undefined 让它在
+  // buildAdminSettingsRouteObject 里退化为无 element 的分组路由（与既有
+  // module-finance / module-operations 同形态），URL 空间零变更。
+  'module-center-layout': undefined,
   'module-finance': undefined,
   'module-installs': () => import('@/routes/(main)/admin/modules/operations/installs'),
   'module-operations': undefined,

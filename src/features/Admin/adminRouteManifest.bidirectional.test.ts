@@ -140,12 +140,13 @@ describe('admin route manifest ↔ catalog bidirectional assertions', () => {
       // Layout+index pairs legitimately share one URL (nested layouts render
       // the index child). They import DIFFERENT files (layout vs page); two
       // claimants importing the SAME page file would be a real routing bug.
+      // B8b: element-less nodes (module-center-layout) have no importPage —
+      // they can never double-import a page, so they fall out as `no-spec:`.
       const specifiers = new Set(
-        ids.map(
-          (id) =>
-            importSpecifier(ADMIN_ROUTE_MANIFEST.find((entry) => entry.id === id)!.importPage!) ??
-            `no-spec:${id}`,
-        ),
+        ids.map((id) => {
+          const importPage = ADMIN_ROUTE_MANIFEST.find((entry) => entry.id === id)?.importPage;
+          return importPage ? (importSpecifier(importPage) ?? `no-spec:${id}`) : `no-spec:${id}`;
+        }),
       );
       expect(
         specifiers.size,
