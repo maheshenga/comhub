@@ -28,7 +28,8 @@ type ListResponse = { items?: ModuleAppInstallRow[]; nextCursor?: null | string 
 
 const ModuleInstallsPage = memo(() => {
   const { t: translate } = useTranslation('common');
-  const t = (key: string) => translate(key as any);
+  const t = (key: string, options?: Record<string, unknown>) =>
+    translate(key as any, options as any);
   const [searchParams, setSearchParams] = useSearchParams();
   const appId = searchParams.get('appId') ?? undefined;
   const cursor = searchParams.get('cursor') ?? undefined;
@@ -95,6 +96,7 @@ const ModuleInstallsPage = memo(() => {
               hasNext={Boolean(data?.nextCursor)}
               hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
               nextLabel={t('moduleApps.admin.operations.next')}
+              positionLabel={t('moduleApps.admin.operations.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
               previousLabel={t('moduleApps.admin.operations.previous')}
               onPrevious={() => setSearchParams(retreatCursor(searchParams))}
               onNext={() =>

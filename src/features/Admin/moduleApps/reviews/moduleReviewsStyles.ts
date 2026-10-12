@@ -8,6 +8,12 @@ export const moduleReviewsStyles = createStaticStyles(({ css, cssVar }) => ({
     flex-wrap: wrap;
     gap: 8px;
   `,
+  pagePosition: css`
+    align-self: center;
+    color: ${cssVar.colorTextTertiary};
+    font-size: 12px;
+    white-space: nowrap;
+  `,
   hostList: css`
     display: grid;
     gap: 12px;

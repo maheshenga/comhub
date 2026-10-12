@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, Modal } from '@lobehub/ui/base-ui';
+import { Modal } from '@lobehub/ui/base-ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -13,7 +13,7 @@ import { userProfileSelectors } from '@/store/user/selectors';
 
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
-import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
+import { setFilter } from '../shared/queryState';
 import type { AdminModuleAppOutboundHostPurpose, AdminModuleAppPackageRow } from '../types';
 import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
 import { getPackageColumns } from './packageColumns';
@@ -22,8 +22,8 @@ import {
   OutboundHostClassification,
   RejectReasonField,
   ReviewFilters,
-  ReviewRowActions,
 } from './reviewParts';
+import { ReviewTable } from './reviewTable';
 import { useReviewTextFilters } from './reviewTextFilters';
 
 type PackageListResponse = { items: AdminModuleAppPackageRow[]; nextCursor: null | string };
@@ -203,52 +203,17 @@ const ModuleReviewsPage = memo(() => {
         onClearFilters={clearFilters}
         onRetry={() => mutate(listKey)}
       >
-        <div className={styles.tableFrame}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {packageColumns.map((column) => (
-                  <th key={column.title}>{t(column.title)}</th>
-                ))}
-                {canWrite ? <th>{t('moduleApps.admin.reviews.columns.actions')}</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.items ?? []).map((item) => (
-                <tr key={item.id}>
-                  {packageColumns.map((column) => (
-                    <td key={column.title}>{column.render?.(item)}</td>
-                  ))}
-                  {canWrite ? (
-                    <td>
-                      <ReviewRowActions
-                        item={item}
-                        t={t as any}
-                        onOpen={(nextAction) => openAction(nextAction, item)}
-                      />
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className={styles.controls}>
-            <Button
-              disabled={!searchParams.getAll('previousCursor').length}
-              onClick={() => setSearchParams(retreatCursor(searchParams))}
-            >
-              {t('moduleApps.admin.reviews.previous')}
-            </Button>
-            <Button
-              disabled={!data?.nextCursor}
-              onClick={() =>
-                data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
-              }
-            >
-              {t('moduleApps.admin.reviews.next')}
-            </Button>
-          </div>
-        </div>
+        <ReviewTable
+          canWrite={canWrite}
+          columns={packageColumns}
+          data={data?.items ?? []}
+          nextCursor={data?.nextCursor ?? undefined}
+          page={searchParams.getAll('previousCursor').length + 1}
+          searchParams={searchParams}
+          setSearchParams={setSearchParams}
+          t={t as any}
+          onOpen={openAction}
+        />
       </ModulePageState>
       {canWrite ? (
         <Modal
@@ -271,6 +236,20 @@ const ModuleReviewsPage = memo(() => {
           onOk={actionComplete ? closeAction : submitAction}
         >
           {actionComplete ? <p>{t('moduleApps.admin.reviews.actionSuccess')}</p> : null}
+          {/* 弹窗标题只有「通过/拒绝/扫描」一个词；队列连审时管理员需要确认
+              操作对象，正文先复述 app+版本。 */}
+          {!actionComplete && actionTarget ? (
+            <p>
+              {t('moduleApps.admin.reviews.pendingContext', {
+                action: actionLabel,
+                app:
+                  actionTarget.manifestSnapshot?.app?.displayName ??
+                  actionTarget.appId ??
+                  actionTarget.id,
+                version: actionTarget.manifestSnapshot?.packageVersion ?? '-',
+              })}
+            </p>
+          ) : null}
           {action === 'approve' && !actionComplete && outboundHosts.length > 0 ? (
             <OutboundHostClassification
               outboundHostPurposes={outboundHostPurposes}

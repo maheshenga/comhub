@@ -49,6 +49,7 @@ type PayoutTableProps = {
   canWrite?: boolean;
   error?: unknown;
   hasNext?: boolean;
+  positionLabel?: string;
   hasPrevious?: boolean;
   items?: ModuleAppPayoutRow[];
   labels?: PayoutTableLabels;
@@ -96,6 +97,7 @@ const PayoutTable = memo<PayoutTableProps>(
     canWrite = false,
     error,
     hasNext,
+    positionLabel,
     hasPrevious,
     items = [],
     labels,
@@ -183,6 +185,7 @@ const PayoutTable = memo<PayoutTableProps>(
             hasNext={hasNext}
             hasPrevious={hasPrevious}
             nextLabel={copy.next}
+            positionLabel={positionLabel}
             previousLabel={copy.previous}
             onNext={onNext}
             onPrevious={onPrevious}

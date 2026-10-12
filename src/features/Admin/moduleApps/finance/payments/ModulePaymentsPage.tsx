@@ -66,7 +66,6 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
     action,
     actionError,
     actionIsValid,
-    actionTarget,
     busyAction,
     closeAction,
     closeResolution,
@@ -231,6 +230,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
             hasNext={Boolean(data?.nextCursor)}
             hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             nextLabel={t('moduleApps.admin.payments.next')}
+            positionLabel={t('moduleApps.admin.payments.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
             previousLabel={t('moduleApps.admin.payments.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>

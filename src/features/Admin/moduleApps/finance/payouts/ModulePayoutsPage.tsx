@@ -186,6 +186,7 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             hasNext={Boolean(data?.nextCursor)}
             hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             nextLabel={t('moduleApps.admin.payouts.next')}
+            positionLabel={t('moduleApps.admin.payouts.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
             previousLabel={t('moduleApps.admin.payouts.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>

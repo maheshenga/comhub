@@ -103,6 +103,8 @@ const runtimeState = vi.hoisted(() => ({
   truncated: false,
 }));
 
+vi.mock('../../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
+
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: { getSettingsSection, moduleApps, setModuleAppRuntimeSettings },
 }));

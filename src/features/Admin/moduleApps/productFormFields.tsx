@@ -198,7 +198,20 @@ export const ProductFormFields = ({
       </Form.Item>
     </Flexbox>
     {editing ? (
-      <Form.Item label={t('moduleApps.admin.products.status')} name="status">
+      <Form.Item
+        extra={
+          // 停用是影响真实付费动作的状态切换，表单里先说清后果再让管理员提交。
+          <Form.Item noStyle shouldUpdate={(prev, next) => prev.status !== next.status}>
+            {() =>
+              form.getFieldValue('status') === 'inactive' ? (
+                <span>{t('moduleApps.admin.products.saveInactiveHint')}</span>
+              ) : null
+            }
+          </Form.Item>
+        }
+        label={t('moduleApps.admin.products.status')}
+        name="status"
+      >
         <Select
           options={[
             { label: t('moduleApps.admin.products.status.active'), value: 'active' },

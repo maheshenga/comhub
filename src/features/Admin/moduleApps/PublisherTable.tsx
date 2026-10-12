@@ -70,6 +70,7 @@ const PublisherTable = memo(
   ({
     error,
     hasNext,
+    positionLabel,
     hasPrevious,
     items = [],
     labels,
@@ -84,6 +85,7 @@ const PublisherTable = memo(
     error?: unknown;
     actionsTitle?: string;
     hasNext?: boolean;
+  positionLabel?: string;
     hasPrevious?: boolean;
     items?: ModuleAppPublisherRow[];
     labels?: PublisherTableLabelOverrides;
@@ -169,6 +171,7 @@ const PublisherTable = memo(
             hasNext={hasNext}
             hasPrevious={hasPrevious}
             nextLabel={resolvedLabels.next}
+            positionLabel={positionLabel}
             previousLabel={resolvedLabels.previous}
             onNext={onNext}
             onPrevious={onPrevious}

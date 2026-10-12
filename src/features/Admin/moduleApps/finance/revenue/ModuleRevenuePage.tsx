@@ -181,6 +181,7 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             hasNext={Boolean(data?.nextCursor)}
             hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             nextLabel={t('moduleApps.admin.revenue.next')}
+            positionLabel={t('moduleApps.admin.revenue.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
             previousLabel={t('moduleApps.admin.revenue.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>
