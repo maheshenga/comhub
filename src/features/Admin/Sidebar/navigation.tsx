@@ -120,63 +120,58 @@ const renderStatusBadge = (
   ) : null;
 
 /**
- * Two-level sidebar menu (B8, IA 方案 §2.2 + 产品决策 C7):
- * 一级栏目（沿用组图标）→ 子栏目（纯文字、无独立图标）→ 页面条目。
- * 无子栏目的组保持原单层形态；子栏目状态徽标默认继承组内条目的 catalog
- * status（module-operations 为 experimental 的来源见 adminNavigation.ts 的
- * SUB_SECTION_STATUS_OVERRIDES 注释）。
+ * Two-level sidebar menu (产品指令 10-12：1级栏目 - 2级条目，**不要多级**):
+ * 一级栏目（组图标）→ 页面条目，仅此两级。
+ *
+ * 子栏目（AdminNavSection.subSections）降级为**分组元数据**：不再占据侧栏层
+ * 级，只保留三个职责——① 组内条目按子栏目归类排序（同组页面相邻）；
+ * ② 子栏目状态（SUB_SECTION_STATUS_OVERRIDES，如 module-operations 的
+ * experimental）以条目徽标呈现——继承到该子栏目第一个条目上渲染（侧栏没有
+ * 子栏目节点可挂徽标，条目级是唯一落点）；③ 面包屑中段与搜索匹配仍走
+ * subSections（adminNavigation.ts 侧，不在本文件）。
+ * 无子栏目的组保持既有单层形态，行为不变。
  */
 export const buildMenuItems = (
   groups: AdminNavSection[],
   statusLabel: Record<'deprecated' | 'experimental' | 'planned', string>,
   translate: (key: string, fallback: string) => string,
 ): MenuProps['items'] =>
-  groups.map((group) => ({
-    children: group.subSections.length
-      ? group.subSections.map((subSection) => ({
-          children: subSection.items.map((item) => ({
-            key: item.path,
-            label: translate(`admin.navigation.items.${item.id}.label`, item.label),
-            title: translate(`admin.navigation.items.${item.id}.description`, item.description),
-          })),
-          key: `sub:${group.key}:${subSection.key}`,
-          label: (
-            <Flexbox horizontal align="center" gap={8} justify="space-between">
-              <span>
-                {translate(
-                  `admin.navigation.subSections.${subSection.key}.label`,
-                  subSection.label,
-                )}
-              </span>
-              {subSection.status === 'active'
-                ? null
-                : renderStatusBadge(
-                    { ...subSection.items[0], status: subSection.status },
-                    statusLabel,
-                  )}
-            </Flexbox>
+  groups.map((group) => {
+    const renderItem = (item: AdminNavItem, inheritedStatus?: AdminNavItem['status']) => {
+      // inheritedStatus 来自条目所属子栏目（SUB_SECTION_STATUS_OVERRIDES，
+      // 如 module-operations=experimental）；它与条目自身 status 的语义都是
+      // 「experimental/deprecated 才显示徽标」，两者都不带徽标才走纯文本。
+      const effective = inheritedStatus ?? item.status;
+      const label = translate(`admin.navigation.items.${item.id}.label`, item.label);
+      const badge = renderStatusBadge({ ...item, status: effective }, statusLabel);
+
+      return {
+        key: item.path,
+        label: badge ? (
+          <Flexbox horizontal align="center" gap={8} justify="space-between">
+            <span>{label}</span>
+            {badge}
+          </Flexbox>
+        ) : (
+          label
+        ),
+        title: translate(`admin.navigation.items.${item.id}.description`, item.description),
+      };
+    };
+
+    const children = group.subSections.length
+      ? group.subSections.flatMap((subSection) =>
+          subSection.items.map((item, index) =>
+            renderItem(item, index === 0 ? subSection.status : undefined),
           ),
-          title: translate(
-            `admin.navigation.subSections.${subSection.key}.label`,
-            subSection.label,
-          ),
-        }))
-      : group.items.map((item) => ({
-          icon: <Icon icon={iconMap[item.icon]} size={16} />,
-          key: item.path,
-          label:
-            item.status === 'active' ? (
-              translate(`admin.navigation.items.${item.id}.label`, item.label)
-            ) : (
-              <Flexbox horizontal align="center" gap={8} justify="space-between">
-                <span>{translate(`admin.navigation.items.${item.id}.label`, item.label)}</span>
-                {renderStatusBadge(item, statusLabel)}
-              </Flexbox>
-            ),
-          title: translate(`admin.navigation.items.${item.id}.description`, item.description),
-        })),
-    icon: <Icon icon={iconMap[group.icon]} size={16} />,
-    key: group.key,
-    label: renderGroupLabel(group, translate),
-    title: translate(`admin.navigation.groups.${group.key}.description`, group.description),
-  }));
+        )
+      : group.items.map((item) => renderItem(item));
+
+    return {
+      children,
+      icon: <Icon icon={iconMap[group.icon]} size={16} />,
+      key: group.key,
+      label: renderGroupLabel(group, translate),
+      title: translate(`admin.navigation.groups.${group.key}.description`, group.description),
+    };
+  });
