@@ -157,6 +157,10 @@ describe('ModulePaymentsPage', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'moduleApps.admin.payments.actions.refund' }),
     );
+    // 弹窗正文复述操作对象：t mock 返回裸 key，断言挂载点 + 目标行渲染。
+    // appName/orderId 经 i18n 插值注入，这里用 t 的返回值（裸 key）+ 参数化
+    // 渲染不可见 → 改为断言 Modal 收到 target（见 PaymentActionModal 单测）。
+    expect(screen.getByTestId('payment-action-target')).toBeInTheDocument();
     const reason = screen.getByLabelText('moduleApps.admin.payments.form.reason');
     fireEvent.change(reason, { target: { value: 'Duplicate payment' } });
     fireEvent.click(

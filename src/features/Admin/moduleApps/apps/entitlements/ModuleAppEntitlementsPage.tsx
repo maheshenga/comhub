@@ -22,6 +22,7 @@ import {
   loadModuleDraft,
   saveModuleDraft,
 } from '../../shared/draftStorage';
+import { detailSubPageStyles as styles } from '../detailSubPageStyles';
 
 type EntitlementsDraft = Pick<ModuleAppAdminFormValues, 'billing' | 'entitlements'>;
 
@@ -124,10 +125,12 @@ const ModuleAppEntitlementsPage = memo(() => {
   };
 
   return (
-    <section data-testid="module-app-entitlements">
-      <header>
-        <h2>{t('moduleApps.admin.entitlements.title')}</h2>
-        <p>{t('moduleApps.admin.entitlements.description')}</p>
+    <section className={styles.page} data-testid="module-app-entitlements">
+      <header className={styles.header} data-testid="module-app-entitlements-header">
+        <div>
+          <h2 className={styles.title}>{t('moduleApps.admin.entitlements.title')}</h2>
+          <p className={styles.description}>{t('moduleApps.admin.entitlements.description')}</p>
+        </div>
         {!canWrite ? <p role="note">{t('moduleApps.admin.entitlements.permissionHint')}</p> : null}
       </header>
       <Form<EntitlementsDraft>

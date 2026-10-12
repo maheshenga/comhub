@@ -16,6 +16,7 @@ import PublisherTable, { type ModuleAppPublisherRow } from '../PublisherTable';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
+import { useDebouncedFilter } from '../shared/useDebouncedFilter';
 import PublisherFormModal, { type PublisherFormValues } from './PublisherFormModal';
 import { usePublisherGovernance } from './usePublisherGovernance';
 
@@ -70,6 +71,8 @@ const ModulePublishersPage = memo(() => {
     // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
   );
+  // userId 文本筛选防抖回写（粘贴长 ID 不再逐键触发请求）；status 是 Select，即时回写。
+  const [userIdInput, setUserIdInput] = useDebouncedFilter('userId', userId ?? '');
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
   const clearFilters = () => {
@@ -114,8 +117,8 @@ const ModulePublishersPage = memo(() => {
           {t('moduleApps.admin.publishers.filters.userId')}
           <Input
             maxLength={255}
-            value={userId ?? ''}
-            onChange={(event) => updateFilter('userId', event.target.value)}
+            value={userIdInput}
+            onChange={(event) => setUserIdInput(event.target.value)}
           />
         </label>
         {canWrite && (data?.items.length ?? 0) > 0 ? (

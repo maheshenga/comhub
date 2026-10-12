@@ -679,6 +679,7 @@ export default {
   'moduleApps.admin.payments.modal.offlineRefund': 'Record an offline refund',
   'moduleApps.admin.payments.modal.refund': 'Refund payment',
   'moduleApps.admin.payments.modal.settle': 'Settle order',
+  'moduleApps.admin.payments.actionTargetContext': 'About to {action} — app {app}, order {order}.',
   'moduleApps.admin.payments.manualResolution.chooseOutcome': 'Choose the provider outcome',
   'moduleApps.admin.payments.manualResolution.confirm': 'Apply decision',
   'moduleApps.admin.payments.manualResolution.description':
@@ -734,6 +735,7 @@ export default {
   'moduleApps.admin.payouts.loading': 'Loading payouts',
   'moduleApps.admin.payouts.manage': 'Manage payout',
   'moduleApps.admin.payouts.modal.create': 'Create payout batch',
+  'moduleApps.admin.payouts.actionTargetContext': 'Managing payout batch {batch} — publisher {publisher}.',
   'moduleApps.admin.payouts.modal.manage': 'Manage payout batch',
   'moduleApps.admin.payouts.next': 'Next page',
   'moduleApps.admin.payouts.operation.manual': 'Record manual Alipay payout',

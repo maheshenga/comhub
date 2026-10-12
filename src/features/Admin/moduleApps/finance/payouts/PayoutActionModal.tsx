@@ -9,10 +9,18 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import type { ModuleAppPayoutRow } from '../../PayoutTable';
 
-const styles = createStaticStyles(({ css }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
   form: css`
     display: grid;
     gap: 12px;
+  `,
+  targetContext: css`
+    margin: 0;
+
+    font-size: 13px;
+    line-height: 20px;
+    color: ${cssVar.colorTextSecondary};
+    overflow-wrap: anywhere;
   `,
 }));
 
@@ -161,6 +169,14 @@ const PayoutActionModal = memo<PayoutActionModalProps>(
         onOk={submit}
       >
         <div className={styles.form}>
+          {mode === 'manage' && payout ? (
+            <p className={styles.targetContext} data-testid="payout-action-target">
+              {t('moduleApps.admin.payouts.actionTargetContext', {
+                batch: payout.id,
+                publisher: payout.publisherName || payout.publisherId,
+              })}
+            </p>
+          ) : null}
           {mode === 'create' ? (
             <>
               <label>

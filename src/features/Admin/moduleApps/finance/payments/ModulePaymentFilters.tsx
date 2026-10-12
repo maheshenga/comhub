@@ -7,9 +7,11 @@ import { modulePaymentStyles as styles } from './modulePaymentsShared';
 type TFn = (key: any, defaultValue?: any, values?: any) => any;
 
 export interface ModulePaymentFiltersProps {
-  appId?: string;
+  appIdInput: string;
   discrepancyStatus?: string;
-  orderId?: string;
+  onAppIdInput: (value: string) => void;
+  onOrderIdInput: (value: string) => void;
+  orderIdInput: string;
   paymentStatus?: string;
   refundStatus?: string;
   statusLabels: Record<string, string>;
@@ -19,9 +21,11 @@ export interface ModulePaymentFiltersProps {
 
 /** 模块支付对账筛选区（支付状态 / 退款状态 / 差异状态 / 应用 / 订单，M5 拆页抽出）。 */
 export const ModulePaymentFilters = ({
-  appId,
+  appIdInput,
   discrepancyStatus,
-  orderId,
+  onAppIdInput,
+  onOrderIdInput,
+  orderIdInput,
   paymentStatus,
   refundStatus,
   statusLabels,
@@ -72,16 +76,16 @@ export const ModulePaymentFilters = ({
       {t('moduleApps.admin.payments.filters.appId')}
       <Input
         maxLength={36}
-        value={appId ?? ''}
-        onChange={(event) => updateFilter('appId', event.target.value)}
+        value={appIdInput}
+        onChange={(event) => onAppIdInput(event.target.value)}
       />
     </label>
     <label>
       {t('moduleApps.admin.payments.filters.orderId')}
       <Input
         maxLength={36}
-        value={orderId ?? ''}
-        onChange={(event) => updateFilter('orderId', event.target.value)}
+        value={orderIdInput}
+        onChange={(event) => onOrderIdInput(event.target.value)}
       />
     </label>
   </div>

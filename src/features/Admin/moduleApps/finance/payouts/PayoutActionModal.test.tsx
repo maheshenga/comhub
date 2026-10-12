@@ -110,6 +110,9 @@ describe('PayoutActionModal', () => {
       />,
     );
 
+    // 管理模式下弹窗正文先复述操作对象（批次 + 发布商），t mock 返回裸 key。
+    expect(screen.getByTestId('payout-action-target')).toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText('moduleApps.admin.payouts.form.operation'), {
       target: { value: 'manual' },
     });

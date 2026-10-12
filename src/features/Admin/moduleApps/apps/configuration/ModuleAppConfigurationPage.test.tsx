@@ -137,6 +137,8 @@ describe('ModuleAppConfigurationPage', () => {
 
     render(<ModuleAppConfigurationPage />);
 
+    // 子页样式壳：header 带 data-testid 钩子（对齐 overview/runtime 分隔线排版）。
+    expect(screen.getByTestId('module-app-configuration-header')).toBeInTheDocument();
     expect(
       screen.queryByLabelText('moduleApps.admin.configuration.pageKey'),
     ).not.toBeInTheDocument();

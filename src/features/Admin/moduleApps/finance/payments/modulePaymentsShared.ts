@@ -1,6 +1,6 @@
 import { createStaticStyles } from 'antd-style';
 
-export const modulePaymentStyles = createStaticStyles(({ css }) => ({
+export const modulePaymentStyles = createStaticStyles(({ css, cssVar }) => ({
   actions: css`
     display: flex;
     flex-wrap: wrap;
@@ -19,6 +19,14 @@ export const modulePaymentStyles = createStaticStyles(({ css }) => ({
     display: grid;
     gap: 16px;
     max-width: 1180px;
+  `,
+  targetContext: css`
+    margin: 0;
+
+    font-size: 13px;
+    line-height: 20px;
+    color: ${cssVar.colorTextSecondary};
+    overflow-wrap: anywhere;
   `,
 }));
 

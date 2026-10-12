@@ -17,6 +17,7 @@ import CursorPager from '../../CursorPager';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
+import { useDebouncedFilter } from '../../shared/useDebouncedFilter';
 
 const styles = createStaticStyles(({ css }) => ({
   controls: css`
@@ -64,6 +65,12 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
       }) as Promise<RevenueListResponse>,
     // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
+  );
+  // appId/publisherId 文本筛选防抖回写（粘贴 36 位 UUID 不再逐键触发请求）。
+  const [appIdInput, setAppIdInput] = useDebouncedFilter('appId', appId ?? '');
+  const [publisherIdInput, setPublisherIdInput] = useDebouncedFilter(
+    'publisherId',
+    publisherId ?? '',
   );
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
@@ -115,16 +122,16 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
           {t('moduleApps.admin.revenue.filters.appId')}
           <Input
             maxLength={36}
-            value={appId ?? ''}
-            onChange={(event) => updateFilter('appId', event.target.value)}
+            value={appIdInput}
+            onChange={(event) => setAppIdInput(event.target.value)}
           />
         </label>
         <label>
           {t('moduleApps.admin.revenue.filters.publisherId')}
           <Input
             maxLength={36}
-            value={publisherId ?? ''}
-            onChange={(event) => updateFilter('publisherId', event.target.value)}
+            value={publisherIdInput}
+            onChange={(event) => setPublisherIdInput(event.target.value)}
           />
         </label>
       </div>

@@ -22,6 +22,7 @@ import {
   loadModuleDraft,
   saveModuleDraft,
 } from '../../shared/draftStorage';
+import { detailSubPageStyles as styles } from '../detailSubPageStyles';
 
 type ConfigurationDraft = Pick<ModuleAppAdminFormValues, 'actions' | 'pages'>;
 
@@ -149,10 +150,12 @@ const ModuleAppConfigurationPage = memo(() => {
   };
 
   return (
-    <section data-testid="module-app-configuration">
-      <header>
-        <h2>{t('moduleApps.admin.configuration.title')}</h2>
-        <p>{t('moduleApps.admin.configuration.description')}</p>
+    <section className={styles.page} data-testid="module-app-configuration">
+      <header className={styles.header} data-testid="module-app-configuration-header">
+        <div>
+          <h2 className={styles.title}>{t('moduleApps.admin.configuration.title')}</h2>
+          <p className={styles.description}>{t('moduleApps.admin.configuration.description')}</p>
+        </div>
       </header>
       <Form<ConfigurationDraft>
         disabled={!canWrite}
