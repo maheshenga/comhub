@@ -857,6 +857,12 @@ export default {
   'moduleApps.admin.publishers.status.verified': 'Verified',
   'moduleApps.admin.publishers.suspend': 'Suspend',
   'moduleApps.admin.publishers.suspendSuccess': 'Publisher suspended.',
+  'moduleApps.admin.publishers.suspensionReason': 'Suspension reason',
+  'moduleApps.admin.publishers.suspensionReasonEmpty': 'No reason recorded',
+  'moduleApps.admin.publishers.suspensionReasonHint':
+    'Saved with the suspension and shown in the publisher list; leave empty to record none.',
+  'moduleApps.admin.publishers.suspensionReasonPlaceholder':
+    'Reason visible to the publisher (e.g. content policy violation)',
   'moduleApps.admin.publishers.title': 'Publishers',
   'moduleApps.admin.publishers.verify': 'Verify',
   'moduleApps.admin.publishers.verifySuccess': 'Publisher verified.',

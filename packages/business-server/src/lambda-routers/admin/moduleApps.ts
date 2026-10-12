@@ -211,6 +211,9 @@ const SettleRevenueBatchInputSchema = z.object({
   entryIds: z.array(z.string().uuid()).min(1).max(500),
 });
 const PublisherIdInputSchema = z.object({ publisherId: z.string().uuid() });
+const SuspendPublisherInputSchema = PublisherIdInputSchema.extend({
+  suspensionReason: z.string().trim().min(1).max(500).optional(),
+});
 const CreatePublisherInputSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
   recipientMask: z
@@ -837,11 +840,12 @@ export const adminModuleAppsRouter = router({
     }),
 
   suspendPublisher: moduleAppWriteProcedure
-    .input(PublisherIdInputSchema)
+    .input(SuspendPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       return runRequiredModuleAppAuditMutation<any>(ctx, {
         audit: () => ({
           eventType: 'module_app.publisher_suspended',
+          metadata: { suspensionReason: input.suspensionReason ?? null },
           resourceId: input.publisherId,
           resourceType: 'moduleAppPublisher',
         }),

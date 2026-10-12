@@ -657,7 +657,7 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.settleOrder.mutate(input),
     settleRevenueBatch: (input: { entryIds: string[] }) =>
       lambdaClient.admin.moduleApps.settleRevenueBatch.mutate(input),
-    suspendPublisher: (input: { publisherId: string }) =>
+    suspendPublisher: (input: { publisherId: string; suspensionReason?: string }) =>
       lambdaClient.admin.moduleApps.suspendPublisher.mutate(input),
     transitionPayoutBatch: (input: {
       batchId: string;

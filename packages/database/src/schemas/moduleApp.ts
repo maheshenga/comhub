@@ -77,6 +77,7 @@ export const moduleAppPublishers = pgTable(
       .notNull(),
     verifiedAt: timestamptz('verified_at'),
     suspendedAt: timestamptz('suspended_at'),
+    suspensionReason: text('suspension_reason'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

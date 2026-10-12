@@ -39,6 +39,7 @@ export class ModuleAppPublisherModel {
       .set({
         status: 'verified',
         suspendedAt: null,
+        suspensionReason: null,
         verificationMetadata: input.verificationMetadata ?? {},
         verifiedAt: now,
       })
@@ -53,10 +54,14 @@ export class ModuleAppPublisherModel {
     return publisher;
   };
 
-  suspendPublisher = async (input: { publisherId: string }) => {
+  suspendPublisher = async (input: { publisherId: string; suspensionReason?: string }) => {
     const [publisher] = await this.db
       .update(moduleAppPublishers)
-      .set({ status: 'suspended', suspendedAt: new Date() })
+      .set({
+        status: 'suspended',
+        suspendedAt: new Date(),
+        suspensionReason: input.suspensionReason ?? null,
+      })
       .where(
         and(
           eq(moduleAppPublishers.id, input.publisherId),

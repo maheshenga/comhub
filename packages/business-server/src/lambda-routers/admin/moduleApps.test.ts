@@ -1391,7 +1391,10 @@ describe('admin module apps router', () => {
       verificationMetadata: { ticket: 'review-1' },
     });
     await caller.moduleApps.assignPublisher({ appId: APP_ID, publisherId: PUBLISHER_ID });
-    await caller.moduleApps.suspendPublisher({ publisherId: PUBLISHER_ID });
+    await caller.moduleApps.suspendPublisher({
+      publisherId: PUBLISHER_ID,
+      suspensionReason: 'content policy violation',
+    });
     await expect(
       caller.moduleApps.listPublishers({ limit: 25, status: 'verified' }),
     ).resolves.toEqual({
@@ -1408,10 +1411,15 @@ describe('admin module apps router', () => {
       appId: APP_ID,
       publisherId: PUBLISHER_ID,
     });
+    expect(moduleAppPublisherMocks.suspendPublisher).toHaveBeenCalledWith({
+      publisherId: PUBLISHER_ID,
+      suspensionReason: 'content policy violation',
+    });
     expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'admin-user',
         eventType: 'module_app.publisher_suspended',
+        metadata: { suspensionReason: 'content policy violation' },
         resourceId: PUBLISHER_ID,
         resourceType: 'moduleAppPublisher',
       }),

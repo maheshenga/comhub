@@ -1550,5 +1550,9 @@
   "visibilityConfirm.publish.itemLoaded": "改回私人后对方已加载的内容无法收回",
   "visibilityConfirm.publish.itemReversible": "之后可以在同一菜单里改回私人",
   "visibilityConfirm.publish.itemVisible": "工作区所有成员会立即可以看到",
-  "zoom": "缩放"
+  "zoom": "缩放",
+  "moduleApps.admin.publishers.suspensionReason": "封禁原因",
+  "moduleApps.admin.publishers.suspensionReasonPlaceholder": "填写对外可见的封禁原因（如：违反内容规范）",
+  "moduleApps.admin.publishers.suspensionReasonHint": "将随封禁状态一并保存并展示在发布商列表；留空则不记录原因。",
+  "moduleApps.admin.publishers.suspensionReasonEmpty": "未记录原因"
 }

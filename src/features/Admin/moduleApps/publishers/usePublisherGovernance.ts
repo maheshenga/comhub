@@ -28,12 +28,14 @@ export const usePublisherGovernance = ({ t }: { t: TFn }) => {
   const [action, setAction] = useState<GovernanceAction>();
   const [appId, setAppId] = useState('');
   const [error, setError] = useState<string>();
+  const [reason, setReason] = useState('');
   const [selectedPublisher, setSelectedPublisher] = useState<ModuleAppPublisherRow>();
   const [submitting, setSubmitting] = useState(false);
   const openAction = (nextAction: GovernanceAction, publisher: ModuleAppPublisherRow) => {
     setAction(nextAction);
     setAppId('');
     setError(undefined);
+    setReason('');
     setSelectedPublisher(publisher);
   };
   const submitAction = async () => {
@@ -51,6 +53,7 @@ export const usePublisherGovernance = ({ t }: { t: TFn }) => {
       } else if (action === 'suspend') {
         await adminCommercialService.moduleApps.suspendPublisher({
           publisherId: selectedPublisher.id,
+          suspensionReason: reason.trim() || undefined,
         });
       } else {
         await adminCommercialService.moduleApps.assignPublisher({
@@ -85,7 +88,9 @@ export const usePublisherGovernance = ({ t }: { t: TFn }) => {
     },
     error,
     openAction,
+    reason,
     setAppId,
+    setReason,
     submitAction,
     submitting,
   };
