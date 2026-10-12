@@ -519,5 +519,42 @@ describe('adminNavigation', () => {
       // 空查询：原样返回。
       expect(filterAdminNavSections(sections, '')).toBe(sections);
     });
+
+    it('matches against displayed labels when a translate channel is provided', () => {
+      // 复核发现 2：raw label 是混语言的（子栏目中文、伪条目英文），en 用户
+      // 按显示的英文名搜索时拿 raw 中文匹配会让整组消失。传入 translate 后
+      // 三级（组/子栏目/条目）都必须按显示值匹配。字典模拟 default
+      // subscription 命名空间的两个真实键。
+      const sections = getAdminNavSectionsForRole('admin');
+      const dictionary: Record<string, string> = {
+        'admin.navigation.groups.module-ecosystem.label': 'Module ecosystem',
+        'admin.navigation.subSections.module-finance.label': 'Module finance',
+        'admin.navigation.items.module-apps.label': 'Apps',
+      };
+      const translate = (key: string, fallback: string) => dictionary[key] ?? fallback;
+
+      // en 显示名 'Module finance' 命中子栏目——修复前此查询整组清空。
+      const enFinance = filterAdminNavSections(sections, 'module finance', translate);
+      const enEcosystem = enFinance.find((section) => section.key === 'module-ecosystem');
+      expect(enEcosystem?.subSections.map((subSection) => subSection.key)).toEqual([
+        'module-finance',
+      ]);
+
+      // en 组名命中 → 保留整组（含全部子栏目）。
+      const enGroup = filterAdminNavSections(sections, 'module ecosystem', translate);
+      expect(enGroup.find((section) => section.key === 'module-ecosystem')?.subSections).toHaveLength(
+        sections.find((section) => section.key === 'module-ecosystem')!.subSections.length,
+      );
+
+      // 伪条目显示值 'Apps' 命中条目（raw 同为英文，但走的是 translate 值）。
+      const enApps = filterAdminNavSections(sections, 'apps', translate);
+      expect(sectionItems(enApps.find((section) => section.key === 'module-ecosystem')!)).toContain(
+        `${ADMIN_BASE_PATH}/modules/apps`,
+      );
+
+      // 译文通道下原 raw 中文不再命中（显示值已切换语言）。
+      const zhQueryUnderEn = filterAdminNavSections(sections, '模块财务', translate);
+      expect(zhQueryUnderEn.find((section) => section.key === 'module-ecosystem')).toBeUndefined();
+    });
   });
 });

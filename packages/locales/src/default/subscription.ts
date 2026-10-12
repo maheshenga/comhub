@@ -1691,6 +1691,33 @@ export default {
     'Manage caches, data retention, and maintenance tasks',
   'admin.navigation.items.audit.label': 'Audit logs',
   'admin.navigation.items.audit.description': 'Inspect admin operations and sensitive actions',
+  // 模块分区伪条目（B8 上提进主侧栏）。这些 id 不在 ADMIN_CATALOG，渲染链
+  // translate(`admin.navigation.items.${id}.label`, fallback) 绑定 subscription
+  // 命名空间且运行时从不读 common——缺键会让中文（及一切非 en locale）回退
+  // 英文字面量。英文值与 MODULE_SECTION_NAV_SEEDS 的 label 字面量一致；
+  // adminNavigationLocales.test 锁定这 11 键与 seeds 双向一致。
+  'admin.navigation.items.module-apps.label': 'Apps',
+  'admin.navigation.items.module-apps.description': 'Module apps catalog and management',
+  'admin.navigation.items.module-reviews.label': 'Reviews',
+  'admin.navigation.items.module-reviews.description': 'Review module package submissions',
+  'admin.navigation.items.module-publishers.label': 'Publishers',
+  'admin.navigation.items.module-publishers.description': 'Manage module publishers',
+  'admin.navigation.items.module-revenue.label': 'Revenue',
+  'admin.navigation.items.module-revenue.description': 'Module revenue records',
+  'admin.navigation.items.module-payments.label': 'Payments',
+  'admin.navigation.items.module-payments.description': 'Module payment orders',
+  'admin.navigation.items.module-payouts.label': 'Payouts',
+  'admin.navigation.items.module-payouts.description': 'Module payout requests',
+  'admin.navigation.items.module-installs.label': 'Installs',
+  'admin.navigation.items.module-installs.description': 'Module install statistics',
+  'admin.navigation.items.module-records.label': 'Records',
+  'admin.navigation.items.module-records.description': 'Module usage records',
+  'admin.navigation.items.module-runs.label': 'Runs',
+  'admin.navigation.items.module-runs.description': 'Module run history',
+  'admin.navigation.items.module-artifacts.label': 'Artifacts',
+  'admin.navigation.items.module-artifacts.description': 'Module build artifacts',
+  'admin.navigation.items.module-audit.label': 'Audit',
+  'admin.navigation.items.module-audit.description': 'Module audit trail',
   'admin.navigation.title': '管理后台',
   'admin.overview.metricsLabel': 'Key metrics',
   'admin.orders.description':

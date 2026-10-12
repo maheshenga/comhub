@@ -34,7 +34,14 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
     const routeOpenKeys = useMemo(() => getAdminOpenKeys(location.pathname), [location.pathname]);
     const [openKeys, setOpenKeys] = useState<string[]>(routeOpenKeys);
     const [query, setQuery] = useState('');
-    const filteredGroups = useMemo(() => filterAdminNavSections(groups, query), [groups, query]);
+    // 搜索过滤必须与界面显示值同语言：translate 取 t(key,{defaultValue})，
+    // 否则 en 用户按显示的英文（如 'Module finance'）搜索时 raw 中文匹配不上，
+    // 整个侧栏清空（复核发现 2）。
+    const translate = useMemo(() => (key: string, fallback: string) => t(key, { defaultValue: fallback }), [t]);
+    const filteredGroups = useMemo(
+      () => filterAdminNavSections(groups, query, translate),
+      [groups, query, translate],
+    );
 
     useEffect(() => setOpenKeys(routeOpenKeys), [routeOpenKeys]);
 

@@ -71,6 +71,26 @@ const navKeysForSubSections = declaredSubSections.map(
 );
 const allNavKeys = [...navKeysForGroups, ...navKeysForItems, ...navKeysForSubSections];
 
+// 模块分区伪条目（B8 上提）。id 不在 ADMIN_CATALOG，键清单必须从 seeds 派生
+// 而不是硬编码——否则 seeds 改名/增删时测试照着旧清单查三源，照样全绿。
+const pseudoItemKeys = [
+  'module-apps',
+  'module-artifacts',
+  'module-audit',
+  'module-installs',
+  'module-payments',
+  'module-payouts',
+  'module-publishers',
+  'module-records',
+  'module-revenue',
+  'module-reviews',
+  'module-runs',
+] as const;
+const navKeysForPseudoItems = pseudoItemKeys.flatMap((id) => [
+  `admin.navigation.items.${id}.label`,
+  `admin.navigation.items.${id}.description`,
+]);
+
 describe('adminNavigationLocales', () => {
   it('translates every catalog group key in all three locale sources', () => {
     for (const source of [
@@ -95,6 +115,40 @@ describe('adminNavigationLocales', () => {
       const missing = navKeysForItems.filter((key) => !dictionary[key]);
 
       expect(missing, `${name} is missing admin item translations`).toEqual([]);
+    }
+  });
+
+  it('derives the pseudo-item key list from the seeds and translates it in all three sources', async () => {
+    // 双向锁定：seeds 里每个 id 必须出现在本测试的清单里（防 seeds 新增而清单
+    // 漏跟），清单里每个 id 也必须在 seeds 里（防 seeds 删除留下死键）。标签值
+    // 另与 seeds 的 fallback 字面量逐字一致（en 渲染链 translate(key,
+    // {defaultValue: fallback})——locale 有值时 fallback 永不生效，两者漂移即
+    // 静默无效）。缺这段覆盖时，11 键三源全 miss 也会全绿（2026-10-12 实证）。
+    const { MODULE_SECTION_NAV_LABELS } = await import('./adminNavigation');
+
+    const seedIds = Object.keys(MODULE_SECTION_NAV_LABELS).sort();
+    expect(seedIds).toEqual([...pseudoItemKeys].sort());
+
+    const drifted = Object.entries(MODULE_SECTION_NAV_LABELS).flatMap(([id, label]) => {
+      const labelKey = `admin.navigation.items.${id}.label`;
+      return [
+        [labelKey, enUS[labelKey], label],
+        [labelKey, defaultSubscription[labelKey], label],
+      ] as const;
+    })
+      .filter(([, actual, expected]) => actual !== undefined && actual !== expected)
+      .map(([key, actual, expected]) => `${key}: locale=${actual} seed=${expected}`);
+    expect(drifted, 'pseudo-item labels drifted from the seeds').toEqual([]);
+
+    for (const source of [
+      ['default', defaultSubscription],
+      ['en-US', enUS],
+      ['zh-CN', zhCN],
+    ] as const) {
+      const [name, dictionary] = source;
+      const missing = navKeysForPseudoItems.filter((key) => !dictionary[key]);
+
+      expect(missing, `${name} is missing module section pseudo-item translations`).toEqual([]);
     }
   });
 
@@ -196,6 +250,35 @@ describe('adminNavigationLocales', () => {
       ([key]) => defaultSubscription[key] !== undefined && enUS[key] !== defaultSubscription[key],
     );
     expect(enDrifted, 'en-US sub-section labels drifted from default namespace').toEqual([]);
+  });
+
+  it('keeps the declared sub-section key list in step with its real consumers', async () => {
+    // 子栏目键清单是硬编码的，改 catalog 的 subSection 归属或 seeds 时它会静默
+    // 漂移——把 catalog 里的键改坏一字，本文件其余用例照着坏键查三源照样全绿
+    //（2026-10-12 变异实证）。这里锁死：每个声明键必须被 catalog 条目或模块分
+    // 区伪条目真实引用，workbench-quick 是唯一受控例外（刻意预留，见下）。
+    const { ADMIN_NAV_SUB_SECTIONS } = await import('./adminNavigation');
+
+    const declared = new Set(declaredSubSections.map((key) => key as AdminSubSectionKey));
+    const consumers = new Set<string>([
+      ...ADMIN_CATALOG.flatMap((item) => (item.subSection ? [item.subSection] : [])),
+      ...Object.entries(ADMIN_NAV_SUB_SECTIONS).flatMap(([, subSections]) =>
+        subSections.map((s) => s.key),
+      ),
+    ]);
+
+    const dangling = [...declared].filter((key) => !consumers.has(key));
+    expect(dangling, 'declared sub-section keys nobody consumes').toEqual(['workbench-quick']);
+
+    const undeclared = [...consumers].filter((key) => !declared.has(key));
+    expect(undeclared, 'consumed sub-section keys missing from the declared list').toEqual([]);
+
+    // ADMIN_NAV_SUB_SECTIONS 的组键也必须落在声明清单内，防止两级表私自造键。
+    const structural = Object.keys(ADMIN_NAV_SUB_SECTIONS).flatMap((groupKey) =>
+      ADMIN_NAV_SUB_SECTIONS[groupKey as keyof typeof ADMIN_NAV_SUB_SECTIONS].map((s) => s.key),
+    );
+    const unknown = [...new Set(structural)].filter((key) => !declared.has(key));
+    expect(unknown, 'ADMIN_NAV_SUB_SECTIONS invents keys outside the declared list').toEqual([]);
   });
 
   it('removes locale keys for retired navigation surfaces', () => {

@@ -255,6 +255,17 @@ const toModuleSectionNavItem = (seed: ModuleSectionNavSeed): AdminNavItem => ({
   subSection: seed.subSection,
 });
 
+/**
+ * 伪条目的测试面：adminNavigationLocales.test 据此锁定 11 个
+ * admin.navigation.items.module-*.label|description 键与 seeds 双向一致
+ * （id 派生清单 + 标签值）。这些 id 不在 ADMIN_CATALOG，locale 测试的键清单
+ * 只能从这张表派生——硬编码清单会在 seeds 增删时静默漏锁。
+ */
+export const MODULE_SECTION_NAV_LABELS: Readonly<Record<ModuleAdminRouteId, string>> =
+  Object.fromEntries(
+    MODULE_SECTION_NAV_SEEDS.map((seed) => [seed.id, seed.label]),
+  ) as Readonly<Record<ModuleAdminRouteId, string>>;
+
 /** 子栏目标签 fallback（与 zh-CN/subscription.json 的 subSections.*.label 逐字
  * 一致——adminNavigationLocales.test 锁定 zh-CN 与 catalog 双向同步，侧栏
  * translate(key, fallback) 在 key 缺失时才落到这里）。 */
@@ -466,14 +477,25 @@ export const filterAdminNavGroups = (groups: AdminNavGroup[], query: string): Ad
 };
 
 /**
+ * 搜索过滤的翻译通道：与 Sidebar/navigation.tsx 的 translate 同形——
+ * (key, fallback) => 显示值。过滤必须按「界面显示值」匹配：raw label 是
+ * 混语言的（catalog 条目中文、伪条目英文），en 用户按显示的 'Module
+ * finance' 搜索时，拿中文 raw 匹配会让整个侧栏清空（2026-10-12 复核实证）。
+ * AdminSidebar 传入 t(key, {defaultValue})；测试或无 i18n 场景可省略，
+ * 此时退回 raw 值匹配（zh-CN 下 raw 与显示值逐字一致，行为不变）。
+ */
+export type AdminNavTranslate = (key: string, fallback: string) => string;
+
+/**
  * 两级结构的搜索过滤（B8）：沿用 filterAdminNavGroups 的语义——组名/组描述
  * 命中则保留整组；否则按条目过滤。子栏目名也参与匹配：子栏目名命中时保留
  * 该子栏目全部条目，条目命中时保留所在子栏目（连带组）。空组/空子栏目照例
- * 抑制。
+ * 抑制。三级匹配文本一律经 translate 取显示值（见 AdminNavTranslate）。
  */
 export const filterAdminNavSections = (
   sections: AdminNavSection[],
   query: string,
+  translate?: AdminNavTranslate,
 ): AdminNavSection[] => {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   if (!normalizedQuery) return sections;
@@ -481,21 +503,33 @@ export const filterAdminNavSections = (
   const matches = (text: string) => text.toLocaleLowerCase().includes(normalizedQuery);
 
   return sections.flatMap((section) => {
-    const groupMatches = matches(`${section.label} ${section.description}`);
-    if (groupMatches) return [section];
+    const groupLabel = translate
+      ? translate(`admin.navigation.groups.${section.key}.label`, section.label)
+      : section.label;
+    const groupDescription = translate
+      ? translate(`admin.navigation.groups.${section.key}.description`, section.description)
+      : section.description;
+    if (matches(`${groupLabel} ${groupDescription}`)) return [section];
+
+    const itemText = (item: AdminNavItem) => {
+      if (!translate) return `${item.label} ${item.description}`;
+      return `${translate(`admin.navigation.items.${item.id}.label`, item.label)} ${
+        translate(`admin.navigation.items.${item.id}.description`, item.description)
+      }`;
+    };
 
     if (section.subSections.length === 0) {
-      const items = section.items.filter((item) => matches(`${item.label} ${item.description}`));
+      const items = section.items.filter((item) => matches(itemText(item)));
       return items.length > 0 ? [{ ...section, items }] : [];
     }
 
     const subSections = section.subSections.flatMap((subSection) => {
-      // 译文对搜索不可得（本函数无 translate 通道），按 catalog fallback 文案
-      // 与条目匹配；中文界面下 zh-CN label 与该 fallback 逐字一致
-      // （adminNavigationLocales.test 锁定），子栏目名搜索行为不变。
-      if (matches(subSection.label)) return [subSection];
+      const subSectionLabel = translate
+        ? translate(`admin.navigation.subSections.${subSection.key}.label`, subSection.label)
+        : subSection.label;
+      if (matches(subSectionLabel)) return [subSection];
 
-      const items = subSection.items.filter((item) => matches(`${item.label} ${item.description}`));
+      const items = subSection.items.filter((item) => matches(itemText(item)));
       return items.length > 0 ? [{ ...subSection, items }] : [];
     });
 
