@@ -62,6 +62,8 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         publisherId,
         status: status as RevenueStatus | undefined,
       }) as Promise<RevenueListResponse>,
+    // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
@@ -179,6 +181,7 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             hasNext={Boolean(data?.nextCursor)}
             hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             nextLabel={t('moduleApps.admin.revenue.next')}
+            positionLabel={t('moduleApps.admin.revenue.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
             previousLabel={t('moduleApps.admin.revenue.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>

@@ -69,6 +69,7 @@ type PaymentTableProps = {
   canWrite?: boolean;
   error?: unknown;
   hasNext?: boolean;
+  positionLabel?: string;
   hasPrevious?: boolean;
   items?: ModuleAppPaymentDiagnosticRow[];
   labels?: PaymentTableLabels;
@@ -132,6 +133,7 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
     canWrite = false,
     error,
     hasNext,
+    positionLabel,
     hasPrevious,
     items = [],
     labels,
@@ -185,6 +187,7 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
             hasNext={hasNext}
             hasPrevious={hasPrevious}
             nextLabel={copy.next}
+            positionLabel={positionLabel}
             previousLabel={copy.previous}
             onNext={onNext}
             onPrevious={onPrevious}

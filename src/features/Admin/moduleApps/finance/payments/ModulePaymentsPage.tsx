@@ -66,7 +66,6 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
     action,
     actionError,
     actionIsValid,
-    actionTarget,
     busyAction,
     closeAction,
     closeResolution,
@@ -107,6 +106,8 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
         paymentStatus: paymentStatus as PaymentStatus | undefined,
         refundStatus: refundStatus as RefundStatus | undefined,
       }) as Promise<PaymentListResponse>,
+    // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
@@ -229,6 +230,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
             hasNext={Boolean(data?.nextCursor)}
             hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             nextLabel={t('moduleApps.admin.payments.next')}
+            positionLabel={t('moduleApps.admin.payments.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
             previousLabel={t('moduleApps.admin.payments.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>

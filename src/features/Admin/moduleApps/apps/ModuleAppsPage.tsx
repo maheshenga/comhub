@@ -77,6 +77,8 @@ const ModuleAppsPage = memo(() => {
         sort,
         status,
       }) as Promise<ApplicationListResponse>,
+    // 翻页/筛选/搜索时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
 
   useEffect(() => setQueryInput(searchParams.get('q') ?? ''), [searchParams]);

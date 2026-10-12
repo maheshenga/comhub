@@ -8,6 +8,12 @@ export const moduleReviewsStyles = createStaticStyles(({ css, cssVar }) => ({
     flex-wrap: wrap;
     gap: 8px;
   `,
+  pagePosition: css`
+    align-self: center;
+    color: ${cssVar.colorTextTertiary};
+    font-size: 12px;
+    white-space: nowrap;
+  `,
   hostList: css`
     display: grid;
     gap: 12px;
@@ -41,5 +47,11 @@ export const moduleReviewsStyles = createStaticStyles(({ css, cssVar }) => ({
       border-block-end: 1px solid ${cssVar.colorBorderSecondary};
       text-align: start;
     }
+  `,
+  tableFrame: css`
+    overflow-x: auto;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: ${cssVar.borderRadius};
+    background: ${cssVar.colorBgContainer};
   `,
 }));

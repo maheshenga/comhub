@@ -68,6 +68,8 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         publisherId,
         status: status as ModuleAppPayoutStatus | undefined,
       }) as Promise<PayoutListResponse>,
+    // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
@@ -184,6 +186,7 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             hasNext={Boolean(data?.nextCursor)}
             hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             nextLabel={t('moduleApps.admin.payouts.next')}
+            positionLabel={t('moduleApps.admin.payouts.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
             previousLabel={t('moduleApps.admin.payouts.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>

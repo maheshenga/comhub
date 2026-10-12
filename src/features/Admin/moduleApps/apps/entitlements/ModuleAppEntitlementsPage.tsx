@@ -128,6 +128,7 @@ const ModuleAppEntitlementsPage = memo(() => {
       <header>
         <h2>{t('moduleApps.admin.entitlements.title')}</h2>
         <p>{t('moduleApps.admin.entitlements.description')}</p>
+        {!canWrite ? <p role="note">{t('moduleApps.admin.entitlements.permissionHint')}</p> : null}
       </header>
       <Form<EntitlementsDraft>
         disabled={!canWrite}

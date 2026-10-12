@@ -10,6 +10,7 @@ import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { mutate } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { useUnsavedChangesGuard } from '../../../shared/useUnsavedChangesGuard';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import type { ModuleAppRuntimeSettingsData } from '../../types';
 import {
@@ -81,6 +82,15 @@ const ModuleAppRuntimeSettings = memo<{
   }, [resolvedInitialValues]);
 
   const dirty = JSON.stringify(values) !== JSON.stringify(initialValues);
+  // 有未保存修改时拦路由跳转/关页：运行时开关是全局生效的付费相关配置，
+  // 误触导航丢改动的代价高。
+  useUnsavedChangesGuard({
+    cancelText: t('moduleApps.admin.center.unsavedCancel'),
+    confirmText: t('moduleApps.admin.center.unsavedDiscard'),
+    isDirty: dirty,
+    message: t('moduleApps.admin.center.unsavedConfirmation'),
+    title: t('moduleApps.admin.center.unsavedTitle'),
+  });
   const tokenAvailable = settings.internalTokenConfigured || Boolean(values.internalToken.trim());
   const internalConnectionReady = Boolean(values.internalUrl.trim()) && tokenAvailable;
   const publicConnectionReady = internalConnectionReady && Boolean(values.publicOrigin.trim());

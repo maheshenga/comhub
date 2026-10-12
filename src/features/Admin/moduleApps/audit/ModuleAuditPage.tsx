@@ -28,7 +28,8 @@ type ListResponse = { items?: ModuleAppAuditRow[]; nextCursor?: null | string };
 
 const ModuleAuditPage = memo(() => {
   const { t: translate } = useTranslation('common');
-  const t = (key: string) => translate(key as any);
+  const t = (key: string, options?: Record<string, unknown>) =>
+    translate(key as any, options as any);
   const [searchParams, setSearchParams] = useSearchParams();
   const appId = searchParams.get('appId') ?? undefined;
   const cursor = searchParams.get('cursor') ?? undefined;
@@ -41,6 +42,8 @@ const ModuleAuditPage = memo(() => {
         cursor,
         limit: 25,
       }) as Promise<ListResponse>,
+    // 翻页时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
 
   return (
@@ -91,6 +94,7 @@ const ModuleAuditPage = memo(() => {
               hasNext={Boolean(data?.nextCursor)}
               hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
               nextLabel={t('moduleApps.admin.audit.next')}
+              positionLabel={t('moduleApps.admin.audit.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
               previousLabel={t('moduleApps.admin.audit.previous')}
               onPrevious={() => setSearchParams(retreatCursor(searchParams))}
               onNext={() =>
