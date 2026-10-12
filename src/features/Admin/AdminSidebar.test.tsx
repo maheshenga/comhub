@@ -63,48 +63,60 @@ describe('AdminSidebar', () => {
     expect(screen.queryByText('搜索管理功能')).not.toBeInTheDocument();
   });
 
-  // B8 需求 1：一级栏目 → 子栏目两级渲染；子栏目为纯文字条目（C7，无图标，
-  // workbench 组的「总览」子栏目 title 不含 anticon 图标）。
-  it('renders sub-section entries under their top-level group', async () => {
+  // 产品指令 10-12：侧栏只渲染两级（组 → 页面条目），子栏目不再占据层级。
+  // 组标题以「组名+计数徽标」开头（textContent 如 '工作台1'）；旧三级结构
+  // 会在组与条目之间插入子栏目标题节点（workbench 组的「总览」），两级结构
+  // 下它不存在。
+  it('renders leaf entries directly under the group without a sub-section level', async () => {
     renderSidebar('/settings/admin');
 
-    await expectMenuEntryMounted('总览');
-    const subSectionTitle = screen.getByRole('menuitem', { name: '总览', hidden: true });
-    expect(subSectionTitle.querySelector('.anticon')).toBeNull();
+    await waitFor(() => {
+      const titles = [...document.querySelectorAll('.ant-menu-submenu-title')];
+      // workbench 组头存在（组名开头的 submenu-title）。
+      expect(titles.some((t) => t.textContent?.startsWith('工作台'))).toBe(true);
+      // 子栏目「总览」不再是任何标题节点（总览也≠组名开头，因为 workbench
+      // 组的子栏目名是「总览」，而旧结构它就是一个 submenu-title）。
+      const exactSubSection = titles.filter((t) => t.textContent === '总览');
+      expect(exactSubSection).toHaveLength(0);
+    });
   });
 
-  // B8 需求 4：模块分区上提为 module-ecosystem 组下的子栏目条目（组随路由
-  // 自动展开，四个子栏目标题全部挂载）；模块运维子栏目带实验性徽标。
-  it('lifts module center sections under module-ecosystem as sub-section entries', async () => {
+  // 产品指令 10-12：模块分区上提为 module-ecosystem 组下的**直挂条目**（无子
+  // 栏目中间层）；模块运维子栏目的 experimental 徽标继承到子栏目第一个条目
+  // （Installs）上渲染；:appId 详情页签绝不进侧栏。
+  it('lifts module center sections under module-ecosystem as direct entries', async () => {
     renderSidebar('/settings/admin/modules/finance/payments');
 
-    await expectMenuEntryMounted('目录与审核');
-    await expectMenuEntryMounted('模块财务');
-    await expectMenuEntryMounted('模块运维');
-    await expectMenuEntryMounted('模块审计');
-    // 模块运维子栏目标题携带 experimental 徽标（mock t 对无 defaultValue 的
-    // 调用回退为 key 本身，因此徽标文本是裸 key；存在即证明徽标渲染）。
+    await expectMenuEntryMounted('Payments');
+    await expectMenuEntryMounted('Revenue');
+    await expectMenuEntryMounted('Installs');
+    await expectMenuEntryMounted('Audit');
+    // 模块运维首个条目（Installs）携带继承的 experimental 徽标（mock t 对无
+    // defaultValue 的调用回退为 key 本身；存在即证明徽标渲染）。
     await waitFor(() => {
-      const title = screen.getByText('模块运维').closest('.ant-menu-submenu-title');
-      expect(title?.textContent).toContain('admin.navigation.status.experimental');
+      const installs = screen.getByText('Installs').closest('li');
+      expect(installs?.textContent).toContain('admin.navigation.status.experimental');
     });
+    // 子栏目标题（目录与审核/模块财务/…）不再出现在侧栏任何层级。
+    await expectMenuEntryAbsent('目录与审核');
+    await expectMenuEntryAbsent('模块财务');
+    await expectMenuEntryAbsent('模块运维');
     // :appId 详情页签（Products/Configuration/...）绝不进侧栏。
     await expectMenuEntryAbsent('Products');
     await expectMenuEntryAbsent('Configuration');
   });
 
-  // B8 需求 2：角色过滤 + 空组抑制——finance_admin 无 moduleAppRead，模块
-  // 运维子栏目整枝消失（标题不挂载），Apps/Reviews 等分区条目不挂载；目录
-  // 与审计子栏目仍在（组不是空壳）。
+  // 产品指令 10-12：角色过滤 + 空组抑制语义不变——finance_admin 无
+  // moduleAppRead，Apps/Reviews/Installs 等分区条目整枝消失；可见分区条目
+  // 与支付中心条目仍在（组不是空壳）。
   it('suppresses module sections a finance admin cannot access', async () => {
     userState.user = { role: 'finance_admin' };
     try {
       renderSidebar('/settings/admin/modules/finance/payments');
 
-      await expectMenuEntryMounted('目录与审核');
-      await expectMenuEntryMounted('模块财务');
-      await expectMenuEntryMounted('模块审计');
-      await expectMenuEntryAbsent('模块运维');
+      await expectMenuEntryMounted('Payments');
+      await expectMenuEntryMounted('Revenue');
+      await expectMenuEntryMounted('Payouts');
       await expectMenuEntryAbsent('Apps');
       await expectMenuEntryAbsent('Installs');
       await expectMenuEntryAbsent('Payment Center');
