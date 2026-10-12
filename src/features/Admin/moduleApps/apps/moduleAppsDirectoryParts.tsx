@@ -10,26 +10,30 @@ type TFn = (key: any, defaultValue?: any, values?: any) => any;
 
 interface ModuleAppsFilterBarProps {
   canReadPublishers: boolean;
-  category?: string;
+  categoryInput: string;
+  onCategoryInput: (value: string) => void;
+  onPublisherInput: (value: string) => void;
   onQueryInput: (value: string) => void;
   onUpdateFilter: (name: string, value: string) => void;
-  publisherId?: string;
+  publisherIdInput: string;
   queryInput: string;
   sort?: string;
   status?: string;
   t: TFn;
 }
 
-/** 应用目录筛选区（M5 拆页：从 ModuleAppsPage 抽出）。 */
+/** 应用目录筛选区（M5 拆页：从 ModuleAppsPage 抽出；类目/发布商走防抖输入）。 */
 export const ModuleAppsFilterBar = ({
   canReadPublishers,
-  category,
-  publisherId,
+  categoryInput,
+  onCategoryInput,
+  onPublisherInput,
+  onQueryInput,
+  onUpdateFilter,
+  publisherIdInput,
   queryInput,
   sort,
   status,
-  onQueryInput,
-  onUpdateFilter,
   t,
 }: ModuleAppsFilterBarProps) => (
   <div className={styles.filterBar} data-testid="module-app-filters">
@@ -59,8 +63,8 @@ export const ModuleAppsFilterBar = ({
       <span>{t('moduleApps.admin.apps.category')}</span>
       <Input
         id="module-app-category"
-        value={category ?? ''}
-        onChange={(event) => onUpdateFilter('category', event.target.value)}
+        value={categoryInput}
+        onChange={(event) => onCategoryInput(event.target.value)}
       />
     </label>
     <label className={styles.control} htmlFor="module-app-sort">
@@ -81,8 +85,8 @@ export const ModuleAppsFilterBar = ({
         <span>{t('moduleApps.admin.apps.publisher')}</span>
         <Input
           id="module-app-publisher"
-          value={publisherId ?? ''}
-          onChange={(event) => onUpdateFilter('publisherId', event.target.value)}
+          value={publisherIdInput}
+          onChange={(event) => onPublisherInput(event.target.value)}
         />
       </label>
     ) : null}

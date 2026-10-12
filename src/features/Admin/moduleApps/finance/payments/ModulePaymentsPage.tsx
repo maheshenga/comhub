@@ -20,6 +20,7 @@ import PaymentReconciliationTable, {
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
+import { useDebouncedFilter } from '../../shared/useDebouncedFilter';
 import { ModulePaymentFilters } from './ModulePaymentFilters';
 import {
   type DiscrepancyStatus,
@@ -66,6 +67,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
     action,
     actionError,
     actionIsValid,
+    actionTarget,
     busyAction,
     closeAction,
     closeResolution,
@@ -109,6 +111,10 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
     // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
   );
+  // appId/orderId 文本筛选防抖回写（粘贴 36 位 UUID 不再逐键触发请求）；
+  // 三个状态 Select 仍即时回写。
+  const [appIdInput, setAppIdInput] = useDebouncedFilter('appId', appId ?? '');
+  const [orderIdInput, setOrderIdInput] = useDebouncedFilter('orderId', orderId ?? '');
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
   const clearFilters = () => {
@@ -166,9 +172,11 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
       </div>
       {operationResult ? <p role="status">{operationResult}</p> : null}
       <ModulePaymentFilters
-        appId={appId}
+        appIdInput={appIdInput}
         discrepancyStatus={discrepancyStatus}
-        orderId={orderId}
+        onAppIdInput={setAppIdInput}
+        onOrderIdInput={setOrderIdInput}
+        orderIdInput={orderIdInput}
         paymentStatus={paymentStatus}
         refundStatus={refundStatus}
         statusLabels={statusLabels}
@@ -248,6 +256,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
           paymentReference={paymentReference}
           reason={reason}
           submitting={submitting}
+          target={actionTarget ? { appName: actionTarget.appName, orderId: actionTarget.orderId } : undefined}
           t={t as any}
           onCancel={closeAction}
           onOfflineRefundReferenceChange={setOfflineRefundReference}

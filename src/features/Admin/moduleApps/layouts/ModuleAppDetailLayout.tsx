@@ -82,6 +82,18 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 12px;
     line-height: 18px;
     color: ${cssVar.colorTextSecondary};
+
+    &[data-status='published'] {
+      border-color: ${cssVar.colorSuccessBorder};
+      color: ${cssVar.colorSuccess};
+      background: ${cssVar.colorSuccessBg};
+    }
+
+    &[data-status='draft'] {
+      border-color: ${cssVar.colorWarningBorder};
+      color: ${cssVar.colorWarning};
+      background: ${cssVar.colorWarningBg};
+    }
   `,
   title: css`
     margin: 0;
@@ -162,7 +174,9 @@ const ModuleAppDetailLayout = memo(() => {
             <p className={styles.description}>{app.slug}</p>
           </div>
         </div>
-        <span className={styles.status}>{app.status}</span>
+        <span className={styles.status} data-status={app.status}>
+          {t(`moduleApps.admin.apps.status.${app.status}` as any)}
+        </span>
       </header>
       <div className={styles.nav}>
         {/* B8b：组件已收窄为详情页签导航，center 模式随二级树侧栏一并下线。 */}

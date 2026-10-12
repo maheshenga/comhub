@@ -22,6 +22,8 @@ export interface PaymentActionModalProps {
   reason: string;
   submitting: boolean;
   t: TFn;
+  /** 弹窗正文先复述操作对象（app / 订单号），连审时管理员不再只看到一个动词。 */
+  target?: { appName: string; orderId: string };
 }
 
 /** 支付动作表单弹窗（退款 / 线下退款 / 结算三态，M5 拆页抽出）。 */
@@ -36,6 +38,7 @@ export const PaymentActionModal = ({
   paymentReference,
   reason,
   submitting,
+  target,
   t,
   onCancel,
   onOk,
@@ -51,6 +54,15 @@ export const PaymentActionModal = ({
     onOk={onOk}
   >
     <div className={styles.form}>
+      {action && target ? (
+        <p className={styles.targetContext} data-testid="payment-action-target">
+          {t('moduleApps.admin.payments.actionTargetContext', {
+            action: t(`moduleApps.admin.payments.modal.${action}`),
+            app: target.appName || '-',
+            order: target.orderId,
+          })}
+        </p>
+      ) : null}
       {action === 'settle' ? (
         <label>
           {t('moduleApps.admin.payments.form.paymentReference')}

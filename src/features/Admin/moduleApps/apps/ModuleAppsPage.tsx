@@ -3,7 +3,7 @@
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Button } from '@lobehub/ui/base-ui';
 import { RefreshCw } from 'lucide-react';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 
@@ -22,6 +22,7 @@ import {
 } from '../shared/draftStorage';
 import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
+import { useDebouncedFilter } from '../shared/useDebouncedFilter';
 import type { AdminModuleAppItem } from '../types';
 import AppIdentityModal from './AppIdentityModal';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
@@ -44,7 +45,6 @@ const ModuleAppsPage = memo(() => {
   const canReadPublishers = hasAdminCapability(role, ADMIN_CAPABILITIES.financeRead);
   const [identityOpen, setIdentityOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [queryInput, setQueryInput] = useState(searchParams.get('q') ?? '');
   const [newIdentityDraft, setNewIdentityDraft] = useState<ModuleAppIdentityFormValues | null>(() =>
     loadModuleDraft<ModuleAppIdentityFormValues>(NEW_APP_IDENTITY_SCOPE),
   );
@@ -58,6 +58,14 @@ const ModuleAppsPage = memo(() => {
   const sort = allowedSorts.has(sortValue as ApplicationSort)
     ? (sortValue as ApplicationSort)
     : undefined;
+  // 搜索/类目/发布商三个文本筛选统一走防抖回写（逐键直写 URL 会让粘贴
+  // 36 位 UUID 打出 36 个请求）；状态/排序是 Select，仍即时回写。
+  const [queryInput, setQueryInput] = useDebouncedFilter('q', query ?? '');
+  const [categoryInput, setCategoryInput] = useDebouncedFilter('category', category ?? '');
+  const [publisherIdInput, setPublisherIdInput] = useDebouncedFilter(
+    'publisherId',
+    publisherId ?? '',
+  );
   const filters = useMemo(() => {
     const params = new URLSearchParams(searchParams);
     params.delete('cursor');
@@ -80,15 +88,6 @@ const ModuleAppsPage = memo(() => {
     // 翻页/筛选/搜索时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
   );
-
-  useEffect(() => setQueryInput(searchParams.get('q') ?? ''), [searchParams]);
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      if (queryInput.trim() === (searchParams.get('q') ?? '')) return;
-      setSearchParams((current) => setFilter(current, 'q', queryInput.trim() || undefined));
-    }, 250);
-    return () => window.clearTimeout(timeout);
-  }, [queryInput, searchParams, setSearchParams]);
 
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
@@ -138,14 +137,16 @@ const ModuleAppsPage = memo(() => {
       </header>
       <ModuleAppsFilterBar
         canReadPublishers={canReadPublishers}
-        category={category}
-        publisherId={publisherId}
+        categoryInput={categoryInput}
+        onCategoryInput={setCategoryInput}
+        onPublisherInput={setPublisherIdInput}
+        onQueryInput={setQueryInput}
+        onUpdateFilter={updateFilter}
+        publisherIdInput={publisherIdInput}
         queryInput={queryInput}
         sort={sort}
         status={status}
         t={t as any}
-        onQueryInput={setQueryInput}
-        onUpdateFilter={updateFilter}
       />
       <ModulePageState
         emptyKind={isFiltered ? 'filtered' : 'initial'}
