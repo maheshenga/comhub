@@ -41,6 +41,8 @@ const ModuleAuditPage = memo(() => {
         cursor,
         limit: 25,
       }) as Promise<ListResponse>,
+    // 翻页时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
 
   return (

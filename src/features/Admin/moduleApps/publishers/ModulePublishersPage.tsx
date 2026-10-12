@@ -67,6 +67,8 @@ const ModulePublishersPage = memo(() => {
         status: status as 'pending' | 'suspended' | 'verified' | undefined,
         userId,
       }) as Promise<PublisherListResponse>,
+    // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
+    { keepPreviousData: true },
   );
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));

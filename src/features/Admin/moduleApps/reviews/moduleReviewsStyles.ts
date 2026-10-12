@@ -42,4 +42,10 @@ export const moduleReviewsStyles = createStaticStyles(({ css, cssVar }) => ({
       text-align: start;
     }
   `,
+  tableFrame: css`
+    overflow-x: auto;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: ${cssVar.borderRadius};
+    background: ${cssVar.colorBgContainer};
+  `,
 }));
