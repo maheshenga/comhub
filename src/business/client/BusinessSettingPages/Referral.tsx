@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
+import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 import { type ReferralHistoryItem } from '@/types/business';
@@ -315,7 +316,10 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   return (
     <BusinessSettingsPageShell mobile={mobile} mobileAction={mobileAction} title="推荐奖励">
-      <BusinessSettingsSection mobile={mobile} title="推荐概览">
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="referral-stats">推荐概览</SettingsSearchAnchor>}
+      >
         <div className={subscriptionPageStyles.cardGrid}>
           <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
           <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
@@ -338,7 +342,10 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           </Button>
         ) : null}
       </BusinessSettingsSection>
-      <BusinessSettingsSection mobile={mobile} title="我的推荐码">
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="referral-invite-code">我的推荐码</SettingsSearchAnchor>}
+      >
         <div
           className={cx(subscriptionPageStyles.inlineValueRow, mobile && styles.mobileInlineRow)}
         >
@@ -381,7 +388,10 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           )}
         </div>
       </BusinessSettingsSection>
-      <BusinessSettingsSection mobile={mobile} title="推荐链接">
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="referral-invite-link">推荐链接</SettingsSearchAnchor>}
+      >
         <div
           className={cx(subscriptionPageStyles.inlineValueRow, mobile && styles.mobileInlineRow)}
         >
@@ -394,7 +404,11 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           </Button>
         </div>
       </BusinessSettingsSection>
-      <BusinessSettingsSection defaultOpen={false} mobile={mobile} title="推荐记录">
+      <BusinessSettingsSection
+        defaultOpen={false}
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="referral-table">推荐记录</SettingsSearchAnchor>}
+      >
         {mobile ? (
           <BusinessMobileRecordList
             emptyDescription={t('referral.history.empty')}
@@ -429,15 +443,25 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
       </BusinessSettingsSection>
       {mobile ? (
         <>
-          <BusinessSettingsSection mobile title={t('referral.rules.backfill.title')}>
+          <BusinessSettingsSection
+            mobile
+            defaultOpen={false}
+            title={t('referral.rules.backfill.title')}
+          >
             {backfillForm}
           </BusinessSettingsSection>
-          <BusinessSettingsSection mobile defaultOpen={false} title="计划规则">
+          <BusinessSettingsSection
+            mobile
+            defaultOpen={false}
+            title={<SettingsSearchAnchor id="referral-rules">计划规则</SettingsSearchAnchor>}
+          >
             {referralRules}
           </BusinessSettingsSection>
         </>
       ) : (
-        <BusinessSettingsSection title="计划规则">
+        <BusinessSettingsSection
+          title={<SettingsSearchAnchor id="referral-rules">计划规则</SettingsSearchAnchor>}
+        >
           {referralRules}
           {backfillForm}
         </BusinessSettingsSection>

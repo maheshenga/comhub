@@ -105,7 +105,7 @@ describe('Notification', () => {
 
     expect(screen.getByRole('heading', { name: '通知' })).toBeInTheDocument();
     expect(screen.getByText('站内通知')).toBeInTheDocument();
-    expect(screen.getByText('桌面通知')).toBeInTheDocument();
+    expect(screen.getByText('移动推送通知')).toBeInTheDocument();
     expect(screen.getByText('邮件通知')).toBeInTheDocument();
     expect(screen.getByText('系统维护通知')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看详情' })).toHaveAttribute(

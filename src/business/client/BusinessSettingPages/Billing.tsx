@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
+import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
 import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 import {
@@ -197,7 +198,10 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   return (
     <BusinessSettingsPageShell mobile={mobile} mobileAction={mobileAction} title={'账单'}>
-      <BusinessSettingsSection mobile={mobile} title={'账单摘要'}>
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="billing-summary">账单摘要</SettingsSearchAnchor>}
+      >
         {mobile ? (
           <Flexbox gap={16}>
             <div className={styles.mobileSummaryGrid}>
@@ -303,7 +307,10 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
           </>
         )}
       </BusinessSettingsSection>
-      <BusinessSettingsSection mobile={mobile} title={'当前套餐'}>
+      <BusinessSettingsSection
+        mobile={mobile}
+        title={<SettingsSearchAnchor id="billing-current-plan">当前套餐</SettingsSearchAnchor>}
+      >
         <Flexbox gap={16}>
           <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
             <Flexbox gap={4}>
@@ -337,7 +344,9 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
         <BusinessSettingsSection
           mobile={mobile}
           open={mobile ? billingHistoryOpen : undefined}
-          title={'账单历史'}
+          title={
+            <SettingsSearchAnchor id="billing-history">账单历史</SettingsSearchAnchor>
+          }
           onOpenChange={mobile ? setBillingHistoryOpen : undefined}
         >
           {mobile ? (

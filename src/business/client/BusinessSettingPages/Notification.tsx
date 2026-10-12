@@ -8,13 +8,24 @@ import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 import { buildNotificationPreferenceGroups } from '@/const/notificationPreferences';
-import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/features/Settings/features/SettingHeader';
+import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { SubscriptionIframeWrapper } from './SubscriptionIframeWrapper';
 
 const { Text } = Typography;
+
+/**
+ * 通知搜索深链锚点：key 与 anchor 后缀一致。显式映射（而非模板串拼接）——
+ * items.test.ts 的挂载点比对是静态扫描，模板串运行时才成形，会误报未挂载。
+ */
+const NOTIFICATION_ANCHOR_IDS: Record<string, string> = {
+  email: 'notification-email',
+  inbox: 'notification-inbox',
+  push: 'notification-push',
+};
 
 type SystemAlertType = 'error' | 'info' | 'success' | 'warning';
 
@@ -64,10 +75,14 @@ const WebNotification = memo(() => {
             title={
               <Flexbox horizontal align="center" justify="space-between">
                 <Flexbox gap={2}>
-                  <Text strong>{group.title}</Text>
+                  <Text strong>
+                    <SettingsSearchAnchor id={NOTIFICATION_ANCHOR_IDS[group.key]}>
+                      {group.title}
+                    </SettingsSearchAnchor>
+                  </Text>
                   <Text type="secondary">{group.description}</Text>
                 </Flexbox>
-                <Switch aria-label={group.title} checked={group.enabled} disabled />
+                <Switch disabled aria-label={group.title} checked={group.enabled} />
               </Flexbox>
             }
           >
@@ -81,9 +96,9 @@ const WebNotification = memo(() => {
                 >
                   <Text>{event.title}</Text>
                   <Switch
+                    disabled
                     aria-label={`${group.title}：${event.title}`}
                     checked={group.enabled && event.enabled}
-                    disabled
                   />
                 </Flexbox>
               ))}
