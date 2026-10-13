@@ -7,7 +7,6 @@ import { Form, Switch } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
 import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
@@ -19,10 +18,10 @@ import { buildCreditAccountColumns } from '@/features/Admin/Credits/shared';
 import {
   AdminPageError,
   AdminPageShell,
-  AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
 } from '@/features/Admin/layout';
+import { AdminDataTable } from '@/features/Admin/shared';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -186,24 +185,22 @@ const AdminCreditsPage = memo(() => {
             onRetry={refresh}
           />
         ) : !isLoading && items.length === 0 ? (
-          <AdminResponsiveTable label={t('admin.credits.tableLabel', '积分账户表')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={[]}
-              loading={false}
-              locale={{ emptyText: t('admin.credits.empty', '暂无积分账户') }}
-              rowKey="userId"
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={[]}
+            loading={false}
+            locale={{ emptyText: t('admin.credits.empty', '暂无积分账户') }}
+            regionLabel={t('admin.credits.tableLabel', '积分账户表')}
+            rowKey="userId"
+          />
         ) : (
-          <AdminResponsiveTable label={t('admin.credits.tableLabel', '积分账户表')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={items}
-              loading={isLoading}
-              rowKey="userId"
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={items}
+            loading={isLoading}
+            regionLabel={t('admin.credits.tableLabel', '积分账户表')}
+            rowKey="userId"
+          />
         )}
 
         {data?.nextCursor != null && (

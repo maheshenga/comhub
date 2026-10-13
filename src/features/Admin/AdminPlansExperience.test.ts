@@ -15,7 +15,7 @@ describe('AdminPlansPage experience contract', () => {
 
     expect(page).toContain('AdminPageShell');
     expect(page).toContain('AdminPageError');
-    expect(page).toContain('AdminResponsiveTable');
+    expect(page).toContain('AdminDataTable');
     expect(page).toContain('disabled={isLoading || Boolean(error)}');
     expect(page).toContain('onRetry={refresh}');
     // wrap="wrap" 契约字面量随列定义迁 Plans/shared.tsx

@@ -7,11 +7,11 @@ import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from '../layout';
+import { AdminPageShell, AdminSection, AdminToolbar } from '../layout';
+import { AdminDataTable } from '../shared';
 import { buildContentColumns } from './contentColumns';
 import {
   type ContentDeleteCommand,
@@ -176,15 +176,14 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
           />
         ) : null}
 
-        <AdminResponsiveTable label={copy.tableLabel}>
-          <InlineTable
-            columns={columns}
-            dataSource={data?.items ?? []}
-            loading={isLoading}
-            locale={{ emptyText: <Empty description="暂无数据" /> }}
-            rowKey={(row: any) => row.topic?.id || row.file?.id || row.document?.id}
-          />
-        </AdminResponsiveTable>
+        <AdminDataTable
+          columns={columns}
+          dataSource={data?.items ?? []}
+          loading={isLoading}
+          locale={{ emptyText: <Empty description="暂无数据" /> }}
+          regionLabel={copy.tableLabel}
+          rowKey={(row: any) => row.topic?.id || row.file?.id || row.document?.id}
+        />
         {data?.nextCursor != null ? (
           <div className={contentStyles.pagination}>
             <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>

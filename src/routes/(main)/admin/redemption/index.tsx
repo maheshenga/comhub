@@ -8,12 +8,10 @@ import { Form } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import {
   AdminPageShell,
-  AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
 } from '@/features/Admin/layout';
@@ -23,6 +21,7 @@ import {
 } from '@/features/Admin/Redemption/generateForm';
 import { buildRedemptionColumns } from '@/features/Admin/Redemption/redemptionColumns';
 import { exportRedemptionBatchCsv } from '@/features/Admin/Redemption/resultCsv';
+import { AdminDataTable } from '@/features/Admin/shared';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -322,19 +321,18 @@ const AdminRedemptionPage = memo(() => {
         </AdminToolbar>
 
         {!error && (isLoading || items.length > 0) ? (
-          <AdminResponsiveTable label={t('admin.redemption.tableLabel', '兑换码表')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={items}
-              loading={isLoading}
-              rowKey="id"
-              rowSelection={{
-                getCheckboxProps: (row: any) => ({ disabled: row.status === 'redeemed' }),
-                onChange: (keys) => setSelectedIds(keys as string[]),
-                selectedRowKeys: selectedIds,
-              }}
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={items}
+            loading={isLoading}
+            regionLabel={t('admin.redemption.tableLabel', '兑换码表')}
+            rowKey="id"
+            rowSelection={{
+              getCheckboxProps: (row: any) => ({ disabled: row.status === 'redeemed' }),
+              onChange: (keys) => setSelectedIds(keys as string[]),
+              selectedRowKeys: selectedIds,
+            }}
+          />
         ) : null}
 
         {data?.nextCursor != null && (

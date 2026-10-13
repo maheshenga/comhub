@@ -7,7 +7,6 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import InlineTable from '@/components/InlineTable';
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import { toAdminAtomicCredits, toAdminDisplayCredits } from '@/features/Admin/adminCreditUnits';
 import AdminDependencyImpactPreview from '@/features/Admin/AdminDependencyImpactPreview';
@@ -15,7 +14,6 @@ import AdminPlanFaqCard from '@/features/Admin/AdminPlanFaqCard';
 import {
   AdminPageError,
   AdminPageShell,
-  AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
 } from '@/features/Admin/layout';
@@ -26,6 +24,7 @@ import {
   type PlanFormValues,
   type PlanRow,
 } from '@/features/Admin/Plans/shared';
+import { AdminDataTable } from '@/features/Admin/shared';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -195,24 +194,22 @@ const AdminPlansPage = memo(() => {
             onRetry={refresh}
           />
         ) : !isLoading && items.length === 0 ? (
-          <AdminResponsiveTable label={t('admin.plans.tableLabel', '套餐配置表')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={[]}
-              loading={false}
-              locale={{ emptyText: t('admin.plans.empty', '暂无套餐配置') }}
-              rowKey="plan"
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={[]}
+            loading={false}
+            locale={{ emptyText: t('admin.plans.empty', '暂无套餐配置') }}
+            regionLabel={t('admin.plans.tableLabel', '套餐配置表')}
+            rowKey="plan"
+          />
         ) : (
-          <AdminResponsiveTable label={t('admin.plans.tableLabel', '套餐配置表')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={items}
-              loading={isLoading}
-              rowKey="plan"
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={items}
+            loading={isLoading}
+            regionLabel={t('admin.plans.tableLabel', '套餐配置表')}
+            rowKey="plan"
+          />
         )}
       </AdminSection>
 

@@ -3,9 +3,8 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 
-import InlineTable from '@/components/InlineTable';
 import { type AuditRow, BulkAuditGroupSummary } from '@/features/Admin/Audit/auditParts';
-import { AdminResponsiveTable } from '@/features/Admin/layout';
+import { AdminDataTable } from '@/features/Admin/shared';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => string;
 
@@ -33,18 +32,17 @@ export const AdminAuditTableSection = ({
 }) => {
   return (
     <>
-      <AdminResponsiveTable label={t('admin.audit.tableLabel', '审计日志表')}>
-        <InlineTable
-          columns={columns as any}
-          dataSource={groups.flatMap((group) => group.rows)}
-          loading={loading}
-          rowKey="id"
-          onRow={(record) => ({
-            onClick: () => onDetail(record as AuditRow),
-            style: { cursor: 'pointer' },
-          })}
-        />
-      </AdminResponsiveTable>
+      <AdminDataTable
+        columns={columns as any}
+        dataSource={groups.flatMap((group) => group.rows)}
+        loading={loading}
+        regionLabel={t('admin.audit.tableLabel', '审计日志表')}
+        rowKey="id"
+        onRow={(record) => ({
+          onClick: () => onDetail(record as AuditRow),
+          style: { cursor: 'pointer' },
+        })}
+      />
       {groups
         .filter((group) => group.batchCorrelationId && group.rows.length > 1)
         .slice(0, 5)

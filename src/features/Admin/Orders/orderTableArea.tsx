@@ -1,8 +1,7 @@
 'use client';
 
-import InlineTable from '@/components/InlineTable';
 
-import { AdminResponsiveTable } from '../layout';
+import { AdminDataTable } from '../shared';
 import { AdminPageError } from '../shared/AdminPageState';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => string;
@@ -38,15 +37,14 @@ export const OrderTableArea = ({
   }
 
   return (
-    <AdminResponsiveTable label={t('admin.orders.tableLabel', '订单数据表')}>
-      <InlineTable
-        columns={columns}
-        dataSource={data?.items ?? []}
-        loading={isLoading}
-        locale={{ emptyText: t('admin.orders.empty', '暂无订单') }}
-        rowKey="id"
-        rowSelection={rowSelection}
-      />
-    </AdminResponsiveTable>
+    <AdminDataTable
+      columns={columns}
+      dataSource={data?.items ?? []}
+      loading={isLoading}
+      locale={{ emptyText: t('admin.orders.empty', '暂无订单') }}
+      regionLabel={t('admin.orders.tableLabel', '订单数据表')}
+      rowKey="id"
+      rowSelection={rowSelection}
+    />
   );
 };

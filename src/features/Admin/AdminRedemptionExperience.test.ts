@@ -18,7 +18,7 @@ describe('AdminRedemptionPage experience contract', () => {
     const blocks = redemptionBlocks.map((block) => fs.readFileSync(block, 'utf8')).join('\n');
 
     expect(page).toContain('AdminPageShell');
-    expect(page).toContain('AdminResponsiveTable');
+    expect(page).toContain('AdminDataTable');
     // 外壳状态槽通道：onRetry 经 AdminPageShell state 槽透传（原内联 AdminPageError 被替换）
     expect(page).toContain('onRetry: mutate');
     expect(page).toContain("width: 'min(200px, 100%)'");

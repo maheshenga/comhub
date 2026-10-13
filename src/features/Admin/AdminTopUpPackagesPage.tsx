@@ -7,7 +7,6 @@ import { Form } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
 import { normalizeTopUpPackagePromotion } from '@/const/billingPresentation';
 import {
   formatAdminCredits,
@@ -20,10 +19,10 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import {
   AdminPageError,
   AdminPageShell,
-  AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
 } from './layout';
+import { AdminDataTable } from './shared';
 import { isFormValidationError } from './shared/adminFormErrors';
 import PackageFormFields from './TopUpPackages/PackageFormFields';
 import { type PackageRow, SWR_KEY } from './TopUpPackages/shared';
@@ -213,15 +212,14 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
             defaultValue: '当前显示 {{count}} 个充值套餐',
           })}
         >
-          <AdminResponsiveTable label={t('admin.topup.tableLabel', '充值套餐表格')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={items}
-              loading={isLoading}
-              locale={{ emptyText: t('admin.topup.empty', '暂无充值套餐') }}
-              rowKey="id"
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={items}
+            loading={isLoading}
+            locale={{ emptyText: t('admin.topup.empty', '暂无充值套餐') }}
+            regionLabel={t('admin.topup.tableLabel', '充值套餐表格')}
+            rowKey="id"
+          />
         </AdminSection>
       )}
 

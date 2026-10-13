@@ -19,7 +19,7 @@ describe('admin change requests experience', () => {
     expect(page).toContain('AdminPageError');
     expect(page).toContain('AdminSection');
     expect(page).toContain('AdminToolbar');
-    expect(page).toContain('AdminResponsiveTable');
+    expect(page).toContain('AdminDataTable');
     expect(page).toContain('onRetry={mutate}');
     expect(page).not.toContain('padding={24}');
   });
