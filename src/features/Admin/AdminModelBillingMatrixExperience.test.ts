@@ -17,7 +17,8 @@ describe('admin model billing matrix experience', () => {
     expect(page).toContain('AdminSection');
     // Table hierarchy and form actions live in the split MatrixTable section.
     expect(matrixTable).toContain('AdminFormActions');
-    expect(matrixTable).toContain('AdminResponsiveTable');
+    // 批次三：裸 Table + ResponsiveTable 壳已统一为 AdminDataTable。
+    expect(matrixTable).toContain('AdminDataTable');
     expect(matrixTable).toContain('AdminSection');
     expect(page).toContain('hasLoadError');
     expect(page).toContain('refreshMatrixData');

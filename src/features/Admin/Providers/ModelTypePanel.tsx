@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { confirmModal, toast } from '@lobehub/ui/base-ui';
-import { Button, Empty, Input, Table } from 'antd';
+import { Button, Empty, Input } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -17,6 +17,7 @@ import {
   buildManualMediaPricingMetadata,
   buildManualTokenPricingMetadata,
 } from '../adminProviderModelPricing';
+import { AdminDataTable } from '../shared';
 import { buildModelTypeColumns } from './ModelTypeColumns';
 import type { MODEL_TYPES,ModelRow } from './shared';
 import { modelsKey, splitToList } from './shared';
@@ -225,13 +226,11 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES
                 {t('admin.providers.models.disableAll', '禁用当前类型')}
               </Button>
             </Flexbox>
-            <Table
+            <AdminDataTable
               columns={columns as any}
               dataSource={items}
-              loading={isLoading}
-              pagination={false}
+              regionLabel={t('admin.providers.tableLabel', '服务商实例表格')}
               rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
-              size="small"
             />
           </Flexbox>
         )}
