@@ -15,10 +15,8 @@ import type * as React from 'react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
 import {
   AdminPageShell,
-  AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
   AdminUserDetailDrawer,
@@ -29,6 +27,7 @@ import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangero
 import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { AdminPageError } from '@/features/Admin/layout';
+import { AdminDataTable } from '@/features/Admin/shared';
 import { type AssignableRole, EMPTY_TEXT, type UserRow } from '@/features/Admin/Users/shared';
 import { UserBulkToolbar } from '@/features/Admin/Users/userBulkToolbar';
 import { buildUserColumns } from '@/features/Admin/Users/userColumns';
@@ -466,31 +465,30 @@ const AdminUsersPage = memo(() => {
             onRetry={refresh}
           />
         ) : (
-          <AdminResponsiveTable label={t('admin.users.tableLabel', '用户数据表')}>
-            <InlineTable
-              columns={columns as any}
-              dataSource={allItems}
-              loading={isLoading && cursor === 0}
-              locale={{ emptyText: t('admin.noData', '暂无数据') }}
-              rowKey="id"
-              rowSelection={{
-                // 评审修复（对齐订单页 isBulkEligibleOrder 防线）：已封禁、
-                // 超管账号与本人所在行不可勾选——封禁已封禁用户是空操作、
-                // 超管账号封禁需要单独警示、勾中自己会触发服务端批级
-                // CANNOT_BAN_SELF 而拒绝整批（最多 50 人）。
-                getCheckboxProps: (row: any) => ({
-                  disabled:
-                    !canManageSupport ||
-                    row.id === undefined ||
-                    row.id === currentUserId ||
-                    Boolean(row.banned) ||
-                    isFullAdminRole(row.role),
-                }),
-                onChange: (keys: React.Key[]) => setSelectedUserIds(keys.map(String)),
-                selectedRowKeys: selectedUserIds,
-              }}
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={allItems}
+            loading={isLoading && cursor === 0}
+            locale={{ emptyText: t('admin.noData', '暂无数据') }}
+            regionLabel={t('admin.users.tableLabel', '用户数据表')}
+            rowKey="id"
+            rowSelection={{
+              // 评审修复（对齐订单页 isBulkEligibleOrder 防线）：已封禁、
+              // 超管账号与本人所在行不可勾选——封禁已封禁用户是空操作、
+              // 超管账号封禁需要单独警示、勾中自己会触发服务端批级
+              // CANNOT_BAN_SELF 而拒绝整批（最多 50 人）。
+              getCheckboxProps: (row: any) => ({
+                disabled:
+                  !canManageSupport ||
+                  row.id === undefined ||
+                  row.id === currentUserId ||
+                  Boolean(row.banned) ||
+                  isFullAdminRole(row.role),
+              }),
+              onChange: (keys: React.Key[]) => setSelectedUserIds(keys.map(String)),
+              selectedRowKeys: selectedUserIds,
+            }}
+          />
         )}
         {!error && data?.nextCursor != null && (
           <Flexbox align="center">

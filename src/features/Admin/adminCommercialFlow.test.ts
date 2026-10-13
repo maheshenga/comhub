@@ -15,19 +15,19 @@ describe('admin commercial flow pages', () => {
       const page = readRepoFile(filePath);
 
       expect(page, filePath).toContain('AdminPageShell');
-      expect(page, filePath).toContain('AdminResponsiveTable');
+      expect(page, filePath).toContain('AdminDataTable');
       expect(page, filePath).toContain('AdminToolbar');
     }
 
     // 订单页把表格区抽进了域组件（B2 拆页方向），shell 契约跟着拆到两份源上：
-    // 页面文件持有 AdminPageShell/AdminToolbar，表格区组件持有 AdminResponsiveTable 与错误态。
+    // 页面文件持有 AdminPageShell/AdminToolbar，表格区组件持有 AdminDataTable 与错误态。
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const orderTableArea = readRepoFile('src/features/Admin/Orders/orderTableArea.tsx');
 
     expect(ordersPage).toContain('AdminPageShell');
     expect(ordersPage).toContain('AdminToolbar');
     expect(ordersPage).toContain('OrderTableArea');
-    expect(orderTableArea).toContain('AdminResponsiveTable');
+    expect(orderTableArea).toContain('AdminDataTable');
     expect(orderTableArea).toContain('AdminPageError');
 
     const overviewPage = readRepoFile('src/features/Admin/AdminOverviewPage.tsx');

@@ -10,14 +10,14 @@ import {
   formatBusinessDate,
   formatCurrencyAmount,
 } from '@/business/client/BusinessSettingPages/shared';
-import InlineTable from '@/components/InlineTable';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminChangeRequestsPage from './AdminChangeRequestsPage';
 import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
-import { AdminPageShell, AdminResponsiveTable, AdminSection, AdminToolbar } from './layout';
+import { AdminPageShell, AdminSection, AdminToolbar } from './layout';
+import { AdminDataTable } from './shared';
 import { AdminPageError } from './shared/AdminPageState';
 import ForcePlanModal from './Subscriptions/ForcePlanModal';
 import { PLAN_COLORS, type PlanFilter, STATUS_COLORS } from './Subscriptions/shared';
@@ -220,15 +220,14 @@ const AdminSubscriptionsPage = memo(() => {
                     onRetry={() => mutate()}
                   />
                 ) : (
-                  <AdminResponsiveTable label={t('admin.subscriptions.tableLabel', '订阅数据表')}>
-                    <InlineTable
-                      columns={columns}
-                      dataSource={items}
-                      loading={isLoading}
-                      locale={{ emptyText: t('admin.subscriptions.empty', '暂无订阅数据') }}
-                      rowKey="id"
-                    />
-                  </AdminResponsiveTable>
+                  <AdminDataTable
+                    columns={columns}
+                    dataSource={items}
+                    loading={isLoading}
+                    locale={{ emptyText: t('admin.subscriptions.empty', '暂无订阅数据') }}
+                    regionLabel={t('admin.subscriptions.tableLabel', '订阅数据表')}
+                    rowKey="id"
+                  />
                 )}
 
                 {(cursorStack.length > 1 || nextCursor != null) && (

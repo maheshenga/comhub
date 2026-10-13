@@ -12,7 +12,7 @@ describe('AdminStatsPage experience contract', () => {
     expect(page).toContain('AdminPageShell');
     expect(page).toContain('AdminMetricStrip');
     expect(page).toContain('AdminPageError');
-    expect(page).toContain('AdminResponsiveTable');
+    expect(page).toContain('AdminResponsiveTable'); // stats 页图表滚动壳，保留
     expect(page).not.toContain('@/components/antd-compat/Card');
     expect(page).not.toContain('<Card');
   });

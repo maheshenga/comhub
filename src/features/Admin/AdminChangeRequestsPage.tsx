@@ -5,7 +5,6 @@ import { toast } from '@lobehub/ui/base-ui';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -24,10 +23,10 @@ import {
 import {
   AdminPageError,
   AdminPageShell,
-  AdminResponsiveTable,
   AdminSection,
   AdminToolbar,
 } from './layout';
+import { AdminDataTable } from './shared';
 
 type AdminChangeRequestsPageProps = {
   embedded?: boolean;
@@ -177,20 +176,19 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
               '只允许对待处理请求执行审批或拒绝，批量操作会要求再次确认。',
             )}
           >
-            <AdminResponsiveTable label="套餐变更请求表格">
-              <InlineTable
-                columns={columns}
-                dataSource={items}
-                loading={isLoading}
-                locale={{ emptyText: t('admin.changeRequests.empty', '暂无变更请求') }}
-                rowKey="id"
-                rowSelection={{
-                  getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),
-                  onChange: (keys) => setSelectedIds(keys as string[]),
-                  selectedRowKeys: selectedIds,
-                }}
-              />
-            </AdminResponsiveTable>
+            <AdminDataTable
+              columns={columns}
+              dataSource={items}
+              loading={isLoading}
+              locale={{ emptyText: t('admin.changeRequests.empty', '暂无变更请求') }}
+              regionLabel={t('admin.changeRequests.tableTitle', '套餐变更请求')}
+              rowKey="id"
+              rowSelection={{
+                getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),
+                onChange: (keys) => setSelectedIds(keys as string[]),
+                selectedRowKeys: selectedIds,
+              }}
+            />
           </AdminSection>
         </>
       )}

@@ -14,7 +14,7 @@ describe('admin top-up package experience', () => {
     expect(page).toContain('AdminPageError');
     expect(page).toContain('AdminSection');
     expect(page).toContain('AdminToolbar');
-    expect(page).toContain('AdminResponsiveTable');
+    expect(page).toContain('AdminDataTable');
     // Modal form grids live in the split PackageFormFields block.
     expect(formFields).toContain('AdminFormGrid');
     expect(page).toContain('onRetry={refresh}');

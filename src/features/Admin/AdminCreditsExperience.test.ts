@@ -11,7 +11,7 @@ describe('AdminCreditsPage experience contract', () => {
 
     expect(page).toContain('AdminPageShell');
     expect(page).toContain('AdminPageError');
-    expect(page).toContain('AdminResponsiveTable');
+    expect(page).toContain('AdminDataTable');
     expect(page).toContain('disabled={isLoading || Boolean(error)}');
     expect(page).toContain('onRetry={refresh}');
     expect(page).toContain("flexWrap: 'wrap'");
