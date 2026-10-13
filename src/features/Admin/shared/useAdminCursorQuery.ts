@@ -18,6 +18,8 @@ export interface AdminCursorState<Cursor> {
   canRetreat: boolean;
   /** The cursor of the page currently rendered; `undefined` = first page. */
   cursor: Cursor | undefined;
+  /** 游标栈深度（1 起）：第 1 页 = 1，供「第 N 页」位置展示。 */
+  depth: number;
   /** Clear the trail and return to the first page (call on every filter change). */
   reset: () => void;
   /** Pop back one page; on the first page this is a no-op. */
@@ -43,6 +45,8 @@ export const useAdminCursorState = <Cursor>(): AdminCursorState<Cursor> => {
     advance,
     canRetreat: trail.length > 0,
     cursor: trail.at(-1),
+    /** 游标栈深度（1 起）：第 1 页 = 1，供「第 N 页」位置展示。 */
+    depth: trail.length + 1,
     reset,
     retreat,
   };
@@ -61,6 +65,8 @@ export interface UseAdminCursorQueryOptions<Cursor, Data> {
 
 export interface AdminCursorQueryResult<Cursor, Data> {
   data: Data | undefined;
+  /** 当前页位置（1 起）；游标分页无总页数，仅用于「第 N 页」展示。 */
+  depth: number;
   error: unknown;
   hasNext: boolean;
   hasPrevious: boolean;
@@ -116,8 +122,13 @@ export const useAdminCursorQuery = <Cursor, Data>(
     [key, activeCursor, limit, deps],
   );
 
-  const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
-    fetcher({ cursor: activeCursor, limit }),
+  // keepPreviousData：翻页/改筛选时保留上一页数据渲染，避免表格闪回空态
+  // （moduleApps 批次1 的 H2 同款修复；与 AdminDataTable 三态门禁配合——
+  // isLoading 只在真正首载时为 true，这里由 SWR 区分）。
+  const { data, error, isLoading, mutate } = useClientDataSWR(
+    swrKey,
+    () => fetcher({ cursor: activeCursor, limit }),
+    { keepPreviousData: true },
   );
 
   const dataRecord = data as { nextCursor?: Cursor | null } | undefined;
@@ -135,6 +146,7 @@ export const useAdminCursorQuery = <Cursor, Data>(
 
   return {
     data,
+    depth: state.depth,
     error,
     hasNext,
     hasPrevious: canRetreat,

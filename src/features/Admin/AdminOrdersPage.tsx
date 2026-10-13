@@ -261,6 +261,7 @@ const AdminOrdersPage = memo(() => {
                     hasNext={ordersQuery.hasNext}
                     hasPrevious={ordersQuery.hasPrevious}
                     isLoading={isLoading}
+                    positionLabel={`第 ${ordersQuery.depth} 页`}
                     t={t as any}
                     onNext={ordersQuery.pager.onNext}
                     onPrevious={ordersQuery.pager.onPrevious}

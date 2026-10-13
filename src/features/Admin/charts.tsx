@@ -1,5 +1,6 @@
 'use client';
 
+import { cssVar } from 'antd-style';
 import { memo } from 'react';
 
 interface SparklineProps {
@@ -11,7 +12,7 @@ interface SparklineProps {
 
 /** Dependency-free SVG line chart with axis. */
 export const Sparkline = memo<SparklineProps>(
-  ({ color = '#1677ff', data, height = 80, width = 320 }) => {
+  ({ color = cssVar.colorPrimary, data, height = 80, width = 320 }) => {
     if (data.length === 0) return <svg height={height} width={width} />;
     const max = Math.max(...data, 1);
     const min = Math.min(...data, 0);
@@ -49,7 +50,7 @@ interface BarChartProps {
 }
 
 export const BarChart = memo<BarChartProps>(
-  ({ color = '#1677ff', data, height = 160, width = 480 }) => {
+  ({ color = cssVar.colorPrimary, data, height = 160, width = 480 }) => {
     if (data.length === 0) return <svg height={height} width={width} />;
     const max = Math.max(...data.map((d) => d.value), 1);
     const barW = (width - 32) / data.length - 8;

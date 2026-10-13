@@ -5,6 +5,7 @@ import { Flexbox } from '@lobehub/ui';
 import { Alert, toast } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List 动态增删字段；base-ui FormKit 虽有 FormList 等价能力，但 API 形态不同（render-props + 按字段校验需改写），迁移属 FormKit 另行立项；Button/Input/Switch 为受控表单字段控件，属 #135 keep-antd 豁免清单。
 import { Button, Form, Input, Switch } from 'antd';
+import { cssVar } from 'antd-style';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -146,7 +147,7 @@ const AdminPlanFaqCard = memo(() => {
                         <Switch size="small" />
                       </Form.Item>
                       <MinusCircleOutlined
-                        style={{ color: '#ff4d4f' }}
+                        style={{ color: cssVar.colorError }}
                         onClick={() => remove(name)}
                       />
                     </Flexbox>

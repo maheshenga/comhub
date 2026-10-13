@@ -85,15 +85,18 @@ describe('useAdminCursorQuery', () => {
     expect(fetcher).toHaveBeenCalledWith({ cursor: undefined, limit: 50 });
     expect(result.current.hasNext).toBe(true);
     expect(result.current.hasPrevious).toBe(false);
+    expect(result.current.depth).toBe(1);
 
     act(() => result.current.pager.onNext());
 
     await waitFor(() => expect(result.current.data?.items[0]).toBe('page-for-20'));
     expect(result.current.hasNext).toBe(false);
     expect(result.current.hasPrevious).toBe(true);
+    expect(result.current.depth).toBe(2);
 
     act(() => result.current.pager.onPrevious());
     await waitFor(() => expect(result.current.data?.items[0]).toBe('page-for-first'));
+    expect(result.current.depth).toBe(1);
   });
 
   it('resets the trail when filter deps change', async () => {

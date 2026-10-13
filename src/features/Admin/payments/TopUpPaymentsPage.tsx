@@ -15,6 +15,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { PagerPositionLabel } from '../shared/PagerPositionLabel';
 import { PaymentFilterControls, PaymentRefundModal } from './paymentControls';
 import { PaymentListHeader } from './paymentListHeader';
 import type { PendingReconciliationResponse } from './paymentsShared';
@@ -84,6 +85,7 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         status: status as any,
         userId: userId || undefined,
       }) as Promise<TopUpPaymentListResponse>,
+    { keepPreviousData: true },
   );
 
   const updateParams = (updates: Record<string, null | string>) => {
@@ -224,6 +226,7 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
       />
       {(cursor > 0 || data?.nextCursor != null) && (
         <Space>
+          <PagerPositionLabel page={cursor / 25 + 1} />
           <Button
             disabled={cursor === 0}
             onClick={() =>
