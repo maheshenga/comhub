@@ -3,13 +3,14 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button, Tag } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Empty, InputNumber, Space, Switch, Table, Typography } from 'antd';
+import { Empty, InputNumber, Space, Switch, Typography } from 'antd';
 
 import { MATRIX_ACCESS_SAVE_LABEL, MATRIX_DISCARD_LABEL, MATRIX_PRICING_SAVE_LABEL } from '@/features/Admin/adminMatrixCopy';
 import type { MatrixRow } from '@/features/Admin/adminModelBillingMatrix';
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 
-import { AdminFormActions, AdminResponsiveTable, AdminSection } from '../layout';
+import { AdminFormActions, AdminSection } from '../layout';
+import { AdminDataTable } from '../shared';
 import { PRICING_SOURCE_STATUS, toFiniteNumber  } from './shared';
 
 const { Text } = Typography;
@@ -189,17 +190,16 @@ export const MatrixTable = ({
         description={`当前显示 ${displayRows.length}/${rows.length} 个模型`}
         title={t('admin.modelBillingMatrix.matrixSection', '模型权限与计费')}
       >
-        <AdminResponsiveTable label="模型与计费矩阵">
-          <Table
-            columns={visibleColumns}
-            dataSource={displayRows}
-            loading={loading}
-            locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
-            pagination={{ defaultPageSize: 50, hideOnSinglePage: true, showSizeChanger: true }}
-            rowKey="key"
-            scroll={{ x: 900 + plans.length * 104 }}
-          />
-        </AdminResponsiveTable>
+        <AdminDataTable
+          columns={visibleColumns}
+          dataSource={displayRows}
+          loading={loading}
+          locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
+          pagination={{ defaultPageSize: 50, hideOnSinglePage: true, showSizeChanger: true }}
+          regionLabel={t('admin.modelBillingMatrix.matrixSection', '模型权限与计费')}
+          rowKey="key"
+          scrollX={900 + plans.length * 104}
+        />
       </AdminSection>
 
       <AdminFormActions label="模型与计费矩阵操作">

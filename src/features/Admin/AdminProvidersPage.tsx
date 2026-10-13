@@ -2,7 +2,7 @@
 
 import { Icon } from '@lobehub/ui';
 import { toast } from '@lobehub/ui/base-ui';
-import { Button, Empty, Table } from 'antd';
+import { Button, Empty } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +13,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useAiInfraStore } from '@/store/aiInfra';
 
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
-import { AdminPageError, AdminPageShell, AdminResponsiveTable, AdminSection } from './layout';
+import { AdminPageError, AdminPageShell, AdminSection } from './layout';
 import InstanceFormModal from './Providers/InstanceFormModal';
 import ModelsDrawer from './Providers/ModelsDrawer';
 import {
@@ -23,6 +23,7 @@ import {
   modelsKey,
 } from './Providers/shared';
 import { buildInstanceColumns } from './Providers/useInstanceColumns';
+import { AdminDataTable } from './shared';
 
 const AdminProvidersPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -193,15 +194,12 @@ const AdminProvidersPage = memo(() => {
         {!isLoading && items.length === 0 ? (
           <Empty description={t('admin.providers.empty', '暂未配置服务商实例')} />
         ) : (
-          <AdminResponsiveTable label={t('admin.providers.tableLabel', '服务商实例表格')}>
-            <Table
-              columns={columns as any}
-              dataSource={items}
-              loading={isLoading}
-              pagination={false}
-              rowKey="id"
-            />
-          </AdminResponsiveTable>
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={items}
+            regionLabel={t('admin.providers.tableLabel', '服务商实例表格')}
+            rowKey="id"
+          />
         )}
       </AdminSection>
 

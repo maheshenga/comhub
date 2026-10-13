@@ -2,10 +2,11 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Tag } from '@lobehub/ui/base-ui';
-import { Descriptions, Empty, Table } from 'antd';
+import { Descriptions, Empty } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { formatAdminCredits } from '../adminCreditUnits';
+import { AdminDataTable } from '../shared';
 
 const EMPTY_TEXT = '-';
 
@@ -17,7 +18,6 @@ const UserDetailSections = ({ data }: { data: any }) => {
           <Descriptions
             bordered
             column={1}
-            size="small"
             title={t('admin.userDetail.profile', '用户资料')}
           >
             <Descriptions.Item label={t('admin.userDetail.userId', 'ID')}>
@@ -50,7 +50,6 @@ const UserDetailSections = ({ data }: { data: any }) => {
           <Descriptions
             bordered
             column={2}
-            size="small"
             title={t('admin.userDetail.balance', '积分余额')}
           >
             <Descriptions.Item label={t('admin.userDetail.balanceCurrent', '当前余额')}>
@@ -71,7 +70,6 @@ const UserDetailSections = ({ data }: { data: any }) => {
             <Descriptions
               bordered
               column={2}
-              size="small"
               title={t('admin.userDetail.subscription', '订阅')}
             >
               <Descriptions.Item label={t('admin.userDetail.plan', '套餐')}>
@@ -106,11 +104,10 @@ const UserDetailSections = ({ data }: { data: any }) => {
 
           <div>
             <h4>{t('admin.userDetail.recentLedger', '最近积分流水')}</h4>
-            <Table
+            <AdminDataTable
               dataSource={data.recentLedger}
-              pagination={false}
+              regionLabel={t('admin.userDetail.recentLedger', '详情表格')}
               rowKey="id"
-              size="small"
               columns={[
                 { dataIndex: 'type', key: 'type', title: t('admin.userDetail.ledgerType', '类型') },
                 {
@@ -142,11 +139,10 @@ const UserDetailSections = ({ data }: { data: any }) => {
 
           <div>
             <h4>{t('admin.userDetail.recentOrders', '最近充值订单')}</h4>
-            <Table
+            <AdminDataTable
               dataSource={data.recentOrders}
-              pagination={false}
+              regionLabel={t('admin.userDetail.recentOrders', '详情表格')}
               rowKey="id"
-              size="small"
               columns={[
                 {
                   dataIndex: 'id',
@@ -188,11 +184,10 @@ const UserDetailSections = ({ data }: { data: any }) => {
 
           <div>
             <h4>{t('admin.userDetail.auditTrail', '最近后台操作')}</h4>
-            <Table
+            <AdminDataTable
               dataSource={data.recentAudit ?? []}
-              pagination={false}
+              regionLabel={t('admin.userDetail.auditTrail', '详情表格')}
               rowKey="id"
-              size="small"
               columns={[
                 {
                   dataIndex: 'createdAt',

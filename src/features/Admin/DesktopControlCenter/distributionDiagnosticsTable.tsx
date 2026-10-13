@@ -3,10 +3,10 @@
 import { Icon } from '@lobehub/ui';
 import { Button, Tag } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Table, Tooltip, Typography } from 'antd';
+import { Tooltip, Typography } from 'antd';
 import { ExternalLink } from 'lucide-react';
 
-import { desktopControlCenterStyles } from './styles';
+import { AdminDataTable } from '../shared';
 import {
   DESKTOP_CHANNEL_LABEL_KEYS,
   DESKTOP_PLATFORM_LABEL_KEYS,
@@ -124,15 +124,12 @@ export const DistributionDiagnosticsTable = ({
   ];
 
   return (
-    <div className={desktopControlCenterStyles.tableWrapper}>
-      <Table<DistributionRow>
-        columns={columns}
-        dataSource={getDistributionRows(overview)}
-        pagination={false}
-        rowKey="key"
-        scroll={{ x: 900 }}
-        size="small"
-      />
-    </div>
+    <AdminDataTable<DistributionRow>
+      columns={columns}
+      dataSource={getDistributionRows(overview)}
+      regionLabel={t('admin.desktopControl.status.channel')}
+      rowKey="key"
+      scrollX={900}
+    />
   );
 };

@@ -87,10 +87,6 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
     font-size: 12px;
     color: ${cssVar.colorTextSecondary};
   `,
-  tableWrapper: css`
-    overflow-x: auto;
-    width: 100%;
-  `,
   tabs: css`
     min-width: 0;
 

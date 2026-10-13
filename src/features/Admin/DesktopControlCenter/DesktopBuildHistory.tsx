@@ -3,7 +3,7 @@
 import type { DesktopReleaseStatus } from '@lobechat/types';
 import { Button, Tag, toast } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Space, Table, Typography } from 'antd';
+import { Space, Typography } from 'antd';
 import { CheckCircle2, RefreshCw, RotateCcw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
+import { AdminDataTable } from '../shared';
 import { desktopControlCenterStyles } from './styles';
 
 const formatDate = (value?: Date | string | null) =>
@@ -228,16 +229,14 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
         <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
           {t('admin.desktopBuild.history.title')}
         </Typography.Title>
-        <div className={desktopControlCenterStyles.tableWrapper}>
-          <Table
-            columns={columns}
-            dataSource={releases}
-            pagination={{ defaultPageSize: 20, hideOnSinglePage: true, showSizeChanger: true }}
-            rowKey="id"
-            scroll={{ x: 1100 }}
-            size="small"
-          />
-        </div>
+        <AdminDataTable
+          columns={columns}
+          dataSource={releases}
+          pagination={{ defaultPageSize: 20, hideOnSinglePage: true, showSizeChanger: true }}
+          regionLabel={t('admin.desktopBuild.history.title')}
+          rowKey="id"
+          scrollX={1100}
+        />
       </section>
     );
   },
