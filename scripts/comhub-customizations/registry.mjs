@@ -1193,11 +1193,31 @@ const MODULES = [
       ['p:.pnpmfile.cjs', 'owned', 'better-call zod4 alignment'],
       ['p:apps/desktop/package.json', 'upstream', 'electron 43.5'],
       ['p:apps/desktop/pnpm-lock.yaml', 'upstream', 'desktop lockfile'],
-      ['p:package.json', 'upstream', 'root overrides: @lobehub/ui/editor/icons pins'],
+      [
+        'p:package.json',
+        'upstream',
+        'root overrides: @lobehub/ui/editor/icons pins; ui 精确钉 5.57.1',
+      ],
       ['p:packages/editor-runtime/package.json', 'upstream', '@lobehub/editor pin 4.27.3'],
       ['p:packages/builtin-tool-lobe-agent/package.json', 'upstream', '@lobehub/editor pin 4.27.3'],
       ['p:packages/builtin-tools/package.json', 'upstream', '@lobehub/icons pin 5.21.0'],
       ['p:packages/heterogeneous-agents/package.json', 'upstream', '@lobehub/icons pin 5.21.0'],
+      [
+        'p:packages/const/package.json',
+        'upstream',
+        '@lobehub/ui 统一钉 5.57.1（5.58+ base-ui Table 删 bordered）',
+      ],
+      [
+        'p:packages/builtin-tool-self-iteration/package.json',
+        'upstream',
+        '@lobehub/ui 统一钉 5.57.1',
+      ],
+      ['p:packages/builtin-tool-skill-store/package.json', 'upstream', '@lobehub/ui 统一钉 5.57.1'],
+      [
+        'p:packages/builtin-tool-web-onboarding/package.json',
+        'upstream',
+        '@lobehub/ui 统一钉 5.57.1',
+      ],
       [
         'p:packages/observability-otel/',
         'upstream',
