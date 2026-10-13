@@ -24,7 +24,8 @@ describe('admin provider management experience', () => {
     expect(page).toContain('AdminPageShell');
     expect(page).toContain('AdminPageError');
     expect(page).toContain('AdminSection');
-    expect(page).toContain('AdminResponsiveTable');
+    // 批次三：裸 Table + ResponsiveTable 壳已统一为 AdminDataTable。
+    expect(page).toContain('AdminDataTable');
     expect(page).toContain('mutate: refresh');
     expect(page).toContain('disabled={isLoading || !data');
     expect(page).not.toContain('padding={24}');
