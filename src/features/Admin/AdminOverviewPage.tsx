@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Spin, Tag } from '@lobehub/ui/base-ui';
+import { Button, Tag } from '@lobehub/ui/base-ui';
 import { ArrowRight, GitPullRequest, Settings } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router';
 
 import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { ADMIN_BASE_PATH } from '@/features/Admin/adminNavigation';
+import { AdminInlineSkeleton } from '@/features/Admin/shared';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
@@ -137,7 +138,7 @@ const AdminOverviewPage = memo(() => {
                 </Button>
               </>
             ) : (
-              <Spin />
+              <AdminInlineSkeleton rows={2} />
             )}
           </div>
           <Flexbox gap={12} style={{ marginTop: 12 }}>
@@ -250,7 +251,7 @@ const AdminOverviewPage = memo(() => {
               </div>
             </div>
           ) : (
-            <Spin />
+            <AdminInlineSkeleton rows={2} />
           )}
         </AdminSection>
       </div>

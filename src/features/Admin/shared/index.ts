@@ -6,6 +6,7 @@ export {
 } from './adminConfirm';
 export { AdminDataTable, type AdminDataTableProps } from './AdminDataTable';
 export {
+  AdminInlineSkeleton,
   AdminPageError,
   AdminPageState,
   type AdminPageStateAction,

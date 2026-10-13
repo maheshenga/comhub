@@ -2,11 +2,12 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Spin, Tag, toast } from '@lobehub/ui/base-ui';
+import { Tag, toast } from '@lobehub/ui/base-ui';
 import { Button, Descriptions, Drawer, Empty, InputNumber, Modal, Space } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { AdminInlineSkeleton } from '@/features/Admin/shared';
 import { mutate as swrMutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
@@ -134,7 +135,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
       onClose={onClose}
     >
       {isLoading ? (
-        <Spin />
+        <AdminInlineSkeleton rows={4} />
       ) : data ? (
         <UserDetailSections data={data} />
       ) : compactDetail ? (

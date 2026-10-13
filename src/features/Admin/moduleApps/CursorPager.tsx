@@ -2,11 +2,12 @@
 
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Button, Tooltip } from 'antd';
+import { cssVar } from 'antd-style';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const positionLabelStyle = {
   alignSelf: 'center',
-  color: 'var(--ant-color-text-tertiary)',
+  color: cssVar.colorTextTertiary,
   fontSize: 12,
   whiteSpace: 'nowrap',
 } as const;

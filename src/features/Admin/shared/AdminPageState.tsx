@@ -35,6 +35,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 8px;
     min-height: 320px;
   `,
+  inline: css`
+    display: grid;
+    gap: 8px;
+    min-height: 88px;
+    align-content: start;
+  `,
   listRow: css`
     display: grid;
     grid-template-columns: minmax(140px, 2fr) minmax(80px, 1fr) 96px;
@@ -124,6 +130,18 @@ const AdminListSkeleton = ({ label }: { label: string }) => (
   </section>
 );
 
+/**
+ * Inline loading placeholder for card bodies and drawers — the sanctioned
+ * replacement for bare `<Spin />` so Admin loading states share one shape
+ * (blueprint §4.2-3; whole-surface loading stays on AdminPageState).
+ */
+export const AdminInlineSkeleton = ({ rows = 3 }: { rows?: number }) => (
+  <div aria-busy="true" className={styles.inline} data-testid="admin-inline-skeleton">
+    {Array.from({ length: rows }, (_, index) => (
+      <div className={styles.line} key={index} />
+    ))}
+  </div>
+);
 /**
  * Unified three-state primitive for Admin pages (blueprint §4.2-3). One
  * component renders the loading skeleton, the error retry state and the
@@ -279,5 +297,4 @@ export const AdminPageError = ({
     {null}
   </AdminPageState>
 );
-
 export default AdminPageState;

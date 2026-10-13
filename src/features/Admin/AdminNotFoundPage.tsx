@@ -1,6 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
+import { cssVar } from 'antd-style';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router';
 
@@ -25,7 +26,7 @@ export const AdminNotFoundPage = () => {
   return (
     <Flexbox align="center" gap={12} justify="center" style={{ minHeight: '50vh' }}>
       <h2 style={{ margin: 0 }}>{t('admin.notFound.title', '页面不存在')}</h2>
-      <p style={{ color: 'var(--color-text-secondary, #999)', margin: 0 }}>
+      <p style={{ color: cssVar.colorTextSecondary, margin: 0 }}>
         {t('admin.notFound.description', '管理后台中没有与当前地址匹配的页面')}
       </p>
       <code style={{ opacity: 0.7 }}>{location.pathname}</code>

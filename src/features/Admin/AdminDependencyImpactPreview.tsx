@@ -2,10 +2,12 @@
 
 import { type AdminDependencyImpact, type AdminDependencyImpactItem } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Spin, Tag } from '@lobehub/ui/base-ui';
+import { Alert, Tag } from '@lobehub/ui/base-ui';
 import { Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { AdminInlineSkeleton } from '@/features/Admin/shared';
 
 const { Text } = Typography;
 
@@ -32,7 +34,7 @@ const AdminDependencyImpactPreview = memo<{
 }>(({ error, impact, loading }) => {
   const { t } = useTranslation('subscription');
 
-  if (loading) return <Spin size="small" />;
+  if (loading) return <AdminInlineSkeleton rows={2} />;
   if (error) {
     return (
       <Alert

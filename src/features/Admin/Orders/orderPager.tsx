@@ -3,6 +3,8 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 
+import { PagerPositionLabel } from '../shared/PagerPositionLabel';
+
 type TFn = (key: any, defaultValue?: any, values?: any) => string;
 
 interface OrderPagerProps {
@@ -27,11 +29,7 @@ export const OrderPager = ({
   onPrevious,
 }: OrderPagerProps) => (
   <Flexbox horizontal align="center" gap={8}>
-    {positionLabel ? (
-      <span style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 12, whiteSpace: 'nowrap' }}>
-        {positionLabel}
-      </span>
-    ) : null}
+    {positionLabel ? <PagerPositionLabel label={positionLabel} /> : null}
     <Button disabled={!hasPrevious} onClick={onPrevious}>
       {t('admin.pagination.previous', '上一页')}
     </Button>

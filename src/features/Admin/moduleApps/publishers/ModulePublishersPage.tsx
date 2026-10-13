@@ -20,7 +20,7 @@ import { useDebouncedFilter } from '../shared/useDebouncedFilter';
 import PublisherFormModal, { type PublisherFormValues } from './PublisherFormModal';
 import { usePublisherGovernance } from './usePublisherGovernance';
 
-const styles = createStaticStyles(({ css }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
   controls: css`
     display: flex;
     flex-wrap: wrap;
@@ -32,7 +32,7 @@ const styles = createStaticStyles(({ css }) => ({
     max-width: 1180px;
   `,
   reasonHint: css`
-    color: var(--ant-color-text-secondary);
+    color: ${cssVar.colorTextSecondary};
     font-size: 12px;
     margin-top: 4px;
   `,
