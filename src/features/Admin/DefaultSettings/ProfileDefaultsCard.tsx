@@ -5,6 +5,7 @@ import { Avatar, Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import type { FormInstance } from 'antd';
 import { Form, Input } from 'antd';
+import { cssVar } from 'antd-style';
 
 import { Card } from '@/components/antd-compat/Card';
 import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
@@ -35,7 +36,7 @@ export const ProfileDefaultsCard = ({ form, uploadPublicUrlPrefix }: ProfileDefa
                 >
                   <Input placeholder="显示名称，例如 AI 绘画" style={{ flex: 1.4 }} />
                 </Form.Item>
-                <MinusCircleOutlined style={{ color: '#ff4d4f' }} onClick={() => remove(name)} />
+                <MinusCircleOutlined style={{ color: cssVar.colorError }} onClick={() => remove(name)} />
               </Flexbox>
             ))}
             <Button
@@ -85,7 +86,7 @@ export const ProfileDefaultsCard = ({ form, uploadPublicUrlPrefix }: ProfileDefa
                     style={{ flex: 2 }}
                   />
                 </Form.Item>
-                <MinusCircleOutlined style={{ color: '#ff4d4f' }} onClick={() => remove(name)} />
+                <MinusCircleOutlined style={{ color: cssVar.colorError }} onClick={() => remove(name)} />
               </Flexbox>
             ))}
             <Button

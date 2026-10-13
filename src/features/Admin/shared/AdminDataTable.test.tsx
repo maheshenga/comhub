@@ -159,6 +159,31 @@ describe('AdminDataTable', () => {
     expect(onNext).toHaveBeenCalledTimes(1);
   });
 
+  it('renders the pager position label only when provided', () => {
+    const onNext = vi.fn();
+    const onPrevious = vi.fn();
+    const { rerender } = render(
+      <AdminDataTable<Row>
+        columns={columns}
+        dataSource={rows}
+        pager={{ hasNext: true, hasPrevious: true, onNext, onPrevious }}
+        regionLabel="订单数据表"
+      />,
+    );
+    // Cursor pagination has no total count; the 「第 N 页」 label is optional.
+    expect(screen.queryByText('第 1 页')).not.toBeInTheDocument();
+
+    rerender(
+      <AdminDataTable<Row>
+        columns={columns}
+        dataSource={rows}
+        pager={{ hasNext: true, hasPrevious: true, onNext, onPrevious, positionLabel: '第 1 页' }}
+        regionLabel="订单数据表"
+      />,
+    );
+    expect(screen.getByText('第 1 页')).toBeInTheDocument();
+  });
+
   it('exports ordered CSV with quoting and a UTF-8 BOM', () => {
     const clickSpy = vi.fn();
     const createObjectURLSpy = vi.fn<(obj: Blob) => string>(() => 'blob:csv');

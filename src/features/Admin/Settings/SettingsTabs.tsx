@@ -4,6 +4,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
 import { Button, Select, Tabs } from '@lobehub/ui/base-ui';
 import { Form, Input, Typography } from 'antd';
+import { cssVar } from 'antd-style';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -190,7 +191,7 @@ const SettingsTabs = memo<SettingsTabsProps>(({ uploadPublicUrlPrefix }) => {
                                   <Input placeholder="https://..." style={{ flex: 1.5 }} />
                                 </Form.Item>
                                 <MinusCircleOutlined
-                                  style={{ color: '#ff4d4f' }}
+                                  style={{ color: cssVar.colorError }}
                                   onClick={() => remove(name)}
                                 />
                               </Flexbox>

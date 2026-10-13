@@ -16,6 +16,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { PagerPositionLabel } from '../shared/PagerPositionLabel';
 import {
   buildSettlementFailureColumns,
   SETTLEMENT_STATUSES,
@@ -73,6 +74,7 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
           limit: PAGE_SIZE,
           ...(status ? { status } : {}),
         }),
+      { keepPreviousData: true },
     );
 
     const updateParams = (nextValues: {
@@ -186,6 +188,7 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
         />
         {(cursor > 0 || data?.nextCursor != null) && (
           <Space>
+            <PagerPositionLabel page={cursor / PAGE_SIZE + 1} />
             <Button
               disabled={cursor === 0}
               onClick={() => updateParams({ settlementCursor: Math.max(0, cursor - PAGE_SIZE) })}

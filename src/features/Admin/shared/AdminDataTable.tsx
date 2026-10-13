@@ -13,10 +13,16 @@ import { AdminPageState } from './AdminPageState';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   pager: css`
+    align-items: center;
     display: flex;
     gap: 8px;
     justify-content: flex-end;
     padding-block: 8px;
+  `,
+  pagerPosition: css`
+    color: ${cssVar.colorTextTertiary};
+    font-size: 12px;
+    white-space: nowrap;
   `,
   responsive: css`
     overflow-x: auto;
@@ -47,6 +53,8 @@ export interface AdminDataTablePagerState {
   hasPrevious: boolean;
   onNext: () => void;
   onPrevious: () => void;
+  /** 游标分页无总页数；「第 N 页」位置标签（与 moduleApps CursorPager 对齐）。 */
+  positionLabel?: string;
 }
 
 export interface AdminDataTableProps<RecordType extends object> extends Omit<
@@ -184,6 +192,9 @@ export const AdminDataTable = <RecordType extends object>({
       />
       {pager ? (
         <div className={styles.pager}>
+          {pager.positionLabel ? (
+            <span className={styles.pagerPosition}>{pager.positionLabel}</span>
+          ) : null}
           <Button
             aria-label={translate('admin.shared.pagination.previous', '上一页')}
             disabled={!pager.hasPrevious}

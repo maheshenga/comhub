@@ -15,6 +15,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { PagerPositionLabel } from '../shared/PagerPositionLabel';
 import { PaymentFilterControls, PaymentRefundModal } from './paymentControls';
 import { PaymentListHeader } from './paymentListHeader';
 import {
@@ -85,6 +86,7 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
         status: status as any,
         userId: userId || undefined,
       }) as Promise<SubscriptionPaymentListResponse>,
+    { keepPreviousData: true },
   );
 
   const updateParams = (updates: Record<string, null | string>) => {
@@ -115,8 +117,6 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
     setUserDraft('');
     updateParams({ orderId: null, provider: null, status: null, userId: null });
   };
-
-
   const columns = buildSubscriptionPaymentColumns({
     busyAction,
     canWrite,
@@ -229,6 +229,7 @@ const SubscriptionPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWr
       />
       {(cursor > 0 || data?.nextCursor != null) && (
         <Space>
+          <PagerPositionLabel page={cursor / 25 + 1} />
           <Button
             disabled={cursor === 0}
             onClick={() =>

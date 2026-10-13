@@ -11,6 +11,8 @@ interface OrderPagerProps {
   isLoading: boolean;
   onNext: () => void;
   onPrevious: () => void;
+  /** 游标分页位置标签（第 N 页）；来自 useAdminCursorQuery.depth。 */
+  positionLabel?: string;
   t: TFn;
 }
 
@@ -19,11 +21,17 @@ export const OrderPager = ({
   hasNext,
   hasPrevious,
   isLoading,
+  positionLabel,
   t,
   onNext,
   onPrevious,
 }: OrderPagerProps) => (
   <Flexbox horizontal align="center" gap={8}>
+    {positionLabel ? (
+      <span style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 12, whiteSpace: 'nowrap' }}>
+        {positionLabel}
+      </span>
+    ) : null}
     <Button disabled={!hasPrevious} onClick={onPrevious}>
       {t('admin.pagination.previous', '上一页')}
     </Button>
