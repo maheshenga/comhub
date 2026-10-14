@@ -224,7 +224,6 @@ const AdminSubscriptionsPage = memo(() => {
                     columns={columns}
                     dataSource={items}
                     loading={isLoading}
-                    locale={{ emptyText: t('admin.subscriptions.empty', '暂无订阅数据') }}
                     regionLabel={t('admin.subscriptions.tableLabel', '订阅数据表')}
                     rowKey="id"
                   />

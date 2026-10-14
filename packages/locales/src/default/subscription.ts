@@ -856,7 +856,7 @@ export default {
   'zarinpal.infoModal.phone.rule': 'Please enter a valid phone number',
   'zarinpal.infoModal.submit': 'Purchase',
   'zarinpal.infoModal.title': 'Fill in Required Information',
-  'admin.actions': '操作',
+  'admin.actions': 'Actions',
   'admin.adjust': '调整',
   'admin.adjustCredits': '调整积分',
   'admin.adjustCredits.amount': '积分数量（正数增加，负数扣减）',
@@ -916,6 +916,14 @@ export default {
   'admin.credits.recharge': '充值积分',
   'admin.credits.nextPage': 'Next page',
   'admin.content.nextPage': 'Next page',
+  'admin.content.error.description':
+    'Check the service status and retry; current filters are preserved.',
+  'admin.content.error.retry': 'Retry',
+  'admin.content.error.title': 'Failed to load data',
+  'admin.content.filter.sourceType': 'Source type',
+  'admin.content.filter.status': 'Topic status',
+  'admin.content.filter.userId': 'Filter by user ID',
+  'admin.content.refresh': 'Refresh',
   'admin.credits.rechargeFailed': '充值失败',
   'admin.credits.rechargeSuccess': '积分已充值',
   'admin.console': '后台管理',
@@ -929,7 +937,7 @@ export default {
   'admin.joined': '注册时间',
   'admin.lastActive': '最近活跃',
   'admin.name': '姓名',
-  'admin.noData': '暂无数据',
+  'admin.noData': 'No data',
   'admin.orders': '订单',
   'admin.plan': '套餐',
   'admin.plans': '套餐管理',
@@ -969,6 +977,7 @@ export default {
   'admin.settings.current': '当前值',
   'admin.settings.title': '站点基础设置',
   'admin.settings.gatewaySection': '服务商网关',
+  'admin.settings.governance.metricsLabel': 'Settings governance metrics',
   'admin.settings.leaveBlank': '留空则保持当前值',
   'admin.settings.defaultModel': '默认模型已迁移',
   'admin.settings.defaultModel.help': '默认模型、模型套餐权限和模型计费请在“模型与计费矩阵”维护。',
@@ -1092,6 +1101,10 @@ export default {
   'admin.pricing.saveSuccess': '计费配置已保存',
   'admin.pricing.tip':
     '积分扣费 = 上游美元成本 × 每美元积分 × 全局倍率 × 命中的模型倍率。规则按 provider/model 精确匹配，"*" 表示通配。',
+  'admin.pricing.merged.action': 'Open the model and billing matrix',
+  'admin.pricing.merged.description':
+    'The global credit multiplier, order switch, model multipliers, credits per USD, and plan model access are now maintained in the model and billing matrix.',
+  'admin.pricing.merged.title': 'Billing entry merged',
   'admin.recommendations.assistantTags': '助手标签/分类',
   'admin.recommendations.assistantsEnabled': '显示推荐助手',
   'admin.recommendations.criteria': '推荐条件',
@@ -1484,6 +1497,7 @@ export default {
   'admin.payments.settlements.retrySuccess': 'Settlement completed and marked resolved',
   'admin.payments.settlements.status.pending': 'Pending',
   'admin.payments.settlements.status.resolved': 'Resolved',
+  'admin.payments.settlements.tableLabel': 'Credit settlement failures table',
   'admin.payments.settlements.title': 'Credit settlement failures',
   'admin.payments.publicBaseUrl': 'Public origin',
   'admin.payments.publicBaseUrlHelp':
@@ -1556,6 +1570,7 @@ export default {
   'admin.payments.subscriptions.status.paid': 'Paid',
   'admin.payments.subscriptions.status.pending': 'Pending',
   'admin.payments.subscriptions.status.refunded': 'Refunded',
+  'admin.payments.subscriptions.tableLabel': 'Plan payment transactions table',
   'admin.payments.subscriptions.title': 'Plan payment transactions',
   'admin.payments.tabs.channels': 'Channel configuration',
   'admin.payments.tabs.settlements': 'Settlement failures',
@@ -1618,6 +1633,7 @@ export default {
   'admin.payments.topups.status.paid': 'Paid',
   'admin.payments.topups.status.pending': 'Pending',
   'admin.payments.topups.status.refunded': 'Refunded',
+  'admin.payments.topups.tableLabel': 'Top-up transactions table',
   'admin.payments.topups.title': 'Top-up transactions',
   'admin.payments.unsaved.cancel': 'Continue editing',
   'admin.payments.unsaved.confirm': 'Discard changes',
@@ -1719,7 +1735,45 @@ export default {
   'admin.navigation.items.module-audit.label': 'Audit',
   'admin.navigation.items.module-audit.description': 'Module audit trail',
   'admin.navigation.title': '管理后台',
+  'admin.overview.loadFailed': 'Failed to load key metrics. Please retry.',
   'admin.overview.metricsLabel': 'Key metrics',
+  'admin.overview.moduleApps.description':
+    'Review and settlement status of the module app platform.',
+  'admin.overview.moduleApps.flagged': 'Flagged',
+  'admin.overview.moduleApps.title': 'Module apps',
+  'admin.overview.modules.description':
+    'Entries are organized by responsibility domain; day-to-day work no longer needs long menu hunting.',
+  'admin.overview.modules.title': 'Admin modules',
+  'admin.overview.pending.action': 'Handle requests',
+  'admin.overview.pending.changeRequests': 'Plan change requests: {{count}}',
+  'admin.overview.pending.description':
+    'Handle requests that affect user entitlements and subscription status first.',
+  'admin.overview.pending.loadFailed': 'Failed to load pending tasks. Please retry.',
+  'admin.overview.pending.payoutsDescription':
+    'Pending payout settlements; confirm to start the payout process.',
+  'admin.overview.pending.title': 'Pending tasks',
+  'admin.overview.pending.viewOrders': 'View related orders',
+  'admin.overview.revenue.action': 'Operations stats',
+  'admin.overview.revenue.description':
+    'Top-up revenue and platform activity over the last 30 days.',
+  'admin.overview.revenue.title': 'Revenue and activity',
+  'admin.overview.subtitle':
+    'View key status at a glance and jump into users, commerce, AI platform, module apps, and operations.',
+  'admin.overview.systemHealth.action': 'Edit settings',
+  'admin.overview.systemHealth.auditDescription':
+    'The 10 most recent audit records filtered by actor (current admin).',
+  'admin.overview.systemHealth.brandName': 'Brand name',
+  'admin.overview.systemHealth.defaultModel': 'Default model',
+  'admin.overview.systemHealth.description':
+    'Quickly review the core defaults that affect the whole site, plus your recent operations.',
+  'admin.overview.systemHealth.loadFailed': 'Failed to load system status. Please retry.',
+  'admin.overview.systemHealth.notSet': 'Not set',
+  'admin.overview.systemHealth.referralReward': 'Referral reward',
+  'admin.overview.systemHealth.title': 'System health',
+  'admin.overview.title': 'Workbench',
+  'admin.overview.users.description': 'Platform scale and health at a glance.',
+  'admin.overview.users.title': 'User overview',
+  'admin.overview.workbenchLoadFailed': 'Failed to load workbench data. Please retry.',
   'admin.orders.description':
     'Search platform orders, verify payment status, and resolve pending anomalies behind audit controls.',
   'admin.orders.listTitle': 'Order records',
@@ -1744,7 +1798,10 @@ export default {
   'admin.users.resultSummary': 'Currently loaded {{count}} users',
   'admin.users.tableLabel': 'User data table',
   'admin.users.title': 'Users and access',
+  'admin.userStatus.active': 'Active',
+  'admin.userStatus.banned': 'Banned',
   'admin.pagination.next': '下一页',
+  'admin.pagination.pagePosition': 'Page {{page}}',
   'admin.pagination.previous': '上一页',
   'admin.desktopControl.retry': '重试',
   'admin.desktopControl.configure': '配置更新服务',
@@ -2079,6 +2136,7 @@ export default {
   'admin.mobile.moveUp': 'Move {{label}} up',
   'admin.mobile.preview': 'Preview',
   'admin.mobile.displayModel': 'Display model',
+  'admin.mobile.recommendedPlaceholder': 'Recommended',
   'admin.mobile.remove': 'Remove {{label}}',
   'admin.mobile.restoreConfirm': 'Restore mobile defaults?',
   'admin.mobile.restoreCancel': 'Cancel',
@@ -2119,4 +2177,38 @@ export default {
   'admin.mobile.validation.builtinPaths': 'Built-in app paths must be internal.',
   'admin.mobile.validation.minVisibleTabs': 'At least two bottom tabs must be visible.',
   'admin.mobile.validation.uniquePaths': 'Visible tab paths must be internal and unique.',
+  // 页面壳与骨架修复补键（F7–F12）：专家广场 / 迁移引导页 / 计费基线文案。
+  'admin.expertPlaza.actions': 'Expert plaza actions',
+  'admin.expertPlaza.loadFailed':
+    'Unable to load the current expert plaza configuration. Please retry.',
+  'admin.expertPlaza.save': 'Save expert plaza',
+  'admin.expertPlaza.saveFailed': 'Save failed. Check the required card fields.',
+  'admin.expertPlaza.saveSuccess': 'Expert plaza configuration saved',
+  'admin.expertPlaza.subtitle':
+    'Configure the expert plaza entry, page information, categories, and display cards.',
+  'admin.expertPlaza.tip':
+    'When enabled, the entry appears in the left sidebar; cards can link to internal paths or external URLs. Without a URL a card is display-only.',
+  'admin.expertPlaza.title': 'Expert plaza',
+  'admin.mergedRoute.description':
+    'Continue to the admin page that currently owns this configuration.',
+  'admin.mergedRoute.message':
+    'This legacy entry no longer provides its own save form, so the same configuration cannot be overwritten from multiple pages.',
+  'admin.mergedRoute.title': 'Configuration entry',
+  'admin.modelBillingMatrix.billingBasis.globalRateNotice':
+    'Online platform payment stays disabled; only the global credit multiplier is maintained here. Per-model multipliers, credits per USD, and plan access scopes are still maintained in the matrix.',
+  'admin.modelBillingMatrix.billingBasis.healthCheckMessage': 'Default model health check',
+  'admin.audit.empty': 'No audit log yet',
+  'admin.audit.emptyDescription': 'Adjust the filters or the time range and try again.',
+  'admin.desktopControl.error.description':
+    'Unable to read the desktop release status. Please try again.',
+  'admin.userDetail.close': 'Close',
+  'admin.userDetail.noSubscription': 'No subscription yet',
+  'admin.userDetail.noSubscriptionDescription':
+    'This user has no active subscription. Use "Assign plan" above to grant one.',
+  'admin.userDetail.notFoundDescription':
+    'This user may have been deleted, or your role cannot read their details. Close the drawer and select another user.',
+  'admin.userDetail.notFoundTitle': 'User not found',
+  'admin.modelBillingMatrix.billingBasis.rateChangeNotice':
+    'Changes only affect future billing calculations and do not enable online platform payment.',
+  'admin.modelBillingMatrix.matrixEmptyTitle': 'No provider models enabled yet',
 };

@@ -12,6 +12,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
+import { adminIconSizes } from '../layout';
 import { AdminDataTable } from '../shared';
 import { desktopControlCenterStyles } from './styles';
 
@@ -181,7 +182,7 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                 </AdminDangerousActionButton>
               ) : null}
               {isCurrent ? (
-                <Tag color="success" icon={<CheckCircle2 size={12} />}>
+                <Tag color="success" icon={<CheckCircle2 size={adminIconSizes.tag} />}>
                   {t('admin.desktopBuild.history.current')}
                 </Tag>
               ) : null}

@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Tag, toast } from '@lobehub/ui/base-ui';
-import { Button, Input, List, Modal, Skeleton, Space, Typography } from 'antd';
+import { Button, Input, List, Modal, Space, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -10,17 +10,11 @@ import { Card } from '@/components/antd-compat/Card';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminMetricStrip } from './layout';
+import { AdminInlineSkeleton } from './shared';
+
 const { Text } = Typography;
 const GOVERNANCE_SWR_KEY = 'admin:settings:governance';
-
-const Metric = ({ amount, label }: { amount: number; label: string }) => (
-  <Flexbox gap={2} style={{ minWidth: 120 }}>
-    <Text type="secondary">{label}</Text>
-    <Text strong style={{ fontSize: 24, lineHeight: 1.2 }}>
-      {amount}
-    </Text>
-  </Flexbox>
-);
 
 const AdminSettingsGovernanceCard = memo(() => {
   const { t } = useTranslation('subscription');
@@ -31,7 +25,7 @@ const AdminSettingsGovernanceCard = memo(() => {
   if (isLoading && !data) {
     return (
       <Card>
-        <Skeleton active paragraph={{ rows: 3 }} />
+        <AdminInlineSkeleton rows={3} />
       </Card>
     );
   }
@@ -91,24 +85,31 @@ const AdminSettingsGovernanceCard = memo(() => {
       }
     >
       <Flexbox gap={16}>
-        <Space wrap>
-          <Metric
-            amount={data.summary.registeredCount}
-            label={t('admin.settings.governance.registered', '已注册设置')}
-          />
-          <Metric
-            amount={data.summary.persistedCount}
-            label={t('admin.settings.governance.persisted', '已写入设置')}
-          />
-          <Metric
-            amount={data.summary.unknownCount}
-            label={t('admin.settings.governance.unknown', '未知设置')}
-          />
-          <Metric
-            amount={data.summary.sensitiveConfiguredCount}
-            label={t('admin.settings.governance.sensitive', '敏感设置')}
-          />
-        </Space>
+        <AdminMetricStrip
+          label={t('admin.settings.governance.metricsLabel', '设置治理指标')}
+          items={[
+            {
+              key: 'registered',
+              label: t('admin.settings.governance.registered', '已注册设置'),
+              value: data.summary.registeredCount,
+            },
+            {
+              key: 'persisted',
+              label: t('admin.settings.governance.persisted', '已写入设置'),
+              value: data.summary.persistedCount,
+            },
+            {
+              key: 'unknown',
+              label: t('admin.settings.governance.unknown', '未知设置'),
+              value: data.summary.unknownCount,
+            },
+            {
+              key: 'sensitive',
+              label: t('admin.settings.governance.sensitive', '敏感设置'),
+              value: data.summary.sensitiveConfiguredCount,
+            },
+          ]}
+        />
 
         {hasUnknownKeys ? (
           <Alert

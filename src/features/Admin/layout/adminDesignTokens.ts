@@ -141,3 +141,21 @@ export const adminDesignStyles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 export type AdminColorRoles = typeof adminColorRoles;
+
+/**
+ * ③ Icon size scale (responsive/design-token review). The Admin domain had
+ *    ad-hoc `size={n}` literals across 12/13/14/16/18/20/22; this is the
+ *    single source for the recurring semantic slots so one size change lands
+ *    in one place. The values are the sizes already in use — this is a naming
+ *    pass, not a re-scale:
+ *    - `inline`  14 — icons inside buttons/links/rows (ArrowRight, RefreshCw…)
+ *    - `control` 16 — toolbar / sidebar / menu control glyphs
+ *    - `metric`  18 — metric-strip lead icons
+ *    - `tag`     12 — icons embedded in a Tag (matches the Tag text size)
+ */
+export const adminIconSizes = {
+  control: 16,
+  inline: 14,
+  metric: 18,
+  tag: 12,
+} as const;

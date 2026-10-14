@@ -1,15 +1,17 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Result, Tag, toast } from '@lobehub/ui/base-ui';
-import { Descriptions, Empty, Form, Input, Skeleton, Typography } from 'antd';
-import { RefreshCw, Save } from 'lucide-react';
+import { Alert, Button, Tag, toast } from '@lobehub/ui/base-ui';
+import { Descriptions, Form, Input, Typography } from 'antd';
+import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { normalizeDesktopDownloadUrl } from '@/const/desktopUpdate';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminPageError } from '../layout';
+import { AdminInlineSkeleton, AdminPageState } from '../shared';
 import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
 import {
   buildDistributionUpdates,
@@ -23,6 +25,7 @@ import type { DesktopOverviewResource, DesktopSettingsResource } from './types';
 import { useDesktopSettingsFormSync } from './useDesktopSettingsFormSync';
 
 interface DistributionPageProps {
+  onConfigure?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   overview: DesktopOverviewResource;
   settings: DesktopSettingsResource;
@@ -30,7 +33,8 @@ interface DistributionPageProps {
 
 const isAllowedDownloadUrl = (value?: string) => 'url' in normalizeDesktopDownloadUrl(value);
 
-const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview, settings }) => {
+const DistributionPage = memo<DistributionPageProps>((props) => {
+  const { onConfigure, onDirtyChange, overview, settings } = props;
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<DesktopSettingsValues>();
   const [saveError, setSaveError] = useState<unknown>();
@@ -43,25 +47,25 @@ const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview,
     onDirtyChange,
   );
 
-  const diagnosticsContent = overview.isLoading ? (
-    <Skeleton active paragraph={{ rows: 6 }} />
-  ) : overview.error ? (
-    <Result
-      status="error"
-      title={t('admin.desktopControl.error.title')}
-      extra={
-        <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void overview.mutate()}>
-          {t('admin.desktopControl.retry')}
-        </Button>
+  const diagnosticsContent = (
+    <AdminPageState
+      emptyDescription={t('admin.desktopControl.unconfigured.description')}
+      emptyTitle={t('admin.desktopControl.unconfigured.title')}
+      error={overview.error}
+      errorTitle={t('admin.desktopControl.error.title')}
+      isEmpty={!overview.isLoading && !overview.error && !overview.data?.diagnostics.configured}
+      loading={overview.isLoading}
+      onRetry={() => void overview.mutate()}
+      primaryAction={
+        onConfigure
+          ? { label: t('admin.desktopControl.configure'), onClick: onConfigure }
+          : undefined
       }
-    />
-  ) : !overview.data?.diagnostics.configured ? (
-    <Empty
-      description={t('admin.desktopControl.unconfigured.title')}
-      image={Empty.PRESENTED_IMAGE_SIMPLE}
-    />
-  ) : (
-    <DistributionDiagnosticsTable overview={overview} t={t as any} />
+      retryLabel={t('admin.desktopControl.retry')}
+      skeletonVariant="list"
+    >
+      <DistributionDiagnosticsTable overview={overview} t={t as any} />
+    </AdminPageState>
   );
 
   const handleSave = async () => {
@@ -110,17 +114,13 @@ const DistributionPage = memo<DistributionPageProps>(({ onDirtyChange, overview,
           }}
         />
         {settings.error ? (
-          <Alert
-            message={t('admin.desktopControl.settingsError')}
-            type="error"
-            action={
-              <Button size="small" onClick={() => void settings.mutate()}>
-                {t('admin.desktopControl.retry')}
-              </Button>
-            }
+          <AdminPageError
+            onRetry={() => void settings.mutate()}
+            retryLabel={t('admin.desktopControl.retry')}
+            title={t('admin.desktopControl.settingsError')}
           />
         ) : settings.isLoading && !settings.data ? (
-          <Skeleton active paragraph={{ rows: 4 }} />
+          <AdminInlineSkeleton rows={4} />
         ) : (
           <Form
             disabled={settings.isLoading || submitting}

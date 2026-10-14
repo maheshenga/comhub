@@ -65,7 +65,7 @@ export const BarChart = memo<BarChartProps>(
             <g key={d.label}>
               <rect fill={color} height={h} rx={2} width={barW} x={x} y={y} />
               <text
-                fill="#666"
+                fill={cssVar.colorTextTertiary}
                 fontSize={10}
                 textAnchor="middle"
                 x={x + barW / 2}
@@ -74,7 +74,7 @@ export const BarChart = memo<BarChartProps>(
                 {d.label}
               </text>
               <text
-                fill="#333"
+                fill={cssVar.colorText}
                 fontSize={10}
                 textAnchor="middle"
                 x={x + barW / 2}
@@ -129,7 +129,7 @@ export const StackedBarChart = memo<StackedBarChartProps>(
                 );
               })}
               <text
-                fill="#666"
+                fill={cssVar.colorTextTertiary}
                 fontSize={11}
                 textAnchor="middle"
                 x={x + barW / 2}
@@ -138,7 +138,7 @@ export const StackedBarChart = memo<StackedBarChartProps>(
                 {d.label}
               </text>
               <text
-                fill="#333"
+                fill={cssVar.colorText}
                 fontSize={10}
                 textAnchor="middle"
                 x={x + barW / 2}

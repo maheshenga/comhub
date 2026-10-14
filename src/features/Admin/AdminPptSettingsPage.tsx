@@ -223,6 +223,13 @@ const AdminPptSettingsPage = memo(() => {
                 />
               </Form.Item>
               <Form.Item label={t('admin.ppt.themeColor', '主题色')} name="themeColor">
+                {/*
+                  Format example for the third-party (docmee.cn) theme colour,
+                  passed through verbatim (business-server ppt.ts:81 validates
+                  `string` only). It is an input hint, not a style value, so it
+                  is outside the cssVar colour red line and intentionally keeps
+                  the hex so an administrator can see the expected format.
+                */}
                 <Input placeholder="#00A76F" />
               </Form.Item>
               <Form.Item

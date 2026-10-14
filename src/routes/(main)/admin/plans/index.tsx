@@ -1,5 +1,6 @@
 'use client';
 
+import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields/setFieldsValue）与 PlanEditModal 的受控表单契约绑定；base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，均无法行为不变替换；FormKit 迁移另行立项。
 import { Form } from 'antd';
@@ -183,24 +184,22 @@ const AdminPlansPage = memo(() => {
         />
 
         <AdminToolbar>
-          <Button disabled={isLoading || Boolean(error)} type="primary" onClick={() => openEdit()}>
-            {t('admin.plans.create', '新建套餐')}
-          </Button>
+          {/* F3：工具条只有一个主操作时也靠右（space-between 下需占满剩余宽度）。 */}
+          <Flexbox horizontal justify="flex-end" style={{ flex: 1 }}>
+            <Button
+              disabled={isLoading || Boolean(error)}
+              type="primary"
+              onClick={() => openEdit()}
+            >
+              {t('admin.plans.create', '新建套餐')}
+            </Button>
+          </Flexbox>
         </AdminToolbar>
 
         {error ? (
           <AdminPageError
             description={t('admin.plans.loadFailed', '套餐加载失败，请重试。')}
             onRetry={refresh}
-          />
-        ) : !isLoading && items.length === 0 ? (
-          <AdminDataTable
-            columns={columns as any}
-            dataSource={[]}
-            loading={false}
-            locale={{ emptyText: t('admin.plans.empty', '暂无套餐配置') }}
-            regionLabel={t('admin.plans.tableLabel', '套餐配置表')}
-            rowKey="plan"
           />
         ) : (
           <AdminDataTable

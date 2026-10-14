@@ -16,12 +16,7 @@ import {
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import {
-  AdminPageError,
-  AdminPageShell,
-  AdminSection,
-  AdminToolbar,
-} from './layout';
+import { AdminPageError, AdminPageShell, AdminSection, AdminToolbar } from './layout';
 import { AdminDataTable } from './shared';
 import { isFormValidationError } from './shared/adminFormErrors';
 import PackageFormFields from './TopUpPackages/PackageFormFields';
@@ -193,9 +188,12 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
   const content = (
     <Flexbox gap={24}>
       <AdminToolbar>
-        <Button disabled={isLoading || Boolean(error)} type="primary" onClick={() => openEdit()}>
-          {t('admin.topup.create', '新增充值套餐')}
-        </Button>
+        {/* F3：工具条只有一个主操作时也靠右（space-between 下需占满剩余宽度）。 */}
+        <Flexbox horizontal justify="flex-end" style={{ flex: 1 }}>
+          <Button disabled={isLoading || Boolean(error)} type="primary" onClick={() => openEdit()}>
+            {t('admin.topup.create', '新增充值套餐')}
+          </Button>
+        </Flexbox>
       </AdminToolbar>
 
       {error ? (
@@ -216,7 +214,6 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
             columns={columns as any}
             dataSource={items}
             loading={isLoading}
-            locale={{ emptyText: t('admin.topup.empty', '暂无充值套餐') }}
             regionLabel={t('admin.topup.tableLabel', '充值套餐表格')}
             rowKey="id"
           />

@@ -124,6 +124,7 @@ const AdminCreditsPage = memo(() => {
         title={t('admin.credits.listTitle', '账户列表')}
       >
         <AdminToolbar>
+          {/* F1：筛选与操作分组，操作组靠右（与 Orders/Users、redemption 工具条同构）。 */}
           <Flexbox
             horizontal
             align="center"
@@ -166,6 +167,8 @@ const AdminCreditsPage = memo(() => {
               />
               <span>{t('admin.credits.negativeOnly', '只看负余额')}</span>
             </Flexbox>
+          </Flexbox>
+          <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
             <Button
               disabled={isLoading || Boolean(error)}
               type="primary"
@@ -183,15 +186,6 @@ const AdminCreditsPage = memo(() => {
           <AdminPageError
             description={t('admin.credits.loadFailed', '积分账户加载失败，请重试。')}
             onRetry={refresh}
-          />
-        ) : !isLoading && items.length === 0 ? (
-          <AdminDataTable
-            columns={columns as any}
-            dataSource={[]}
-            loading={false}
-            locale={{ emptyText: t('admin.credits.empty', '暂无积分账户') }}
-            regionLabel={t('admin.credits.tableLabel', '积分账户表')}
-            rowKey="userId"
           />
         ) : (
           <AdminDataTable

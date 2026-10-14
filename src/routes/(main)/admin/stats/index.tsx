@@ -159,7 +159,7 @@ const AdminStatsPage = memo(() => {
         ) : dauTrendLoading ? (
           <Spin />
         ) : dauValues.length === 0 ? (
-          <span>{t('admin.stats.noData', '暂无数据')}</span>
+          <span>{t('admin.noData', 'No data')}</span>
         ) : (
           <AdminResponsiveTable label={t('admin.stats.dauTrend', '最近 30 天日活趋势')}>
             <Sparkline data={dauValues} height={120} width={720} />
@@ -177,7 +177,7 @@ const AdminStatsPage = memo(() => {
         ) : byPlanLoading ? (
           <Spin />
         ) : planBars.length === 0 ? (
-          <span>{t('admin.stats.noData', '暂无数据')}</span>
+          <span>{t('admin.noData', 'No data')}</span>
         ) : (
           <Flexbox gap={16}>
             <AdminResponsiveTable label={t('admin.stats.subsByPlan', '订阅按套餐分布')}>
@@ -215,7 +215,7 @@ const AdminStatsPage = memo(() => {
         ) : revenueLoading ? (
           <Spin />
         ) : revenueStacked.length === 0 ? (
-          <span>{t('admin.stats.noData', '暂无数据')}</span>
+          <span>{t('admin.noData', 'No data')}</span>
         ) : (
           <Flexbox gap={16}>
             <AdminResponsiveTable label={t('admin.stats.revenueByMonth', '最近 6 个月收入趋势')}>

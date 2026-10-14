@@ -1,12 +1,14 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Result, Tag } from '@lobehub/ui/base-ui';
-import { Skeleton, Typography } from 'antd';
-import { RefreshCw, Settings2 } from 'lucide-react';
+import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
+import { Typography } from 'antd';
+import { Settings2 } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { type AdminMetric, AdminMetricStrip, AdminPageError } from '../layout';
+import { AdminInlineSkeleton } from '../shared';
 import { desktopControlCenterStyles } from './styles';
 import {
   DESKTOP_CHANNEL_LABEL_KEYS,
@@ -30,18 +32,18 @@ interface OverviewPageProps {
 const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
   const { t } = useTranslation('subscription');
 
-  if (resource.isLoading) return <Skeleton active paragraph={{ rows: 4 }} />;
+  if (resource.isLoading) return <AdminInlineSkeleton rows={4} />;
 
   if (resource.error) {
     return (
-      <Result
-        status="error"
+      <AdminPageError
+        retryLabel={t('admin.desktopControl.retry')}
         title={t('admin.desktopControl.error.title')}
-        extra={
-          <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void resource.mutate()}>
-            {t('admin.desktopControl.retry')}
-          </Button>
-        }
+        description={t(
+          'admin.desktopControl.error.description',
+          '无法读取桌面端诊断信息，请重试。',
+        )}
+        onRetry={() => void resource.mutate()}
       />
     );
   }
@@ -49,20 +51,24 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
   const data = resource.data;
   if (!data) return null;
 
-  const statusItems = [
+  const statusItems: AdminMetric[] = [
     {
+      key: 'configuredVersion',
       label: t('admin.desktopControl.status.configuredVersion'),
       value: data.configuredVersion || '-',
     },
     {
+      key: 'stable',
       label: t('admin.desktopControl.status.stable'),
       value: data.diagnostics.channels.find(({ channel }) => channel === 'stable')?.version || '-',
     },
     {
+      key: 'canary',
       label: t('admin.desktopControl.status.canary'),
       value: data.diagnostics.channels.find(({ channel }) => channel === 'canary')?.version || '-',
     },
     {
+      key: 'checkedAt',
       label: t('admin.desktopControl.status.checkedAt'),
       value: new Date(data.diagnostics.checkedAt).toLocaleString(),
     },
@@ -84,53 +90,40 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
         />
       ) : null}
 
-      <div className={desktopControlCenterStyles.statusBand}>
-        {statusItems.map((item) => (
-          <div className={desktopControlCenterStyles.statusItem} key={item.label}>
-            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
-              {item.label}
-            </Typography.Text>
-            <Typography.Text ellipsis strong>
-              {item.value}
-            </Typography.Text>
-          </div>
-        ))}
-      </div>
+      <AdminMetricStrip items={statusItems} label={t('admin.desktopControl.status.label')} />
 
       <section className={desktopControlCenterStyles.channelSection}>
         <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
           {t('admin.desktopControl.policy.title')}
         </Typography.Title>
-        <div className={desktopControlCenterStyles.statusBand}>
-          <div className={desktopControlCenterStyles.statusItem}>
-            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
-              {t('admin.desktopControl.policy.autoCheck')}
-            </Typography.Text>
-            <Tag color={data.runtimePolicy.autoCheck ? 'success' : 'default'}>
-              {t(
-                data.runtimePolicy.autoCheck
-                  ? 'admin.desktopControl.policy.enabled'
-                  : 'admin.desktopControl.policy.disabled',
-              )}
-            </Tag>
-          </div>
-          <div className={desktopControlCenterStyles.statusItem}>
-            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
-              {t('admin.desktopControl.policy.defaultChannel')}
-            </Typography.Text>
-            <Typography.Text strong>
-              {t(DESKTOP_CHANNEL_LABEL_KEYS[data.runtimePolicy.channel as DesktopChannel])}
-            </Typography.Text>
-          </div>
-          <div className={desktopControlCenterStyles.statusItem}>
-            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
-              {t('admin.desktopControl.policy.checkInterval')}
-            </Typography.Text>
-            <Typography.Text strong>
-              {data.runtimePolicy.checkInterval} {t('admin.desktopControl.policy.minutes')}
-            </Typography.Text>
-          </div>
-        </div>
+        <AdminMetricStrip
+          label={t('admin.desktopControl.policy.title')}
+          items={[
+            {
+              key: 'autoCheck',
+              label: t('admin.desktopControl.policy.autoCheck'),
+              value: (
+                <Tag color={data.runtimePolicy.autoCheck ? 'success' : 'default'}>
+                  {t(
+                    data.runtimePolicy.autoCheck
+                      ? 'admin.desktopControl.policy.enabled'
+                      : 'admin.desktopControl.policy.disabled',
+                  )}
+                </Tag>
+              ),
+            },
+            {
+              key: 'defaultChannel',
+              label: t('admin.desktopControl.policy.defaultChannel'),
+              value: t(DESKTOP_CHANNEL_LABEL_KEYS[data.runtimePolicy.channel as DesktopChannel]),
+            },
+            {
+              key: 'checkInterval',
+              label: t('admin.desktopControl.policy.checkInterval'),
+              value: `${data.runtimePolicy.checkInterval} ${t('admin.desktopControl.policy.minutes')}`,
+            },
+          ]}
+        />
       </section>
 
       <section className={desktopControlCenterStyles.channelSection}>
@@ -153,21 +146,26 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
             type="warning"
           />
         ) : null}
-        <div className={desktopControlCenterStyles.statusBand}>
-          {[
+        <AdminMetricStrip
+          label={t('admin.desktopControl.automation.title')}
+          items={[
             {
+              key: 'repository',
               label: t('admin.desktopControl.automation.repository'),
               value: data.automation.repository || '-',
             },
             {
+              key: 'ref',
               label: t('admin.desktopControl.automation.ref'),
               value: data.automation.ref || '-',
             },
             {
+              key: 'workflow',
               label: t('admin.desktopControl.automation.workflow'),
               value: data.automation.workflowFile,
             },
             {
+              key: 'token',
               label: t('admin.desktopControl.automation.token'),
               value: t(
                 data.automation.tokenConfigured
@@ -175,17 +173,8 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
                   : 'admin.desktopControl.automation.tokenMissing',
               ),
             },
-          ].map((item) => (
-            <div className={desktopControlCenterStyles.statusItem} key={item.label}>
-              <Typography.Text className={desktopControlCenterStyles.statusLabel}>
-                {item.label}
-              </Typography.Text>
-              <Typography.Text ellipsis strong>
-                {item.value}
-              </Typography.Text>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
       </section>
 
       {data.diagnostics.channels.map((channel) => (

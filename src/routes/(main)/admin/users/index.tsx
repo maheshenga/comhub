@@ -469,7 +469,6 @@ const AdminUsersPage = memo(() => {
             columns={columns as any}
             dataSource={allItems}
             loading={isLoading && cursor === 0}
-            locale={{ emptyText: t('admin.noData', '暂无数据') }}
             regionLabel={t('admin.users.tableLabel', '用户数据表')}
             rowKey="id"
             rowSelection={{

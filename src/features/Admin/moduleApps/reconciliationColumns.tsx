@@ -5,6 +5,8 @@ import { Flexbox } from '@lobehub/ui';
 import { Button, Tag } from '@lobehub/ui/base-ui';
 import { Typography } from 'antd';
 
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
+
 import type { ModuleAppPaymentDiagnosticRow } from './PaymentReconciliationTable';
 import { IdList } from './PaymentReconciliationTable';
 
@@ -78,7 +80,8 @@ export const buildReconciliationColumns = ({
   },
   {
     key: 'amount',
-    render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => `${row.currency} ${row.totalAmount}`,
+    render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) =>
+      formatAdminAmount(row.totalAmount, row.currency),
     title: copy.amount,
   },
   {

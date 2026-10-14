@@ -115,7 +115,7 @@ const AssistantEntry = ({
         <LabeledField label={tr(...modelLabelKey)}>
           <Input
             aria-label={tr(...modelLabelKey)}
-            placeholder="推荐"
+            placeholder={tr('admin.mobile.recommendedPlaceholder', '推荐')}
             value={assistant.modelLabelOverride ?? ''}
             onChange={(event) =>
               updateForm(

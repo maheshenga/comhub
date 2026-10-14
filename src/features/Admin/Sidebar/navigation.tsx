@@ -37,10 +37,12 @@ import {
 import type { ReactNode } from 'react';
 
 import { type AdminNavItem, type AdminNavSection } from '../adminNavigation';
+import { sidebarIconSize } from './sidebarStyles';
 
 // ux-redesign-spec §2.4: lucide is the single icon source, every entry is
 // unique (audit/documents, billing/topup, plugins/providers duplicates
-// resolved), rendered at 16px with the default 1.5 stroke.
+// resolved), rendered at the shared `sidebarIconSize` with the default 1.5
+// stroke.
 export const iconMap: Record<string, typeof Gauge> = {
   'audit': ScrollText,
   'billing': CreditCard,
@@ -169,7 +171,7 @@ export const buildMenuItems = (
 
     return {
       children,
-      icon: <Icon icon={iconMap[group.icon]} size={16} />,
+      icon: <Icon icon={iconMap[group.icon]} size={sidebarIconSize} />,
       key: group.key,
       label: renderGroupLabel(group, translate),
       title: translate(`admin.navigation.groups.${group.key}.description`, group.description),

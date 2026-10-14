@@ -7,10 +7,11 @@ import { Pencil, Plus } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import InlineTable from '@/components/InlineTable';
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminDataTable } from '../shared';
 import {
   ProductFormFields,
   productFormInitialValues,
@@ -186,7 +187,7 @@ const ProductManager = memo<{
       title: t('moduleApps.admin.products.scope'),
     },
     {
-      render: (_: unknown, row: ProductRow) => `${row.currency} ${row.amount}`,
+      render: (_: unknown, row: ProductRow) => formatAdminAmount(row.amount, row.currency),
       title: t('moduleApps.admin.products.activePrice'),
     },
     {
@@ -245,7 +246,12 @@ const ProductManager = memo<{
               {t('moduleApps.admin.products.add')}
             </Button>
           </Flexbox>
-          <InlineTable columns={columns as any} dataSource={data} rowKey="productId" />
+          <AdminDataTable
+            columns={columns as any}
+            dataSource={data}
+            regionLabel={t('moduleApps.admin.products.tableLabel')}
+            rowKey="productId"
+          />
         </Flexbox>
       </ModulePageState>
       <Modal

@@ -37,10 +37,12 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
     border-block-start: 1px solid ${cssVar.colorBorderSecondary};
     border-inline-start: 1px solid ${cssVar.colorBorderSecondary};
   `,
+  // 分区间距对齐 AdminSection 的 gap 约定（16px），不再与壳内其它分区
+  // 出现 12px/16px 的差异。
   channelSection: css`
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
   `,
   formActions: css`
     display: flex;
@@ -60,32 +62,6 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
   `,
   sectionTitle: css`
     margin: 0 !important;
-  `,
-  statusBand: css`
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    border-block: 1px solid ${cssVar.colorBorderSecondary};
-    background: ${cssVar.colorFillQuaternary};
-  `,
-  statusItem: css`
-    min-width: 0;
-    min-height: 76px;
-    padding-block: 14px;
-    padding-inline: 16px;
-    border-inline-end: 1px solid ${cssVar.colorBorderSecondary};
-
-    &:last-child {
-      border-inline-end: 0;
-    }
-
-    @media (width <= 767px) {
-      border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-    }
-  `,
-  statusLabel: css`
-    display: block;
-    font-size: 12px;
-    color: ${cssVar.colorTextSecondary};
   `,
   tabs: css`
     min-width: 0;

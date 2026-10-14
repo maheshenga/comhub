@@ -5,10 +5,8 @@ import { Flexbox } from '@lobehub/ui';
 import { Typography } from 'antd';
 import { memo } from 'react';
 
-import InlineTable from '@/components/InlineTable';
-
+import { AdminDataTable } from '../shared';
 import { AdminTableState } from './AdminTableState';
-import CursorPager from './CursorPager';
 import { buildReconciliationColumns } from './reconciliationColumns';
 
 const { Text } = Typography;
@@ -63,6 +61,7 @@ export type PaymentTableLabels = Partial<{
   retryRefund: string;
   settle: string;
   status: string;
+  table: string;
 }>;
 
 type PaymentTableProps = {
@@ -84,6 +83,8 @@ type PaymentTableProps = {
   onRetryPayment?: (outTradeNo: string, provider: PaymentProvider) => void;
   onRetryRefund?: (orderId: string) => void;
   onResolveRefund?: (orderId: string) => void;
+  /** 无障碍滚动区名字；三态由 AdminTableState 前置拦截。 */
+  regionLabel?: string;
   statusLabels?: Record<string, string>;
 };
 
@@ -111,6 +112,7 @@ export const defaultLabels = {
   retryRefund: 'Retry refund status',
   settle: 'Settle order',
   status: 'Status',
+  table: 'Payment records',
 };
 
 export const IdList = ({ ids }: { ids: Array<null | string | undefined> }) => {
@@ -148,6 +150,7 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
     onRetryPayment,
     onRetryRefund,
     onResolveRefund,
+    regionLabel,
     statusLabels,
   }) => {
     const copy = { ...defaultLabels, ...labels };
@@ -179,20 +182,27 @@ const PaymentReconciliationTable = memo<PaymentTableProps>(
           onRetry={onRetry}
         >
           {items.length ? (
-            <InlineTable columns={columns as any} dataSource={items} rowKey="id" />
+            <AdminDataTable
+              columns={columns as any}
+              dataSource={items}
+              regionLabel={regionLabel ?? copy.table}
+              rowKey="id"
+              pager={
+                hasPager
+                  ? {
+                      hasNext: Boolean(hasNext),
+                      hasPrevious: Boolean(hasPrevious),
+                      nextLabel: copy.next,
+                      positionLabel,
+                      previousLabel: copy.previous,
+                      onNext: () => onNext?.(),
+                      onPrevious: () => onPrevious?.(),
+                    }
+                  : undefined
+              }
+            />
           ) : null}
         </AdminTableState>
-        {hasPager ? (
-          <CursorPager
-            hasNext={hasNext}
-            hasPrevious={hasPrevious}
-            nextLabel={copy.next}
-            positionLabel={positionLabel}
-            previousLabel={copy.previous}
-            onNext={onNext}
-            onPrevious={onPrevious}
-          />
-        ) : null}
       </Flexbox>
     );
   },

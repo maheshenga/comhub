@@ -1,25 +1,32 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Alert, Button, toast  } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui/base-ui';
 import type { TableProps } from 'antd';
-import { Space } from 'antd';
 import type * as React from 'react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
-import InlineTable from '@/components/InlineTable';
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import { PagerPositionLabel } from '../shared/PagerPositionLabel';
+import { AdminPageError, AdminSection } from '../layout';
+import { AdminDataTable } from '../shared';
 import { PaymentFilterControls, PaymentRefundModal } from './paymentControls';
 import { PaymentListHeader } from './paymentListHeader';
 import type { PendingReconciliationResponse } from './paymentsShared';
-import { parseSearchParam, PAYMENT_STATUSES, paymentStyles as styles, UUID_PATTERN } from './paymentsShared';
+import {
+  buildPaymentsPager,
+  parseSearchParam,
+  PAYMENT_STATUSES,
+  PAYMENTS_PAGE_SIZE,
+  paymentStyles as styles,
+  UUID_PATTERN,
+} from './paymentsShared';
 import type { PendingRefundResolution } from './PendingRefundResolutionModal';
 import PendingRefundResolutionModal from './PendingRefundResolutionModal';
 import type { TopUpPaymentRow as TopUpPaymentRowBase } from './topUpPaymentColumns';
@@ -68,18 +75,18 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
   );
   const { busyAction, closeRefund, closeResolution, runOperation, submitRefund, submitResolution } =
     useRefundResolutionActions({
-    refundDomain: 'topUp',
-    resolutionDomain: 'topUp',
-    swrKey,
-    t: t as any,
-  });
+      refundDomain: 'topUp',
+      resolutionDomain: 'topUp',
+      swrKey,
+      t: t as any,
+    });
 
   const { data, error, isLoading } = useClientDataSWR<TopUpPaymentListResponse>(
     swrKey,
     () =>
       adminCommercialService.listTopUpPayments({
         cursor,
-        limit: 25,
+        limit: PAYMENTS_PAGE_SIZE,
         orderId: orderId || undefined,
         provider: provider as any,
         status: status as any,
@@ -131,7 +138,7 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
       <PaymentListHeader
         busyReconciling={busyAction === 'pending'}
         canWrite={canWrite}
-        i18nNamespace='topups'
+        i18nNamespace="topups"
         selectedRefundCount={selectedRefundableIds.length}
         t={t as any}
         title={t('admin.payments.topups.title', 'Top-up transactions')}
@@ -184,81 +191,70 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         }
       />
 
-      <PaymentFilterControls
-        applyTextFilters={applyTextFilters}
-        clearFilters={clearFilters}
-        filterError={filterError}
-        i18nNamespace='topups'
-        orderDraft={orderDraft}
-        provider={provider}
-        status={status}
-        t={t as any}
-        userDraft={userDraft}
-        onOrderDraftChange={setOrderDraft}
-        onProviderChange={(value) => updateParams({ provider: value })}
-        onStatusChange={(value) => updateParams({ status: value })}
-        onUserDraftChange={setUserDraft}
-      />
-
-      {error ? (
-        <Alert
-          showIcon
-          message={t('admin.payments.topups.loadFailed', 'Unable to load top-up transactions')}
-          type="error"
+      <AdminSection>
+        <PaymentFilterControls
+          applyTextFilters={applyTextFilters}
+          clearFilters={clearFilters}
+          filterError={filterError}
+          i18nNamespace="topups"
+          orderDraft={orderDraft}
+          provider={provider}
+          status={status}
+          t={t as any}
+          userDraft={userDraft}
+          onOrderDraftChange={setOrderDraft}
+          onProviderChange={(value) => updateParams({ provider: value })}
+          onStatusChange={(value) => updateParams({ status: value })}
+          onUserDraftChange={setUserDraft}
         />
-      ) : null}
-      <InlineTable
-        columns={columns as TableProps['columns']}
-        dataSource={data?.items ?? []}
-        loading={isLoading}
-        rowKey="id"
-        rowSelection={
-          canWrite
-            ? {
-                getCheckboxProps: (row: any) => ({
-                  disabled: !(row.status === 'paid' && row.externalOrderId),
-                }),
-                onChange: (keys: React.Key[]) => setSelectedRefundableIds(keys.map(String)),
-                selectedRowKeys: selectedRefundableIds,
-              }
-            : undefined
-        }
-      />
-      {(cursor > 0 || data?.nextCursor != null) && (
-        <Space>
-          <PagerPositionLabel page={cursor / 25 + 1} />
-          <Button
-            disabled={cursor === 0}
-            onClick={() =>
+
+        {error ? (
+          <AdminPageError
+            description={t(
+              'admin.payments.topups.loadFailed',
+              'Unable to load top-up transactions',
+            )}
+            onRetry={() => void mutate(swrKey)}
+          />
+        ) : null}
+        <AdminDataTable
+          columns={columns as TableProps['columns']}
+          dataSource={data?.items ?? []}
+          isEmpty={!isLoading && !error && (data?.items?.length ?? 0) === 0}
+          loading={isLoading}
+          regionLabel={t('admin.payments.topups.tableLabel', 'Top-up transactions table')}
+          rowKey="id"
+          pager={buildPaymentsPager({
+            cursor,
+            label: t('admin.pagination.pagePosition', {
+              defaultValue: '第 {{page}} 页',
+              page: cursor / PAYMENTS_PAGE_SIZE + 1,
+            }),
+            nextCursor: data?.nextCursor,
+            onCursorChange: (next) =>
               setSearchParams((current) => {
-                const next = new URLSearchParams(current);
-                const previous = Math.max(0, cursor - 25);
-                if (previous) next.set('cursor', String(previous));
-                else next.delete('cursor');
-                return next;
-              })
-            }
-          >
-            {t('admin.pagination.previous', 'Previous')}
-          </Button>
-          <Button
-            disabled={data?.nextCursor == null}
-            onClick={() =>
-              data?.nextCursor != null &&
-              setSearchParams((current) => {
-                const next = new URLSearchParams(current);
-                next.set('cursor', String(data.nextCursor));
-                return next;
-              })
-            }
-          >
-            {t('admin.pagination.next', 'Next')}
-          </Button>
-        </Space>
-      )}
+                const params = new URLSearchParams(current);
+                if (next) params.set('cursor', String(next));
+                else params.delete('cursor');
+                return params;
+              }),
+          })}
+          rowSelection={
+            canWrite
+              ? {
+                  getCheckboxProps: (row: any) => ({
+                    disabled: !(row.status === 'paid' && row.externalOrderId),
+                  }),
+                  onChange: (keys: React.Key[]) => setSelectedRefundableIds(keys.map(String)),
+                  selectedRowKeys: selectedRefundableIds,
+                }
+              : undefined
+          }
+        />
+      </AdminSection>
       <PaymentRefundModal
         busyRefunding={Boolean(busyAction?.startsWith('refund:'))}
-        i18nNamespace='topups'
+        i18nNamespace="topups"
         reason={refundReason}
         refundOrder={refundOrder}
         t={t as any}
@@ -278,7 +274,7 @@ const TopUpPaymentsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         title={t('admin.payments.topups.manualResolution.title', 'Verify pending refund')}
         summary={
           resolutionOrder
-            ? `${resolutionOrder.currency} ${resolutionOrder.amount} · ${resolutionOrder.id}`
+            ? `${formatAdminAmount(resolutionOrder.amount, resolutionOrder.currency)} · ${resolutionOrder.id}`
             : ''
         }
         onCancel={closeResolution}

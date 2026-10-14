@@ -10,7 +10,6 @@ import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
 import { buildAuditColumns } from '@/features/Admin/Audit/auditColumns';
 import {
   AuditDetailModal,
-  AuditEmptyState,
   type AuditFilterKey,
   type AuditRow,
   escapeAuditCsv,
@@ -24,6 +23,7 @@ import {
   AdminSection,
   AdminToolbar,
 } from '@/features/Admin/layout';
+import { AdminPageState } from '@/features/Admin/shared';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -211,7 +211,17 @@ const AdminAuditPage = memo(() => {
             onRetry={refresh}
           />
         ) : items.length === 0 && !isLoading ? (
-          <AuditEmptyState description={t('admin.audit.empty', '暂无审计日志')} />
+          <AdminPageState
+            emptyDescription={t(
+              'admin.audit.emptyDescription',
+              '调整筛选条件或时间范围后重试。',
+            )}
+            emptyKind="initial"
+            emptyTitle={t('admin.audit.empty', '暂无审计日志')}
+            isEmpty
+          >
+            {null}
+          </AdminPageState>
         ) : (
           <AdminAuditTableSection
             groups={groups}

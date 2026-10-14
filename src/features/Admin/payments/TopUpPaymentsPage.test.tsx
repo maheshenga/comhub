@@ -37,8 +37,11 @@ vi.mock('@/libs/swr', () => ({
     return { data: state.data, error: state.error, isLoading: false };
   },
 }));
-vi.mock('@/components/InlineTable', () => ({
-  default: ({ columns, dataSource, rowSelection }: any) => (
+// F14：表原语已从 InlineTable 迁移到 AdminDataTable（antd Table 封装）。
+// 用例替身只保留可查询 DOM（行数据 + 列 render 输出 + rowSelection 复选框），
+// 与旧 InlineTable 替身形态一致；本文件对 antd 做了部分 mock，不适合渲染真表。
+vi.mock('@/features/Admin/shared/AdminDataTable', () => ({
+  AdminDataTable: ({ columns, dataSource, rowSelection }: any) => (
     <div>
       {dataSource.map((row: any) => (
         <div key={row.id}>

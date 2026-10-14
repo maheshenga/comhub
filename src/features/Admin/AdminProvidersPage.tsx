@@ -2,7 +2,7 @@
 
 import { Icon } from '@lobehub/ui';
 import { toast } from '@lobehub/ui/base-ui';
-import { Button, Empty } from 'antd';
+import { Button } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -182,26 +182,25 @@ const AdminProvidersPage = memo(() => {
           description={t('admin.providers.loadFailed', '无法读取服务商实例，请重试。')}
           onRetry={refresh}
         />
-      ) : null}
-
-      <AdminSection
-        carded
-        title={t('admin.providers.instanceSection', '服务商实例')}
-        description={t('admin.providers.instanceSummary', '共 {{count}} 个服务商实例', {
-          count: items.length,
-        })}
-      >
-        {!isLoading && items.length === 0 ? (
-          <Empty description={t('admin.providers.empty', '暂未配置服务商实例')} />
-        ) : (
+      ) : (
+        <AdminSection
+          carded
+          title={t('admin.providers.instanceSection', '服务商实例')}
+          description={t('admin.providers.instanceSummary', '共 {{count}} 个服务商实例', {
+            count: items.length,
+          })}
+        >
           <AdminDataTable
             columns={columns as any}
             dataSource={items}
+            isEmpty={!isLoading && items.length === 0}
+            loading={isLoading}
+            onRetry={refresh}
             regionLabel={t('admin.providers.tableLabel', '服务商实例表格')}
             rowKey="id"
           />
-        )}
-      </AdminSection>
+        </AdminSection>
+      )}
 
       <InstanceFormModal open={creating} onClose={() => setCreating(false)} />
       <InstanceFormModal initial={editing} open={!!editing} onClose={() => setEditing(null)} />

@@ -18,7 +18,7 @@ import {
   getAdminOpenKeys,
 } from './adminNavigation';
 import { buildMenuItems } from './Sidebar/navigation';
-import { sidebarStyles } from './Sidebar/sidebarStyles';
+import { sidebarIconSize, sidebarStyles } from './Sidebar/sidebarStyles';
 
 const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
   ({ collapsed = false, onNavigate }) => {
@@ -84,7 +84,7 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
         )}
         {!collapsed ? (
           <label className={sidebarStyles.searchWrap}>
-            <Search aria-hidden className={sidebarStyles.searchIcon} size={16} />
+            <Search aria-hidden className={sidebarStyles.searchIcon} size={sidebarIconSize} />
             <input
               aria-label={t('admin.navigation.search', '搜索管理功能')}
               className={sidebarStyles.search}
@@ -125,7 +125,7 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
           {collapsed ? (
             <Button
               aria-label={t('admin.navigation.backToApp', '返回前台')}
-              icon={<ArrowLeft aria-hidden size={16} />}
+              icon={<ArrowLeft aria-hidden size={sidebarIconSize} />}
               onClick={() => {
                 navigate('/');
                 onNavigate?.();
@@ -139,7 +139,7 @@ const AdminSidebar = memo<{ collapsed?: boolean; onNavigate?: () => void }>(
                 onNavigate?.();
               }}
             >
-              <ArrowLeft aria-hidden size={16} />
+              <ArrowLeft aria-hidden size={sidebarIconSize} />
               {t('admin.navigation.backToApp', '返回前台')}
             </Button>
           )}

@@ -56,7 +56,7 @@ export const BillingBasisSection = ({
     <>
       <Alert
         showIcon
-        message="默认模型健康检查"
+        message={t('admin.modelBillingMatrix.billingBasis.healthCheckMessage', '默认模型健康检查')}
         type={hasDefaultModelRisk ? 'warning' : 'success'}
         description={
           <Flexbox gap={8}>
@@ -84,12 +84,20 @@ export const BillingBasisSection = ({
         type="info"
         description={
           <Text type="secondary">
-            在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在矩阵中维护。
+            {t(
+              'admin.modelBillingMatrix.billingBasis.globalRateNotice',
+              '在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在矩阵中维护。',
+            )}
           </Text>
         }
       />
       <Flexbox gap={12}>
-        <Text type="secondary">当前修改只影响后续计费计算，不会开启在线平台支付。</Text>
+        <Text type="secondary">
+          {t(
+            'admin.modelBillingMatrix.billingBasis.rateChangeNotice',
+            '当前修改只影响后续计费计算，不会开启在线平台支付。',
+          )}
+        </Text>
 
         <Space wrap align="start" size={24}>
           <Flexbox gap={8} style={{ minWidth: 220 }}>

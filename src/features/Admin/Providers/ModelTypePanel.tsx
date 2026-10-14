@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { confirmModal, toast } from '@lobehub/ui/base-ui';
-import { Button, Empty, Input } from 'antd';
+import { Button, Input } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,16 +19,15 @@ import {
 } from '../adminProviderModelPricing';
 import { AdminDataTable } from '../shared';
 import { buildModelTypeColumns } from './ModelTypeColumns';
-import type { MODEL_TYPES,ModelRow } from './shared';
+import type { MODEL_TYPES, ModelRow } from './shared';
 import { modelsKey, splitToList } from './shared';
-
 
 const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES)[number] }>(
   ({ instanceId, modelType }) => {
     const { t } = useTranslation('subscription');
     const refreshAiProviderRuntimeState = useAiInfraStore((s) => s.refreshAiProviderRuntimeState);
     const swrKey = modelsKey(instanceId, modelType);
-    const { data, isLoading } = useClientDataSWR(swrKey, () =>
+    const { data, error, isLoading } = useClientDataSWR(swrKey, () =>
       adminCommercialService.listAiProviderInstanceModels({ instanceId, modelType }),
     );
     const items = (data?.items ?? []) as ModelRow[];
@@ -204,11 +203,18 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES
             </Button>
           </Flexbox>
         </Flexbox>
-        {!isLoading && items.length === 0 ? (
-          <Empty description={t('admin.providers.models.empty', '该类型暂无模型')} />
-        ) : (
-          <Flexbox gap={8}>
-            <Flexbox horizontal gap={8} justify="flex-end">
+        <AdminDataTable
+          columns={columns as any}
+          dataSource={items}
+          error={error}
+          isEmpty={!isLoading && !error && items.length === 0}
+          loading={isLoading}
+          regionLabel={t('admin.providers.tableLabel', '服务商实例表格')}
+          // F10: 模型行没有单一 id 字段，主键由 modelId + modelType 组合而成，
+          // 用双下划线拼接是因为两个值都可能含单下划线。
+          rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
+          toolbar={
+            <Flexbox horizontal gap={8} justify="flex-end" style={{ flex: 1 }}>
               <Button
                 disabled={!items.some((item) => !item.enabled)}
                 loading={batchUpdating === 'enable'}
@@ -226,14 +232,9 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES
                 {t('admin.providers.models.disableAll', '禁用当前类型')}
               </Button>
             </Flexbox>
-            <AdminDataTable
-              columns={columns as any}
-              dataSource={items}
-              regionLabel={t('admin.providers.tableLabel', '服务商实例表格')}
-              rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
-            />
-          </Flexbox>
-        )}
+          }
+          onRetry={() => void mutate(swrKey)}
+        />
       </Flexbox>
     );
   },

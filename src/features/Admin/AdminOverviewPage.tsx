@@ -1,6 +1,5 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
 import { Button, Tag } from '@lobehub/ui/base-ui';
 import { ArrowRight, GitPullRequest, Settings } from 'lucide-react';
 import { memo, useMemo } from 'react';
@@ -8,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { ADMIN_BASE_PATH } from '@/features/Admin/adminNavigation';
 import { AdminInlineSkeleton } from '@/features/Admin/shared';
 import { useClientDataSWR } from '@/libs/swr';
@@ -15,15 +15,21 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import { AdminMetricStrip, AdminPageError, AdminPageShell, AdminSection } from './layout';
+import {
+  adminIconSizes,
+  AdminMetricStrip,
+  AdminPageError,
+  AdminPageShell,
+  AdminSection,
+} from './layout';
 import { overviewStyles } from './Overview/overviewStyles';
 import { WorkbenchTodoCard } from './Overview/workbenchCards';
 import {
   buildOverviewMetrics,
-  WorkbenchModuleAppsCard,
+  WorkbenchModuleAppsSection,
   WorkbenchQuickLinks,
   WorkbenchRevenueCard,
-  WorkbenchUsersCard,
+  WorkbenchUsersSection,
 } from './Overview/workbenchDashboardCards';
 
 const AdminOverviewPage = memo(() => {
@@ -85,7 +91,7 @@ const AdminOverviewPage = memo(() => {
   const defaultModel =
     settings?.defaultAgentProvider && settings?.defaultAgentModel
       ? `${settings.defaultAgentProvider}/${settings.defaultAgentModel}`
-      : '未设置';
+      : t('admin.overview.systemHealth.notSet', '未设置');
   const dauSparkValues = useMemo(
     () => (Array.isArray(dauTrend) ? dauTrend.map((d: { count: number }) => d.count) : []),
     [dauTrend],
@@ -94,12 +100,18 @@ const AdminOverviewPage = memo(() => {
 
   return (
     <AdminPageShell
-      description="集中查看关键状态，并进入用户、商业化、AI 平台、模块应用和系统运维。"
-      title="后台工作台"
+      title={t('admin.overview.title', '后台工作台')}
       width="full"
+      description={t(
+        'admin.overview.subtitle',
+        '集中查看关键状态，并进入用户、商业化、AI 平台、模块应用和系统运维。',
+      )}
     >
       {overviewError ? (
-        <AdminPageError description="核心指标加载失败，请重试。" onRetry={refreshOverview} />
+        <AdminPageError
+          description={t('admin.overview.loadFailed', '核心指标加载失败，请重试。')}
+          onRetry={refreshOverview}
+        />
       ) : (
         <AdminMetricStrip
           items={buildOverviewMetrics(overview)}
@@ -110,53 +122,60 @@ const AdminOverviewPage = memo(() => {
       <div className={overviewStyles.cardGrid}>
         <AdminSection
           carded
-          description="优先处理会影响用户权益和订阅状态的请求。"
-          title="待处理事项"
+          title={t('admin.overview.pending.title', '待处理事项')}
           actions={
             <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/subscriptions`)}>
-              处理请求
-              <ArrowRight aria-hidden size={14} />
+              {t('admin.overview.pending.action', '处理请求')}
+              <ArrowRight aria-hidden size={adminIconSizes.inline} />
             </Button>
           }
+          description={t(
+            'admin.overview.pending.description',
+            '优先处理会影响用户权益和订阅状态的请求。',
+          )}
         >
           <div className={overviewStyles.pending}>
             {pendingChangesError ? (
               <AdminPageError
-                description="待处理事项加载失败，请重试。"
+                description={t('admin.overview.pending.loadFailed', '待处理事项加载失败，请重试。')}
                 onRetry={refreshPendingChanges}
               />
             ) : pendingChanges ? (
               <>
                 <Tag
                   color={pendingChangeCount > 0 ? 'processing' : 'success'}
-                  icon={<GitPullRequest size={13} />}
+                  icon={<GitPullRequest size={adminIconSizes.tag} />}
                 >
-                  套餐变更请求 {pendingChangeCount}
+                  {t('admin.overview.pending.changeRequests', {
+                    count: pendingChangeCount,
+                    defaultValue: '套餐变更请求 {{count}}',
+                  })}
                 </Tag>
                 <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/orders`)}>
-                  查看相关订单
+                  {t('admin.overview.pending.viewOrders', '查看相关订单')}
                 </Button>
               </>
             ) : (
               <AdminInlineSkeleton rows={2} />
             )}
           </div>
-          <Flexbox gap={12} style={{ marginTop: 12 }}>
-            <WorkbenchTodoCard
-              description="待处理的收益结算单，确认后进入打款流程。"
-              title={t('admin.workbench.pendingPayouts', '收益结算')}
-              total={pendingPayoutItems.length}
-              viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
-              items={pendingPayoutItems.map((item: any) => ({
-                hint: item.amount != null ? String(item.amount) : undefined,
-                label: item.publisherName ?? item.publisherId ?? item.id,
-              }))}
-              onViewAll={() => navigate(`${ADMIN_BASE_PATH}/modules`)}
-            />
-          </Flexbox>
+          <WorkbenchTodoCard
+            title={t('admin.workbench.pendingPayouts', '收益结算')}
+            total={pendingPayoutItems.length}
+            viewAllLabel={t('admin.workbench.viewAll', '查看全部')}
+            description={t(
+              'admin.overview.pending.payoutsDescription',
+              '待处理的收益结算单，确认后进入打款流程。',
+            )}
+            items={pendingPayoutItems.map((item: any) => ({
+              hint: item.amount != null ? String(item.amount) : undefined,
+              label: item.publisherName ?? item.publisherId ?? item.id,
+            }))}
+            onViewAll={() => navigate(`${ADMIN_BASE_PATH}/modules`)}
+          />
           {(pendingPackagesError || pendingPayoutsError || recentAuditError) && (
             <AdminPageError
-              description="工作台数据加载失败，请重试。"
+              description={t('admin.overview.workbenchLoadFailed', '工作台数据加载失败，请重试。')}
               onRetry={() => {
                 refreshPendingPackages();
                 refreshPendingPayouts();
@@ -168,12 +187,12 @@ const AdminOverviewPage = memo(() => {
 
         <AdminSection
           carded
-          description="近 30 天充值实收与平台活跃走势。"
-          title="收入与活跃"
+          description={t('admin.overview.revenue.description', '近 30 天充值实收与平台活跃走势。')}
+          title={t('admin.overview.revenue.title', '收入与活跃')}
           actions={
             <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/stats`)}>
-              运营统计
-              <ArrowRight aria-hidden size={14} />
+              {t('admin.overview.revenue.action', '运营统计')}
+              <ArrowRight aria-hidden size={adminIconSizes.inline} />
             </Button>
           }
         >
@@ -184,71 +203,70 @@ const AdminOverviewPage = memo(() => {
           />
         </AdminSection>
 
-        <AdminSection carded description="平台规模与健康度速览。" title="用户概览">
-          <WorkbenchUsersCard
-            dau={overviewAny?.dau}
-            loading={overviewLoading}
-            mau={overviewAny?.mau}
-            totalUsers={overviewAny?.totalUsers}
-          />
-        </AdminSection>
+        <WorkbenchUsersSection loading={overviewLoading} overview={overviewAny} />
 
-        <AdminSection carded description="模块应用平台的审核与结算状态。" title="模块应用">
-          <WorkbenchModuleAppsCard
-            total={pendingPackageItems.length}
-            items={pendingPackageItems.map((item: any) => ({
-              hint: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : undefined,
-              label: item.name ?? item.appId ?? item.id,
-              tag: item.scanStatus === 'flagged' ? '警示' : undefined,
-              tagColor: 'warning',
-            }))}
-          />
-        </AdminSection>
+        <WorkbenchModuleAppsSection items={pendingPackageItems} />
 
         <AdminSection
           carded
-          description="快速核对影响全站体验的核心默认值与我最近的操作。"
-          title="系统健康"
+          title={t('admin.overview.systemHealth.title', '系统健康')}
           actions={
             <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/settings`)}>
-              <Settings aria-hidden size={14} />
-              修改设置
+              <Settings aria-hidden size={adminIconSizes.inline} />
+              {t('admin.overview.systemHealth.action', '修改设置')}
             </Button>
           }
+          description={t(
+            'admin.overview.systemHealth.description',
+            '快速核对影响全站体验的核心默认值与我最近的操作。',
+          )}
         >
           {settingsError ? (
-            <AdminPageError description="系统状态加载失败，请重试。" onRetry={refreshSettings} />
+            <AdminPageError
+              description={t(
+                'admin.overview.systemHealth.loadFailed',
+                '系统状态加载失败，请重试。',
+              )}
+              onRetry={refreshSettings}
+            />
           ) : settings ? (
-            <div>
+            <div className={overviewStyles.stack}>
               <div className={overviewStyles.keyValue}>
-                <span className={overviewStyles.keyValueLabel}>品牌名称</span>
+                <span className={overviewStyles.keyValueLabel}>
+                  {t('admin.overview.systemHealth.brandName', '品牌名称')}
+                </span>
                 <strong className={overviewStyles.keyValueValue}>
-                  {settings.brandName || '未设置'}
+                  {settings.brandName || t('admin.overview.systemHealth.notSet', '未设置')}
                 </strong>
               </div>
               <div className={overviewStyles.keyValue}>
-                <span className={overviewStyles.keyValueLabel}>默认模型</span>
+                <span className={overviewStyles.keyValueLabel}>
+                  {t('admin.overview.systemHealth.defaultModel', '默认模型')}
+                </span>
                 <strong className={overviewStyles.keyValueValue}>{defaultModel}</strong>
               </div>
               <div className={overviewStyles.keyValue}>
-                <span className={overviewStyles.keyValueLabel}>推荐奖励</span>
+                <span className={overviewStyles.keyValueLabel}>
+                  {t('admin.overview.systemHealth.referralReward', '推荐奖励')}
+                </span>
                 <strong className={overviewStyles.keyValueValue}>
-                  {settings.referralRewardCredits ?? 0} 积分
+                  {formatAdminCredits(settings.referralRewardCredits)}
                 </strong>
               </div>
-              <div style={{ marginTop: 12 }}>
-                <WorkbenchTodoCard
-                  description="按操作者（当前管理员）过滤的最近 10 条审计记录。"
-                  title={t('admin.workbench.recentAuditCard', '我最近的操作')}
-                  total={recentAuditItems.length}
-                  viewAllLabel={t('admin.workbench.openAudit', '打开审计记录')}
-                  items={recentAuditItems.map((item: any) => ({
-                    hint: item.createdAt ? new Date(item.createdAt).toLocaleString() : undefined,
-                    label: item.action,
-                  }))}
-                  onViewAll={() => navigate(`${ADMIN_BASE_PATH}/audit`)}
-                />
-              </div>
+              <WorkbenchTodoCard
+                title={t('admin.workbench.recentAuditCard', '我最近的操作')}
+                total={recentAuditItems.length}
+                viewAllLabel={t('admin.workbench.openAudit', '打开审计记录')}
+                description={t(
+                  'admin.overview.systemHealth.auditDescription',
+                  '按操作者（当前管理员）过滤的最近 10 条审计记录。',
+                )}
+                items={recentAuditItems.map((item: any) => ({
+                  hint: item.createdAt ? new Date(item.createdAt).toLocaleString() : undefined,
+                  label: item.action,
+                }))}
+                onViewAll={() => navigate(`${ADMIN_BASE_PATH}/audit`)}
+              />
             </div>
           ) : (
             <AdminInlineSkeleton rows={2} />
@@ -258,8 +276,11 @@ const AdminOverviewPage = memo(() => {
 
       <AdminSection
         carded
-        description="入口按职责域组织；日常操作无需在长菜单中反复定位。"
-        title="管理模块"
+        title={t('admin.overview.modules.title', '管理模块')}
+        description={t(
+          'admin.overview.modules.description',
+          '入口按职责域组织；日常操作无需在长菜单中反复定位。',
+        )}
       >
         <WorkbenchQuickLinks />
       </AdminSection>
