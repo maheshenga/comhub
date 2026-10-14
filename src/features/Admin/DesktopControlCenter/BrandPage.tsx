@@ -2,14 +2,16 @@
 
 import { Icon } from '@lobehub/ui';
 import { Alert, Button, toast } from '@lobehub/ui/base-ui';
-import { Form, Input, Skeleton, Typography } from 'antd';
-import { RefreshCw, Save } from 'lucide-react';
+import { Form, Input, Typography } from 'antd';
+import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { DESKTOP_DEFAULT_BUSINESS_SERVER_URL } from '../adminDesktopUpdateSettings';
+import { AdminPageError } from '../layout';
+import { AdminInlineSkeleton } from '../shared';
 import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
 import {
   buildBrandUpdates,
@@ -66,19 +68,15 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
 
   if (settings.error) {
     return (
-      <Alert
-        message={t('admin.desktopControl.settingsError')}
-        type="error"
-        action={
-          <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void settings.mutate()}>
-            {t('admin.desktopControl.retry')}
-          </Button>
-        }
+      <AdminPageError
+        retryLabel={t('admin.desktopControl.retry')}
+        title={t('admin.desktopControl.settingsError')}
+        onRetry={() => void settings.mutate()}
       />
     );
   }
 
-  if (settings.isLoading && !settings.data) return <Skeleton active paragraph={{ rows: 6 }} />;
+  if (settings.isLoading && !settings.data) return <AdminInlineSkeleton rows={6} />;
 
   return (
     <section className={desktopControlCenterStyles.formSection}>

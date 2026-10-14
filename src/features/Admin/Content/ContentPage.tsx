@@ -1,8 +1,8 @@
 'use client';
 
 import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- base-ui barrel 无 Empty（@lobehub/ui 顶层的自研 Empty 属另一迁移面）；Input 为话题/文件/文档三个 tab 的筛选输入，迁 base-ui 属 B4 筛选器收敛批次统一处理。
-import { Empty, Input } from 'antd';
+// eslint-disable-next-line no-restricted-imports -- Input 为话题/文件/文档三个 tab 的筛选输入，迁 base-ui 属 B4 筛选器收敛批次统一处理。
+import { Input } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { AdminPageShell, AdminSection, AdminToolbar } from '../layout';
+import { AdminPageError, AdminPageShell, AdminSection, AdminToolbar } from '../layout';
 import { AdminDataTable } from '../shared';
 import { buildContentColumns } from './contentColumns';
 import {
@@ -109,7 +109,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
             loading={isLoading}
             onClick={() => void refresh()}
           >
-            刷新数据
+            {t('admin.content.refresh', '刷新数据')}
           </Button>
         }
       >
@@ -127,7 +127,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
             <Input.Search
               allowClear
               className={contentStyles.userSearch}
-              placeholder="按用户 ID 筛选"
+              placeholder={t('admin.content.filter.userId', '按用户 ID 筛选')}
               onSearch={(value) => {
                 setUserId(value.trim());
                 resetFilters();
@@ -137,7 +137,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
               <Select
                 allowClear
                 className={contentStyles.select}
-                placeholder="话题状态"
+                placeholder={t('admin.content.filter.status', '话题状态')}
                 value={status}
                 options={[
                   { label: '活跃', value: 'active' },
@@ -155,7 +155,7 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
                 allowClear
                 className={contentStyles.select}
                 options={sourceTypeOptions}
-                placeholder="来源类型"
+                placeholder={t('admin.content.filter.sourceType', '来源类型')}
                 value={sourceType}
                 onChange={(value) => {
                   setSourceType(value as DocumentSourceType | undefined);
@@ -167,30 +167,35 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
         </AdminToolbar>
 
         {error ? (
-          <Alert
-            showIcon
-            action={<Button onClick={() => void refresh()}>重试</Button>}
-            description="请检查服务状态后重试，现有筛选条件会保留。"
-            title="数据加载失败"
-            type="error"
+          <AdminPageError
+            retryLabel={t('admin.content.error.retry', '重试')}
+            title={t('admin.content.error.title', '数据加载失败')}
+            description={t(
+              'admin.content.error.description',
+              '请检查服务状态后重试，现有筛选条件会保留。',
+            )}
+            onRetry={() => void refresh()}
           />
         ) : null}
 
         <AdminDataTable
           columns={columns}
           dataSource={data?.items ?? []}
+          isEmpty={!isLoading && !error && (data?.items?.length ?? 0) === 0}
           loading={isLoading}
-          locale={{ emptyText: <Empty description="暂无数据" /> }}
           regionLabel={copy.tableLabel}
+          // F10：话题/文件/文档三个 mode 的行主键字段不同，按 mode 取存在的那个（行内至少有一个 id）。
           rowKey={(row: any) => row.topic?.id || row.file?.id || row.document?.id}
+          // F9：分页统一走 AdminDataTable 的 pager 插槽（原自绘「下一页」按钮）。
+          pager={{
+            hasNext: data?.nextCursor != null,
+            hasPrevious: cursor > 0,
+            onNext: () => {
+              if (data?.nextCursor != null) setCursor(data.nextCursor);
+            },
+            onPrevious: () => setCursor((current) => Math.max(0, current - PAGE_SIZE)),
+          }}
         />
-        {data?.nextCursor != null ? (
-          <div className={contentStyles.pagination}>
-            <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-              {t('admin.content.nextPage', '下一页')}
-            </Button>
-          </div>
-        ) : null}
       </AdminSection>
     </AdminPageShell>
   );

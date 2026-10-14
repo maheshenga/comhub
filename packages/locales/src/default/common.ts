@@ -1,5 +1,8 @@
 export default {
   'about': 'About',
+  'admin.shared.pagination.next': 'Next page',
+  'admin.shared.pagination.previous': 'Previous page',
+  'admin.shared.table.empty': 'No data',
   'advanceSettings': 'Advanced Settings',
   'alert.cloud.action': 'Try now',
   'alert.cloud.desc':
@@ -810,6 +813,7 @@ export default {
   'moduleApps.admin.products.status': 'Status',
   'moduleApps.admin.products.status.active': 'Active',
   'moduleApps.admin.products.status.inactive': 'Inactive',
+  'moduleApps.admin.products.tableLabel': 'Products table',
   'moduleApps.admin.products.termsVersion': 'Terms version',
   'moduleApps.admin.products.trialDays': 'Trial days',
   'moduleApps.admin.products.type': 'Type',

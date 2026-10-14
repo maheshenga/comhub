@@ -4,6 +4,7 @@ import { Button, Tag  } from '@lobehub/ui/base-ui';
 import { Space } from 'antd';
 import { RotateCcw, ShieldCheck } from 'lucide-react';
 
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -95,7 +96,8 @@ export const buildSubscriptionPaymentColumns = ({
   },
   {
     key: 'amount',
-    render: (_: unknown, row: SubscriptionPaymentRow) => `${row.currency} ${row.amount}`,
+    render: (_: unknown, row: SubscriptionPaymentRow) =>
+      formatAdminAmount(row.amount, row.currency),
     title: t('admin.payments.subscriptions.columns.amount', 'Amount'),
   },
   {

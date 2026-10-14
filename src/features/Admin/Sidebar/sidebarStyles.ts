@@ -1,6 +1,15 @@
 import { createStaticStyles } from 'antd-style';
 
 /**
+ * Single source for sidebar icon sizing: the search icon, the footer back
+ * button glyphs and the group icons in `Sidebar/navigation.tsx` all read this
+ * constant instead of repeating an inline `size={16}` / className-driven
+ * literal, so a future size change can no longer miss one of the four call
+ * sites (drift risk called out in the responsive/design-token review).
+ */
+export const sidebarIconSize = 16;
+
+/**
  * Sidebar styles (ux-redesign-spec §2). Visual upgrade of the four-row grid
  * (brand / search / navigation / footer); group separation, header captions
  * and collapsed mode are new, while the structural roles stay untouched.

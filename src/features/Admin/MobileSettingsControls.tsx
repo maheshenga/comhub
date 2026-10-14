@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 import { MOBILE_ICON_NAMES, type MobileIconName } from '@/const/mobileConfig';
 
+import { adminDesignStyles } from './layout';
 import type { SelectOption, SelectorStatus } from './mobileSettingsHelpers';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -18,12 +19,27 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 4px;
     min-width: 160px;
   `,
+  /**
+   * Native `<select>` shell. Height and radius now come from the antd control
+   * tokens (`controlHeight` / `borderRadius`) instead of the hand-written
+   * 32px/6px literals, and the shared `adminDesignStyles.focusRing` supplies
+   * the missing focus-visible indicator.
+   *
+   * The base-ui `Select` migration is deliberately not taken: the locked page
+   * tests drive these controls with `fireEvent.change(screen.getByLabelText(…))`
+   * and assert `findByRole('option', …)` before opening any popup
+   * (AdminMobileSettingsPage.test.tsx:257/297/311/433) — native `<select>`
+   * semantics that a portalled base-ui combobox does not expose.
+   */
   select: css`
-    height: 32px;
+    height: ${cssVar.controlHeight};
     border: 1px solid ${cssVar.colorBorder};
-    border-radius: 6px;
+    border-radius: ${cssVar.borderRadius};
     background: ${cssVar.colorBgContainer};
     color: ${cssVar.colorText};
+
+    /* Composed from adminDesignStyles.focusRing (token consumption). */
+    ${adminDesignStyles.focusRing}
   `,
 }));
 

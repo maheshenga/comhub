@@ -13,7 +13,6 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import CommerceTable, { type ModuleAppRevenueRow } from '../../CommerceTable';
-import CursorPager from '../../CursorPager';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
@@ -158,7 +157,10 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         <div>
           <CommerceTable
             canWrite={canWrite}
+            hasNext={Boolean(data?.nextCursor)}
+            hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             items={data?.items ?? []}
+            regionLabel={t('moduleApps.admin.revenue.title')}
             statusLabels={statusLabels}
             labels={{
               cancel: t('cancel'),
@@ -178,19 +180,15 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
               status: t('moduleApps.admin.revenue.columns.status'),
               type: t('moduleApps.admin.revenue.columns.type'),
             }}
+            positionLabel={t('moduleApps.admin.revenue.pagePosition', {
+              page: searchParams.getAll('previousCursor').length + 1,
+            })}
             typeLabels={{
               accrual: t('moduleApps.admin.revenue.type.accrual'),
               reversal: t('moduleApps.admin.revenue.type.reversal'),
             }}
-            onSettle={settleRevenue}
-          />
-          <CursorPager
-            hasNext={Boolean(data?.nextCursor)}
-            hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
-            nextLabel={t('moduleApps.admin.revenue.next')}
-            positionLabel={t('moduleApps.admin.revenue.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
-            previousLabel={t('moduleApps.admin.revenue.previous')}
             onPrevious={() => setSearchParams(retreatCursor(searchParams))}
+            onSettle={settleRevenue}
             onNext={() =>
               data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
             }

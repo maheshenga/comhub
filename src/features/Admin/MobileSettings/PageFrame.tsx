@@ -1,16 +1,16 @@
 'use client';
 
-import { Flexbox, Skeleton } from '@lobehub/ui';
 import { Alert, Button } from '@lobehub/ui/base-ui';
 
 import { AdminFormActions, AdminPageError } from '../layout';
+import { AdminPageState } from '../shared';
 
 const LoadingShell = () => (
-  <Flexbox data-testid="mobile-settings-loading" gap={16}>
-    <Skeleton.Button active block style={{ height: 32, width: 240 }} />
-    <Skeleton.Paragraph active rows={4} />
-    <Skeleton.Button active block style={{ height: 120 }} />
-  </Flexbox>
+  <div data-testid="mobile-settings-loading">
+    <AdminPageState loading skeletonVariant="detail">
+      {null}
+    </AdminPageState>
+  </div>
 );
 
 export const MobileSettingsFeedback = ({

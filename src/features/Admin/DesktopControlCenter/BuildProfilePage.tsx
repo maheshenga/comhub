@@ -2,7 +2,7 @@
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
 import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
-import { Form, Skeleton } from 'antd';
+import { Form } from 'antd';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,7 +11,10 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
+import { AdminPageError } from '../layout';
+import { AdminInlineSkeleton } from '../shared';
 import BuildProfileEditor from './BuildProfileEditor';
+import BuildProfileEmptyState from './BuildProfileEmptyState';
 import {
   buildProfileFormFromProfile,
   type BuildProfileFormValues,
@@ -57,21 +60,6 @@ const withDraftApplied = (
   currentRevision: (current.currentRevision ?? 0) + 1,
   name: payload.applicationName ?? current.name,
 });
-const LoadFailedAlert = ({ onRetry, t }: { onRetry: () => void; t: any }) => (
-  <Alert
-    action={<Button onClick={onRetry}>{t('admin.desktopControl.retry')}</Button>}
-    title={t('admin.desktopBuild.loadFailed')}
-    type="error"
-  />
-);
-const EmptyProfilesAlert = ({ onCreate, t }: { onCreate: () => void; t: any }) => (
-  <Alert
-    action={<Button onClick={onCreate}>{t('admin.desktopBuild.profile.create')}</Button>}
-    description={t('admin.desktopBuild.emptyDescription')}
-    title={t('admin.desktopBuild.empty')}
-    type="info"
-  />
-);
 const BuildProfilePage = memo<BuildProfilePageProps>(
   ({ currentRelease, onDirtyChange, onReleaseActivated }) => {
     const { t } = useTranslation('subscription');
@@ -167,10 +155,16 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
     }, [form, selectedProfile]);
 
     if (profiles.error) {
-      return <LoadFailedAlert t={t as any} onRetry={() => void profiles.mutate()} />;
+      return (
+        <AdminPageError
+          onRetry={() => void profiles.mutate()}
+          retryLabel={t('admin.desktopControl.retry')}
+          title={t('admin.desktopBuild.loadFailed')}
+        />
+      );
     }
-    if (profiles.isLoading && !profiles.data) return <Skeleton active paragraph={{ rows: 8 }} />;
-    if (!selectedProfile) return <EmptyProfilesAlert t={t as any} onCreate={handleCreateProfile} />;
+    if (profiles.isLoading && !profiles.data) return <AdminInlineSkeleton rows={8} />;
+    if (!selectedProfile) return <BuildProfileEmptyState onCreate={handleCreateProfile} />;
 
     const canCreateBuild = hasCompleteWindowsAssets(savedAssets);
     const canSaveDraft = hasCompleteWindowsAssets(assets);

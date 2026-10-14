@@ -2,8 +2,10 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
-import { DatePicker, Descriptions, Empty, Input } from 'antd';
+import { DatePicker, Descriptions, Input } from 'antd';
 import { type ReactNode } from 'react';
+
+import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';
 
 export interface AuditRow {
   action: string;
@@ -76,7 +78,7 @@ export const renderAuditPayload = (payload: Record<string, unknown> | null): Rea
       {JSON.stringify(payload, null, 2)}
     </pre>
   ) : (
-    '—'
+    ADMIN_EMPTY_TEXT
   );
 
 export const AuditDetailModal = ({
@@ -111,22 +113,30 @@ export const AuditDetailModal = ({
           {readBatchCorrelationId(detail) ? (
             <code>{readBatchCorrelationId(detail)}</code>
           ) : (
-            '—'
+            ADMIN_EMPTY_TEXT
           )}
         </Descriptions.Item>
-        <Descriptions.Item label="操作用户">{detail.actorUserId ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="目标用户">{detail.targetUserId ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="资源">
-          {detail.resourceType ?? '—'} {detail.resourceId ? `· ${detail.resourceId}` : ''}
+        <Descriptions.Item label="操作用户">
+          {detail.actorUserId ?? ADMIN_EMPTY_TEXT}
         </Descriptions.Item>
-        <Descriptions.Item label="IP">{detail.ipAddress ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="载荷（Payload）">{renderAuditPayload(detail.payload)}</Descriptions.Item>
+        <Descriptions.Item label="目标用户">
+          {detail.targetUserId ?? ADMIN_EMPTY_TEXT}
+        </Descriptions.Item>
+        <Descriptions.Item label="资源">
+          {detail.resourceType ?? ADMIN_EMPTY_TEXT}{' '}
+          {detail.resourceId ? `· ${detail.resourceId}` : ''}
+        </Descriptions.Item>
+        <Descriptions.Item label="IP">{detail.ipAddress ?? ADMIN_EMPTY_TEXT}</Descriptions.Item>
+        <Descriptions.Item label="载荷（Payload）">
+          {renderAuditPayload(detail.payload)}
+        </Descriptions.Item>
       </Descriptions>
     )}
   </Modal>
 );
 
-export type AuditFilterKey = 'action' | 'actorUserId' | 'batchCorrelationId' | 'resourceId' | 'resourceType' | 'targetUserId';
+export type AuditFilterKey =
+  'action' | 'actorUserId' | 'batchCorrelationId' | 'resourceId' | 'resourceType' | 'targetUserId';
 
 export const AuditFilterInputs = ({
   batchFilter,
@@ -173,13 +183,11 @@ export const AuditFilterInputs = ({
       placeholder={t('admin.audit.filter.batch', '批量任务 ID（batchCorrelationId）')}
       style={{ width: 'min(280px, 100%)' }}
       value={batchFilter}
-      onChange={(e: { target: { value: string } }) => onChange('batchCorrelationId', e.target.value)}
+      onChange={(e: { target: { value: string } }) =>
+        onChange('batchCorrelationId', e.target.value)
+      }
     />
-    <DatePicker.RangePicker
-      allowClear
-      format="YYYY/MM/DD"
-      style={{ width: 'min(260px, 100%)' }}
-    />
+    <DatePicker.RangePicker allowClear format="YYYY/MM/DD" style={{ width: 'min(260px, 100%)' }} />
   </Flexbox>
 );
 
@@ -207,19 +215,12 @@ export const BulkAuditGroupSummary = ({
           {t('admin.audit.batchGroupFailed', '失败 {{count}} 条', { count: failed })}
         </Tag>
       ) : null}
-      <Button
-        size="small"
-        onClick={() => onFilterBatch(group.batchCorrelationId!)}
-      >
+      <Button size="small" onClick={() => onFilterBatch(group.batchCorrelationId!)}>
         {t('admin.audit.batchGroupFilter', '检索该批次')}
       </Button>
     </Flexbox>
   );
 };
-
-export const AuditEmptyState = ({ description }: { description: string }) => (
-  <Empty description={description} />
-);
 
 export const escapeAuditCsv = (value: unknown): string => {
   if (value === null || value === undefined) return '';

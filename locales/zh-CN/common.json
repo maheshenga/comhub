@@ -1,6 +1,9 @@
 {
   "about": "关于",
   "addNew": "新建",
+  "admin.shared.pagination.next": "下一页",
+  "admin.shared.pagination.previous": "上一页",
+  "admin.shared.table.empty": "暂无数据",
   "advanceSettings": "高级设置",
   "agentLabel.create": "新建标签",
   "agentLabel.manage": "管理标签",
@@ -910,6 +913,7 @@
   "moduleApps.admin.products.status": "状态",
   "moduleApps.admin.products.status.active": "启用",
   "moduleApps.admin.products.status.inactive": "停用",
+  "moduleApps.admin.products.tableLabel": "商品表格",
   "moduleApps.admin.products.termsVersion": "条款版本",
   "moduleApps.admin.products.trialDays": "试用天数",
   "moduleApps.admin.products.type": "类型",

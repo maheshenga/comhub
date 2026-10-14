@@ -51,10 +51,14 @@ export interface AdminDataTablePagerState {
   hasNext: boolean;
   /** True when a previous page exists (cursor stack deeper than one entry). */
   hasPrevious: boolean;
+  /** 下一页按钮的无障碍名；缺省回退到共享文案 admin.shared.pagination.next。 */
+  nextLabel?: string;
   onNext: () => void;
   onPrevious: () => void;
   /** 游标分页无总页数；「第 N 页」位置标签（与 moduleApps CursorPager 对齐）。 */
   positionLabel?: string;
+  /** 上一页按钮的无障碍名；缺省回退到共享文案 admin.shared.pagination.previous。 */
+  previousLabel?: string;
 }
 
 export interface AdminDataTableProps<RecordType extends object> extends Omit<
@@ -71,6 +75,9 @@ export interface AdminDataTableProps<RecordType extends object> extends Omit<
    * render instead of the table. Omit all three to render the table
    * unconditionally (state management stays in the caller).
    */
+  /** Copy for the gated empty state; falls back to AdminPageState defaults. */
+  emptyDescription?: ReactNode;
+  emptyTitle?: ReactNode;
   error?: unknown;
   errorDescription?: ReactNode;
   errorTitle?: ReactNode;
@@ -83,6 +90,13 @@ export interface AdminDataTableProps<RecordType extends object> extends Omit<
    * get built-in previous/next buttons; omit for client-side-only data.
    */
   pager?: AdminDataTablePagerState;
+  /**
+   * Client-side pagination opt-in for tables that page a fully-loaded array.
+   * Only sanctioned shape: `{ hideOnSinglePage: true, showSizeChanger: true }`
+   * (DesktopBuildHistory / MatrixTable) — server-cursor tables must use `pager`
+   * instead so the Admin domain keeps exactly two pagination shapes.
+   */
+  pagination?: TableProps<RecordType>['pagination'];
   /** Accessible region label; Admin pages must provide a translated string. */
   regionLabel?: string;
   /** antd rowSelection passthrough (checkbox / radio selection extension slot). */
@@ -103,14 +117,18 @@ export const AdminDataTable = <RecordType extends object>({
   columns,
   csvColumns,
   csvFileName,
+  emptyDescription,
+  emptyTitle,
   error,
   errorDescription,
   errorTitle,
   isEmpty,
   loading,
+  locale,
   onCsvExport,
   onRetry,
   pager,
+  pagination = false,
   regionLabel,
   rowSelection,
   scrollX = 'max-content',
@@ -123,6 +141,8 @@ export const AdminDataTable = <RecordType extends object>({
   if (error || loading || isEmpty) {
     return (
       <AdminPageState
+        emptyDescription={emptyDescription}
+        emptyTitle={emptyTitle}
         error={error}
         errorDescription={errorDescription}
         errorTitle={errorTitle}
@@ -184,7 +204,8 @@ export const AdminDataTable = <RecordType extends object>({
         bordered={false}
         columns={columns}
         loading={loading}
-        pagination={false}
+        locale={locale ?? { emptyText: translate('admin.shared.table.empty', '暂无数据') }}
+        pagination={pagination}
         rowSelection={rowSelection}
         scroll={{ x: scrollX }}
         size="small"
@@ -196,13 +217,15 @@ export const AdminDataTable = <RecordType extends object>({
             <span className={styles.pagerPosition}>{pager.positionLabel}</span>
           ) : null}
           <Button
-            aria-label={translate('admin.shared.pagination.previous', '上一页')}
             disabled={!pager.hasPrevious}
             icon={<ChevronLeft aria-hidden size={16} />}
+            aria-label={
+              pager.previousLabel ?? translate('admin.shared.pagination.previous', '上一页')
+            }
             onClick={pager.onPrevious}
           />
           <Button
-            aria-label={translate('admin.shared.pagination.next', '下一页')}
+            aria-label={pager.nextLabel ?? translate('admin.shared.pagination.next', '下一页')}
             disabled={!pager.hasNext}
             icon={<ChevronRight aria-hidden size={16} />}
             onClick={pager.onNext}

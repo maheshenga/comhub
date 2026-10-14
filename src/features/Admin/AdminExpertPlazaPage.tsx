@@ -5,6 +5,7 @@ import { Alert, Button, toast } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
 import { Form, type FormInstance } from 'antd';
 import { memo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   ADMIN_SETTINGS_SECTION_SWR_KEY,
@@ -70,6 +71,7 @@ const toCards = (cards: CardFormValue[]) =>
   }));
 
 const AdminExpertPlazaPage = memo(() => {
+  const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
   const {
@@ -113,9 +115,10 @@ const AdminExpertPlazaPage = memo(() => {
       });
 
       await mutate(PUBLIC_EXPERT_PLAZA_SWR_KEY);
-      toast.success('专家广场配置已保存');
+      toast.success(t('admin.expertPlaza.saveSuccess', '专家广场配置已保存'));
     } catch (error) {
-      if (!isFormValidationError(error)) toast.error('保存失败，请检查卡片必填字段');
+      if (!isFormValidationError(error))
+        toast.error(t('admin.expertPlaza.saveFailed', '保存失败，请检查卡片必填字段'));
     } finally {
       setSubmitting(false);
     }
@@ -123,17 +126,23 @@ const AdminExpertPlazaPage = memo(() => {
 
   return (
     <AdminPageShell
-      description="配置专家广场入口、页面信息、分类和展示卡片。"
-      title="专家广场"
+      description={t('admin.expertPlaza.subtitle', '配置专家广场入口、页面信息、分类和展示卡片。')}
+      title={t('admin.expertPlaza.title', '专家广场')}
       width="medium"
     >
       <Alert
         showIcon
-        message="开启后左侧栏会显示该入口；卡片可跳转到内部路径或外部链接。未填写 URL 时仅作为展示卡片。"
         type="info"
+        message={t(
+          'admin.expertPlaza.tip',
+          '开启后左侧栏会显示该入口；卡片可跳转到内部路径或外部链接。未填写 URL 时仅作为展示卡片。',
+        )}
       />
       {error ? (
-        <AdminPageError description="无法读取当前专家广场配置，请重试。" onRetry={refresh} />
+        <AdminPageError
+          description={t('admin.expertPlaza.loadFailed', '无法读取当前专家广场配置，请重试。')}
+          onRetry={refresh}
+        />
       ) : null}
 
       <Form
@@ -147,14 +156,14 @@ const AdminExpertPlazaPage = memo(() => {
 
           <CardListFields form={form as FormInstance<any>} />
 
-          <AdminFormActions label="专家广场配置操作">
+          <AdminFormActions label={t('admin.expertPlaza.actions', '专家广场配置操作')}>
             <Button
               disabled={isLoading || !data}
               loading={submitting}
               type="primary"
               onClick={handleSave}
             >
-              保存专家广场
+              {t('admin.expertPlaza.save', '保存专家广场')}
             </Button>
           </AdminFormActions>
         </Flexbox>

@@ -15,7 +15,7 @@ describe('admin payment center experience', () => {
     expect(channelSettings).toContain('AdminPageError');
     expect(channelSettings).toContain('AdminFormActions');
     expect(channelSettings).toContain('onRetry={settings.mutate}');
-    expect(channelSettings).toContain('Skeleton active');
+    expect(channelSettings).toContain('AdminInlineSkeleton');
     expect(page).not.toContain('padding={24}');
     expect(page).not.toContain('<Title');
   });

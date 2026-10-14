@@ -1,5 +1,7 @@
 import { createStaticStyles, cssVar } from 'antd-style';
 
+import { adminDesignStyles } from '../layout/adminDesignTokens';
+
 export const mobileSettingsStyles = createStaticStyles(({ css }) => ({
   grid: css`
     display: grid;
@@ -33,14 +35,19 @@ export const mobileSettingsStyles = createStaticStyles(({ css }) => ({
     padding-block: 8px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
+  // 分区容器间距与 AdminSection 一致（gap: 16px）；此处保留私有 section
+  // 是因为各分区把 aria-label 挂在 <section> 上提供 region 地标语义
+  // （AdminMobileSettingsPage.test.tsx 按 region name 查询），而 AdminSection
+  // 不接受 aria-label。
   section: css`
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
   `,
   sectionTitle: css`
     margin: 0;
-    font-size: 16px;
-    font-weight: 600;
+    /* 标题规格复用共享令牌（fontSizeLG / fontWeightStrong / line-height: 24px），
+       与 AdminSection 的 sectionTitle 同源。 */
+    ${adminDesignStyles.sectionTitle}
   `,
 }));

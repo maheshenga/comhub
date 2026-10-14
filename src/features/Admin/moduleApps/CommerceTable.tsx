@@ -5,7 +5,9 @@ import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
 import { Checkbox, Typography } from 'antd';
 import { memo, useMemo, useState } from 'react';
 
-import InlineTable from '@/components/InlineTable';
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
+
+import { AdminDataTable } from '../shared';
 
 const { Text } = Typography;
 
@@ -41,15 +43,24 @@ export type CommerceTableLabels = Partial<{
   select: string;
   settle: string;
   status: string;
+  /** 无障碍滚动区名字（本地化由调用页传入，缺省回退 table）。 */
+  table: string;
   type: string;
 }>;
 
 type CommerceTableProps = {
   canWrite?: boolean;
+  hasNext?: boolean;
+  hasPrevious?: boolean;
   items?: ModuleAppRevenueRow[];
   labels?: CommerceTableLabels;
   loading?: boolean;
+  onNext?: () => void;
+  onPrevious?: () => void;
   onSettle: (entryIds: string[]) => Promise<void>;
+  /** 无障碍滚动区名字；非游标调用（如测试）回退到 labels.table。 */
+  positionLabel?: string;
+  regionLabel?: string;
   statusLabels?: Record<string, string>;
   typeLabels?: Record<string, string>;
 };
@@ -70,14 +81,26 @@ const defaultLabels = {
   select: 'Select revenue',
   settle: 'Settle selected',
   status: 'Status',
+  table: 'Revenue',
   type: 'Type',
 };
 
-const formatAmount = (value: number, currency: string) =>
-  `${currency} ${Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
-
 const CommerceTable = memo<CommerceTableProps>(
-  ({ canWrite = true, items = [], labels, loading, onSettle, statusLabels, typeLabels }) => {
+  ({
+    canWrite = true,
+    hasNext,
+    hasPrevious,
+    items = [],
+    labels,
+    loading,
+    onNext,
+    onPrevious,
+    onSettle,
+    positionLabel,
+    regionLabel,
+    statusLabels,
+    typeLabels,
+  }) => {
     const copy = { ...defaultLabels, ...labels };
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [confirming, setConfirming] = useState(false);
@@ -99,7 +122,7 @@ const CommerceTable = memo<CommerceTableProps>(
         return totals;
       }, new Map<string, number>()),
     )
-      .map(([currency, amount]) => formatAmount(amount, currency))
+      .map(([currency, amount]) => formatAdminAmount(amount, currency))
       .join(', ');
 
     const toggle = (id: string, checked: boolean) => {
@@ -162,25 +185,25 @@ const CommerceTable = memo<CommerceTableProps>(
       {
         key: 'gross',
         render: (_: unknown, row: ModuleAppRevenueRow) =>
-          formatAmount(row.grossAmount, row.currency),
+          formatAdminAmount(row.grossAmount, row.currency),
         title: copy.gross,
       },
       {
         key: 'platform',
         render: (_: unknown, row: ModuleAppRevenueRow) =>
-          formatAmount(row.platformFee, row.currency),
+          formatAdminAmount(row.platformFee, row.currency),
         title: copy.platformFee,
       },
       {
         key: 'reserve',
         render: (_: unknown, row: ModuleAppRevenueRow) =>
-          formatAmount(row.reserveAmount, row.currency),
+          formatAdminAmount(row.reserveAmount, row.currency),
         title: copy.reserve,
       },
       {
         key: 'developer',
         render: (_: unknown, row: ModuleAppRevenueRow) =>
-          formatAmount(row.developerAmount, row.currency),
+          formatAdminAmount(row.developerAmount, row.currency),
         title: copy.developer,
       },
       {
@@ -209,7 +232,24 @@ const CommerceTable = memo<CommerceTableProps>(
             </Button>
           ) : null}
         </Flexbox>
-        <InlineTable columns={columns as any} dataSource={items} loading={loading} rowKey="id" />
+        <AdminDataTable
+          columns={columns as any}
+          dataSource={items}
+          loading={loading}
+          regionLabel={regionLabel ?? copy.table}
+          rowKey="id"
+          pager={
+            hasNext !== undefined || hasPrevious !== undefined || onNext || onPrevious
+              ? {
+                  hasNext: Boolean(hasNext),
+                  hasPrevious: Boolean(hasPrevious),
+                  positionLabel,
+                  onNext: () => onNext?.(),
+                  onPrevious: () => onPrevious?.(),
+                }
+              : undefined
+          }
+        />
         {canWrite ? (
           <Modal
             cancelText={copy.cancel}

@@ -6,10 +6,10 @@ import { Button, Tag } from '@lobehub/ui/base-ui';
 import { Typography } from 'antd';
 import { memo } from 'react';
 
-import InlineTable from '@/components/InlineTable';
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 
+import { AdminDataTable } from '../shared';
 import { AdminTableState } from './AdminTableState';
-import CursorPager from './CursorPager';
 
 const { Text } = Typography;
 
@@ -57,6 +57,8 @@ type PayoutTableProps = {
   onAction?: (row: ModuleAppPayoutRow) => void;
   onNext?: () => void;
   onPrevious?: () => void;
+  /** 无障碍滚动区名字；三态由 AdminTableState 前置拦截。 */
+  regionLabel?: string;
   onRetry?: () => void;
   statusLabels?: Record<string, string>;
 };
@@ -106,6 +108,7 @@ const PayoutTable = memo<PayoutTableProps>(
     onNext,
     onPrevious,
     onRetry,
+    regionLabel,
     statusLabels,
   }) => {
     const copy = { ...defaultLabels, ...labels };
@@ -132,7 +135,7 @@ const PayoutTable = memo<PayoutTableProps>(
       {
         key: 'amount',
         render: (_: unknown, row: ModuleAppPayoutRow) =>
-          `${row.currency} ${Number(row.totalAmount).toLocaleString(undefined, { maximumFractionDigits: 6 })}`,
+          formatAdminAmount(row.totalAmount, row.currency),
         title: copy.amount,
       },
       { dataIndex: 'recipientMask', key: 'recipientMask', title: copy.recipient },
@@ -177,20 +180,27 @@ const PayoutTable = memo<PayoutTableProps>(
           onRetry={onRetry}
         >
           {items.length ? (
-            <InlineTable columns={columns as any} dataSource={items} rowKey="id" />
+            <AdminDataTable
+              columns={columns as any}
+              dataSource={items}
+              regionLabel={regionLabel ?? copy.payout}
+              rowKey="id"
+              pager={
+                hasPager
+                  ? {
+                      hasNext: Boolean(hasNext),
+                      hasPrevious: Boolean(hasPrevious),
+                      nextLabel: copy.next,
+                      positionLabel,
+                      previousLabel: copy.previous,
+                      onNext: () => onNext?.(),
+                      onPrevious: () => onPrevious?.(),
+                    }
+                  : undefined
+              }
+            />
           ) : null}
         </AdminTableState>
-        {hasPager ? (
-          <CursorPager
-            hasNext={hasNext}
-            hasPrevious={hasPrevious}
-            nextLabel={copy.next}
-            positionLabel={positionLabel}
-            previousLabel={copy.previous}
-            onNext={onNext}
-            onPrevious={onPrevious}
-          />
-        ) : null}
       </Flexbox>
     );
   },

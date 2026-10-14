@@ -2,6 +2,8 @@
 
 import { createStaticStyles } from 'antd-style';
 
+import type { AdminDataTablePagerState } from '../shared';
+
 export const paymentStyles = createStaticStyles(({ css, cssVar }) => ({
   controls: css`
     display: grid;
@@ -24,20 +26,16 @@ export const paymentStyles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 13px;
     color: ${cssVar.colorTextSecondary};
   `,
+  // 页面级容器间距对齐壳的 page gap 约定（adminPageStyles.page: 24px），
+  // 避免 Tab 切换时同一支付中心内 16px/24px 间距跳变。
   page: css`
     display: grid;
-    gap: 16px;
+    gap: 24px;
     min-width: 0;
   `,
   refundForm: css`
     display: grid;
     gap: 8px;
-  `,
-  toolbar: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: space-between;
   `,
 }));
 
@@ -46,6 +44,40 @@ export const ONLINE_PAYMENT_PROVIDERS = [
   'wechat_pay',
   'zpay',
 ] as const satisfies readonly string[];
+
+/** 三张支付表的游标页大小（列表接口 limit 与游标步长共用）。 */
+export const PAYMENTS_PAGE_SIZE = 25;
+
+/**
+ * 支付中心三个子页共享的游标分页器状态：统一交给 AdminDataTable 的 pager
+ * prop（内置上一页/下一页 + 位置标签），取代各处手写的
+ * Space + Button + PagerPositionLabel 组合。
+ * 返回 undefined 表示无可翻页内容，AdminDataTable 不渲染分页条。
+ */
+export const buildPaymentsPager = ({
+  cursor,
+  label,
+  nextCursor,
+  onCursorChange,
+}: {
+  cursor: number;
+  label: string;
+  nextCursor: null | number | undefined;
+  onCursorChange: (next: number) => void;
+}): AdminDataTablePagerState | undefined => {
+  const hasNext = nextCursor != null;
+  if (cursor <= 0 && !hasNext) return undefined;
+
+  return {
+    hasNext,
+    hasPrevious: cursor > 0,
+    positionLabel: label,
+    onNext: () => {
+      if (nextCursor != null) onCursorChange(nextCursor);
+    },
+    onPrevious: () => onCursorChange(Math.max(0, cursor - PAYMENTS_PAGE_SIZE)),
+  };
+};
 
 export const PAYMENT_STATUSES = [
   'pending',

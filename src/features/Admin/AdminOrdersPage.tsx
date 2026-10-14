@@ -7,8 +7,10 @@ import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { buildAdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
+import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -154,14 +156,15 @@ const AdminOrdersPage = memo(() => {
         {t('admin.orders.settleConfirmUser', '用户')}：{row.userEmail || row.userName || row.userId}
       </span>
       <span>
-        {t('admin.orders.settleConfirmAmount', '金额')}：{row.currency || 'CNY'} {row.amount}
+        {t('admin.orders.settleConfirmAmount', '金额')}：
+        {formatAdminAmount(row.amount, row.currency)}
       </span>
       <span>
         {t('admin.orders.settleConfirmCredits', '积分')}：{formatAdminCredits(row.credits)}
       </span>
       <span>
-        {t('admin.orders.settleConfirmProvider', '渠道')}：{row.provider || '-'} /{' '}
-        {row.source || '-'}
+        {t('admin.orders.settleConfirmProvider', '渠道')}：{row.provider || ADMIN_EMPTY_TEXT} /{' '}
+        {row.source || ADMIN_EMPTY_TEXT}
       </span>
     </Flexbox>
   );

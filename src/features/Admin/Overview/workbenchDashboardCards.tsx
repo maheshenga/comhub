@@ -17,11 +17,13 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import { Sparkline } from '../charts';
-import type { AdminMetric } from '../layout';
+import { adminIconSizes, type AdminMetric, AdminSection } from '../layout';
 import { overviewStyles } from './overviewStyles';
 import { WorkbenchTodoCard } from './workbenchCards';
 
-const metricIcon = (IconCmp: typeof Users) => <Icon aria-hidden icon={IconCmp} size={18} />;
+const metricIcon = (IconCmp: typeof Users) => (
+  <Icon aria-hidden icon={IconCmp} size={adminIconSizes.metric} />
+);
 
 /** 指标带条目构造（region 关键指标，label/value 形态与 M5 版本逐字一致）。 */
 export const buildOverviewMetrics = (overview?: {
@@ -143,6 +145,59 @@ export const WorkbenchModuleAppsCard = memo<{
 
 WorkbenchModuleAppsCard.displayName = 'WorkbenchModuleAppsCard';
 
+/** ③ 用户概览分区：AdminSection 壳 + 三指标卡（工作台五卡片网格成员）。 */
+export const WorkbenchUsersSection = memo<{
+  loading: boolean;
+  overview?: { dau?: number; mau?: number; totalUsers?: number };
+}>(({ loading, overview }) => {
+  const { t } = useTranslation('subscription');
+
+  return (
+    <AdminSection
+      carded
+      description={t('admin.overview.users.description', '平台规模与健康度速览。')}
+      title={t('admin.overview.users.title', '用户概览')}
+    >
+      <WorkbenchUsersCard
+        dau={overview?.dau}
+        loading={loading}
+        mau={overview?.mau}
+        totalUsers={overview?.totalUsers}
+      />
+    </AdminSection>
+  );
+});
+
+WorkbenchUsersSection.displayName = 'WorkbenchUsersSection';
+
+/** ④ 模块应用分区：待审包数 + 警示标签（工作台五卡片网格成员）。 */
+export const WorkbenchModuleAppsSection = memo<{ items: any[] }>(({ items }) => {
+  const { t } = useTranslation('subscription');
+
+  return (
+    <AdminSection
+      carded
+      description={t('admin.overview.moduleApps.description', '模块应用平台的审核与结算状态。')}
+      title={t('admin.overview.moduleApps.title', '模块应用')}
+    >
+      <WorkbenchModuleAppsCard
+        total={items.length}
+        items={items.map((item: any) => ({
+          hint: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : undefined,
+          label: item.name ?? item.appId ?? item.id,
+          tag:
+            item.scanStatus === 'flagged'
+              ? t('admin.overview.moduleApps.flagged', '警示')
+              : undefined,
+          tagColor: 'warning',
+        }))}
+      />
+    </AdminSection>
+  );
+});
+
+WorkbenchModuleAppsSection.displayName = 'WorkbenchModuleAppsSection';
+
 /** 末位快捷入口带：按职责域分组的页面直达（h2 管理模块）。仅展示当前角色可达的分组（M8）。 */
 export const WorkbenchQuickLinks = memo(() => {
   const navigate = useNavigate();
@@ -167,7 +222,7 @@ export const WorkbenchQuickLinks = memo(() => {
                   onClick={() => navigate(item.path)}
                 >
                   <span>{item.label}</span>
-                  <ArrowRight aria-hidden size={14} />
+                  <ArrowRight aria-hidden size={adminIconSizes.inline} />
                 </button>
               ))}
             </div>

@@ -41,7 +41,6 @@ export const OrderTableArea = ({
       columns={columns}
       dataSource={data?.items ?? []}
       loading={isLoading}
-      locale={{ emptyText: t('admin.orders.empty', '暂无订单') }}
       regionLabel={t('admin.orders.tableLabel', '订单数据表')}
       rowKey="id"
       rowSelection={rowSelection}

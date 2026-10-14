@@ -5,6 +5,8 @@ import { Space } from 'antd';
 import { Search } from 'lucide-react';
 import type * as React from 'react';
 
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
+
 import {
   PAYMENT_STATUSES,
   paymentStyles as styles,
@@ -58,7 +60,7 @@ export const PaymentRefundModal = ({
     <div className={styles.refundForm}>
       <div>
         {refundOrder
-          ? `${refundOrder.currency} ${refundOrder.amount} · ${refundOrder.displayName}`
+          ? `${formatAdminAmount(refundOrder.amount, refundOrder.currency)} · ${refundOrder.displayName}`
           : null}
       </div>
       <label>

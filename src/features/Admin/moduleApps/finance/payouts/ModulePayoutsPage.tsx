@@ -17,7 +17,6 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import CursorPager from '../../CursorPager';
 import PayoutTable, { type ModuleAppPayoutRow } from '../../PayoutTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
@@ -163,6 +162,8 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         <div>
           <PayoutTable
             canWrite={canWrite}
+            hasNext={Boolean(data?.nextCursor)}
+            hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
             items={data?.items ?? []}
             statusLabels={statusLabels}
             labels={{
@@ -177,18 +178,14 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
               revenue: t('moduleApps.admin.payouts.columns.revenue'),
               status: t('moduleApps.admin.payouts.columns.status'),
             }}
+            positionLabel={t('moduleApps.admin.payouts.pagePosition', {
+              page: searchParams.getAll('previousCursor').length + 1,
+            })}
+            onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onAction={(row) => {
               setSelectedPayout(row);
               setModalMode('manage');
             }}
-          />
-          <CursorPager
-            hasNext={Boolean(data?.nextCursor)}
-            hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
-            nextLabel={t('moduleApps.admin.payouts.next')}
-            positionLabel={t('moduleApps.admin.payouts.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
-            previousLabel={t('moduleApps.admin.payouts.previous')}
-            onPrevious={() => setSearchParams(retreatCursor(searchParams))}
             onNext={() =>
               data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
             }

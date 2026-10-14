@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('AdminContentPages', () => {
   it('uses the shared admin hierarchy and exposes a named data region', () => {
     swrMock.useClientDataSWR.mockReturnValue({
-      data: { items: [], nextCursor: null },
+      data: { items: [{ topic: { id: 'topic-1', title: 'Welcome' } }], nextCursor: null },
       error: undefined,
       isLoading: false,
     });
@@ -45,6 +45,19 @@ describe('AdminContentPages', () => {
     expect(screen.getByRole('heading', { level: 2, name: '话题列表' })).toBeInTheDocument();
     expect(screen.getByRole('toolbar')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '话题数据表' })).toBeInTheDocument();
+  });
+
+  it('renders the shared empty state instead of an empty data region', () => {
+    swrMock.useClientDataSWR.mockReturnValue({
+      data: { items: [], nextCursor: null },
+      error: undefined,
+      isLoading: false,
+    });
+
+    render(<AdminTopicsPage />);
+
+    expect(screen.getByTestId('admin-empty-initial')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '话题数据表' })).not.toBeInTheDocument();
   });
 
   it('shows a retry action when content data fails to load', () => {

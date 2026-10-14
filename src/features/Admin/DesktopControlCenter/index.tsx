@@ -126,7 +126,12 @@ const DesktopControlCenter = memo(() => {
           },
           {
             children: (
-              <DistributionPage overview={overview} settings={settings} onDirtyChange={setDirty} />
+              <DistributionPage
+                onConfigure={() => void changeTab('updates')}
+                onDirtyChange={setDirty}
+                overview={overview}
+                settings={settings}
+              />
             ),
             key: 'distribution',
             label: t('admin.desktopControl.tabs.distribution'),

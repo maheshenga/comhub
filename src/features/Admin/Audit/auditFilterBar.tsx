@@ -128,34 +128,40 @@ export const AuditFilterBar = ({
   };
 
   return (
-    <Flexbox horizontal align="center" gap={12} style={{ flex: '1 1 520px', flexWrap: 'wrap' }}>
-      {TEXT_FILTERS.map(({ filterKey, placeholderKey, placeholder, width }) => (
-        <Input
+    <>
+      {/* F2：导出动作从筛选组拆出，作为工具条右侧独立操作组
+          （AdminToolbar 是 space-between flex，筛选组占满剩余宽度）。 */}
+      <Flexbox horizontal align="center" gap={12} style={{ flex: '1 1 520px', flexWrap: 'wrap' }}>
+        {TEXT_FILTERS.map(({ filterKey, placeholderKey, placeholder, width }) => (
+          <Input
+            allowClear
+            key={filterKey}
+            placeholder={t(placeholderKey, placeholder)}
+            style={{ width: `min(${width}px, 100%)` }}
+            value={drafts[filterKey] ?? ''}
+            onBlur={() => commit(filterKey)}
+            onPressEnter={() => commit(filterKey)}
+            onChange={(e: { target: { value: string } }) => {
+              const value = e.target.value;
+              setDrafts((prev) => ({ ...prev, [filterKey]: value }));
+              // 清空是明确意图，立即生效；其余按键等回车/失焦。
+              if (value === '' && appliedByKey[filterKey] !== '') onFilterChange(filterKey, '');
+            }}
+          />
+        ))}
+        <DatePicker.RangePicker
           allowClear
-          key={filterKey}
-          placeholder={t(placeholderKey, placeholder)}
-          style={{ width: `min(${width}px, 100%)` }}
-          value={drafts[filterKey] ?? ''}
-          onBlur={() => commit(filterKey)}
-          onPressEnter={() => commit(filterKey)}
-          onChange={(e: { target: { value: string } }) => {
-            const value = e.target.value;
-            setDrafts((prev) => ({ ...prev, [filterKey]: value }));
-            // 清空是明确意图，立即生效；其余按键等回车/失焦。
-            if (value === '' && appliedByKey[filterKey] !== '') onFilterChange(filterKey, '');
-          }}
+          format="YYYY/MM/DD"
+          style={{ width: 'min(260px, 100%)' }}
+          value={dateRangeFilter}
+          onChange={(values) => onDateRangeChange(values ? [values[0], values[1]] : null)}
         />
-      ))}
-      <DatePicker.RangePicker
-        allowClear
-        format="YYYY/MM/DD"
-        style={{ width: 'min(260px, 100%)' }}
-        value={dateRangeFilter}
-        onChange={(values) => onDateRangeChange(values ? [values[0], values[1]] : null)}
-      />
-      <Button loading={exporting} onClick={onExport}>
-        {t('admin.audit.exportCsv', '导出 CSV')}
-      </Button>
-    </Flexbox>
+      </Flexbox>
+      <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
+        <Button loading={exporting} onClick={onExport}>
+          {t('admin.audit.exportCsv', '导出 CSV')}
+        </Button>
+      </Flexbox>
+    </>
   );
 };

@@ -6,7 +6,7 @@ import { RefreshCw } from 'lucide-react';
 
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
 
-import { paymentStyles as styles } from './paymentsShared';
+import { AdminToolbar } from '../layout';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => any;
 
@@ -44,7 +44,7 @@ export const PaymentListHeader = ({
   t,
   title,
 }: PaymentListHeaderProps) => (
-  <div className={styles.toolbar}>
+  <AdminToolbar>
     <div>
       <strong>{title}</strong>
       <div>{description}</div>
@@ -78,6 +78,5 @@ export const PaymentListHeader = ({
         </Button>
       ) : null}
     </Space>
-  </div>
+  </AdminToolbar>
 );
-

@@ -180,7 +180,6 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
               columns={columns}
               dataSource={items}
               loading={isLoading}
-              locale={{ emptyText: t('admin.changeRequests.empty', '暂无变更请求') }}
               regionLabel={t('admin.changeRequests.tableTitle', '套餐变更请求')}
               rowKey="id"
               rowSelection={{

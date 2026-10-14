@@ -3,7 +3,7 @@
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Alert, Button, Select, Switch, Tabs, Tag, toast } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
-import { Form, Input, Skeleton } from 'antd';
+import { Form, Input } from 'antd';
 import { Save } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { AdminFormActions, AdminPageError } from '../layout';
+import { AdminInlineSkeleton } from '../shared';
 import { isFormValidationError } from '../shared/adminFormErrors';
 import { AlipaySettingsCard, WechatSettingsCard, ZpaySettingsCard } from './ChannelCards';
 import {
@@ -106,7 +107,7 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
     },
   };
 
-  if (settings.isLoading && !settings.data) return <Skeleton active paragraph={{ rows: 8 }} />;
+  if (settings.isLoading && !settings.data) return <AdminInlineSkeleton rows={8} />;
 
   return (
     <Flexbox gap={16} style={{ maxWidth: 980 }}>

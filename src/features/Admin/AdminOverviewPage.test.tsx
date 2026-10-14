@@ -40,7 +40,9 @@ describe('AdminOverviewPage', () => {
     expect(screen.getByRole('region', { name: '关键指标' })).toHaveTextContent('总用户42');
     expect(screen.getByRole('region', { name: '关键指标' })).toHaveTextContent('有效订阅12');
     expect(screen.getByRole('heading', { level: 2, name: '待处理事项' })).toBeInTheDocument();
-    expect(screen.getByText('套餐变更请求 3')).toBeInTheDocument();
+    // i18n 测试桩按 key 透传、返回 defaultValue 原文且不插值（tests/setup.ts），
+    // 因此这里与 AdminAuditExperience / adminChineseCopy 一样断言 {{count}} 模板。
+    expect(screen.getByText('套餐变更请求 {{count}}')).toBeInTheDocument();
     expect(screen.getByText('openai/gpt-5')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: '管理模块' })).toBeInTheDocument();
   });

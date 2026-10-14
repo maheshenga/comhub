@@ -210,6 +210,7 @@ const AdminModelBillingMatrixPage = memo(() => {
           displayRows={displayRows}
           focusedPlanKeySet={focusedPlanKeySet}
           loading={loading}
+          loadFailed={hasLoadError}
           planData={planData}
           plans={plans}
           rows={rows}

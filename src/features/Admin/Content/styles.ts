@@ -14,10 +14,6 @@ export const contentStyles = createStaticStyles(({ css }) => ({
 
     min-width: 0;
   `,
-  pagination: css`
-    display: flex;
-    justify-content: center;
-  `,
   search: css`
     flex: 1 1 280px;
     min-width: min(240px, 100%);

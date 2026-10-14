@@ -13,7 +13,6 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import PendingRefundResolutionModal from '../../../payments/PendingRefundResolutionModal';
-import CursorPager from '../../CursorPager';
 import PaymentReconciliationTable, {
   type ModuleAppPaymentDiagnosticRow,
 } from '../../PaymentReconciliationTable';
@@ -174,14 +173,14 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
       <ModulePaymentFilters
         appIdInput={appIdInput}
         discrepancyStatus={discrepancyStatus}
-        onAppIdInput={setAppIdInput}
-        onOrderIdInput={setOrderIdInput}
         orderIdInput={orderIdInput}
         paymentStatus={paymentStatus}
         refundStatus={refundStatus}
         statusLabels={statusLabels}
         t={t as any}
         updateFilter={updateFilter}
+        onAppIdInput={setAppIdInput}
+        onOrderIdInput={setOrderIdInput}
       />
       <ModulePageState
         emptyKind={isFiltered ? 'filtered' : 'initial'}
@@ -203,49 +202,45 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
         onClearFilters={clearFilters}
         onRetry={() => mutate(listKey)}
       >
-        <div>
-          <PaymentReconciliationTable
-            canWrite={canWrite}
-            items={data?.items ?? []}
-            labels={reconciliationLabels}
-            statusLabels={statusLabels}
-            onOpenOfflineRefund={(row) => openAction('offlineRefund', row)}
-            onOpenRefund={(row) => openAction('refund', row)}
-            onOpenSettle={(row) => openAction('settle', row)}
-            onAcknowledge={(discrepancyId) =>
-              runDirectAction(`acknowledge:${discrepancyId}`, () =>
-                adminCommercialService.moduleApps.acknowledgePaymentDiscrepancy({
-                  discrepancyId,
-                }),
-              )
-            }
-            onResolveRefund={(targetOrderId) => {
-              const target = data?.items.find((item) => item.orderId === targetOrderId);
-              if (target) openResolution(target);
-            }}
-            onRetryPayment={(outTradeNo, provider) =>
-              runDirectAction(`payment:${outTradeNo}`, () =>
-                adminCommercialService.moduleApps.retryPaymentQuery({ outTradeNo, provider }),
-              )
-            }
-            onRetryRefund={(targetOrderId) =>
-              runDirectAction(`refund:${targetOrderId}`, () =>
-                adminCommercialService.moduleApps.retryRefundStatus({ orderId: targetOrderId }),
-              )
-            }
-          />
-          <CursorPager
-            hasNext={Boolean(data?.nextCursor)}
-            hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
-            nextLabel={t('moduleApps.admin.payments.next')}
-            positionLabel={t('moduleApps.admin.payments.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
-            previousLabel={t('moduleApps.admin.payments.previous')}
-            onPrevious={() => setSearchParams(retreatCursor(searchParams))}
-            onNext={() =>
-              data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
-            }
-          />
-        </div>
+        <PaymentReconciliationTable
+          canWrite={canWrite}
+          hasNext={Boolean(data?.nextCursor)}
+          hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
+          items={data?.items ?? []}
+          labels={reconciliationLabels}
+          statusLabels={statusLabels}
+          positionLabel={t('moduleApps.admin.payments.pagePosition', {
+            page: searchParams.getAll('previousCursor').length + 1,
+          })}
+          onOpenOfflineRefund={(row) => openAction('offlineRefund', row)}
+          onOpenRefund={(row) => openAction('refund', row)}
+          onOpenSettle={(row) => openAction('settle', row)}
+          onPrevious={() => setSearchParams(retreatCursor(searchParams))}
+          onAcknowledge={(discrepancyId) =>
+            runDirectAction(`acknowledge:${discrepancyId}`, () =>
+              adminCommercialService.moduleApps.acknowledgePaymentDiscrepancy({
+                discrepancyId,
+              }),
+            )
+          }
+          onNext={() =>
+            data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
+          }
+          onResolveRefund={(targetOrderId) => {
+            const target = data?.items.find((item) => item.orderId === targetOrderId);
+            if (target) openResolution(target);
+          }}
+          onRetryPayment={(outTradeNo, provider) =>
+            runDirectAction(`payment:${outTradeNo}`, () =>
+              adminCommercialService.moduleApps.retryPaymentQuery({ outTradeNo, provider }),
+            )
+          }
+          onRetryRefund={(targetOrderId) =>
+            runDirectAction(`refund:${targetOrderId}`, () =>
+              adminCommercialService.moduleApps.retryRefundStatus({ orderId: targetOrderId }),
+            )
+          }
+        />
       </ModulePageState>
       {canWrite ? (
         <PaymentActionModal
@@ -256,8 +251,12 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
           paymentReference={paymentReference}
           reason={reason}
           submitting={submitting}
-          target={actionTarget ? { appName: actionTarget.appName, orderId: actionTarget.orderId } : undefined}
           t={t as any}
+          target={
+            actionTarget
+              ? { appName: actionTarget.appName, orderId: actionTarget.orderId }
+              : undefined
+          }
           onCancel={closeAction}
           onOfflineRefundReferenceChange={setOfflineRefundReference}
           onOk={submitAction}

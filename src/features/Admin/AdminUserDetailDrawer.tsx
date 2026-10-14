@@ -3,11 +3,11 @@
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Tag, toast } from '@lobehub/ui/base-ui';
-import { Button, Descriptions, Drawer, Empty, InputNumber, Modal, Space } from 'antd';
+import { Button, Descriptions, Drawer, InputNumber, Modal, Space } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { AdminInlineSkeleton } from '@/features/Admin/shared';
+import { AdminInlineSkeleton, AdminPageState } from '@/features/Admin/shared';
 import { mutate as swrMutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
@@ -32,9 +32,11 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   const canManageFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
   const canReadFullDetail = hasAdminCapability(role, ADMIN_CAPABILITIES.supportWrite);
   const fullDetailSWRKey = userId && canReadFullDetail ? ['admin-user-full-detail', userId] : null;
-  const compactDetailSWRKey = userId && !canReadFullDetail ? ['admin-user-compact-detail', userId] : null;
-  const { data: fullDetail, isLoading: fullDetailLoading } = useClientDataSWR(fullDetailSWRKey, () =>
-    adminCommercialService.getUserFullDetail(userId!),
+  const compactDetailSWRKey =
+    userId && !canReadFullDetail ? ['admin-user-compact-detail', userId] : null;
+  const { data: fullDetail, isLoading: fullDetailLoading } = useClientDataSWR(
+    fullDetailSWRKey,
+    () => adminCommercialService.getUserFullDetail(userId!),
   );
   const { data: compactDetail, isLoading: compactDetailLoading } = useClientDataSWR(
     compactDetailSWRKey,
@@ -141,7 +143,21 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
       ) : compactDetail ? (
         <CompactProfile compactDetail={compactDetail} />
       ) : (
-        <Empty />
+        <AdminPageState
+          isEmpty
+          emptyKind="initial"
+          emptyTitle={t('admin.userDetail.notFoundTitle', '用户不存在')}
+          emptyDescription={t(
+            'admin.userDetail.notFoundDescription',
+            '该用户可能已被删除，或当前角色无权查看其详情。关闭抽屉后请从用户列表中选择其他用户。',
+          )}
+          primaryAction={{
+            label: t('admin.userDetail.close', '关闭'),
+            onClick: onClose,
+          }}
+        >
+          {null}
+        </AdminPageState>
       )}
       {canManageFinance ? (
         <AdminAssignPlanModal
@@ -219,20 +235,20 @@ const CompactProfile = ({ compactDetail }: { compactDetail: any }) => {
       </Descriptions.Item>
       <Descriptions.Item label={t('admin.role', '角色')}>
         {compactDetail.role ? (
-          <Tag color={compactDetail.role === 'admin' ? 'purple' : 'blue'}>
-            {compactDetail.role}
-          </Tag>
+          <Tag color={compactDetail.role === 'admin' ? 'purple' : 'blue'}>{compactDetail.role}</Tag>
         ) : (
           EMPTY_TEXT
         )}
       </Descriptions.Item>
       <Descriptions.Item label={t('admin.status', '状态')}>
-        {compactDetail.banned ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>}
+        {compactDetail.banned ? (
+          <Tag color="red">{t('admin.userStatus.banned', 'Banned')}</Tag>
+        ) : (
+          <Tag color="green">{t('admin.userStatus.active', 'Active')}</Tag>
+        )}
       </Descriptions.Item>
       <Descriptions.Item label={t('admin.joined', '注册时间')}>
-        {compactDetail.createdAt
-          ? new Date(compactDetail.createdAt).toLocaleString()
-          : EMPTY_TEXT}
+        {compactDetail.createdAt ? new Date(compactDetail.createdAt).toLocaleString() : EMPTY_TEXT}
       </Descriptions.Item>
     </Descriptions>
   );

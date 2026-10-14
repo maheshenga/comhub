@@ -101,7 +101,11 @@ export const buildUserColumns = (ctx: UserColumnsContext): TableColumnsType<User
       dataIndex: 'banned',
       key: 'status',
       render: (value: boolean | null) =>
-        value ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>,
+        value ? (
+          <Tag color="red">{t('admin.userStatus.banned', 'Banned')}</Tag>
+        ) : (
+          <Tag color="green">{t('admin.userStatus.active', 'Active')}</Tag>
+        ),
       title: t('admin.status', '状态'),
     },
     {
@@ -216,7 +220,7 @@ export const buildUserColumns = (ctx: UserColumnsContext): TableColumnsType<User
           </Button>
         </Space>
       ),
-      title: t('admin.actions', '操作'),
+      title: t('admin.actions', 'Actions'),
     },
   ];
 };

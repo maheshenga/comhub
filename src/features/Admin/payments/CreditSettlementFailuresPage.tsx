@@ -1,22 +1,22 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Alert,Button, confirmModal, Select, toast  } from '@lobehub/ui/base-ui';
+import { Button, confirmModal, Select, toast } from '@lobehub/ui/base-ui';
 import type { TableProps } from 'antd';
-import { Space } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
-import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import { PagerPositionLabel } from '../shared/PagerPositionLabel';
+import { AdminPageError, AdminSection, AdminToolbar } from '../layout';
+import { AdminDataTable } from '../shared';
+import { buildPaymentsPager, PAYMENTS_PAGE_SIZE } from './paymentsShared';
 import {
   buildSettlementFailureColumns,
   SETTLEMENT_STATUSES,
@@ -25,18 +25,12 @@ import {
   settlementStyles as styles,
 } from './settlementShared';
 
+// 页面级容器间距对齐壳的 page gap 约定（adminPageStyles.page: 24px）。
 const pageStyles = createStaticStyles(({ css }) => ({
   page: css`
     display: grid;
-    gap: 16px;
+    gap: 24px;
     min-width: 0;
-  `,
-  toolbar: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: end;
-    justify-content: space-between;
   `,
 }));
 
@@ -44,8 +38,6 @@ type CreditSettlementFailureListResponse = {
   items: SettlementFailureRow[];
   nextCursor: null | number;
 };
-
-const PAGE_SIZE = 25;
 
 const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
   ({ canWrite: canWriteOverride }) => {
@@ -71,7 +63,7 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
       () =>
         adminCommercialService.listCreditSettlementFailures({
           cursor,
-          limit: PAGE_SIZE,
+          limit: PAYMENTS_PAGE_SIZE,
           ...(status ? { status } : {}),
         }),
       { keepPreviousData: true },
@@ -132,7 +124,7 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
 
     return (
       <section className={pageStyles.page} data-testid="credit-settlement-failures-page">
-        <div className={pageStyles.toolbar}>
+        <AdminToolbar>
           <div>
             <strong>{t('admin.payments.settlements.title', 'Credit settlement failures')}</strong>
             <div>
@@ -145,64 +137,62 @@ const CreditSettlementFailuresPage = memo<{ canWrite?: boolean }>(
           <Button icon={<RefreshCw aria-hidden size={16} />} onClick={() => mutate(swrKey)}>
             {t('admin.payments.settlements.refresh', 'Refresh list')}
           </Button>
-        </div>
-        <label className={styles.toolbarField}>
-          {t('admin.payments.settlements.filters.status', 'Status')}
-          <Select
-            value={status ?? ''}
-            options={[
-              { label: t('admin.payments.settlements.filters.all', 'All'), value: '' },
-              {
-                label: t('admin.payments.settlements.status.pending', 'Pending'),
-                value: 'pending',
-              },
-              {
-                label: t('admin.payments.settlements.status.resolved', 'Resolved'),
-                value: 'resolved',
-              },
-            ]}
-            onChange={(value) => {
-              const nextStatus = String(value || '');
-              updateParams({
-                settlementCursor: null,
-                settlementStatus: nextStatus ? (nextStatus as SettlementFailureStatus) : null,
-              });
-            }}
-          />
-        </label>
-        {error ? (
-          <Alert
-            showIcon
-            type="error"
-            message={t(
-              'admin.payments.settlements.loadFailed',
-              'Unable to load credit settlement failures',
+        </AdminToolbar>
+        <AdminSection>
+          <label className={styles.toolbarField}>
+            {t('admin.payments.settlements.filters.status', 'Status')}
+            <Select
+              value={status ?? ''}
+              options={[
+                { label: t('admin.payments.settlements.filters.all', 'All'), value: '' },
+                {
+                  label: t('admin.payments.settlements.status.pending', 'Pending'),
+                  value: 'pending',
+                },
+                {
+                  label: t('admin.payments.settlements.status.resolved', 'Resolved'),
+                  value: 'resolved',
+                },
+              ]}
+              onChange={(value) => {
+                const nextStatus = String(value || '');
+                updateParams({
+                  settlementCursor: null,
+                  settlementStatus: nextStatus ? (nextStatus as SettlementFailureStatus) : null,
+                });
+              }}
+            />
+          </label>
+          {error ? (
+            <AdminPageError
+              description={t(
+                'admin.payments.settlements.loadFailed',
+                'Unable to load credit settlement failures',
+              )}
+              onRetry={() => void mutate(swrKey)}
+            />
+          ) : null}
+          <AdminDataTable
+            columns={columns as TableProps['columns']}
+            dataSource={data?.items ?? []}
+            isEmpty={!isLoading && !error && (data?.items?.length ?? 0) === 0}
+            loading={isLoading}
+            rowKey="id"
+            pager={buildPaymentsPager({
+              cursor,
+              label: t('admin.pagination.pagePosition', {
+                defaultValue: '第 {{page}} 页',
+                page: cursor / PAYMENTS_PAGE_SIZE + 1,
+              }),
+              nextCursor: data?.nextCursor,
+              onCursorChange: (next) => updateParams({ settlementCursor: next }),
+            })}
+            regionLabel={t(
+              'admin.payments.settlements.tableLabel',
+              'Credit settlement failures table',
             )}
           />
-        ) : null}
-        <InlineTable
-          columns={columns as TableProps['columns']}
-          dataSource={data?.items ?? []}
-          loading={isLoading}
-          rowKey="id"
-        />
-        {(cursor > 0 || data?.nextCursor != null) && (
-          <Space>
-            <PagerPositionLabel page={cursor / PAGE_SIZE + 1} />
-            <Button
-              disabled={cursor === 0}
-              onClick={() => updateParams({ settlementCursor: Math.max(0, cursor - PAGE_SIZE) })}
-            >
-              {t('admin.pagination.previous', 'Previous')}
-            </Button>
-            <Button
-              disabled={data?.nextCursor == null}
-              onClick={() => updateParams({ settlementCursor: data?.nextCursor ?? null })}
-            >
-              {t('admin.pagination.next', 'Next')}
-            </Button>
-          </Space>
-        )}
+        </AdminSection>
       </section>
     );
   },

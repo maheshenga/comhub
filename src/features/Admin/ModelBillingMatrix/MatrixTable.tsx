@@ -3,7 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button, Tag } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Empty, InputNumber, Space, Switch, Typography } from 'antd';
+import { InputNumber, Space, Switch, Typography } from 'antd';
 
 import { MATRIX_ACCESS_SAVE_LABEL, MATRIX_DISCARD_LABEL, MATRIX_PRICING_SAVE_LABEL } from '@/features/Admin/adminMatrixCopy';
 import type { MatrixRow } from '@/features/Admin/adminModelBillingMatrix';
@@ -22,6 +22,8 @@ interface MatrixTableProps {
   canWriteSystem: boolean;
   displayRows: MatrixRow[];
   focusedPlanKeySet: Set<string>;
+  /** True when the page-level matrix fetch failed; keeps the table out of the empty state. */
+  loadFailed?: boolean;
   loading: boolean;
   onDiscardRows: () => void;
   onSaveAccess: () => void;
@@ -46,6 +48,7 @@ export const MatrixTable = ({
   focusedPlanKeySet,
   displayRows,
   loading,
+  loadFailed,
   onDiscardRows,
   onSaveAccess,
   onSavePricing,
@@ -193,8 +196,9 @@ export const MatrixTable = ({
         <AdminDataTable
           columns={visibleColumns}
           dataSource={displayRows}
+          emptyTitle={t('admin.modelBillingMatrix.matrixEmptyTitle', '暂无已启用的服务商模型')}
+          isEmpty={!loading && !loadFailed && displayRows.length === 0}
           loading={loading}
-          locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
           pagination={{ defaultPageSize: 50, hideOnSinglePage: true, showSizeChanger: true }}
           regionLabel={t('admin.modelBillingMatrix.matrixSection', '模型权限与计费')}
           rowKey="key"

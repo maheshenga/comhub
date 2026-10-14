@@ -6,10 +6,8 @@ import { Tag } from '@lobehub/ui/base-ui';
 import { type TableProps, Typography } from 'antd';
 import { memo, type ReactNode } from 'react';
 
-import InlineTable from '@/components/InlineTable';
-
+import { ADMIN_EMPTY_TEXT, AdminDataTable } from '../shared';
 import { AdminTableState } from './AdminTableState';
-import CursorPager from './CursorPager';
 
 const { Text } = Typography;
 
@@ -66,7 +64,8 @@ const defaultLabels: PublisherTableLabels = {
     suspended: 'Suspended',
     verified: 'Verified',
   },
-  suspensionReasonEmpty: '—',
+  // F12：空占位统一为 repo 惯例的 '-'（原 '—' 与审计域口径不一致）。
+  suspensionReasonEmpty: ADMIN_EMPTY_TEXT,
 };
 
 const PublisherTable = memo(
@@ -80,6 +79,7 @@ const PublisherTable = memo(
     loading,
     onNext,
     actionsTitle = 'Actions',
+    regionLabel,
     renderActions,
     onPrevious,
     onRetry,
@@ -88,7 +88,7 @@ const PublisherTable = memo(
     error?: unknown;
     actionsTitle?: string;
     hasNext?: boolean;
-  positionLabel?: string;
+    positionLabel?: string;
     hasPrevious?: boolean;
     items?: ModuleAppPublisherRow[];
     labels?: PublisherTableLabelOverrides;
@@ -96,6 +96,8 @@ const PublisherTable = memo(
     onNext?: () => void;
     onPrevious?: () => void;
     onRetry?: () => void;
+    /** 无障碍滚动区名字；页面可传本地化标题，缺省回退到发布者列名。 */
+    regionLabel?: string;
     renderActions?: (publisher: ModuleAppPublisherRow) => ReactNode;
     showPager?: boolean;
   }) => {
@@ -169,24 +171,27 @@ const PublisherTable = memo(
           onRetry={onRetry}
         >
           {items.length ? (
-            <InlineTable
-              columns={columns as TableProps['columns']}
+            <AdminDataTable
+              columns={columns}
               dataSource={items}
+              regionLabel={regionLabel ?? resolvedLabels.columns.publisher}
               rowKey="id"
+              pager={
+                (showPager ?? Boolean(hasNext || hasPrevious || onNext || onPrevious))
+                  ? {
+                      hasNext: Boolean(hasNext),
+                      hasPrevious: Boolean(hasPrevious),
+                      nextLabel: resolvedLabels.next,
+                      positionLabel,
+                      previousLabel: resolvedLabels.previous,
+                      onNext: () => onNext?.(),
+                      onPrevious: () => onPrevious?.(),
+                    }
+                  : undefined
+              }
             />
           ) : null}
         </AdminTableState>
-        {(showPager ?? Boolean(hasNext || hasPrevious || onNext || onPrevious)) ? (
-          <CursorPager
-            hasNext={hasNext}
-            hasPrevious={hasPrevious}
-            nextLabel={resolvedLabels.next}
-            positionLabel={positionLabel}
-            previousLabel={resolvedLabels.previous}
-            onNext={onNext}
-            onPrevious={onPrevious}
-          />
-        ) : null}
       </Flexbox>
     );
   },

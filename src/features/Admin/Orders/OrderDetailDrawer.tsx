@@ -7,7 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
+import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';
 
 import type { AdminOrderDetail, OrderStatus } from './shared';
 import {
@@ -18,7 +20,7 @@ import {
 } from './shared';
 
 const renderDateTime = (value?: Date | null | string) =>
-  value ? new Date(value).toLocaleString() : '-';
+  value ? new Date(value).toLocaleString() : ADMIN_EMPTY_TEXT;
 
 const OrderDetailDrawerBody = ({
   orderDetail,
@@ -46,16 +48,16 @@ const OrderDetailDrawerBody = ({
           </Tag>
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.amount', '金额')}>
-          {orderDetail.currency || 'CNY'} {orderDetail.amount}
+          {formatAdminAmount(orderDetail.amount, orderDetail.currency)}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.credits', '积分')}>
           {formatAdminCredits(orderDetail.credits)}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.provider', '渠道')}>
-          {orderDetail.provider || '-'} / {orderDetail.source || '-'}
+          {orderDetail.provider || ADMIN_EMPTY_TEXT} / {orderDetail.source || ADMIN_EMPTY_TEXT}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.externalOrderId', '外部订单号')}>
-          {orderDetail.externalOrderId || '-'}
+          {orderDetail.externalOrderId || ADMIN_EMPTY_TEXT}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.createdAt', '创建时间')}>
           {renderDateTime(orderDetail.createdAt)}
@@ -75,20 +77,24 @@ const OrderDetailDrawerBody = ({
         title={t('admin.orders.detail.redemptionCode', '关联兑换码')}
       >
         <Descriptions.Item label={t('admin.orders.detail.redemptionCodeId', '兑换码 ID')}>
-          {orderDetail.redemptionCodeId ? <code>{orderDetail.redemptionCodeId}</code> : '-'}
+          {orderDetail.redemptionCodeId ? (
+            <code>{orderDetail.redemptionCodeId}</code>
+          ) : (
+            ADMIN_EMPTY_TEXT
+          )}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.redemptionCodeValue', '兑换码')}>
           {orderDetail.redemptionCode?.code ? (
             <code>{orderDetail.redemptionCode.code}</code>
           ) : (
-            '-'
+            ADMIN_EMPTY_TEXT
           )}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.redemptionCodeStatus', '兑换码状态')}>
-          {orderDetail.redemptionCode?.status || '-'}
+          {orderDetail.redemptionCode?.status || ADMIN_EMPTY_TEXT}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.orders.detail.redemptionCodeBatch', '批次')}>
-          {orderDetail.redemptionCode?.batchId || '-'}
+          {orderDetail.redemptionCode?.batchId || ADMIN_EMPTY_TEXT}
         </Descriptions.Item>
       </Descriptions>
 

@@ -5,7 +5,9 @@ import { Tag } from '@lobehub/ui/base-ui';
 import { Button, Space } from 'antd';
 import type React from 'react';
 
+import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
+import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import {
@@ -51,7 +53,7 @@ export const buildOrderColumns = ({
       render: (value: string, row: any) => (
         <Flexbox gap={2}>
           <code>{value.slice(0, 12)}</code>
-          <span>{row.userEmail || row.userName || '-'}</span>
+          <span>{row.userEmail || row.userName || ADMIN_EMPTY_TEXT}</span>
         </Flexbox>
       ),
       title: t('admin.orders.col.user', '用户'),
@@ -71,19 +73,19 @@ export const buildOrderColumns = ({
     {
       dataIndex: 'amount',
       key: 'amount',
-      render: (value: number, row: any) => `${row.currency || 'CNY'} ${value}`,
+      render: (value: number, row: any) => formatAdminAmount(value, row.currency),
       title: t('admin.orders.col.amount', '金额'),
     },
     {
       dataIndex: 'provider',
       key: 'provider',
-      render: (value: string | null) => value || '-',
+      render: (value: string | null) => value || ADMIN_EMPTY_TEXT,
       title: t('admin.orders.col.provider', '支付渠道（Provider）'),
     },
     {
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (value: Date) => (value ? new Date(value).toLocaleString() : '-'),
+      render: (value: Date) => (value ? new Date(value).toLocaleString() : ADMIN_EMPTY_TEXT),
       title: t('admin.orders.col.createdAt', '创建时间'),
       width: 180,
     },
@@ -134,7 +136,7 @@ export const buildOrderColumns = ({
           ) : null}
         </Space>
       ),
-      title: t('admin.actions', '操作'),
+      title: t('admin.actions', 'Actions'),
       width: 320,
     },
   ];
