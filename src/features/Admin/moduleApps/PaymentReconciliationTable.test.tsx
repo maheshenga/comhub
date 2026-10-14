@@ -59,7 +59,9 @@ describe('PaymentReconciliationTable', () => {
       <PaymentReconciliationTable error={new Error('FORBIDDEN')} items={[]} onRetry={onRetry} />,
     );
 
-    expect(screen.getByText('Permission denied')).toBeInTheDocument();
+    expect(
+      screen.getByText('moduleApps.admin.center.state.permissionDenied'),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledOnce();
   });

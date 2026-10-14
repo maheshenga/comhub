@@ -80,12 +80,6 @@ export const moduleAppsDirectoryStyles = createStaticStyles(({ css, cssVar }) =>
 
     padding-block-start: 12px;
   `,
-  tableFrame: css`
-    overflow-x: auto;
-    border: 1px solid ${cssVar.colorBorderSecondary};
-    border-radius: ${cssVar.borderRadius};
-    background: ${cssVar.colorBgContainer};
-  `,
   tableLink: css`
     cursor: pointer;
 
@@ -113,51 +107,6 @@ export const moduleAppsDirectoryStyles = createStaticStyles(({ css, cssVar }) =>
     &:focus-visible {
       outline: 2px solid ${cssVar.colorPrimary};
       outline-offset: 2px;
-    }
-  `,
-  tableShell: css`
-    min-width: 0;
-  `,
-  table: css`
-    border-collapse: collapse;
-    width: 100%;
-    min-width: 640px;
-
-    th,
-    td {
-      padding-block: 12px;
-      padding-inline: 16px;
-      border-block-end: 1px solid ${cssVar.colorBorderSecondary};
-      text-align: start;
-    }
-
-    th {
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 20px;
-      color: ${cssVar.colorTextSecondary};
-
-      background: ${cssVar.colorFillTertiary};
-    }
-
-    td {
-      line-height: 22px;
-      color: ${cssVar.colorTextSecondary};
-    }
-
-    tbody tr:last-child td {
-      border-block-end: 0;
-    }
-
-    tbody tr:hover td {
-      background: ${cssVar.colorFillTertiary};
-    }
-
-    @media (width < 640px) {
-      th,
-      td {
-        padding-inline: 12px;
-      }
     }
   `,
 }));

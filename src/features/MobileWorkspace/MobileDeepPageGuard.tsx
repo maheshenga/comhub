@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router';
 
 import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
+import { MOBILE_WORKSPACE_CONTENT_MAX_WIDTH } from '@/const/layoutTokens';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -35,6 +36,14 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     overflow: hidden auto;
     flex: 1;
     min-height: 0;
+  `,
+  /* Deep pages reuse desktop frames (1200/960 max-width + own padding); clamp them
+     to the mobile content width so the viewport does not decide the line length. */
+  contentInner: css`
+    box-sizing: border-box;
+    width: 100%;
+    max-width: ${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px;
+    margin-inline: auto;
   `,
   header: css`
     position: relative;
@@ -97,7 +106,9 @@ const MobileDeepPageGuard = memo(() => {
         </button>
       </header>
       <div className={styles.content} data-testid="mobile-deep-page-content">
-        <Outlet />
+        <div className={styles.contentInner}>
+          <Outlet />
+        </div>
       </div>
     </div>
   );

@@ -12,9 +12,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminPageShell } from '../../../layout';
 import CommerceTable, { type ModuleAppRevenueRow } from '../../CommerceTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
-import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
 import { useDebouncedFilter } from '../../shared/useDebouncedFilter';
 
@@ -23,11 +23,6 @@ const styles = createStaticStyles(({ css }) => ({
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-  `,
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
   `,
 }));
 
@@ -62,10 +57,8 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         publisherId,
         status: status as RevenueStatus | undefined,
       }) as Promise<RevenueListResponse>,
-    // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
   );
-  // appId/publisherId 文本筛选防抖回写（粘贴 36 位 UUID 不再逐键触发请求）。
   const [appIdInput, setAppIdInput] = useDebouncedFilter('appId', appId ?? '');
   const [publisherIdInput, setPublisherIdInput] = useDebouncedFilter(
     'publisherId',
@@ -96,13 +89,34 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
     reversed: t('moduleApps.admin.finance.status.reversed'),
     settled: t('moduleApps.admin.finance.status.settled'),
   };
+  const isEmptyState = !isLoading && !error && (data?.items.length ?? 0) === 0;
 
   return (
-    <section className={styles.page} data-testid="module-revenue-page">
-      <header>
-        <h1>{t('moduleApps.admin.revenue.title')}</h1>
-        <p>{t('moduleApps.admin.revenue.description')}</p>
-      </header>
+    <AdminPageShell
+      description={t('moduleApps.admin.revenue.description')}
+      testId="module-revenue-page"
+      title={t('moduleApps.admin.revenue.title')}
+      width="full"
+      state={{
+        emptyDescription: t(
+          isFiltered
+            ? 'moduleApps.admin.revenue.filteredEmptyDescription'
+            : 'moduleApps.admin.revenue.emptyDescription',
+        ),
+        emptyKind: isFiltered ? 'filtered' : 'initial',
+        emptyTitle: t(
+          isFiltered
+            ? 'moduleApps.admin.revenue.filteredEmptyTitle'
+            : 'moduleApps.admin.revenue.emptyTitle',
+        ),
+        error,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: clearFilters,
+        onRetry: () => mutate(listKey),
+        retryLabel: t('moduleApps.admin.revenue.retry'),
+      }}
+    >
       <div className={styles.controls}>
         <label>
           {t('moduleApps.admin.revenue.filters.status')}
@@ -134,26 +148,7 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
           />
         </label>
       </div>
-      <ModulePageState
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
-        error={error}
-        isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        loading={isLoading}
-        loadingLabel={t('moduleApps.admin.revenue.loading')}
-        retryLabel={t('moduleApps.admin.revenue.retry')}
-        emptyDescription={t(
-          isFiltered
-            ? 'moduleApps.admin.revenue.filteredEmptyDescription'
-            : 'moduleApps.admin.revenue.emptyDescription',
-        )}
-        emptyTitle={t(
-          isFiltered
-            ? 'moduleApps.admin.revenue.filteredEmptyTitle'
-            : 'moduleApps.admin.revenue.emptyTitle',
-        )}
-        onClearFilters={clearFilters}
-        onRetry={() => mutate(listKey)}
-      >
+      {!isEmptyState && !error ? (
         <div>
           <CommerceTable
             canWrite={canWrite}
@@ -194,8 +189,8 @@ const ModuleRevenuePage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             }
           />
         </div>
-      </ModulePageState>
-    </section>
+      ) : null}
+    </AdminPageShell>
   );
 });
 

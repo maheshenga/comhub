@@ -12,9 +12,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminPageShell } from '../../layout';
 import PublisherTable, { type ModuleAppPublisherRow } from '../PublisherTable';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
-import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import { useDebouncedFilter } from '../shared/useDebouncedFilter';
 import PublisherFormModal, { type PublisherFormValues } from './PublisherFormModal';
@@ -25,11 +25,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-  `,
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
   `,
   reasonHint: css`
     color: ${cssVar.colorTextSecondary};
@@ -98,12 +93,34 @@ const ModulePublishersPage = memo(() => {
     }
   };
 
+  const isEmptyState = !isLoading && !loadError && (data?.items.length ?? 0) === 0;
+
   return (
-    <section className={styles.page} data-testid="module-publishers-page">
-      <header>
-        <h1>{t('moduleApps.admin.publishers.title')}</h1>
-        <p>{t('moduleApps.admin.publishers.description')}</p>
-      </header>
+    <AdminPageShell
+      description={t('moduleApps.admin.publishers.description')}
+      testId="module-publishers-page"
+      title={t('moduleApps.admin.publishers.title')}
+      width="full"
+      state={{
+        emptyDescription: t(
+          isFiltered
+            ? 'moduleApps.admin.publishers.filteredEmptyDescription'
+            : 'moduleApps.admin.publishers.emptyDescription',
+        ),
+        emptyKind: isFiltered ? 'filtered' : 'initial',
+        emptyTitle: t(
+          isFiltered
+            ? 'moduleApps.admin.publishers.filteredEmptyTitle'
+            : 'moduleApps.admin.publishers.emptyTitle',
+        ),
+        error: loadError,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: clearFilters,
+        onRetry: () => mutate(listKey),
+        retryLabel: t('moduleApps.admin.publishers.retry'),
+      }}
+    >
       <div className={styles.controls}>
         <label>
           {t('moduleApps.admin.publishers.filters.status')}
@@ -126,40 +143,13 @@ const ModulePublishersPage = memo(() => {
             onChange={(event) => setUserIdInput(event.target.value)}
           />
         </label>
-        {canWrite && (data?.items.length ?? 0) > 0 ? (
+        {canWrite ? (
           <Button type="primary" onClick={() => setCreateOpen(true)}>
             {t('moduleApps.admin.publishers.create')}
           </Button>
         ) : null}
       </div>
-      <ModulePageState
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
-        error={loadError}
-        isEmpty={!isLoading && !loadError && (data?.items.length ?? 0) === 0}
-        loading={isLoading}
-        loadingLabel={t('moduleApps.admin.publishers.loading')}
-        retryLabel={t('moduleApps.admin.publishers.retry')}
-        emptyDescription={t(
-          isFiltered
-            ? 'moduleApps.admin.publishers.filteredEmptyDescription'
-            : 'moduleApps.admin.publishers.emptyDescription',
-        )}
-        emptyTitle={t(
-          isFiltered
-            ? 'moduleApps.admin.publishers.filteredEmptyTitle'
-            : 'moduleApps.admin.publishers.emptyTitle',
-        )}
-        primaryAction={
-          !isFiltered && canWrite
-            ? {
-                label: t('moduleApps.admin.publishers.create'),
-                onClick: () => setCreateOpen(true),
-              }
-            : undefined
-        }
-        onClearFilters={clearFilters}
-        onRetry={() => mutate(listKey)}
-      >
+      {!isEmptyState && !loadError ? (
         <PublisherTable
           showPager
           actionsTitle={t('moduleApps.admin.publishers.actions')}
@@ -209,7 +199,7 @@ const ModulePublishersPage = memo(() => {
             data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
           }
         />
-      </ModulePageState>
+      ) : null}
       {canWrite ? (
         <PublisherFormModal
           open={createOpen}
@@ -262,7 +252,7 @@ const ModulePublishersPage = memo(() => {
           {governance.error ? <p role="alert">{governance.error}</p> : null}
         </Modal>
       ) : null}
-    </section>
+    </AdminPageShell>
   );
 });
 

@@ -50,7 +50,7 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
     padding-block-start: 8px;
   `,
   formSection: css`
-    width: min(100%, 760px);
+    width: min(100%, 1040px);
   `,
   platformSummary: css`
     overflow: hidden;

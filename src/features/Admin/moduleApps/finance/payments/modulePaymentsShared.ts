@@ -15,11 +15,6 @@ export const modulePaymentStyles = createStaticStyles(({ css, cssVar }) => ({
     display: grid;
     gap: 12px;
   `,
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
-  `,
   targetContext: css`
     margin: 0;
 

@@ -205,7 +205,7 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
     <AdminPageShell
       description={t(scopeCopy[scope].descriptionKey, scopeCopy[scope].description)}
       title={t(scopeCopy[scope].titleKey, scopeCopy[scope].title)}
-      width="large"
+      width="medium"
     >
       {error ? (
         <AdminPageError

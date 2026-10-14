@@ -133,7 +133,7 @@ describe('module app operations pages', () => {
     );
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'moduleApps.admin.center.state.clearFilters' }),
+      screen.getByRole('button', { name: 'admin.shared.state.clearFilters' }),
     );
     expect(screen.getByTestId('location')).toHaveTextContent('appId=app-1');
     expect(screen.getByTestId('location')).not.toHaveTextContent('cursor');

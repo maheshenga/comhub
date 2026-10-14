@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { ModulePageState } from './shared/ModulePageState';
 
@@ -26,6 +27,8 @@ export const AdminTableState = ({
   onRetry?: () => void;
   retryLabel?: string;
 }) => {
+  const { t } = useTranslation('common');
+
   return (
     <ModulePageState
       emptyDescription={emptyLabel}
@@ -33,9 +36,13 @@ export const AdminTableState = ({
       isEmpty={!children}
       loading={loading}
       loadingLabel={loadingLabel}
-      retryLabel={retryLabel ?? 'Retry'}
+      retryLabel={retryLabel ?? t('moduleApps.admin.center.state.retry')}
       errorTitle={
-        error ? (isPermissionError(error) ? 'Permission denied' : 'Could not load data') : undefined
+        error
+          ? isPermissionError(error)
+            ? t('moduleApps.admin.center.state.permissionDenied')
+            : t('moduleApps.admin.center.state.loadErrorTitle')
+          : undefined
       }
       onRetry={onRetry}
     >

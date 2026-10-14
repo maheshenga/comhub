@@ -108,7 +108,6 @@ export const runtimeStyles = createStaticStyles(({ css, cssVar }) => ({
   page: css`
     display: grid;
     gap: 20px;
-    max-width: 1180px;
   `,
   section: css`
     display: grid;
