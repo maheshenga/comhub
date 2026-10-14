@@ -1,8 +1,10 @@
 'use client';
 
 import { Button, Input, Select } from '@lobehub/ui/base-ui';
+import type { TableProps } from 'antd';
 import { Plus } from 'lucide-react';
 
+import { AdminDataTable } from '../../shared';
 import type { AdminModuleAppItem } from '../types';
 import { moduleAppsDirectoryStyles as styles } from './moduleAppsDirectoryStyles';
 
@@ -93,42 +95,46 @@ export const ModuleAppsFilterBar = ({
   </div>
 );
 
-interface ModuleAppsTableProps {
-  items: AdminModuleAppItem[];
-  onOpen: (appId: string) => void;
-  t: TFn;
-}
+/** 应用目录表（M5 拆页：从 ModuleAppsPage 抽出；§4.2-1 走 AdminDataTable 统一原语）。 */
+export const buildModuleAppsColumns = (
+  onOpen: (appId: string) => void,
+  t: TFn,
+): TableProps<AdminModuleAppItem>['columns'] => [
+  {
+    dataIndex: 'displayName',
+    key: 'displayName',
+    render: (_, app) => (
+      <button className={styles.tableLink} type="button" onClick={() => onOpen(app.id)}>
+        {app.displayName}
+      </button>
+    ),
+    title: t('moduleApps.admin.apps.identity.displayName'),
+  },
+  { dataIndex: 'category', key: 'category', title: t('moduleApps.admin.apps.category') },
+  {
+    dataIndex: 'status',
+    key: 'status',
+    render: (status: string) => t(`moduleApps.admin.apps.status.${status}`),
+    title: t('moduleApps.admin.apps.identity.status'),
+  },
+  {
+    dataIndex: 'source',
+    key: 'source',
+    render: (source: null | string) => t(`moduleApps.admin.apps.source.${source ?? 'admin'}`),
+    title: t('moduleApps.admin.apps.identity.source'),
+  },
+];
 
-/** 应用目录表（M5 拆页：从 ModuleAppsPage 抽出）。 */
-export const ModuleAppsTable = ({ items, onOpen, t }: ModuleAppsTableProps) => (
-  <div className={styles.tableFrame} data-testid="module-app-table">
-    <div className={styles.tableShell}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>{t('moduleApps.admin.apps.identity.displayName')}</th>
-            <th>{t('moduleApps.admin.apps.category')}</th>
-            <th>{t('moduleApps.admin.apps.identity.status')}</th>
-            <th>{t('moduleApps.admin.apps.identity.source')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((app) => (
-            <tr key={app.id}>
-              <td>
-                <button className={styles.tableLink} type="button" onClick={() => onOpen(app.id)}>
-                  {app.displayName}
-                </button>
-              </td>
-              <td>{app.category}</td>
-              <td>{t(`moduleApps.admin.apps.status.${app.status}`)}</td>
-              <td>{t(`moduleApps.admin.apps.source.${app.source ?? 'admin'}`)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
+export const ModuleAppsTable = ({
+  columns,
+  items,
+  regionLabel,
+}: {
+  columns: TableProps<AdminModuleAppItem>['columns'];
+  items: AdminModuleAppItem[];
+  regionLabel: string;
+}) => (
+  <AdminDataTable columns={columns} dataSource={items} regionLabel={regionLabel} rowKey="id" />
 );
 
 export const ModuleAppsCreateButton = ({ onClick, t }: { onClick: () => void; t: TFn }) => (

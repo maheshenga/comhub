@@ -53,11 +53,6 @@ export const moduleOverviewStyles = createStaticStyles(({ css, cssVar }) => ({
     display: grid;
     gap: 0;
   `,
-  page: css`
-    display: grid;
-    gap: 4px;
-    max-width: 1180px;
-  `,
   row: css`
     display: flex;
     flex-wrap: wrap;

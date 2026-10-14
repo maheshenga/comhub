@@ -3,7 +3,7 @@
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Button } from '@lobehub/ui/base-ui';
 import { RefreshCw } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 
@@ -12,6 +12,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminPageShell } from '../../layout';
 import { MODULE_ADMIN_ROUTE_PATHS } from '../navigation/catalog';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import {
@@ -20,13 +21,17 @@ import {
   loadModuleDraft,
   saveModuleDraft,
 } from '../shared/draftStorage';
-import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import { useDebouncedFilter } from '../shared/useDebouncedFilter';
 import type { AdminModuleAppItem } from '../types';
 import AppIdentityModal from './AppIdentityModal';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
-import { ModuleAppsCreateButton, ModuleAppsFilterBar, ModuleAppsTable } from './moduleAppsDirectoryParts';
+import {
+  buildModuleAppsColumns,
+  ModuleAppsCreateButton,
+  ModuleAppsFilterBar,
+  ModuleAppsTable,
+} from './moduleAppsDirectoryParts';
 import { moduleAppsDirectoryStyles as styles } from './moduleAppsDirectoryStyles';
 
 type ApplicationListResponse = { items: AdminModuleAppItem[]; nextCursor: null | string };
@@ -91,10 +96,16 @@ const ModuleAppsPage = memo(() => {
 
   const updateFilter = (name: string, value: string) =>
     setSearchParams((current) => setFilter(current, name, value || undefined));
-  const openApp = (appId: string) =>
-    navigate(
-      MODULE_ADMIN_ROUTE_PATHS['module-app-overview'].replace(':appId', encodeURIComponent(appId)),
-    );
+  const openApp = useCallback(
+    (appId: string) =>
+      navigate(
+        MODULE_ADMIN_ROUTE_PATHS['module-app-overview'].replace(
+          ':appId',
+          encodeURIComponent(appId),
+        ),
+      ),
+    [navigate],
+  );
   const createApp = async (identity: ModuleAppIdentityFormValues) => {
     setSubmitting(true);
     try {
@@ -118,45 +129,53 @@ const ModuleAppsPage = memo(() => {
     setSearchParams(next);
   };
   const isFiltered = Boolean(query || status || category || publisherId || sort || cursor);
+  const isEmptyState = !isLoading && !error && (data?.items.length ?? 0) === 0;
+  const appColumns = useMemo(() => buildModuleAppsColumns(openApp, t as any), [openApp, t]);
 
   return (
-    <section className={styles.page} data-testid="module-app-directory">
-      <header className={styles.header}>
-        <div className={styles.heading}>
-          <h1>{t('moduleApps.admin.apps.title')}</h1>
-          <p className={styles.description}>{t('moduleApps.admin.apps.description')}</p>
-        </div>
-        <div className={styles.actions}>
+    <AdminPageShell
+      description={t('moduleApps.admin.apps.description')}
+      testId="module-app-directory"
+      title={t('moduleApps.admin.apps.title')}
+      width="full"
+      actions={
+        <>
           <Button
             icon={RefreshCw}
             title={t('moduleApps.admin.apps.refresh')}
             onClick={() => mutate(listKey)}
           />
           <ModuleAppsCreateButton t={t as any} onClick={() => setIdentityOpen(true)} />
-        </div>
-      </header>
+        </>
+      }
+      state={{
+        emptyKind: isFiltered ? 'filtered' : 'initial',
+        error,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: clearFilters,
+      }}
+    >
       <ModuleAppsFilterBar
         canReadPublishers={canReadPublishers}
         categoryInput={categoryInput}
-        onCategoryInput={setCategoryInput}
-        onPublisherInput={setPublisherIdInput}
-        onQueryInput={setQueryInput}
-        onUpdateFilter={updateFilter}
         publisherIdInput={publisherIdInput}
         queryInput={queryInput}
         sort={sort}
         status={status}
         t={t as any}
+        onCategoryInput={setCategoryInput}
+        onPublisherInput={setPublisherIdInput}
+        onQueryInput={setQueryInput}
+        onUpdateFilter={updateFilter}
       />
-      <ModulePageState
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
-        error={error}
-        isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        loading={isLoading}
-        onClearFilters={clearFilters}
-      >
+      {!isEmptyState && !error ? (
         <div>
-          <ModuleAppsTable items={data?.items ?? []} t={t as any} onOpen={openApp} />
+          <ModuleAppsTable
+            columns={appColumns}
+            items={data?.items ?? []}
+            regionLabel={t('moduleApps.admin.apps.title')}
+          />
           <div className={styles.pagination}>
             <Button
               disabled={!searchParams.getAll('previousCursor').length}
@@ -174,7 +193,7 @@ const ModuleAppsPage = memo(() => {
             </Button>
           </div>
         </div>
-      </ModulePageState>
+      ) : null}
       <AppIdentityModal
         draft={newIdentityDraft}
         open={identityOpen}
@@ -186,7 +205,7 @@ const ModuleAppsPage = memo(() => {
           saveModuleDraft(NEW_APP_IDENTITY_SCOPE, draft);
         }}
       />
-    </section>
+    </AdminPageShell>
   );
 });
 

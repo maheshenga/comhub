@@ -12,15 +12,15 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import PendingRefundResolutionModal from '../../../payments/PendingRefundResolutionModal';
+import { AdminPageShell } from '../../../layout';
 import PaymentReconciliationTable, {
   type ModuleAppPaymentDiagnosticRow,
 } from '../../PaymentReconciliationTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
-import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
 import { useDebouncedFilter } from '../../shared/useDebouncedFilter';
 import { ModulePaymentFilters } from './ModulePaymentFilters';
+import ModulePaymentResolutionModal from './ModulePaymentResolutionModal';
 import {
   type DiscrepancyStatus,
   modulePaymentStyles as styles,
@@ -134,19 +134,10 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
   );
   const reconciliationLabels = buildPaymentReconciliationLabels(t as any);
   const statusLabels = buildModuleFinanceStatusLabels(t as any);
+  const isEmptyState = !isLoading && !error && (data?.items.length ?? 0) === 0;
 
-  return (
-    <section
-      className={styles.page}
-      data-testid="module-payments-page"
-      style={embedded ? { maxWidth: 'none' } : undefined}
-    >
-      {!embedded ? (
-        <header>
-          <h1>{t('moduleApps.admin.payments.title')}</h1>
-          <p>{t('moduleApps.admin.payments.description')}</p>
-        </header>
-      ) : null}
+  const content = (
+    <>
       <div className={styles.actions}>
         <Button
           disabled={busyAction === 'export'}
@@ -182,26 +173,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
         onAppIdInput={setAppIdInput}
         onOrderIdInput={setOrderIdInput}
       />
-      <ModulePageState
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
-        error={error}
-        isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        loading={isLoading}
-        loadingLabel={t('moduleApps.admin.payments.loading')}
-        retryLabel={t('moduleApps.admin.payments.retry')}
-        emptyDescription={t(
-          isFiltered
-            ? 'moduleApps.admin.payments.filteredEmptyDescription'
-            : 'moduleApps.admin.payments.emptyDescription',
-        )}
-        emptyTitle={t(
-          isFiltered
-            ? 'moduleApps.admin.payments.filteredEmptyTitle'
-            : 'moduleApps.admin.payments.emptyTitle',
-        )}
-        onClearFilters={clearFilters}
-        onRetry={() => mutate(listKey)}
-      >
+      {!isEmptyState && !error ? (
         <PaymentReconciliationTable
           canWrite={canWrite}
           hasNext={Boolean(data?.nextCursor)}
@@ -241,7 +213,7 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
             )
           }
         />
-      </ModulePageState>
+      ) : null}
       {canWrite ? (
         <PaymentActionModal
           action={action}
@@ -264,22 +236,11 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
           onReasonChange={setReason}
         />
       ) : null}
-      <PendingRefundResolutionModal
+      <ModulePaymentResolutionModal
         busy={busyAction?.startsWith('resolve:') ?? false}
         note={resolutionNote}
         open={Boolean(resolutionTarget)}
         resolution={resolution}
-        title={t('moduleApps.admin.payments.manualResolution.title')}
-        labels={{
-          cancel: t('cancel'),
-          chooseOutcome: t('moduleApps.admin.payments.manualResolution.chooseOutcome'),
-          confirm: t('moduleApps.admin.payments.manualResolution.confirm'),
-          description: t('moduleApps.admin.payments.manualResolution.description'),
-          note: t('moduleApps.admin.payments.manualResolution.note'),
-          notRefunded: t('moduleApps.admin.payments.manualResolution.notRefunded'),
-          outcome: t('moduleApps.admin.payments.manualResolution.outcome'),
-          refunded: t('moduleApps.admin.payments.manualResolution.refunded'),
-        }}
         summary={
           resolutionTarget
             ? `${resolutionTarget.appName} · ${resolutionTarget.currency} ${resolutionTarget.totalAmount}`
@@ -290,7 +251,40 @@ const ModulePaymentsPage = memo<ModulePaymentsPageProps>((props) => {
         onNoteChange={setResolutionNote}
         onResolutionChange={setResolution}
       />
-    </section>
+    </>
+  );
+
+  // 嵌入支付中心 Tab 时由宿主提供页头，避免重复标题。
+  if (embedded) return content;
+
+  return (
+    <AdminPageShell
+      description={t('moduleApps.admin.payments.description')}
+      testId="module-payments-page"
+      title={t('moduleApps.admin.payments.title')}
+      width="full"
+      state={{
+        emptyDescription: t(
+          isFiltered
+            ? 'moduleApps.admin.payments.filteredEmptyDescription'
+            : 'moduleApps.admin.payments.emptyDescription',
+        ),
+        emptyKind: isFiltered ? 'filtered' : 'initial',
+        emptyTitle: t(
+          isFiltered
+            ? 'moduleApps.admin.payments.filteredEmptyTitle'
+            : 'moduleApps.admin.payments.emptyTitle',
+        ),
+        error,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: clearFilters,
+        onRetry: () => mutate(listKey),
+        retryLabel: t('moduleApps.admin.payments.retry'),
+      }}
+    >
+      {content}
+    </AdminPageShell>
   );
 });
 

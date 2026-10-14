@@ -17,9 +17,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminPageShell } from '../../../layout';
 import PayoutTable, { type ModuleAppPayoutRow } from '../../PayoutTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
-import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
 import PayoutActionModal from './PayoutActionModal';
 
@@ -28,11 +28,6 @@ const styles = createStaticStyles(({ css }) => ({
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-  `,
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
   `,
 }));
 
@@ -67,7 +62,6 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
         publisherId,
         status: status as ModuleAppPayoutStatus | undefined,
       }) as Promise<PayoutListResponse>,
-    // 翻页/筛选时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
   );
   const updateFilter = (name: string, value: string) =>
@@ -98,22 +92,18 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
     processing: t('moduleApps.admin.finance.status.processing'),
     reversed: t('moduleApps.admin.finance.status.reversed'),
   };
-  const createAction = {
-    icon: <Plus aria-hidden size={16} />,
-    label: t('moduleApps.admin.payouts.create'),
-    onClick: () => setModalMode('create' as const),
-  };
+  const isEmptyState = !isLoading && !error && (data?.items.length ?? 0) === 0;
 
-  return (
-    <section className={styles.page} data-testid="module-payouts-page">
-      <header>
-        <h1>{t('moduleApps.admin.payouts.title')}</h1>
-        <p>{t('moduleApps.admin.payouts.description')}</p>
-      </header>
-      {canWrite && (data?.items.length ?? 0) > 0 ? (
+  const content = (
+    <>
+      {canWrite ? (
         <div className={styles.controls}>
-          <Button icon={createAction.icon} type="primary" onClick={createAction.onClick}>
-            {createAction.label}
+          <Button
+            icon={<Plus aria-hidden size={16} />}
+            type="primary"
+            onClick={() => setModalMode('create' as const)}
+          >
+            {t('moduleApps.admin.payouts.create')}
           </Button>
         </div>
       ) : null}
@@ -138,27 +128,7 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
           />
         </label>
       </div>
-      <ModulePageState
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
-        error={error}
-        isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        loading={isLoading}
-        loadingLabel={t('moduleApps.admin.payouts.loading')}
-        primaryAction={!isFiltered && canWrite ? createAction : undefined}
-        retryLabel={t('moduleApps.admin.payouts.retry')}
-        emptyDescription={t(
-          isFiltered
-            ? 'moduleApps.admin.payouts.filteredEmptyDescription'
-            : 'moduleApps.admin.payouts.emptyDescription',
-        )}
-        emptyTitle={t(
-          isFiltered
-            ? 'moduleApps.admin.payouts.filteredEmptyTitle'
-            : 'moduleApps.admin.payouts.emptyTitle',
-        )}
-        onClearFilters={clearFilters}
-        onRetry={() => mutate(listKey)}
-      >
+      {!isEmptyState && !error ? (
         <div>
           <PayoutTable
             canWrite={canWrite}
@@ -191,7 +161,7 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
             }
           />
         </div>
-      </ModulePageState>
+      ) : null}
       {canWrite && modalMode ? (
         <PayoutActionModal
           open
@@ -201,7 +171,37 @@ const ModulePayoutsPage = memo<{ canWrite?: boolean }>(({ canWrite: canWriteOver
           onSuccess={mutationSucceeded}
         />
       ) : null}
-    </section>
+    </>
+  );
+
+  return (
+    <AdminPageShell
+      description={t('moduleApps.admin.payouts.description')}
+      testId="module-payouts-page"
+      title={t('moduleApps.admin.payouts.title')}
+      width="full"
+      state={{
+        emptyDescription: t(
+          isFiltered
+            ? 'moduleApps.admin.payouts.filteredEmptyDescription'
+            : 'moduleApps.admin.payouts.emptyDescription',
+        ),
+        emptyKind: isFiltered ? 'filtered' : 'initial',
+        emptyTitle: t(
+          isFiltered
+            ? 'moduleApps.admin.payouts.filteredEmptyTitle'
+            : 'moduleApps.admin.payouts.emptyTitle',
+        ),
+        error,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: clearFilters,
+        onRetry: () => mutate(listKey),
+        retryLabel: t('moduleApps.admin.payouts.retry'),
+      }}
+    >
+      {content}
+    </AdminPageShell>
   );
 });
 

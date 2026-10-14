@@ -11,11 +11,10 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminPageShell } from '../../layout';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
-import ModulePageState from '../shared/ModulePageState';
 import { setFilter } from '../shared/queryState';
 import type { AdminModuleAppOutboundHostPurpose, AdminModuleAppPackageRow } from '../types';
-import { moduleReviewsStyles as styles } from './moduleReviewsStyles';
 import { getPackageColumns } from './packageColumns';
 import { submitReviewAction } from './reviewActions';
 import {
@@ -168,12 +167,34 @@ const ModuleReviewsPage = memo(() => {
     }
   };
 
+  const isEmptyState = !isLoading && !error && (data?.items.length ?? 0) === 0;
+
   return (
-    <section className={styles.page} data-testid="module-reviews-page">
-      <header>
-        <h1>{t('moduleApps.admin.reviews.title')}</h1>
-        <p>{t('moduleApps.admin.reviews.description')}</p>
-      </header>
+    <AdminPageShell
+      description={t('moduleApps.admin.reviews.description')}
+      testId="module-reviews-page"
+      title={t('moduleApps.admin.reviews.title')}
+      width="full"
+      state={{
+        emptyDescription: t(
+          isFiltered
+            ? 'moduleApps.admin.reviews.filteredEmptyDescription'
+            : 'moduleApps.admin.reviews.emptyDescription',
+        ),
+        emptyKind: isFiltered ? 'filtered' : 'initial',
+        emptyTitle: t(
+          isFiltered
+            ? 'moduleApps.admin.reviews.filteredEmptyTitle'
+            : 'moduleApps.admin.reviews.emptyTitle',
+        ),
+        error,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: clearFilters,
+        onRetry: () => mutate(listKey),
+        retryLabel: t('moduleApps.admin.reviews.retry'),
+      }}
+    >
       <ReviewFilters
         appId={textFilterInputs.appId}
         buildStatus={buildStatus}
@@ -183,26 +204,7 @@ const ModuleReviewsPage = memo(() => {
         t={t as any}
         onUpdateFilter={handleFilter}
       />
-      <ModulePageState
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
-        error={error}
-        isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        loading={isLoading}
-        loadingLabel={t('moduleApps.admin.reviews.loading')}
-        retryLabel={t('moduleApps.admin.reviews.retry')}
-        emptyDescription={t(
-          isFiltered
-            ? 'moduleApps.admin.reviews.filteredEmptyDescription'
-            : 'moduleApps.admin.reviews.emptyDescription',
-        )}
-        emptyTitle={t(
-          isFiltered
-            ? 'moduleApps.admin.reviews.filteredEmptyTitle'
-            : 'moduleApps.admin.reviews.emptyTitle',
-        )}
-        onClearFilters={clearFilters}
-        onRetry={() => mutate(listKey)}
-      >
+      {!isEmptyState && !error ? (
         <ReviewTable
           canWrite={canWrite}
           columns={packageColumns}
@@ -214,7 +216,7 @@ const ModuleReviewsPage = memo(() => {
           t={t as any}
           onOpen={openAction}
         />
-      </ModulePageState>
+      ) : null}
       {canWrite ? (
         <Modal
           destroyOnHidden
@@ -268,7 +270,7 @@ const ModuleReviewsPage = memo(() => {
           {actionError ? <p role="alert">{actionError}</p> : null}
         </Modal>
       ) : null}
-    </section>
+    </AdminPageShell>
   );
 });
 

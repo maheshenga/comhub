@@ -19,12 +19,17 @@ const widthClassName: Record<AdminPageWidth, string> = {
 /** Whole-page three-state pass-through (ux-redesign-spec §3.1). */
 export interface AdminPageShellStateSlot {
   emptyDescription?: ReactNode;
+  /** `'filtered'` swaps the empty-state icon and copy for a cleared-filter variant. */
+  emptyKind?: 'filtered' | 'initial';
+  emptyTitle?: ReactNode;
   error?: unknown;
   errorDescription?: ReactNode;
   errorTitle?: ReactNode;
   isEmpty?: boolean;
   loading?: boolean;
+  onClearFilters?: () => void;
   onRetry?: () => void;
+  retryLabel?: ReactNode;
 }
 
 export interface AdminPageShellProps {
@@ -40,6 +45,8 @@ export interface AdminPageShellProps {
   /** Metrics band aria-label; defaults to the contract label 关键指标. */
   metricsLabel?: string;
   state?: AdminPageShellStateSlot;
+  /** data-testid for the page root; keeps page-level anchors stable when a page adopts the shell. */
+  testId?: string;
   title: ReactNode;
   width?: AdminPageWidth;
 }
@@ -54,10 +61,14 @@ export const AdminPageShell = ({
   metrics,
   metricsLabel = '关键指标',
   state,
+  testId,
   title,
   width = 'large',
 }: AdminPageShellProps) => (
-  <main className={[styles.page, widthClassName[width], className].filter(Boolean).join(' ')}>
+  <main
+    className={[styles.page, widthClassName[width], className].filter(Boolean).join(' ')}
+    data-testid={testId}
+  >
     <header className={styles.header}>
       <div className={styles.headerText}>
         {kicker ? <p className={styles.kicker}>{kicker}</p> : null}
@@ -69,11 +80,15 @@ export const AdminPageShell = ({
     {state ? (
       <AdminPageStateBridge
         emptyDescription={state.emptyDescription}
+        emptyKind={state.emptyKind}
+        emptyTitle={state.emptyTitle}
         error={state.error}
         errorDescription={state.errorDescription}
         errorTitle={state.errorTitle}
         isEmpty={state.isEmpty}
         loading={state.loading}
+        retryLabel={state.retryLabel}
+        onClearFilters={state.onClearFilters}
         onRetry={state.onRetry}
       />
     ) : null}
@@ -232,22 +247,30 @@ export const AdminResponsiveTable = ({
  * is provided, so existing pages keep byte-identical rendering.
  */
 const AdminPageStateBridge = ({
+  emptyDescription,
+  emptyKind,
+  emptyTitle,
   error,
   errorDescription,
   errorTitle,
-  emptyDescription,
   isEmpty,
   loading,
+  onClearFilters,
   onRetry,
+  retryLabel,
 }: AdminPageShellStateSlot) => (
   <AdminPageState
     emptyDescription={emptyDescription}
+    emptyKind={emptyKind}
+    emptyTitle={emptyTitle}
     error={error}
     errorDescription={errorDescription}
     errorTitle={errorTitle}
     isEmpty={Boolean(isEmpty)}
     loading={loading}
+    retryLabel={retryLabel}
     skeletonVariant="list"
+    onClearFilters={onClearFilters}
     onRetry={onRetry}
   >
     {null}

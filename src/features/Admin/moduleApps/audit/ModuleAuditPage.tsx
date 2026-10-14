@@ -1,6 +1,5 @@
 'use client';
 
-import { createStaticStyles } from 'antd-style';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -8,21 +7,13 @@ import { useSearchParams } from 'react-router';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminPageShell } from '../../layout';
 import AuditEventsTable from '../AuditEventsTable';
 import CursorPager from '../CursorPager';
 import ModuleAppFilter from '../operations/ModuleAppFilter';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
-import ModulePageState from '../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { ModuleAppAuditRow } from '../types';
-
-const styles = createStaticStyles(({ css }) => ({
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
-  `,
-}));
 
 type ListResponse = { items?: ModuleAppAuditRow[]; nextCursor?: null | string };
 
@@ -46,40 +37,47 @@ const ModuleAuditPage = memo(() => {
     { keepPreviousData: true },
   );
 
+  const isEmptyState = !isLoading && !error && (data?.items?.length ?? 0) === 0;
+
   return (
-    <section className={styles.page} data-testid="module-audit-page">
-      <header>
-        <h1>{t('moduleApps.admin.audit.title')}</h1>
-        <p>{t('moduleApps.admin.audit.description')}</p>
-      </header>
+    <AdminPageShell
+      description={t('moduleApps.admin.audit.description')}
+      testId="module-audit-page"
+      title={t('moduleApps.admin.audit.title')}
+      width="full"
+      state={
+        appId
+          ? {
+              emptyDescription: t(
+                cursor
+                  ? 'moduleApps.admin.audit.filteredEmptyDescription'
+                  : 'moduleApps.admin.audit.emptyDescription',
+              ),
+              emptyKind: cursor ? 'filtered' : 'initial',
+              emptyTitle: t(
+                cursor
+                  ? 'moduleApps.admin.audit.filteredEmptyTitle'
+                  : 'moduleApps.admin.audit.emptyTitle',
+              ),
+              error,
+              isEmpty: isEmptyState,
+              loading: isLoading,
+              onClearFilters: () =>
+                setSearchParams((current) => setFilter(current, 'cursor', undefined)),
+              onRetry: () => listKey && mutate(listKey),
+              retryLabel: t('moduleApps.admin.audit.retry'),
+            }
+          : undefined
+      }
+    >
       <ModuleAppFilter />
       {!appId ? (
         <p data-testid="module-audit-app-required">
           {t('moduleApps.admin.operations.selectAppDescription')}
         </p>
       ) : (
-        <ModulePageState
-          emptyKind={cursor ? 'filtered' : 'initial'}
-          error={error}
-          isEmpty={!isLoading && !error && (data?.items?.length ?? 0) === 0}
-          loading={isLoading}
-          loadingLabel={t('moduleApps.admin.audit.loading')}
-          retryLabel={t('moduleApps.admin.audit.retry')}
-          emptyDescription={t(
-            cursor
-              ? 'moduleApps.admin.audit.filteredEmptyDescription'
-              : 'moduleApps.admin.audit.emptyDescription',
-          )}
-          emptyTitle={t(
-            cursor
-              ? 'moduleApps.admin.audit.filteredEmptyTitle'
-              : 'moduleApps.admin.audit.emptyTitle',
-          )}
-          onRetry={() => listKey && mutate(listKey)}
-          onClearFilters={() =>
-            setSearchParams((current) => setFilter(current, 'cursor', undefined))
-          }
-        >
+        !isEmptyState &&
+        !error && (
           <div>
             <AuditEventsTable
               items={data?.items}
@@ -102,9 +100,9 @@ const ModuleAuditPage = memo(() => {
               }
             />
           </div>
-        </ModulePageState>
+        )
       )}
-    </section>
+    </AdminPageShell>
   );
 });
 

@@ -110,7 +110,7 @@ const ChannelSettings = ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) =>
   if (settings.isLoading && !settings.data) return <AdminInlineSkeleton rows={8} />;
 
   return (
-    <Flexbox gap={16} style={{ maxWidth: 980 }}>
+    <Flexbox gap={16} style={{ maxWidth: 1040 }}>
       {settings.error ? (
         <AdminPageError description={statusMessage} onRetry={settings.mutate} />
       ) : (

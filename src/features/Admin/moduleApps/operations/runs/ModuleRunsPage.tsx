@@ -1,6 +1,5 @@
 'use client';
 
-import { createStaticStyles } from 'antd-style';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -8,21 +7,13 @@ import { useSearchParams } from 'react-router';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import { AdminPageShell } from '../../../layout';
 import CursorPager from '../../CursorPager';
 import RunsTable from '../../RunsTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
-import ModulePageState from '../../shared/ModulePageState';
 import { advanceCursor, retreatCursor, setFilter } from '../../shared/queryState';
 import type { ModuleAppRunRow } from '../../types';
 import ModuleAppFilter from '../ModuleAppFilter';
-
-const styles = createStaticStyles(({ css }) => ({
-  page: css`
-    display: grid;
-    gap: 16px;
-    max-width: 1180px;
-  `,
-}));
 
 type ListResponse = { items?: ModuleAppRunRow[]; nextCursor?: null | string };
 
@@ -42,71 +33,68 @@ const ModuleRunsPage = memo(() => {
         cursor,
         limit: 25,
       }) as Promise<ListResponse>,
-    // 翻页时保留上一页数据，避免整表骨架闪烁。
     { keepPreviousData: true },
   );
+  const isEmptyState = !isLoading && !error && (data?.items?.length ?? 0) === 0;
 
   return (
-    <section className={styles.page} data-testid="module-runs-page">
-      <header>
-        <h1>{t('moduleApps.admin.operations.runs.title')}</h1>
-        <p>{t('moduleApps.admin.operations.runs.description')}</p>
-      </header>
+    <AdminPageShell
+      description={t('moduleApps.admin.operations.runs.description')}
+      testId="module-runs-page"
+      title={t('moduleApps.admin.operations.runs.title')}
+      width="full"
+      state={{
+        emptyDescription: t(
+          cursor
+            ? 'moduleApps.admin.operations.filteredEmptyDescription'
+            : 'moduleApps.admin.operations.emptyDescription',
+        ),
+        emptyKind: cursor ? 'filtered' : 'initial',
+        emptyTitle: t(
+          cursor
+            ? 'moduleApps.admin.operations.filteredEmptyTitle'
+            : 'moduleApps.admin.operations.emptyTitle',
+        ),
+        error,
+        isEmpty: isEmptyState,
+        loading: isLoading,
+        onClearFilters: () => setSearchParams((current) => setFilter(current, 'cursor', undefined)),
+        onRetry: () => listKey && mutate(listKey),
+        retryLabel: t('moduleApps.admin.operations.retry'),
+      }}
+    >
       <ModuleAppFilter />
       {!appId ? (
         <p data-testid="module-operation-app-required">
           {t('moduleApps.admin.operations.selectAppDescription')}
         </p>
-      ) : (
-        <ModulePageState
-          emptyKind={cursor ? 'filtered' : 'initial'}
-          error={error}
-          isEmpty={!isLoading && !error && (data?.items?.length ?? 0) === 0}
-          loading={isLoading}
-          loadingLabel={t('moduleApps.admin.operations.loading')}
-          retryLabel={t('moduleApps.admin.operations.retry')}
-          emptyDescription={t(
-            cursor
-              ? 'moduleApps.admin.operations.filteredEmptyDescription'
-              : 'moduleApps.admin.operations.emptyDescription',
-          )}
-          emptyTitle={t(
-            cursor
-              ? 'moduleApps.admin.operations.filteredEmptyTitle'
-              : 'moduleApps.admin.operations.emptyTitle',
-          )}
-          onRetry={() => listKey && mutate(listKey)}
-          onClearFilters={() =>
-            setSearchParams((current) => setFilter(current, 'cursor', undefined))
-          }
-        >
-          <div>
-            <RunsTable
-              items={data?.items}
-              labels={{
-                action: t('moduleApps.admin.operations.runs.columns.action'),
-                created: t('moduleApps.admin.operations.runs.columns.created'),
-                duration: t('moduleApps.admin.operations.runs.columns.duration'),
-                error: t('moduleApps.admin.operations.runs.columns.error'),
-                run: t('moduleApps.admin.operations.runs.columns.run'),
-                status: t('moduleApps.admin.operations.runs.columns.status'),
-              }}
-            />
-            <CursorPager
-              hasNext={Boolean(data?.nextCursor)}
-              hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
-              nextLabel={t('moduleApps.admin.operations.next')}
-              positionLabel={t('moduleApps.admin.operations.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
-              previousLabel={t('moduleApps.admin.operations.previous')}
-              onPrevious={() => setSearchParams(retreatCursor(searchParams))}
-              onNext={() =>
-                data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
-              }
-            />
-          </div>
-        </ModulePageState>
-      )}
-    </section>
+      ) : !isEmptyState && !error ? (
+        <div>
+          <RunsTable
+            items={data?.items}
+            labels={{
+              action: t('moduleApps.admin.operations.runs.columns.action'),
+              created: t('moduleApps.admin.operations.runs.columns.created'),
+              duration: t('moduleApps.admin.operations.runs.columns.duration'),
+              error: t('moduleApps.admin.operations.runs.columns.error'),
+              run: t('moduleApps.admin.operations.runs.columns.run'),
+              status: t('moduleApps.admin.operations.runs.columns.status'),
+            }}
+          />
+          <CursorPager
+            hasNext={Boolean(data?.nextCursor)}
+            hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
+            nextLabel={t('moduleApps.admin.operations.next')}
+            positionLabel={t('moduleApps.admin.operations.pagePosition', { page: searchParams.getAll('previousCursor').length + 1 })}
+            previousLabel={t('moduleApps.admin.operations.previous')}
+            onPrevious={() => setSearchParams(retreatCursor(searchParams))}
+            onNext={() =>
+              data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
+            }
+          />
+        </div>
+      ) : null}
+    </AdminPageShell>
   );
 });
 

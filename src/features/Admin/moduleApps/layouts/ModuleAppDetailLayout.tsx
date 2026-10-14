@@ -31,8 +31,15 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     overflow-wrap: anywhere;
   `,
   frame: css`
+    box-sizing: border-box;
     width: 100%;
     min-width: 0;
+    margin-inline: auto;
+    padding: 24px;
+
+    @media (width < 640px) {
+      padding: 16px;
+    }
   `,
   header: css`
     display: flex;

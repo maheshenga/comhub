@@ -12,6 +12,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+import { AdminPageShell } from '../../layout';
 import { MODULE_ADMIN_ROUTE_PATHS } from '../navigation/catalog';
 import type { ModuleAppPaymentDiagnosticRow } from '../PaymentReconciliationTable';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
@@ -103,12 +104,12 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
       statusTranslationKeys[status] ? t(statusTranslationKeys[status]) : status;
 
     return (
-      <section className={styles.page} data-testid="module-overview-page">
-        <header>
-          <h1>{t('moduleApps.admin.center.overview.title')}</h1>
-          <p>{t('moduleApps.admin.center.overview.description')}</p>
-        </header>
-
+      <AdminPageShell
+        description={t('moduleApps.admin.center.overview.description')}
+        testId="module-overview-page"
+        title={t('moduleApps.admin.center.overview.title')}
+        width="full"
+      >
         {canReadModules ? (
           <>
             <ModuleOverviewBand
@@ -255,7 +256,7 @@ const ModuleOverviewPage = memo<ModuleOverviewPageProps>(
             </ModulePageState>
           </ModuleOverviewBand>
         ) : null}
-      </section>
+      </AdminPageShell>
     );
   },
 );
