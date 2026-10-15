@@ -98,12 +98,12 @@ const AdminStatsPage = memo(() => {
 
   return (
     <AdminPageShell
+      title={t('admin.stats.title', '运营统计')}
+      width="full"
       description={t(
         'admin.stats.description',
         '查看用户活跃度、订阅分布、收入与兑换码的运营趋势。',
       )}
-      title={t('admin.stats.title', '运营统计')}
-      width="full"
     >
       <AdminSection carded title={t('admin.stats.overview', '核心指标')}>
         {overviewError ? (

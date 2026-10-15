@@ -84,9 +84,9 @@ const ForcePlanModal = ({
         <Flexbox gap={4}>
           <div>{t('admin.subscriptions.modal.reasonLabel', '原因')}</div>
           <TextArea
+            placeholder={t('admin.subscriptions.modal.reasonPlaceholder', '请输入变更原因...')}
             rows={3}
             value={forceModal.reason}
-            placeholder={t('admin.subscriptions.modal.reasonPlaceholder', '请输入变更原因...')}
             onChange={(event: { target: { value: string } }) =>
               setForceModal((prev) => ({ ...prev, reason: event.target.value }))
             }

@@ -23,30 +23,29 @@ import {
  * 与解析处（anchor.tsx），把它们算进来会让任何 anchor 都「有挂载点」，断言
  * 变成永真。
  */
-const ANCHOR_MOUNT_ROOTS = [
-  'src/features/Settings',
-  'src/features/ServiceModel',
-  'src/business',
-];
+const ANCHOR_MOUNT_ROOTS = ['src/features/Settings', 'src/features/ServiceModel', 'src/business'];
 
 const collectMountSources = async (root: string): Promise<string> => {
   const entries = await readdir(root, { recursive: true, withFileTypes: true });
 
+  // Dirent.parentPath 自 Node v20.12 起存在（@types/node 24 同样只声明它，
+  // 没有 `path`）——旧的双 fallback 写法 tsgo 会报 TS2339。
   const files = entries
     .filter(
       (entry) =>
         entry.isFile() &&
         /\.tsx?$/.test(entry.name) &&
         !/\.test\./.test(entry.name) &&
-        !(entry.parentPath ?? entry.path ?? '').includes(`${path.sep}SettingsSearch`),
+        !entry.parentPath.includes(`${path.sep}SettingsSearch`),
     )
-    .map((entry) => path.join(entry.parentPath ?? entry.path ?? '', entry.name));
+    .map((entry) => path.join(entry.parentPath, entry.name));
 
   const sources = await Promise.all(files.map((file) => readFile(file, 'utf8')));
 
   return sources.join('\n');
 };
-const webContext: SettingsSearchContext = {  disableEmailPassword: false,
+const webContext: SettingsSearchContext = {
+  disableEmailPassword: false,
   enableBusinessFeatures: true,
   enableComposio: true,
   enableGatewayMode: true,
@@ -129,15 +128,14 @@ describe('settings search index', () => {
       ),
     );
 
-    const corpus = (
-      await Promise.all(ANCHOR_MOUNT_ROOTS.map(collectMountSources))
-    ).join('\n');
+    const corpus = (await Promise.all(ANCHOR_MOUNT_ROOTS.map(collectMountSources))).join('\n');
 
     // 裸 substring 比对会把 `id="billing-history-x"`（或任何更长的键）误判为
     // billing-history 的挂载点 —— 变异验证实证过这个假绿。按「完整引号 token」
     // 比对：锚点必须以成对引号独立出现（id="x"、id={'x'}、anchor: 'x'、映射表
     // key: 'x' 值皆命中；billing-history-x 的 -x 后缀不命中）。
-    const isMounted = (anchor: string) => corpus.includes(`'${anchor}'`) || corpus.includes(`"${anchor}"`);
+    const isMounted = (anchor: string) =>
+      corpus.includes(`'${anchor}'`) || corpus.includes(`"${anchor}"`);
 
     const unmounted = [...declared]
       .filter((anchor) => !isMounted(anchor))
