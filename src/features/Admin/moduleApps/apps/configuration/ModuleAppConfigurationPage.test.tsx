@@ -117,7 +117,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   TextArea: ({ onChange, ...props }: any) => (
     <textarea onChange={(e) => onChange?.(e)} {...props} />
   ),
-  Input: (props: any) => <input {...props} />,
   Button: ({
     children,
     danger: _danger,

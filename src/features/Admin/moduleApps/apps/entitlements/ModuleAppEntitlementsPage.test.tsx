@@ -110,8 +110,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     />
   ),
   SelectItem: (props: any) => <option {...props} />,
-  Select: (props: any) => <select {...props} />,
-  SelectItem: (props: any) => <option {...props} />,
   Button: ({
     children,
     danger: _danger,

@@ -64,7 +64,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
-  Input: (props: any) => <input {...props} />,
   Modal: (props: any) =>
     props.open ? (
       <div>
@@ -74,15 +73,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
         </button>
       </div>
     ) : null,
-  Select: ({ options, onChange, ...props }: any) => (
-    <select {...props} onChange={(event) => onChange?.(event.target.value)}>
-      {options?.map((option: any) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
   toast: { error: vi.fn(), success: vi.fn() },
 
   Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,

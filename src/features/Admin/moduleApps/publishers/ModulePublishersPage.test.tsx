@@ -68,17 +68,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
-  Input: (props: any) => <input {...props} />,
-  TextArea: (props: any) => <textarea {...props} />,
-  Select: ({ options, onChange, ...props }: any) => (
-    <select {...props} onChange={(event) => onChange?.(event.target.value)}>
-      {options?.map((option: any) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
   Modal: (props: any) => {
     baseUi.modal(props);
     return props.open ? (

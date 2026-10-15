@@ -27,15 +27,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
         </button>
       </div>
     ) : null,
-  Modal: (props: any) =>
-    props.open ? (
-      <div role="dialog">
-        {props.children}
-        <button disabled={props.okButtonProps?.disabled} type="button" onClick={props.onOk}>
-          {props.okText}
-        </button>
-      </div>
-    ) : null,
   TextArea: (props: any) => <textarea {...props} />,
 }));
 
