@@ -26,7 +26,9 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   // 基线是 antd Select/InputNumber（role=combobox / aria-valuemax 由 antd
   // 渲染、onChange 收 number）；组件迁 base-ui 后桩按 antd 语义透传，
   // 保持断言面不变。
-  Select: ({ options: _options, ...props }: any) => <select role="combobox" {...props} />,
+  Select: ({ allowClear: _allowClear, options: _options, ...props }: any) => (
+    <select role="combobox" {...props} />
+  ),
   SelectItem: (props: any) => <option {...props} />,
   InputNumber: ({ max, min, onChange, ...props }: any) => (
     <input
