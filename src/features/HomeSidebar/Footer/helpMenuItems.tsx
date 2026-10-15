@@ -17,20 +17,19 @@ import { type HelpMenuIcon, type HelpMenuItem } from '@/const/helpMenu';
 type HelpMenuHandlers = {
   onChangelog: () => void;
   onFeedback: () => void;
-  onProductHunt: () => void;
 };
 
 const iconMap: Record<HelpMenuIcon, any> = {
-  book: Book,
-  discord: DiscordIcon,
-  feather: Feather,
+  'book': Book,
+  'discord': DiscordIcon,
+  'feather': Feather,
   'file-clock': FileClockIcon,
-  flask: FlaskConical,
-  github: GithubIcon,
-  help: CircleHelp,
-  message: MessageCircle,
-  rocket: Rocket,
-  settings: Settings2,
+  'flask': FlaskConical,
+  'github': GithubIcon,
+  'help': CircleHelp,
+  'message': MessageCircle,
+  'rocket': Rocket,
+  'settings': Settings2,
 };
 
 const isInternalUrl = (url: string) => url.startsWith('/');
@@ -53,58 +52,55 @@ export const createConfiguredHelpMenuItems = (
   items: HelpMenuItem[],
   handlers: HelpMenuHandlers,
 ): MenuProps['items'] =>
-  items.map((item) => {
-    const base = {
-      icon: createMenuIcon(item.icon),
-      key: item.key,
-    };
-
-    if (item.url) {
-      return {
-        ...base,
-        label: createLinkLabel(item.label, item.url),
+  items
+    // product-hunt 只在 admin 配了跳转 url 时渲染：action 本身没有运行时
+    // 语义（F2 快修），无 url 的条目此前渲染成点击无反馈的死菜单项。
+    .filter((item) => !(item.action === 'product-hunt' && !item.url))
+    .map((item) => {
+      const base = {
+        icon: createMenuIcon(item.icon),
+        key: item.key,
       };
-    }
 
-    switch (item.action) {
-      case 'feedback': {
-        return {
-          ...base,
-          label: item.label,
-          onClick: handlers.onFeedback,
-        };
-      }
-      case 'changelog': {
-        return {
-          ...base,
-          label: item.label,
-          onClick: handlers.onChangelog,
-        };
-      }
-      case 'settings': {
-        return {
-          ...base,
-          label: createLinkLabel(item.label, item.url || '/settings'),
-        };
-      }
-      case 'eval': {
-        return {
-          ...base,
-          label: createLinkLabel(item.label, item.url || '/eval'),
-        };
-      }
-      case 'product-hunt': {
-        return {
-          ...base,
-          label: item.label,
-          onClick: handlers.onProductHunt,
-        };
-      }
-      default: {
+      if (item.url) {
         return {
           ...base,
           label: createLinkLabel(item.label, item.url),
         };
       }
-    }
-  });
+
+      switch (item.action) {
+        case 'feedback': {
+          return {
+            ...base,
+            label: item.label,
+            onClick: handlers.onFeedback,
+          };
+        }
+        case 'changelog': {
+          return {
+            ...base,
+            label: item.label,
+            onClick: handlers.onChangelog,
+          };
+        }
+        case 'settings': {
+          return {
+            ...base,
+            label: createLinkLabel(item.label, item.url || '/settings'),
+          };
+        }
+        case 'eval': {
+          return {
+            ...base,
+            label: createLinkLabel(item.label, item.url || '/eval'),
+          };
+        }
+        default: {
+          return {
+            ...base,
+            label: createLinkLabel(item.label, item.url),
+          };
+        }
+      }
+    });

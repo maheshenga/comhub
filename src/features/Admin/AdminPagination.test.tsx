@@ -14,7 +14,34 @@ const paginationData = (key: readonly unknown[]) => {
     resource === 'admin-orders' ? key[1] : resource === 'admin-subscriptions' ? key[2] : key[3];
   const initial = cursor === undefined || cursor === 0;
 
-  return { items: [], nextCursor: initial ? 20 : null };
+  // filtered 空态（U5）接手后空列表会走 AdminPageState 分支，region 与
+  // 分页器一并消失；分页用例关心游标推进，给一行最小数据让表格本体渲染。
+  const items =
+    resource === 'admin-orders'
+      ? [
+          {
+            amount: 9.9,
+            createdAt: '2024-01-15T10:00:00Z',
+            currency: 'USD',
+            id: 'order-1',
+            status: 'paid',
+            userId: 'user-1',
+          },
+        ]
+      : resource === 'admin-subscriptions'
+        ? [
+            {
+              cycle: 'monthly',
+              plan: 'hobby',
+              renewsAt: '2024-02-15T10:00:00Z',
+              startedAt: '2024-01-15T10:00:00Z',
+              status: 'active',
+              userId: 'user-1',
+            },
+          ]
+        : [{ id: 'cr-1', userId: 'user-1' }];
+
+  return { items, nextCursor: initial ? 20 : null };
 };
 
 vi.mock('react-i18next', () => ({

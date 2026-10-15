@@ -54,8 +54,6 @@ export const config = {
     '/goal(.*)',
     '/me',
     '/me(.*)',
-    '/apps',
-    '/apps(.*)',
     '/share(.*)',
 
     '/onboarding',

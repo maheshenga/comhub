@@ -28,7 +28,6 @@ describe('createConfiguredHelpMenuItems', () => {
       {
         onChangelog: vi.fn(),
         onFeedback: vi.fn(),
-        onProductHunt: vi.fn(),
       },
     );
 
@@ -51,7 +50,6 @@ describe('createConfiguredHelpMenuItems', () => {
       {
         onChangelog: vi.fn(),
         onFeedback,
-        onProductHunt: vi.fn(),
       },
     );
 
@@ -61,7 +59,6 @@ describe('createConfiguredHelpMenuItems', () => {
   });
 
   it('uses configured links before built-in action handlers', () => {
-    const onProductHunt = vi.fn();
     const items = createConfiguredHelpMenuItems(
       [
         {
@@ -73,7 +70,7 @@ describe('createConfiguredHelpMenuItems', () => {
           url: 'https://promo.example.com',
         },
       ],
-      { onChangelog: vi.fn(), onFeedback: vi.fn(), onProductHunt },
+      { onChangelog: vi.fn(), onFeedback: vi.fn() },
     );
 
     render(<MemoryRouter>{(items[0] as any).label}</MemoryRouter>);
@@ -82,5 +79,17 @@ describe('createConfiguredHelpMenuItems', () => {
       'https://promo.example.com',
     );
     expect((items[0] as any).onClick).toBeUndefined();
+  });
+
+  it('drops product-hunt entries without a url instead of rendering a dead menu item', () => {
+    const items = createConfiguredHelpMenuItems(
+      [
+        { action: 'product-hunt', enabled: true, icon: 'rocket', key: 'dead', label: 'Dead' },
+        { action: 'feedback', enabled: true, icon: 'feather', key: 'support', label: 'Support' },
+      ],
+      { onChangelog: vi.fn(), onFeedback: vi.fn() },
+    );
+
+    expect(items.map((item: any) => item?.key)).toEqual(['support']);
   });
 });
