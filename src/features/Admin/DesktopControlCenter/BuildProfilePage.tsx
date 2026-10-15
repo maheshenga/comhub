@@ -2,6 +2,7 @@
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
 import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -48,7 +49,7 @@ interface BuildProfilePageProps {
 }
 
 const getProfileItems = (data: unknown): BuildProfileView[] =>
-  (((data as { items?: BuildProfileView[] } | undefined)?.items ?? []) as BuildProfileView[]);
+  ((data as { items?: BuildProfileView[] } | undefined)?.items ?? []) as BuildProfileView[];
 
 const withDraftApplied = (
   current: BuildProfileView,
@@ -157,9 +158,9 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
     if (profiles.error) {
       return (
         <AdminPageError
-          onRetry={() => void profiles.mutate()}
           retryLabel={t('admin.desktopControl.retry')}
           title={t('admin.desktopBuild.loadFailed')}
+          onRetry={() => void profiles.mutate()}
         />
       );
     }
@@ -196,9 +197,9 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
         await profiles.mutate();
         toast.success(t('admin.desktopBuild.saveSuccess'));
       } catch (error) {
-        const conflict = error instanceof Error && error.message.includes(
-          'DESKTOP_BUILD_PROFILE_REVISION_CONFLICT',
-        );
+        const conflict =
+          error instanceof Error &&
+          error.message.includes('DESKTOP_BUILD_PROFILE_REVISION_CONFLICT');
         toast.error(
           conflict ? t('admin.desktopBuild.revisionConflict') : t('admin.desktopBuild.saveFailed'),
         );
@@ -208,7 +209,9 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
     };
 
     const performArchiveProfile = async (
-      envelope: ReturnType<typeof buildAdminDangerousActionEnvelope<'desktop.buildProfile.archive'>>,
+      envelope: ReturnType<
+        typeof buildAdminDangerousActionEnvelope<'desktop.buildProfile.archive'>
+      >,
     ) => {
       if (!selectedProfile) return;
       setArchiving(true);

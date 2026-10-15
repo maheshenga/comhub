@@ -1,7 +1,8 @@
 'use client';
 
 import { getComposioAppByIdentifier, getLobehubSkillProviderById } from '@lobechat/const';
-import { ActionIcon, Flexbox, Icon } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Blocks, X } from 'lucide-react';
 import React, { createElement, memo, useCallback, useMemo } from 'react';

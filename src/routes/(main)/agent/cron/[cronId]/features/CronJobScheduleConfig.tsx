@@ -1,8 +1,10 @@
 'use client';
 
 import { type ScheduleType } from '@lobechat/utils/cron';
+// eslint-disable-next-line no-restricted-imports -- @lobehub/ui FormGroup 属 Form 系布局组件（表单分组语义），base-ui/form 无行内等价项；迁 FormKit 属另行立项。
 import { Flexbox, FormGroup } from '@lobehub/ui';
-import { Checkbox, InputNumber, Select, TimePicker } from 'antd';
+import { CheckboxGroup, InputNumber, Select } from '@lobehub/ui/base-ui';
+import { TimePicker } from 'antd';
 import { type Dayjs } from 'dayjs';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -42,7 +44,7 @@ const getScheduleTypeOptions = (t: (key: any) => string) =>
 const getWeekdayOptions = (t: (key: any) => string) =>
   WEEKDAY_OPTIONS.map((item) => ({
     label: t(item.label),
-    value: item.value,
+    value: String(item.value),
   }));
 
 const CronJobScheduleConfig = memo<CronJobScheduleConfigProps>(
@@ -94,9 +96,9 @@ const CronJobScheduleConfig = memo<CronJobScheduleConfigProps>(
           {scheduleType === 'weekly' && (
             <Flexbox gap={8}>
               <div>{t('agentCronJobs.weekdays')}</div>
-              <Checkbox.Group
+              <CheckboxGroup
                 options={weekdayOptions}
-                value={weekdays}
+                value={weekdays.map(String)}
                 onChange={(values) => onScheduleChange({ weekdays: values.map(Number) })}
               />
             </Flexbox>

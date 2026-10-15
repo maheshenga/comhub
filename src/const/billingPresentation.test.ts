@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PLAN_FAQ_ITEMS,
+  normalizePlanCatalogPresentation,
   normalizePlanFaqItems,
   normalizePlanFaqSettings,
-  normalizePlanCatalogPresentation,
   normalizeTopUpPackagePromotion,
   serializeTopUpPackagePromotion,
 } from './billingPresentation';
@@ -121,9 +121,7 @@ describe('billingPresentation', () => {
         { answer: 'Hidden answer', enabled: false, id: 'hidden', question: 'Hidden?' },
         { answer: '', enabled: true, id: 'blank', question: 'Blank?' },
       ]),
-    ).toEqual([
-      { answer: 'Hidden answer', enabled: false, id: 'hidden', question: 'Hidden?' },
-    ]);
+    ).toEqual([{ answer: 'Hidden answer', enabled: false, id: 'hidden', question: 'Hidden?' }]);
 
     expect(normalizePlanFaqSettings([])).toEqual([]);
     expect(normalizePlanFaqSettings(null)).toEqual(DEFAULT_PLAN_FAQ_ITEMS);

@@ -2,6 +2,8 @@ import { render } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import ChatConversation from './index';
+
 const rendered = vi.hoisted(() => ({ area: vi.fn(), header: vi.fn() }));
 
 vi.mock('@/components/DragUploadZone', () => ({
@@ -24,8 +26,6 @@ vi.mock('./Header', () => ({
     return null;
   },
 }));
-
-import ChatConversation from './index';
 
 describe('group ChatConversation', () => {
   it('uses the mobile conversation surface without the desktop header', () => {

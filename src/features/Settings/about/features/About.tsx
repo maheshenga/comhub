@@ -1,8 +1,8 @@
 'use client';
 
 import { SiDiscord, SiGithub, SiRss, SiX, SiYoutube } from '@icons-pack/react-simple-icons';
-import { Flexbox, Form } from '@lobehub/ui';
-import { Divider } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Divider, Form } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +45,9 @@ const About = memo<{ mobile?: boolean }>(({ mobile }) => {
     lambdaClient.admin.settings.getPublicAboutLinks.query(),
   );
   const aboutLinks = normalizeAboutLinksConfig(
-    data && typeof data === 'object' && 'links' in data ? data.links : data ?? DEFAULT_ABOUT_LINKS,
+    data && typeof data === 'object' && 'links' in data
+      ? data.links
+      : (data ?? DEFAULT_ABOUT_LINKS),
   );
   const aboutLogoUrl =
     data && typeof data === 'object' && 'logoUrl' in data && typeof data.logoUrl === 'string'
@@ -55,7 +57,6 @@ const About = memo<{ mobile?: boolean }>(({ mobile }) => {
   return (
     <Form.Group
       collapsible={false}
-      gap={16}
       style={{ maxWidth: '1024px', width: '100%' }}
       title={`${t('about')} ${brandingName}`}
       variant={'filled'}

@@ -35,7 +35,7 @@ const getIpv6Groups = (value: string) => {
 };
 
 const isUnsafeLiteralHostname = (hostname: string) => {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const normalized = hostname.toLowerCase().replaceAll(/^\[|\]$/g, '');
 
   if (
     normalized === 'localhost' ||

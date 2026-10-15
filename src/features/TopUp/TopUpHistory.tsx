@@ -1,4 +1,5 @@
-import { Table } from 'antd';
+import type { TopUpOrderHistoryItem } from '@lobechat/types';
+import { Table, type TableColumn } from '@lobehub/ui/base-ui';
 import useSWR from 'swr';
 
 import { commercialService } from '@/services/commercial';
@@ -25,7 +26,7 @@ export const TopUpHistory = () => {
     commercialService.listTopUpOrders({ limit: 20 }),
   );
 
-  const columns = [
+  const columns: TableColumn<TopUpOrderHistoryItem>[] = [
     {
       dataIndex: 'createdAt',
       key: 'createdAt',
@@ -36,7 +37,7 @@ export const TopUpHistory = () => {
     {
       dataIndex: 'source',
       key: 'source',
-      render: (v: string) => sourceLabels[v] ?? v,
+      render: (v: null | string | undefined) => sourceLabels[v ?? ''] ?? v ?? '-',
       title: '来源',
     },
     {

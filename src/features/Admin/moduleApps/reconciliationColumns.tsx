@@ -2,15 +2,12 @@
 
 import type { PaymentProvider } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
-import { Typography } from 'antd';
+import { Button, Tag, Text } from '@lobehub/ui/base-ui';
 
 import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 
 import type { ModuleAppPaymentDiagnosticRow } from './PaymentReconciliationTable';
 import { IdList } from './PaymentReconciliationTable';
-
-const { Text } = Typography;
 
 type ReconciliationCopy = Record<string, string | undefined>;
 
@@ -86,7 +83,9 @@ export const buildReconciliationColumns = ({
   },
   {
     key: 'paymentEventIds',
-    render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => <IdList ids={row.paymentEventIds} />,
+    render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
+      <IdList ids={row.paymentEventIds} />
+    ),
     title: copy.events,
   },
   {

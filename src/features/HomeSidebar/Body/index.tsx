@@ -20,9 +20,9 @@ import type { NativeContextMenuItem } from '@/libs/contextMenu/types';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 import { SIDEBAR_SPACER_ID } from '@/store/global/selectors/systemStatus';
+import { useUserStore } from '@/store/user';
 import { labPreferSelectors } from '@/store/user/selectors';
 import { isExternalUrl, isModifierClick } from '@/utils/navigation';
-import { useUserStore } from '@/store/user';
 
 import Agent from './Agent';
 import { openCustomizeSidebarModal } from './CustomizeSidebarModal';

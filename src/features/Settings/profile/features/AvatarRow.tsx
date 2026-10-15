@@ -1,7 +1,7 @@
 'use client';
 
-import { Avatar, Flexbox, Icon } from '@lobehub/ui';
-import { Button, message, Modal, Upload } from 'antd';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { Avatar, Button, Modal, toast, Upload } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { Loader2Icon, PencilIcon } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -115,7 +115,7 @@ const AvatarRow = () => {
     try {
       setSelectingPreset(avatar);
       await updateAvatar(avatar);
-      message.success(t('profile.avatarPresetSuccess', '头像已更新'));
+      toast.success(t('profile.avatarPresetSuccess', '头像已更新'));
       setPresetOpen(false);
     } catch (error) {
       saveToast(error, {
@@ -129,7 +129,7 @@ const AvatarRow = () => {
 
   const avatarContent = canUpload ? (
     <Flexbox horizontal align="center" gap={8}>
-      <Upload beforeUpload={handleUploadAvatar} itemRender={() => void 0} maxCount={1}>
+      <Upload beforeUpload={handleUploadAvatar} maxCount={1}>
         <div className={styles.wrapper}>
           <UserAvatar size={40} />
           <div

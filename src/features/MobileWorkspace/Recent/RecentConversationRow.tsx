@@ -2,8 +2,8 @@
 
 import { DEFAULT_AVATAR } from '@lobechat/const';
 import { type MenuProps } from '@lobehub/ui';
-import { ActionIcon, Avatar, Flexbox, Icon } from '@lobehub/ui';
-import { DropdownMenu } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, Avatar, DropdownMenu } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { MoreHorizontal, Pin, PinOff } from 'lucide-react';
 import { memo, useMemo } from 'react';

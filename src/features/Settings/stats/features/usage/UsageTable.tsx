@@ -1,5 +1,6 @@
-import { Flexbox, Icon, Input, Tooltip } from '@lobehub/ui';
-import { Button, Select, Text } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { Button, Input, Select, Text, Tooltip } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd DatePicker.RangePicker 的 value/onChange 是 Dayjs 对象契约（dateRange 过滤链 dayjs.isBefore/isAfter 全链耦合），base-ui DateRangePicker 是 Date 契约，行为不变迁移需重写过滤逻辑；TableColumnType 类型随 InlineTable 的 antd 列契约保留。
 import { DatePicker, type TableColumnType } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -140,7 +141,9 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     image: t('usage.type.image', { defaultValue: '\u56FE\u7247' }),
     imageGeneration: t('usage.type.image', { defaultValue: '\u56FE\u7247' }),
     ppt: t('usage.type.ppt', { defaultValue: 'PPT' }),
-    speechRecognition: t('usage.type.speechRecognition', { defaultValue: '\u8BED\u97F3\u8F6C\u5199' }),
+    speechRecognition: t('usage.type.speechRecognition', {
+      defaultValue: '\u8BED\u97F3\u8F6C\u5199',
+    }),
     structured_output: t('usage.type.structuredOutput', {
       defaultValue: '\u7ED3\u6784\u5316\u8F93\u51FA',
     }),

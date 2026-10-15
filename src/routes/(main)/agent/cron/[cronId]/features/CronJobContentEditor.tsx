@@ -10,6 +10,7 @@ import {
   ReactTablePlugin,
 } from '@lobehub/editor';
 import { Editor, useEditor } from '@lobehub/editor/react';
+// eslint-disable-next-line no-restricted-imports -- @lobehub/ui FormGroup 属 Form 系布局组件（表单分组语义），base-ui/form 无行内等价项；迁 FormKit 属另行立项。
 import { FormGroup } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useCallback, useEffect, useRef } from 'react';

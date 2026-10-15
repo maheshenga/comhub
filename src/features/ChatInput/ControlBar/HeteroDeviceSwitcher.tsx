@@ -19,10 +19,10 @@ import { memo, type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InstantSwitch from '@/components/InstantSwitch';
-import { usePublicDesktopDownload } from '@/features/DesktopDownload';
 import { useChatInputResourceAccess } from '@/features/ChatInput/hooks/useChatInputResourceAccess';
 import { useLocalSandboxCapability } from '@/features/ChatInput/hooks/useLocalSandboxCapability';
 import { useSelectExecutionTarget } from '@/features/ChatInput/hooks/useSelectExecutionTarget';
+import { usePublicDesktopDownload } from '@/features/DesktopDownload';
 import { useDeviceList } from '@/features/DeviceManager/useDeviceList';
 import {
   devicePoolForAgent,
@@ -39,8 +39,8 @@ import {
 } from '@/helpers/executionTarget';
 import { useIsGatewayModeEnabled } from '@/helpers/gatewayMode';
 import { useEffectiveAgencyConfig } from '@/hooks/useEffectiveAgencyConfig';
-import { usePlatform } from '@/hooks/usePlatform';
 import { useEffectiveWorkingDirectory } from '@/hooks/useEffectiveWorkingDirectory';
+import { usePlatform } from '@/hooks/usePlatform';
 import { localFileService } from '@/services/electron/localFileService';
 import { useAgentStore } from '@/store/agent';
 import { useChatStore } from '@/store/chat';

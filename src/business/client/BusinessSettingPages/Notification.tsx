@@ -2,7 +2,7 @@
 
 import { isDesktop } from '@lobechat/const';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Switch, Typography } from 'antd';
+import { Alert, Button, Switch, Text } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,8 +14,6 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import { SubscriptionIframeWrapper } from './SubscriptionIframeWrapper';
-
-const { Text } = Typography;
 
 /**
  * 通知搜索深链锚点：key 与 anchor 后缀一致。显式映射（而非模板串拼接）——

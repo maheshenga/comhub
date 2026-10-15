@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { agentService } from '@/services/agent';
+import { discoverService } from '@/services/discover';
+import { marketApiService } from '@/services/marketApi';
+import { useAgentStore } from '@/store/agent';
+import { useHomeStore } from '@/store/home';
+
+import { installMarketplaceAgents } from './installMarketplaceAgents';
+
 vi.hoisted(() => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, 'localStorage', {
@@ -12,14 +20,6 @@ vi.hoisted(() => {
     },
   });
 });
-
-import { agentService } from '@/services/agent';
-import { discoverService } from '@/services/discover';
-import { marketApiService } from '@/services/marketApi';
-import { useAgentStore } from '@/store/agent';
-import { useHomeStore } from '@/store/home';
-
-import { installMarketplaceAgents } from './installMarketplaceAgents';
 
 vi.mock('@/store/agent', () => ({
   useAgentStore: {

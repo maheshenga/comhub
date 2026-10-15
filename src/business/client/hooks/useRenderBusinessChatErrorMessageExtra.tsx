@@ -1,6 +1,7 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { ChatErrorType, type ChatMessageError } from '@lobechat/types';
-import { Button, Flexbox } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,33 +12,36 @@ import { useProviderName } from '@/hooks/useProviderName';
 
 const useStyles = createStaticStyles(({ css }) => ({
   meta: css`
-    color: ${cssVar.colorTextDescription};
     font-size: 13px;
     line-height: 1.6;
+    color: ${cssVar.colorTextDescription};
   `,
   statGrid: css`
     display: grid;
-    gap: 8px;
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 8px;
     width: 100%;
   `,
   statItem: css`
-    background: ${cssVar.colorFillQuaternary};
+    padding-block: 10px;
+    padding-inline: 12px;
     border: 1px solid ${cssVar.colorBorderSecondary};
     border-radius: 12px;
-    padding: 10px 12px;
+
+    background: ${cssVar.colorFillQuaternary};
   `,
   statLabel: css`
-    color: ${cssVar.colorTextSecondary};
     font-size: 12px;
     line-height: 1.5;
+    color: ${cssVar.colorTextSecondary};
   `,
   statValue: css`
-    color: ${cssVar.colorText};
+    margin-block-start: 4px;
+
     font-size: 16px;
     font-weight: 700;
     line-height: 1.5;
-    margin-top: 4px;
+    color: ${cssVar.colorText};
   `,
 }));
 
@@ -106,7 +110,6 @@ export default function useRenderBusinessChatErrorMessageExtra(
   return (
     <ErrorContent
       id={messageId}
-      onRegenerate={options?.onRetry}
       error={{
         action: (
           <Flexbox horizontal gap={8} wrap={'wrap'}>
@@ -157,6 +160,7 @@ export default function useRenderBusinessChatErrorMessageExtra(
         message: t('limitation.insufficientBudget.title'),
         type: 'warning',
       }}
+      onRegenerate={options?.onRetry}
     />
   );
 }

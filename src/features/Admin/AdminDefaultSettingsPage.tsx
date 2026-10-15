@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,8 +26,16 @@ import {
   RuntimeFields,
   UserDefaultsFields,
 } from './DefaultSettings/SectionFields';
-import type { AdminDefaultSettingsScope,DefaultSettingsData, FormValues } from './DefaultSettings/shared';
-import { DEFAULTS_INITIAL_VALUES, RUNTIME_SAVE_ERROR_MESSAGES, scopeCopy } from './DefaultSettings/shared';
+import type {
+  AdminDefaultSettingsScope,
+  DefaultSettingsData,
+  FormValues,
+} from './DefaultSettings/shared';
+import {
+  DEFAULTS_INITIAL_VALUES,
+  RUNTIME_SAVE_ERROR_MESSAGES,
+  scopeCopy,
+} from './DefaultSettings/shared';
 import SyncActionButtons from './DefaultSettings/SyncActionButtons';
 import {
   applyIntegrationsToForm,

@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, Tooltip } from 'antd';
+import { Button, Tooltip } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -31,9 +31,7 @@ const CursorPager = ({
   previousLabel?: string;
 }) => (
   <Flexbox horizontal gap={6} justify="flex-end">
-    {positionLabel ? (
-      <span style={positionLabelStyle}>{positionLabel}</span>
-    ) : null}
+    {positionLabel ? <span style={positionLabelStyle}>{positionLabel}</span> : null}
     <Tooltip title={previousLabel}>
       <Button
         aria-label={previousLabel}

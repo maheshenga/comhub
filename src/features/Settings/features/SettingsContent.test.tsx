@@ -51,7 +51,7 @@ describe('SettingsContent mobile presentation', () => {
   });
 
   it.each(businessTabs)('forwards mobile presentation to directly opened %s', (tab) => {
-    render(<SettingsContent activeTab={tab} mobile />);
+    render(<SettingsContent mobile activeTab={tab} />);
 
     expect(businessPageSpy).toHaveBeenCalledWith(tab, { mobile: true });
   });

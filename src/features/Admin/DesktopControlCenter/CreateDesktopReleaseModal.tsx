@@ -1,8 +1,9 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { toast } from '@lobehub/ui/base-ui';
-import { Descriptions, Form, Input, Modal, Radio } from 'antd';
+import { Descriptions, Input, Modal, Radio, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -107,7 +108,7 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
             <Input placeholder="2.4.0" />
           </Form.Item>
           <Form.Item label={t('admin.desktopBuild.release.notes')} name="releaseNotes">
-            <Input.TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
+            <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
           </Form.Item>
         </Form>
         <Descriptions bordered column={1} size="small">

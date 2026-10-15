@@ -1,7 +1,8 @@
 'use client';
 
 import { TITLE_BAR_HEIGHT } from '@lobechat/desktop-bridge';
-import { Flexbox, Text } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import { type FC } from 'react';
 
 import { ProductLogo } from '@/components/Branding/ProductLogo';
@@ -41,8 +42,8 @@ const SimpleTitleBar: FC<SimpleTitleBarProps> = ({ title }) => {
       {showWinControl && <div style={{ width: WINDOW_CONTROL_WIDTH }} />}
       {title ? (
         <Text
-          as={'span'}
           ellipsis
+          as={'span'}
           style={{ maxWidth: 240, minWidth: 0, textAlign: 'center' }}
           weight={'bold'}
         >

@@ -11,8 +11,8 @@ const ChatPage = memo<{ mobile?: boolean }>(({ mobile = false }) => {
   return (
     <>
       <Flexbox
-        horizontal={!mobile}
         height={'100%'}
+        horizontal={!mobile}
         style={{ overflow: 'hidden', position: 'relative' }}
         width={'100%'}
       >

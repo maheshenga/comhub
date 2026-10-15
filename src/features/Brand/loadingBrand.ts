@@ -1,6 +1,6 @@
 interface LoadingBrandLike {
-  loadingText?: null | string;
   loadingSvgUrl?: null | string;
+  loadingText?: null | string;
   name?: null | string;
   slogan?: null | string;
 }

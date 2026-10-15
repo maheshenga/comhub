@@ -19,8 +19,8 @@ const Probe = ({ name, urlValue }: { name: string; urlValue: string }) => {
     <div>
       <input
         aria-label="probe-input"
-        onChange={(event) => setInput(event.target.value)}
         value={input}
+        onChange={(event) => setInput(event.target.value)}
       />
       <span data-testid="probe-input-value">{input}</span>
       <span data-testid="probe-url-value">{searchParams.get(name) ?? ''}</span>
@@ -42,9 +42,7 @@ describe('useDebouncedFilter', () => {
     expect(screen.getByTestId('probe-url-value').textContent).toBe('');
 
     // 静默期后按 trim 后的值回写。
-    await waitFor(() =>
-      expect(screen.getByTestId('probe-url-value').textContent).toBe('work'),
-    );
+    await waitFor(() => expect(screen.getByTestId('probe-url-value').textContent).toBe('work'));
     expect(screen.getByTestId('probe-input-value').textContent).toBe('  work  ');
   });
 
@@ -58,9 +56,7 @@ describe('useDebouncedFilter', () => {
     expect(screen.getByTestId('probe-url-value').textContent).toBe('seed');
 
     await user.clear(screen.getByLabelText('probe-input'));
-    await waitFor(() =>
-      expect(screen.getByTestId('probe-url-value').textContent).toBe(''),
-    );
+    await waitFor(() => expect(screen.getByTestId('probe-url-value').textContent).toBe(''));
   });
 
   it('starts from the URL value', () => {

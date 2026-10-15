@@ -1,6 +1,9 @@
 import type { ModuleAppInputSchema, ModuleAppScopeType } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, InputNumber, Select, Switch } from 'antd';
+import { Alert, Button, Input, InputNumber, Select, Switch, TextArea } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
+// eslint-disable-next-line no-restricted-imports -- antd/es/form 的 Rule 类型随受控 Form.Item rules 保留，同上豁免。
 import type { Rule } from 'antd/es/form';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw, Save } from 'lucide-react';
@@ -48,9 +51,7 @@ const getValidationPattern = (value?: string) => {
 };
 
 const getInitialValues = (fields: ModuleAppInputField[], data?: Record<string, unknown>) =>
-  Object.fromEntries(
-    fields.map((field) => [field.key, data?.[field.key] ?? field.defaultValue]),
-  );
+  Object.fromEntries(fields.map((field) => [field.key, data?.[field.key] ?? field.defaultValue]));
 
 const RecordForm = memo<RecordFormProps>(
   ({ appId, collectionKey, fields, onSaved, recordId, scopeType, titleFieldKey, workspaceId }) => {
@@ -63,9 +64,11 @@ const RecordForm = memo<RecordFormProps>(
     const record = useSWR<ModuleAppRecordData | null>(
       recordId ? ['moduleApp.getRecord', appId, recordId, workspaceId ?? null] : null,
       () =>
-        moduleAppService.getRecord({ appId, recordId: recordId!, workspaceId }) as Promise<
-          ModuleAppRecordData | null
-        >,
+        moduleAppService.getRecord({
+          appId,
+          recordId: recordId!,
+          workspaceId,
+        }) as Promise<ModuleAppRecordData | null>,
     );
     const resolvedTitleFieldKey = useMemo(
       () => titleFieldKey ?? fields.find((field) => field.type === 'text')?.key,
@@ -157,24 +160,50 @@ const RecordForm = memo<RecordFormProps>(
             };
 
             if (field.type === 'textarea') {
-              return <Form.Item key={field.key} {...commonProps}><Input.TextArea autoSize={{ minRows: 4, maxRows: 12 }} /></Form.Item>;
+              return (
+                <Form.Item key={field.key} {...commonProps}>
+                  <TextArea autoSize={{ minRows: 4, maxRows: 12 }} />
+                </Form.Item>
+              );
             }
             if (field.type === 'number') {
-              return <Form.Item key={field.key} {...commonProps}><InputNumber style={{ width: '100%' }} /></Form.Item>;
+              return (
+                <Form.Item key={field.key} {...commonProps}>
+                  <InputNumber style={{ width: '100%' }} />
+                </Form.Item>
+              );
             }
             if (field.type === 'boolean') {
-              return <Form.Item key={field.key} {...commonProps} valuePropName="checked"><Switch /></Form.Item>;
+              return (
+                <Form.Item key={field.key} {...commonProps} valuePropName="checked">
+                  <Switch />
+                </Form.Item>
+              );
             }
             if (field.type === 'select') {
-              return <Form.Item key={field.key} {...commonProps}><Select options={field.options ?? []} /></Form.Item>;
+              return (
+                <Form.Item key={field.key} {...commonProps}>
+                  <Select options={field.options ?? []} />
+                </Form.Item>
+              );
             }
             if (field.type === 'date') {
-              return <Form.Item key={field.key} {...commonProps}><Input type="date" /></Form.Item>;
+              return (
+                <Form.Item key={field.key} {...commonProps}>
+                  <Input type="date" />
+                </Form.Item>
+              );
             }
-            return <Form.Item key={field.key} {...commonProps}><Input /></Form.Item>;
+            return (
+              <Form.Item key={field.key} {...commonProps}>
+                <Input />
+              </Form.Item>
+            );
           })}
           <Button htmlType="submit" icon={<Save size={16} />} loading={saving} type="primary">
-            {t(recordId ? 'moduleApps.runtime.records.update' : 'moduleApps.runtime.records.create')}
+            {t(
+              recordId ? 'moduleApps.runtime.records.update' : 'moduleApps.runtime.records.create',
+            )}
           </Button>
         </Form>
       </Flexbox>

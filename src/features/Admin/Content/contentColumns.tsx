@@ -1,9 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
-import { Space, Typography } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Button, Tag, Text } from '@lobehub/ui/base-ui';
+import type { TableColumnsType } from 'antd';
+import { Space } from 'antd';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import {
@@ -17,8 +17,6 @@ import {
   userLabel,
 } from './shared';
 
-const { Text } = Typography;
-
 type RunAction = (
   id: string,
   action: 'archive-topic' | 'delete-document' | 'delete-file' | 'delete-topic',
@@ -29,7 +27,7 @@ export const buildContentColumns = (
   mode: 'topics' | 'files' | 'documents',
   actingId: string | null,
   runAction: RunAction,
-): ColumnsType<any> => {
+): TableColumnsType<any> => {
   if (mode === 'topics') {
     return [
       {

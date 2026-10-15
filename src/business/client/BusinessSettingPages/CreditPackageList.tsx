@@ -1,9 +1,8 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Select, Tabs } from '@lobehub/ui/base-ui';
+import { Empty, Flexbox } from '@lobehub/ui';
+import { Select, Tabs, Tag } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
-import { Empty, Tag } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

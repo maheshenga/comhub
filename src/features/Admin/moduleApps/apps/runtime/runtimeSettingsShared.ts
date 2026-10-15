@@ -2,6 +2,8 @@
 
 import { createStaticStyles, cssVar } from 'antd-style';
 
+import type { AppSettingKey } from '@/const/appSettingsRegistry';
+
 export const runtimeSettingsStyles = createStaticStyles(({ css }) => ({
   actions: css`
     display: flex;
@@ -113,13 +115,16 @@ export type RuntimeSettingsForm = {
 /** 保存负载组装（M5 拆页：从 ModuleAppRuntimeSettings 抽出）。 */
 export const buildRuntimeSettingUpdates = (
   values: RuntimeSettingsForm,
-  keys: typeof import('@/const/appSettingsRegistry').APP_SETTING_KEYS,
+  keys: Record<AppSettingKey, string>,
 ) => [
   { key: keys.moduleAppExecutionEnabled, value: values.executionEnabled },
   { key: keys.moduleAppPublicExecutionEnabled, value: values.publicExecutionEnabled },
   { key: keys.moduleAppRuntimeInvocationEnabled, value: values.invocationEnabled },
   { key: keys.moduleAppScheduleDispatchEnabled, value: values.scheduleDispatchEnabled },
-  { key: keys.moduleAppWorkflowPrivilegedExecutorsEnabled, value: values.workflowPrivilegedExecutorsEnabled },
+  {
+    key: keys.moduleAppWorkflowPrivilegedExecutorsEnabled,
+    value: values.workflowPrivilegedExecutorsEnabled,
+  },
   { key: keys.moduleAppRuntimeInternalUrl, value: values.internalUrl },
   { key: keys.moduleAppRuntimePublicOrigin, value: values.publicOrigin },
   ...(values.internalToken.trim()

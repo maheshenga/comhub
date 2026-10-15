@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { X } from 'lucide-react';
 import { memo, useState } from 'react';
@@ -17,16 +17,17 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   root: css`
     position: absolute;
     z-index: 9;
-    bottom: 16px;
-    left: 16px;
+    inset-block-end: 16px;
+    inset-inline-start: 16px;
 
     overflow: auto;
+
     width: min(360px, calc(100% - 32px));
     max-height: min(420px, calc(100% - 32px));
     padding: 12px;
-
     border: 1px solid ${cssVar.colorBorderSecondary};
     border-radius: 8px;
+
     background: ${cssVar.colorBgContainer};
     box-shadow: ${cssVar.boxShadowSecondary};
   `,

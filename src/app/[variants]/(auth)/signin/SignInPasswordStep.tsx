@@ -1,7 +1,7 @@
-import { Icon, InputPassword } from '@lobehub/ui';
-import { Button, Text } from '@lobehub/ui/base-ui';
-import { type FormInstance, type InputRef } from 'antd';
-import { Form } from 'antd';
+import { Icon } from '@lobehub/ui';
+import { Button, InputPassword, Text } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules/FormInstance 类型）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormInstance } from 'antd';
 import { Lock } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +28,7 @@ export const SignInPasswordStep = ({
   onSubmit,
 }: SignInPasswordStepProps) => {
   const { t } = useTranslation('auth');
-  const passwordInputRef = useRef<InputRef>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     passwordInputRef.current?.focus();

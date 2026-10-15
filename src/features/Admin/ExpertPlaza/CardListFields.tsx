@@ -1,8 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Form, type FormInstance, Input, Switch, Tooltip } from 'antd';
+import { Button, Input, Switch, TextArea, Tooltip } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormInstance } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -12,7 +13,7 @@ import SpacePreview from './SpacePreview';
 
 const CardListFields = ({ form }: { form: FormInstance<any> }) => (
   <AdminSection
-        carded
+    carded
     description="卡片按列表顺序展示；必填标题和描述，ID 留空时会根据标题生成。"
     title="卡片信息"
   >
@@ -59,7 +60,7 @@ const CardListFields = ({ form }: { form: FormInstance<any> }) => (
                   name={[name, 'description']}
                   rules={[{ message: '请填写描述', required: true }]}
                 >
-                  <Input.TextArea autoSize={{ minRows: 2 }} />
+                  <TextArea autoSize={{ minRows: 2 }} />
                 </Form.Item>
                 <AdminFormGrid>
                   <Form.Item {...restField} label="头像 / 图标地址" name={[name, 'avatar']}>
@@ -86,7 +87,7 @@ const CardListFields = ({ form }: { form: FormInstance<any> }) => (
                   label="标签"
                   name={[name, 'tagsText']}
                 >
-                  <Input.TextArea autoSize={{ minRows: 2 }} />
+                  <TextArea autoSize={{ minRows: 2 }} />
                 </Form.Item>
                 <AdminFormGrid>
                   <Form.Item

@@ -1,7 +1,7 @@
 import debug from 'debug';
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import type { AiModelType, ModelAbilities, Pricing } from 'model-bank';
-import { normalizeAiModelType } from 'model-bank';
+import type { AiModelType, ModelAbilities, Pricing } from 'model-bank/aiModel';
+import { normalizeAiModelType } from 'model-bank/aiModel';
 
 import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';

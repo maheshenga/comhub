@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar } from '@lobehub/ui';
+import { Avatar } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
 import { memo, useMemo } from 'react';
@@ -62,7 +62,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     width: 100%;
     min-height: 64px;
-    padding: 8px 0;
+    padding-block: 8px;
+    padding-inline: 0;
     border: 0;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
 
@@ -188,21 +189,27 @@ const MobileDiscoverPage = memo(() => {
     error: communityAssistantError,
     isLoading: communityAssistantLoading,
     mutate: mutateCommunityAssistants,
-  } = useAssistantList({
-    page: 1,
-    pageSize: 4,
-    sort: AssistantSorts.Recommended,
-  }, { enabled: communityEnabled });
+  } = useAssistantList(
+    {
+      page: 1,
+      pageSize: 4,
+      sort: AssistantSorts.Recommended,
+    },
+    { enabled: communityEnabled },
+  );
   const {
     data: communityMcps,
     error: communityMcpError,
     isLoading: communityMcpLoading,
     mutate: mutateCommunityMcps,
-  } = useMcpList({
-    page: 1,
-    pageSize: 4,
-    sort: McpSorts.Recommended,
-  }, { enabled: communityEnabled });
+  } = useMcpList(
+    {
+      page: 1,
+      pageSize: 4,
+      sort: McpSorts.Recommended,
+    },
+    { enabled: communityEnabled },
+  );
   const communityAssistantItems = communityAssistants?.items ?? [];
   const communityMcpItems = communityMcps?.items ?? [];
   const communityLoading = communityAssistantLoading || communityMcpLoading;

@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import GroupPortal from './index';
+
 const rendered = vi.hoisted(() => ({ panel: vi.fn() }));
 
 vi.mock('@/routes/(main)/agent/features/Portal/features/Portal', () => ({
@@ -13,8 +15,6 @@ vi.mock('@/routes/(main)/agent/features/Portal/features/PortalPanel', () => ({
     return null;
   },
 }));
-
-import GroupPortal from './index';
 
 describe('GroupPortal', () => {
   it('uses the mobile portal panel when mobile mode is requested', () => {

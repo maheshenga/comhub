@@ -1,9 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert } from '@lobehub/ui/base-ui';
-import type { ButtonProps } from 'antd';
-import { Button, Input, Modal, Typography } from 'antd';
+import type { ButtonProps } from '@lobehub/ui/base-ui';
+import { Alert, Button, Input, Modal, Text, TextArea } from '@lobehub/ui/base-ui';
 import { memo, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -149,7 +148,7 @@ const AdminBulkActionFlow = <TActionId extends AdminDangerousActionId>({
 
     if (items.length === 0) return null;
 
-    return <Typography.Text type="secondary">{items.join(' · ')}</Typography.Text>;
+    return <Text type="secondary">{items.join(' · ')}</Text>;
   };
 
   return (
@@ -171,15 +170,13 @@ const AdminBulkActionFlow = <TActionId extends AdminDangerousActionId>({
       >
         {step === 'confirm' ? (
           <Flexbox gap={12}>
-            <Typography.Text>
-              {confirmDescription ?? requirement?.confirmation.description}
-            </Typography.Text>
-            <Typography.Text type="secondary">
+            <Text>{confirmDescription ?? requirement?.confirmation.description}</Text>
+            <Text type="secondary">
               {t('admin.bulkAction.count', '将处理 {{count}} 个项目。', { count })}
-            </Typography.Text>
+            </Text>
             {requirement?.requiresTypedConfirmation ? (
               <>
-                <Typography.Text type="secondary">
+                <Text type="secondary">
                   {t(
                     'admin.dangerousAction.typedConfirm',
                     'Type {{confirmationText}} to confirm.',
@@ -187,7 +184,7 @@ const AdminBulkActionFlow = <TActionId extends AdminDangerousActionId>({
                       confirmationText: requirement.requiredConfirmationText,
                     },
                   )}
-                </Typography.Text>
+                </Text>
                 <Input
                   autoFocus
                   placeholder={requirement.requiredConfirmationText}
@@ -200,7 +197,7 @@ const AdminBulkActionFlow = <TActionId extends AdminDangerousActionId>({
               </>
             ) : null}
             {requirement?.allowsReason ? (
-              <Input.TextArea
+              <TextArea
                 placeholder={t('admin.dangerousAction.reasonPlaceholder', 'Reason')}
                 rows={3}
                 value={reason}
@@ -211,18 +208,18 @@ const AdminBulkActionFlow = <TActionId extends AdminDangerousActionId>({
               />
             ) : null}
             {errors.map((error) => (
-              <Typography.Text key={error} type="danger">
+              <Text key={error} type="danger">
                 {t(`admin.dangerousAction.errors.${error}`, error)}
-              </Typography.Text>
+              </Text>
             ))}
           </Flexbox>
         ) : step === 'progress' ? (
           <Flexbox align="center" gap={16}>
             <NeuralNetworkLoading size={48} />
-            <Typography.Text>
+            <Text>
               {progressDescription ??
                 t('admin.bulkAction.progress', '正在执行批量操作，请勿关闭页面。')}
-            </Typography.Text>
+            </Text>
           </Flexbox>
         ) : step === 'done' ? (
           <Flexbox gap={12}>

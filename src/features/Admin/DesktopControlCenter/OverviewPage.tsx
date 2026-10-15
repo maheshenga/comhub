@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
-import { Typography } from 'antd';
+import { Alert, Button, Tag, Text } from '@lobehub/ui/base-ui';
 import { Settings2 } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -93,9 +92,9 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
       <AdminMetricStrip items={statusItems} label={t('admin.desktopControl.status.label')} />
 
       <section className={desktopControlCenterStyles.channelSection}>
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+        <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopControl.policy.title')}
-        </Typography.Title>
+        </Text>
         <AdminMetricStrip
           label={t('admin.desktopControl.policy.title')}
           items={[
@@ -128,9 +127,9 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
 
       <section className={desktopControlCenterStyles.channelSection}>
         <Flexbox horizontal align="center" justify="space-between">
-          <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+          <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
             {t('admin.desktopControl.automation.title')}
-          </Typography.Title>
+          </Text>
           <Tag color={data.automation.configured ? 'success' : 'warning'}>
             {t(
               data.automation.configured
@@ -180,9 +179,9 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
       {data.diagnostics.channels.map((channel) => (
         <section className={desktopControlCenterStyles.channelSection} key={channel.channel}>
           <Flexbox horizontal align="center" justify="space-between">
-            <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+            <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
               {t(DESKTOP_CHANNEL_LABEL_KEYS[channel.channel])}
-            </Typography.Title>
+            </Text>
             <Tag color={statusColor(channel.status)}>
               {t(`admin.desktopControl.channel.${channel.status}`)}
             </Tag>
@@ -203,13 +202,13 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
           <div className={desktopControlCenterStyles.channelGrid}>
             {Object.entries(channel.platforms).map(([type, artifact]) => (
               <div className={desktopControlCenterStyles.platformSummary} key={type}>
-                <Typography.Text strong>
+                <Text strong>
                   {t(DESKTOP_PLATFORM_LABEL_KEYS[type as keyof typeof DESKTOP_PLATFORM_LABEL_KEYS])}
-                </Typography.Text>
-                <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
+                </Text>
+                <Text ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
                   {artifact.assetName ||
                     (artifact.reason ? t(DESKTOP_REASON_LABEL_KEYS[artifact.reason]) : '-')}
-                </Typography.Paragraph>
+                </Text>
                 <Tag color={artifact.status === 'available' ? 'success' : 'default'}>
                   {t(`admin.desktopControl.artifact.${artifact.status}`)}
                 </Tag>

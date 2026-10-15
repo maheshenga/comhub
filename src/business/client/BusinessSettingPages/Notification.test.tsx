@@ -62,6 +62,12 @@ vi.mock('./SubscriptionIframeWrapper', () => ({
   ),
 }));
 
+// tests/setup.ts 把 base-ui Button 换成原生 <button>（不透传 href）。
+// 本测试断言公告 action 是携带 href 的链接，恢复真实 Button 渲染 <Motion.a>。
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+}));
+
 describe('Notification', () => {
   beforeEach(() => {
     mockIsDesktop.mockReturnValue(true);

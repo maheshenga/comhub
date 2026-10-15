@@ -1,8 +1,8 @@
 'use client';
 
-import type { FormGroupItemType } from '@lobehub/ui';
-import { Form, SliderWithInput, TextArea } from '@lobehub/ui';
-import { Switch } from 'antd';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormGroupItemType } from '@lobehub/ui';
+import { SliderWithInput, Switch, TextArea } from '@lobehub/ui/base-ui';
 import isEqual from 'fast-deep-equal';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

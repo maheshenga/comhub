@@ -1,10 +1,10 @@
 'use client';
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { Avatar, Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import type { FormInstance } from 'antd';
-import { Form, Input } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Avatar, Button, Input } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormInstance } from 'antd';
 import { cssVar } from 'antd-style';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -36,7 +36,10 @@ export const ProfileDefaultsCard = ({ form, uploadPublicUrlPrefix }: ProfileDefa
                 >
                   <Input placeholder="显示名称，例如 AI 绘画" style={{ flex: 1.4 }} />
                 </Form.Item>
-                <MinusCircleOutlined style={{ color: cssVar.colorError }} onClick={() => remove(name)} />
+                <MinusCircleOutlined
+                  style={{ color: cssVar.colorError }}
+                  onClick={() => remove(name)}
+                />
               </Flexbox>
             ))}
             <Button
@@ -86,7 +89,10 @@ export const ProfileDefaultsCard = ({ form, uploadPublicUrlPrefix }: ProfileDefa
                     style={{ flex: 2 }}
                   />
                 </Form.Item>
-                <MinusCircleOutlined style={{ color: cssVar.colorError }} onClick={() => remove(name)} />
+                <MinusCircleOutlined
+                  style={{ color: cssVar.colorError }}
+                  onClick={() => remove(name)}
+                />
               </Flexbox>
             ))}
             <Button

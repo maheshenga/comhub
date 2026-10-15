@@ -2,16 +2,14 @@
 
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
-import { InputNumber, Space, Switch, Typography } from 'antd';
+import { Alert, Button, InputNumber, Switch, Tag, Text } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 
 import { MATRIX_DISCARD_LABEL } from '@/features/Admin/adminMatrixCopy';
 import type { BillingBasisValues } from '@/features/Admin/adminModelBillingMatrix';
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 
-import { DEFAULT_HEALTH_STATUS, getDefaultModelHealthMessage  } from './shared';
-
-const { Text } = Typography;
+import { DEFAULT_HEALTH_STATUS, getDefaultModelHealthMessage } from './shared';
 
 interface BillingBasisSectionProps {
   billingBasis: BillingBasisValues;
@@ -61,13 +59,16 @@ export const BillingBasisSection = ({
         description={
           <Flexbox gap={8}>
             {Object.values(defaultModelHealth).map((health) => {
-              const meta = DEFAULT_HEALTH_STATUS[health.status as keyof typeof DEFAULT_HEALTH_STATUS];
+              const meta =
+                DEFAULT_HEALTH_STATUS[health.status as keyof typeof DEFAULT_HEALTH_STATUS];
 
               return (
                 <Space wrap align="start" key={health.modelType} size={6}>
                   <Tag color="blue">{getAdminModelTypeLabel(health.modelType as any)}</Tag>
                   <Text>
-                    {health.model ? `${health.provider}/${health.model}` : `${health.provider}/未配置`}
+                    {health.model
+                      ? `${health.provider}/${health.model}`
+                      : `${health.provider}/未配置`}
                   </Text>
                   <Tag color={meta.color}>{meta.label}</Tag>
                   <Text type="secondary">{getDefaultModelHealthMessage(health)}</Text>

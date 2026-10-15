@@ -1,5 +1,6 @@
-import { Block, Icon, InputPassword } from '@lobehub/ui';
-import { Button, Text } from '@lobehub/ui/base-ui';
+import { Block, Icon } from '@lobehub/ui';
+import { Button, InputPassword, Text } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules 跨字段校验）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

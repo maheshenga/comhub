@@ -1,19 +1,21 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { CopyButton, Flexbox } from '@lobehub/ui';
+import { Button, InputNumber, Switch, Tag, Text } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { InputNumber, Space, Switch, Typography } from 'antd';
+import { Space } from 'antd';
 
-import { MATRIX_ACCESS_SAVE_LABEL, MATRIX_DISCARD_LABEL, MATRIX_PRICING_SAVE_LABEL } from '@/features/Admin/adminMatrixCopy';
+import {
+  MATRIX_ACCESS_SAVE_LABEL,
+  MATRIX_DISCARD_LABEL,
+  MATRIX_PRICING_SAVE_LABEL,
+} from '@/features/Admin/adminMatrixCopy';
 import type { MatrixRow } from '@/features/Admin/adminModelBillingMatrix';
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 
 import { AdminFormActions, AdminSection } from '../layout';
 import { AdminDataTable } from '../shared';
-import { PRICING_SOURCE_STATUS, toFiniteNumber  } from './shared';
-
-const { Text } = Typography;
+import { PRICING_SOURCE_STATUS, toFiniteNumber } from './shared';
 
 interface MatrixTableProps {
   canReadPlans: boolean;
@@ -29,7 +31,12 @@ interface MatrixTableProps {
   onSaveAccess: () => void;
   onSavePricing: () => void;
   onSetDefault: (row: MatrixRow) => void;
-  onTogglePlanAccess: (current: MatrixRow[] | null, rowKey: string, plan: string, checked: boolean) => MatrixRow[];
+  onTogglePlanAccess: (
+    current: MatrixRow[] | null,
+    rowKey: string,
+    plan: string,
+    checked: boolean,
+  ) => MatrixRow[];
   onUpdateRow: (rowKey: string, patch: Partial<MatrixRow>) => void;
   planData: Record<string, any> | undefined;
   plans: { displayName: string; plan: string }[];
@@ -70,7 +77,9 @@ export const MatrixTable = ({
         checked={row.planAccess[plan.plan] !== false}
         disabled={!canWriteFinance || !planData || saving}
         size="small"
-        onChange={(checked: boolean) => onTogglePlanAccess(rowsOverride, row.key, plan.plan, checked)}
+        onChange={(checked: boolean) =>
+          onTogglePlanAccess(rowsOverride, row.key, plan.plan, checked)
+        }
       />
     ),
     title: (
@@ -91,9 +100,10 @@ export const MatrixTable = ({
             <Text strong>{row.displayName}</Text>
             {row.isDefault && <Tag color="green">默认</Tag>}
           </Space>
-          <Text copyable type="secondary">
-            {row.modelId}
-          </Text>
+          <Flexbox horizontal align="center" gap={4}>
+            <Text type="secondary">{row.modelId}</Text>
+            <CopyButton content={row.modelId} size="small" />
+          </Flexbox>
           <Space wrap size={4}>
             <Tag>{row.provider}</Tag>
             {row.providerType ? <Tag color="cyan">{row.providerType}</Tag> : null}

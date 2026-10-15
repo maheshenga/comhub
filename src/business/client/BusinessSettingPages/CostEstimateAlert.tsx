@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert } from 'antd';
+import { Alert } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

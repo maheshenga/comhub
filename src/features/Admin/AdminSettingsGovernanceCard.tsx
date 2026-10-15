@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Tag, toast } from '@lobehub/ui/base-ui';
-import { Button, Input, List, Modal, Space, Typography } from 'antd';
+import { Alert, Button, confirmModal, Input, List, Tag, Text, toast } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,7 +13,6 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { AdminMetricStrip } from './layout';
 import { AdminInlineSkeleton } from './shared';
 
-const { Text } = Typography;
 const GOVERNANCE_SWR_KEY = 'admin:settings:governance';
 
 const AdminSettingsGovernanceCard = memo(() => {
@@ -37,7 +36,7 @@ const AdminSettingsGovernanceCard = memo(() => {
   const handleDeleteUnknownKey = (key: string) => {
     let typedKey = '';
 
-    Modal.confirm({
+    confirmModal({
       content: (
         <Flexbox gap={8}>
           <Text type="secondary">
@@ -59,16 +58,12 @@ const AdminSettingsGovernanceCard = memo(() => {
       okText: t('admin.settings.governance.deleteUnknownConfirm', '删除'),
       onOk: async () => {
         if (typedKey !== key) {
-          toast.error(
-            t('admin.settings.governance.deleteUnknownMismatch', '输入的 key 不匹配'),
-          );
+          toast.error(t('admin.settings.governance.deleteUnknownMismatch', '输入的 key 不匹配'));
           throw new Error('CONFIRMATION_KEY_MISMATCH');
         }
 
         await adminCommercialService.deleteUnknownAppSetting({ confirmKey: key, key });
-        toast.success(
-          t('admin.settings.governance.deleteUnknownSuccess', '未知设置项已删除'),
-        );
+        toast.success(t('admin.settings.governance.deleteUnknownSuccess', '未知设置项已删除'));
         await mutate();
       },
       title: t('admin.settings.governance.deleteUnknownTitle', '删除未知设置项？'),
@@ -131,35 +126,28 @@ const AdminSettingsGovernanceCard = memo(() => {
 
         {hasUnknownKeys && (
           <List
-            bordered
-            dataSource={data.unknownKeys}
-            size="small"
-            renderItem={(item) => (
-              <List.Item
-                actions={[
-                  <Button
-                    danger
-                    key="delete"
-                    size="small"
-                    onClick={() => handleDeleteUnknownKey(item.key)}
-                  >
-                    {t('admin.settings.governance.deleteUnknown', '删除')}
-                  </Button>,
-                ]}
-              >
-                <Text code>{item.key}</Text>
-              </List.Item>
-            )}
+            variant="outlined"
+            items={data.unknownKeys.map((item) => ({
+              actions: [
+                <Button
+                  danger
+                  key="delete"
+                  size="small"
+                  onClick={() => handleDeleteUnknownKey(item.key)}
+                >
+                  {t('admin.settings.governance.deleteUnknown', '删除')}
+                </Button>,
+              ],
+              key: item.key,
+              label: <Text code>{item.key}</Text>,
+            }))}
           />
         )}
 
         {data.sensitiveConfiguredKeys.length > 0 && (
           <Flexbox gap={8}>
             <Text type="secondary">
-              {t(
-                'admin.settings.governance.sensitiveKeys',
-                '已配置敏感项只显示 key，不显示值：',
-              )}
+              {t('admin.settings.governance.sensitiveKeys', '已配置敏感项只显示 key，不显示值：')}
             </Text>
             <Space wrap>
               {data.sensitiveConfiguredKeys.map((item) => (

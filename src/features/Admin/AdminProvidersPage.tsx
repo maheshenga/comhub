@@ -1,8 +1,7 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { toast } from '@lobehub/ui/base-ui';
-import { Button } from 'antd';
+import { Button, toast } from '@lobehub/ui/base-ui';
 import { RefreshCw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,12 +15,7 @@ import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 import { AdminPageError, AdminPageShell, AdminSection } from './layout';
 import InstanceFormModal from './Providers/InstanceFormModal';
 import ModelsDrawer from './Providers/ModelsDrawer';
-import {
-  type InstanceRow,
-  INSTANCES_KEY,
-  MODEL_TYPES,
-  modelsKey,
-} from './Providers/shared';
+import { type InstanceRow, INSTANCES_KEY, MODEL_TYPES, modelsKey } from './Providers/shared';
 import { buildInstanceColumns } from './Providers/useInstanceColumns';
 import { AdminDataTable } from './shared';
 
@@ -195,9 +189,9 @@ const AdminProvidersPage = memo(() => {
             dataSource={items}
             isEmpty={!isLoading && items.length === 0}
             loading={isLoading}
-            onRetry={refresh}
             regionLabel={t('admin.providers.tableLabel', '服务商实例表格')}
             rowKey="id"
+            onRetry={refresh}
           />
         </AdminSection>
       )}

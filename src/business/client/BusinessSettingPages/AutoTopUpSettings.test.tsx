@@ -33,23 +33,22 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@lobehub/ui', () => ({
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  InputNumber: (props: Record<string, unknown>) => <input {...props} />,
 }));
 
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Alert: ({ message, title }: { message?: ReactNode; title?: ReactNode }) => (
+    <div role="alert">{title ?? message}</div>
+  ),
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button {...props}>{children}</button>
   ),
+  InputNumber: (props: Record<string, unknown>) => <input {...props} />,
   Switch: ({ disabled }: { disabled?: boolean }) => (
     <input readOnly aria-label="auto-top-up-switch" disabled={disabled} type="checkbox" />
   ),
 }));
 
-vi.mock('antd', () => ({
-  Alert: ({ message, title }: { message?: ReactNode; title?: ReactNode }) => (
-    <div role="alert">{title ?? message}</div>
-  ),
-}));
+vi.mock('antd', () => ({}));
 
 vi.mock('@/libs/swr', () => ({
   useClientDataSWR: () => ({ ...mocks.swr, mutate: mocks.mutate }),

@@ -1,6 +1,7 @@
 'use client';
 
-import { Flexbox, Text } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import isEqual from 'fast-deep-equal';
 import { ActivityIcon, GitBranchIcon, MessageSquareHeartIcon } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
@@ -113,7 +114,9 @@ const Content = memo(() => {
         />
       ) : (
         <Flexbox align="center" flex={1} gap={8} justify="center">
-          <Text weight={500}>{t('agentTab.empty.title', { defaultValue: 'No settings available' })}</Text>
+          <Text weight={500}>
+            {t('agentTab.empty.title', { defaultValue: 'No settings available' })}
+          </Text>
           <Text type="secondary">
             {t('agentTab.empty.desc', { defaultValue: 'This Agent has no configurable settings.' })}
           </Text>

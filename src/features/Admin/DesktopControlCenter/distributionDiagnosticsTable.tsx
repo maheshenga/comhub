@@ -1,9 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Button, Tag, Text, Tooltip } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Tooltip, Typography } from 'antd';
 import { ExternalLink } from 'lucide-react';
 
 import { AdminDataTable } from '../shared';
@@ -94,7 +93,9 @@ export const DistributionDiagnosticsTable = ({
     {
       dataIndex: 'status',
       render: (status: DistributionRow['status']) => (
-        <Tag color={status === 'available' ? 'success' : status === 'missing' ? 'warning' : 'error'}>
+        <Tag
+          color={status === 'available' ? 'success' : status === 'missing' ? 'warning' : 'error'}
+        >
           {t(`admin.desktopControl.artifact.${status}`)}
         </Tag>
       ),
@@ -115,9 +116,9 @@ export const DistributionDiagnosticsTable = ({
             />
           </Tooltip>
         ) : (
-          <Typography.Text type="secondary">
+          <Text type="secondary">
             {row.reason ? t(DESKTOP_REASON_LABEL_KEYS[row.reason]) : '-'}
-          </Typography.Text>
+          </Text>
         ),
       title: '',
     },

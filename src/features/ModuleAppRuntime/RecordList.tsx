@@ -1,14 +1,7 @@
 import type { ModuleAppScopeType } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import {
-  Alert,
-  Button,
-  Empty,
-  Pagination,
-  Table,
-  type TableColumnsType,
-  Typography,
-} from 'antd';
+import { Empty, Flexbox } from '@lobehub/ui';
+import type { TableColumn } from '@lobehub/ui/base-ui';
+import { Alert, Button, Pagination, Table, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Pencil, Plus, RefreshCw } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
@@ -54,7 +47,16 @@ const formatUpdatedAt = (value?: Date | string) => {
 };
 
 const RecordList = memo<RecordListProps>(
-  ({ appId, collectionKey, createHref, editHref, onEdit, pageSize = 20, scopeType, workspaceId }) => {
+  ({
+    appId,
+    collectionKey,
+    createHref,
+    editHref,
+    onEdit,
+    pageSize = 20,
+    scopeType,
+    workspaceId,
+  }) => {
     const { t } = useTranslation('common');
     const [page, setPage] = useState(1);
     const query = {
@@ -65,8 +67,9 @@ const RecordList = memo<RecordListProps>(
       scopeType,
       workspaceId,
     };
-    const records = useSWR<ModuleAppRecordPage>(getModuleAppRecordListKey(query), () =>
-      moduleAppService.listRecords(query) as Promise<ModuleAppRecordPage>,
+    const records = useSWR<ModuleAppRecordPage>(
+      getModuleAppRecordListKey(query),
+      () => moduleAppService.listRecords(query) as Promise<ModuleAppRecordPage>,
     );
     const total = records.data?.total;
 
@@ -76,13 +79,13 @@ const RecordList = memo<RecordListProps>(
       if (page > lastPage) setPage(lastPage);
     }, [page, pageSize, total]);
 
-    const columns = useMemo<TableColumnsType<ModuleAppRecordData>>(
+    const columns = useMemo<TableColumn<ModuleAppRecordData>[]>(
       () => [
         {
           dataIndex: 'title',
           key: 'title',
           render: (value: null | string | undefined, record: ModuleAppRecordData) => (
-            <Typography.Text>{value || record.id}</Typography.Text>
+            <Text>{value || record.id}</Text>
           ),
           title: t('moduleApps.runtime.records.title'),
         },

@@ -1,14 +1,13 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
-import { Progress } from 'antd';
+import { Button, Progress } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useClientDataSWR } from '@/libs/swr';
 import UsageTable from '@/features/Settings/stats/features/usage/UsageTable';
 import { SettingsSearchAnchor } from '@/features/SettingsSearch/anchor';
+import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
@@ -116,17 +115,17 @@ const Usage = memo<{ mobile?: boolean }>(({ mobile }) => {
   const coreSection = (
     <BusinessSettingsSection
       mobile={mobile}
-      title={
-        <SettingsSearchAnchor id="usage-overview">
-          <span>总览</span>
-        </SettingsSearchAnchor>
-      }
       desktopExtra={
         mobile ? undefined : (
           <Button href="/settings/plans" size="small" type="primary">
             升级
           </Button>
         )
+      }
+      title={
+        <SettingsSearchAnchor id="usage-overview">
+          <span>总览</span>
+        </SettingsSearchAnchor>
       }
     >
       <div className={styles.overviewHeader}>

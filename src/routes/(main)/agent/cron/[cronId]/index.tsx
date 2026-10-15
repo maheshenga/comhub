@@ -2,9 +2,10 @@
 
 import { EDITOR_DEBOUNCE_TIME } from '@lobechat/const';
 import { buildCronPattern, parseCronPattern, type ScheduleType } from '@lobechat/utils/cron';
-import { ActionIcon, Flexbox } from '@lobehub/ui';
+import { Empty, Flexbox } from '@lobehub/ui';
+import { ActionIcon, toast } from '@lobehub/ui/base-ui';
 import { useDebounceFn } from 'ahooks';
-import { App, Empty, message } from 'antd';
+import { App } from 'antd';
 import { type Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { Trash2 } from 'lucide-react';
@@ -209,7 +210,7 @@ const CronJobDetailPage = memo(() => {
       } catch (error) {
         console.error('Failed to update cron job:', error);
         setAutoSaveState({ status: 'idle' });
-        message.error('Failed to update scheduled task');
+        toast.error('Failed to update scheduled task');
       }
     },
     { wait: EDITOR_DEBOUNCE_TIME },
@@ -278,7 +279,7 @@ const CronJobDetailPage = memo(() => {
       } catch (error) {
         console.error('Failed to update cron job status:', error);
         setAutoSaveState({ status: 'idle' });
-        message.error('Failed to update scheduled task');
+        toast.error('Failed to update scheduled task');
       } finally {
         setIsTogglingEnabled(false);
       }
@@ -317,7 +318,7 @@ const CronJobDetailPage = memo(() => {
           }
         } catch (error) {
           console.error('Failed to delete cron job:', error);
-          message.error('Failed to delete scheduled task');
+          toast.error('Failed to delete scheduled task');
         }
       },
       title: t('agentCronJobs.deleteCronJob' as any),
@@ -326,18 +327,18 @@ const CronJobDetailPage = memo(() => {
 
   const handleSaveNewJob = useCallback(async () => {
     if (!aid) {
-      message.error('Agent ID is required');
+      toast.error('Agent ID is required');
       return;
     }
 
     const payload = buildUpdateData(draftRef.current, contentRef.current);
     if (!payload) {
-      message.error('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
     if (!payload.content || !payload.name || !payload.cronPattern) {
-      message.error('Name and content are required');
+      toast.error('Name and content are required');
       return;
     }
 
@@ -357,7 +358,7 @@ const CronJobDetailPage = memo(() => {
 
       if (result.success && result.data) {
         setAutoSaveState({ lastUpdatedTime: new Date(), status: 'saved' });
-        message.success('Scheduled task created successfully');
+        toast.success('Scheduled task created successfully');
         refreshCronList();
         // Navigate to the newly created job
         router.push(`/agent/${aid}/cron/${result.data.id}`);
@@ -367,7 +368,7 @@ const CronJobDetailPage = memo(() => {
     } catch (error) {
       console.error('Failed to create cron job:', error);
       setAutoSaveState({ status: 'idle' });
-      message.error('Failed to create scheduled task');
+      toast.error('Failed to create scheduled task');
     }
   }, [aid, buildUpdateData, refreshCronList, router]);
 
@@ -465,10 +466,7 @@ const CronJobDetailPage = memo(() => {
         <WideScreenContainer paddingBlock={16}>
           {isLoading && <Loading debugId="CronJobDetailPage" />}
           {!isLoading && !cronJob && !isNewJob && (
-            <Empty
-              description={t('agentCronJobs.empty.description')}
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
+            <Empty description={t('agentCronJobs.empty.description')} />
           )}
           {!isLoading && (cronJob || isNewJob) && draft && (
             <Flexbox gap={24}>

@@ -1,7 +1,7 @@
 'use client';
 
-import { Button, Flexbox, FluentEmoji, Highlighter, Text } from '@lobehub/ui';
-import { Result } from 'antd';
+import { Flexbox, FluentEmoji, Highlighter } from '@lobehub/ui';
+import { Button, Result, Text } from '@lobehub/ui/base-ui';
 import Link from 'next/link';
 import { parseAsString, useQueryState } from 'nuqs';
 import { useTranslation } from 'react-i18next';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Result } from 'antd';
+import { Button, Result } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 import { useNavigate } from 'react-router';
 

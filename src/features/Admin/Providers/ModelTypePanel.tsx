@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { confirmModal, toast } from '@lobehub/ui/base-ui';
-import { Button, Input } from 'antd';
+import { Button, confirmModal, TextArea, toast } from '@lobehub/ui/base-ui';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -186,7 +185,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: (typeof MODEL_TYPES
           <div style={{ fontSize: 12, opacity: 0.7 }}>
             {t('admin.providers.models.bulkAddHint', '可批量添加模型 ID，使用换行或逗号分隔。')}
           </div>
-          <Input.TextArea
+          <TextArea
             placeholder={'gpt-4o-mini\ngpt-4o'}
             rows={3}
             value={bulkText}

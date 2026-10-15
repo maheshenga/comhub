@@ -1,17 +1,14 @@
 'use client';
 
 import type { ModuleAppPayoutStatus } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
-import { Typography } from 'antd';
+import { CopyButton, Flexbox } from '@lobehub/ui';
+import { Button, Tag, Text } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 
 import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 
 import { AdminDataTable } from '../shared';
 import { AdminTableState } from './AdminTableState';
-
-const { Text } = Typography;
 
 export type ModuleAppPayoutRow = {
   auditEventIds: string[];
@@ -85,9 +82,12 @@ const CodeList = ({ values }: { values: string[] }) =>
   values.length ? (
     <Flexbox gap={2} style={{ maxWidth: 220 }}>
       {values.map((value) => (
-        <Text code copyable key={value} style={{ overflowWrap: 'anywhere' }}>
-          {value}
-        </Text>
+        <Flexbox horizontal align="center" gap={2} key={value}>
+          <Text code style={{ overflowWrap: 'anywhere' }}>
+            {value}
+          </Text>
+          <CopyButton content={value} size="small" />
+        </Flexbox>
       ))}
     </Flexbox>
   ) : (

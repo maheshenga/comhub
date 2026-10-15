@@ -1,6 +1,7 @@
 'use client';
 
-import { ActionIcon, Flexbox, Icon } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon } from '@lobehub/ui/base-ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
 import { Loader2, MessageSquarePlus } from 'lucide-react';
 import { memo } from 'react';

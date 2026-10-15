@@ -1,8 +1,10 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Tag, toast } from '@lobehub/ui/base-ui';
-import { Descriptions, Form, Input, Typography } from 'antd';
+import { Alert, Button, Descriptions, Input, Tag, toast } from '@lobehub/ui/base-ui';
+import { Typography } from '@lobehub/ui/base-ui/typography';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -55,14 +57,14 @@ const DistributionPage = memo<DistributionPageProps>((props) => {
       errorTitle={t('admin.desktopControl.error.title')}
       isEmpty={!overview.isLoading && !overview.error && !overview.data?.diagnostics.configured}
       loading={overview.isLoading}
-      onRetry={() => void overview.mutate()}
+      retryLabel={t('admin.desktopControl.retry')}
+      skeletonVariant="list"
       primaryAction={
         onConfigure
           ? { label: t('admin.desktopControl.configure'), onClick: onConfigure }
           : undefined
       }
-      retryLabel={t('admin.desktopControl.retry')}
-      skeletonVariant="list"
+      onRetry={() => void overview.mutate()}
     >
       <DistributionDiagnosticsTable overview={overview} t={t as any} />
     </AdminPageState>
@@ -115,9 +117,9 @@ const DistributionPage = memo<DistributionPageProps>((props) => {
         />
         {settings.error ? (
           <AdminPageError
-            onRetry={() => void settings.mutate()}
             retryLabel={t('admin.desktopControl.retry')}
             title={t('admin.desktopControl.settingsError')}
+            onRetry={() => void settings.mutate()}
           />
         ) : settings.isLoading && !settings.data ? (
           <AdminInlineSkeleton rows={4} />

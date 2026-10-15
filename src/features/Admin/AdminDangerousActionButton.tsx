@@ -2,8 +2,9 @@
 
 import { type AdminDependencyImpact } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import type { ButtonProps } from 'antd';
-import { Button, Input, Modal, Popconfirm, Typography } from 'antd';
+import type { ButtonProps } from '@lobehub/ui/base-ui';
+import { Button, Input, Modal, Text, TextArea } from '@lobehub/ui/base-ui';
+import { Popconfirm } from 'antd';
 import { memo, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -135,19 +136,17 @@ const AdminDangerousActionButton = <TActionId extends AdminDangerousActionId>({
         }}
       >
         <Flexbox gap={12}>
-          <Typography.Text>
-            {confirmDescription ?? requirement.confirmation.description}
-          </Typography.Text>
+          <Text>{confirmDescription ?? requirement.confirmation.description}</Text>
           <AdminDependencyImpactPreview
             error={preflightError}
             impact={preflight}
             loading={preflightLoading}
           />
-          <Typography.Text type="secondary">
+          <Text type="secondary">
             {t('admin.dangerousAction.typedConfirm', 'Type {{confirmationText}} to confirm.', {
               confirmationText: requirement.requiredConfirmationText,
             })}
-          </Typography.Text>
+          </Text>
           <Input
             autoFocus
             placeholder={requirement.requiredConfirmationText}
@@ -158,7 +157,7 @@ const AdminDangerousActionButton = <TActionId extends AdminDangerousActionId>({
             }}
           />
           {requirement.requiresReason ? (
-            <Input.TextArea
+            <TextArea
               placeholder={t('admin.dangerousAction.reasonPlaceholder', 'Reason')}
               rows={3}
               value={reason}
@@ -169,9 +168,9 @@ const AdminDangerousActionButton = <TActionId extends AdminDangerousActionId>({
             />
           ) : null}
           {errors.map((error) => (
-            <Typography.Text key={error} type="danger">
+            <Text key={error} type="danger">
               {t(`admin.dangerousAction.errors.${error}`, error)}
-            </Typography.Text>
+            </Text>
           ))}
         </Flexbox>
       </Modal>

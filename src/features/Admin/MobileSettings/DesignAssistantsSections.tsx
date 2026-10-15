@@ -1,4 +1,4 @@
-import { Input } from 'antd';
+import { Input } from '@lobehub/ui/base-ui';
 
 import {
   AccessibleSwitch,

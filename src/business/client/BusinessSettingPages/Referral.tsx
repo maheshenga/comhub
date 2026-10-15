@@ -1,9 +1,8 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Empty, Icon } from '@lobehub/ui';
+import { Button, Input, toast } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
-import { Empty, Input, message } from 'antd';
 import { createStaticStyles, cx } from 'antd-style';
 import { Copy, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
@@ -160,7 +159,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   const copyText = async (value: string, successMessage: string) => {
     await navigator.clipboard.writeText(value);
-    message.success(successMessage);
+    toast.success(successMessage);
   };
 
   const resolveReferralError = (error: unknown) => {
@@ -206,7 +205,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   const handleSaveCode = async () => {
     if (!REFERRAL_CODE_RE.test(draftCode)) {
-      message.error('推荐码必须为 7 位数字');
+      toast.error('推荐码必须为 7 位数字');
       return;
     }
 
@@ -220,9 +219,9 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
       setDraftCode(nextOverview.referralCode);
       setIsEditing(false);
       await refreshReferralData();
-      message.success('推荐码已保存');
+      toast.success('推荐码已保存');
     } catch (error) {
-      message.error(resolveReferralError(error));
+      toast.error(resolveReferralError(error));
     } finally {
       setIsSavingCode(false);
     }
@@ -232,17 +231,17 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
     const normalized = normalizeReferralCodeInput(backfillCode);
 
     if (hasBoundReferral) {
-      message.error('你已经绑定过邀请码');
+      toast.error('你已经绑定过邀请码');
       return;
     }
 
     if (!REFERRAL_CODE_RE.test(normalized)) {
-      message.error('推荐码必须为 7 位数字');
+      toast.error('推荐码必须为 7 位数字');
       return;
     }
 
     if (normalized === effectiveReferralCode) {
-      message.error('不能绑定自己的推荐码');
+      toast.error('不能绑定自己的推荐码');
       return;
     }
 
@@ -251,9 +250,9 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
       await commercialService.bindReferralCode({ code: normalized });
       setBackfillCode('');
       await refreshReferralData();
-      message.success('邀请码绑定成功');
+      toast.success('邀请码绑定成功');
     } catch (error) {
-      message.error(resolveReferralError(error));
+      toast.error(resolveReferralError(error));
     } finally {
       setIsBindingCode(false);
     }
@@ -264,9 +263,9 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
     try {
       await commercialService.activateReferralReward();
       await Promise.all([refreshReferralData(), refreshCommercialEntitlementState()]);
-      message.success('推荐奖励已领取');
+      toast.success('推荐奖励已领取');
     } catch (error) {
-      message.error(resolveReferralError(error));
+      toast.error(resolveReferralError(error));
     } finally {
       setIsActivatingReward(false);
     }

@@ -1,7 +1,9 @@
 'use client';
 
-import { Avatar, Flexbox, Icon } from '@lobehub/ui';
-import { Empty, Segmented, Tag, Typography } from 'antd';
+import { Empty, Flexbox, Icon } from '@lobehub/ui';
+import { Avatar, Segmented, Tag, Text } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd Typography.Title（level 字号/行高为 antd 主题 token，base-ui 无行为不变等价物），属 #135 keep-antd 豁免清单。
+import { Typography } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { ArrowUpRight, Star } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
@@ -13,7 +15,7 @@ import { DEFAULT_EXPERT_PLAZA_CONFIG, type ExpertPlazaCard } from '@/const/exper
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-const { Text, Title } = Typography;
+const { Title } = Typography;
 
 const styles = createStaticStyles(({ css }) => ({
   card: css`

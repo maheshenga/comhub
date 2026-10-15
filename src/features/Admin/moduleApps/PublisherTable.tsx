@@ -1,15 +1,13 @@
 'use client';
 
 import type { ModuleAppPublisherStatus } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Tag } from '@lobehub/ui/base-ui';
-import { type TableProps, Typography } from 'antd';
+import { CopyButton, Flexbox } from '@lobehub/ui';
+import { Tag, Text } from '@lobehub/ui/base-ui';
+import type { TableProps } from 'antd';
 import { memo, type ReactNode } from 'react';
 
 import { ADMIN_EMPTY_TEXT, AdminDataTable } from '../shared';
 import { AdminTableState } from './AdminTableState';
-
-const { Text } = Typography;
 
 export type ModuleAppPublisherRow = {
   appCount: number;
@@ -117,9 +115,10 @@ const PublisherTable = memo(
         dataIndex: 'id',
         key: 'id',
         render: (value: string) => (
-          <Text code copyable>
-            {value}
-          </Text>
+          <Flexbox horizontal align="center" gap={2}>
+            <Text code>{value}</Text>
+            <CopyButton content={value} size="small" />
+          </Flexbox>
         ),
         title: resolvedLabels.columns.id,
       },

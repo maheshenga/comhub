@@ -10,8 +10,8 @@ import { SettingsTabs } from '@/store/global/initialState';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   active: css`
-    color: ${cssVar.colorText};
     font-weight: 600;
+    color: ${cssVar.colorText};
 
     &::after {
       content: '';
@@ -37,10 +37,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   scroller: css`
     scrollbar-width: none;
-
     overflow-x: auto;
     display: flex;
-
     padding-inline: 16px;
 
     &::-webkit-scrollbar {
@@ -55,7 +53,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     flex: 0 0 auto;
 
     height: 44px;
-    padding: 0 16px;
+    padding-block: 0;
+    padding-inline: 16px;
     border: 0;
 
     font: inherit;
@@ -80,7 +79,7 @@ export const BusinessMobileTabs = memo(() => {
   const { pathname } = useLocation();
   const navigate = useWorkspaceAwareNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
-  const activeTab = pathname.split('/').filter(Boolean).at(-1);
+  const activeTab = pathname.split('/').findLast(Boolean);
 
   useEffect(() => {
     const container = containerRef.current;

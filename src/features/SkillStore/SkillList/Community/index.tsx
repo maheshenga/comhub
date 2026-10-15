@@ -1,7 +1,8 @@
 'use client';
 
 import { type SkillListItem } from '@lobechat/types';
-import { Center, Icon, Text } from '@lobehub/ui';
+import { Center, Icon } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import isEqual from 'fast-deep-equal';
 import { ServerCrash } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef } from 'react';
@@ -22,8 +23,7 @@ import WantMoreSkills from '../WantMoreSkills';
 import Item from './Item';
 
 type CommunityListItem =
-  | { itemType: 'agentSkill'; skill: SkillListItem }
-  | { data: DiscoverMcpItem; itemType: 'mcp' };
+  { itemType: 'agentSkill'; skill: SkillListItem } | { data: DiscoverMcpItem; itemType: 'mcp' };
 
 export const CommunityList = memo(() => {
   const { t } = useTranslation('setting');

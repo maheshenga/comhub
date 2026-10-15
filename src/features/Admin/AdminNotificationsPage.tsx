@@ -1,8 +1,19 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
-import { Form, Input, InputNumber, Switch, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Input,
+  InputNumber,
+  Select,
+  Switch,
+  Text,
+  TextArea,
+  toast,
+} from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -29,8 +40,6 @@ import {
   buildUpdates,
   type NotificationSettingsForm,
 } from './Notifications/shared';
-
-const { Text } = Typography;
 
 const AdminNotificationsPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -120,7 +129,7 @@ const AdminNotificationsPage = memo(() => {
       <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
         <Flexbox gap={24}>
           <AdminSection
-        carded
+            carded
             title={t('admin.notifications.channels', '通知渠道')}
             description={t(
               'admin.notifications.channelsDescription',
@@ -178,7 +187,7 @@ const AdminNotificationsPage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.notifications.compatibility', '兼容与保留策略')}
             description={t(
               'admin.notifications.compatibilityDescription',
@@ -211,7 +220,7 @@ const AdminNotificationsPage = memo(() => {
           </AdminSection>
 
           <AdminSection
-        carded
+            carded
             title={t('admin.notifications.system', '系统公告')}
             description={t(
               'admin.notifications.systemDescription',
@@ -260,7 +269,7 @@ const AdminNotificationsPage = memo(() => {
               label={t('admin.notifications.systemContent', '公告内容')}
               name="systemContent"
             >
-              <Input.TextArea autoSize={{ minRows: 3 }} placeholder="向用户展示的公告内容" />
+              <TextArea autoSize={{ minRows: 3 }} placeholder="向用户展示的公告内容" />
             </Form.Item>
           </AdminSection>
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { ActionIcon, Button, Empty, Skeleton } from '@lobehub/ui';
-import { FloatingSheet } from '@lobehub/ui/base-ui';
+import { Empty } from '@lobehub/ui';
+import { ActionIcon, Button, FloatingSheet, Skeleton } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { ChevronRight, X } from 'lucide-react';
 import { type Key, type ReactNode, useRef, useState } from 'react';
@@ -59,7 +59,9 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   cardTitle: css`
     overflow: hidden;
+
     min-width: 0;
+
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -74,7 +76,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 0;
 
     margin: 0;
-    padding: 0 16px 24px;
+    padding-block: 0 24px;
+    padding-inline: 16px;
   `,
   empty: css`
     display: flex;
@@ -90,7 +93,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 12px;
     align-items: flex-start;
 
-    padding: 16px 0;
+    padding-block: 16px;
+    padding-inline: 0;
 
     color: ${cssVar.colorError};
   `,
@@ -202,7 +206,7 @@ const BusinessMobileRecordList = ({
     content = (
       <div aria-busy="true" className={styles.list}>
         {Array.from({ length: 3 }, (_, index) => (
-          <Skeleton.Button active block className={styles.skeleton} key={index} />
+          <Skeleton className={styles.skeleton} height={32} key={index} width="100%" />
         ))}
       </div>
     );

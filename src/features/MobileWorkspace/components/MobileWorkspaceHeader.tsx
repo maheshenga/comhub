@@ -1,6 +1,6 @@
 'use client';
 
-import { ActionIcon } from '@lobehub/ui';
+import { ActionIcon } from '@lobehub/ui/base-ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
 import { createStaticStyles } from 'antd-style';
 import { type LucideIcon } from 'lucide-react';
@@ -20,8 +20,10 @@ export interface MobileWorkspaceHeaderAction {
   onClick: () => void;
 }
 
-export interface MobileWorkspaceHeaderProps
-  extends Omit<ComponentProps<typeof ChatHeader>, 'center' | 'right' | 'title'> {
+export interface MobileWorkspaceHeaderProps extends Omit<
+  ComponentProps<typeof ChatHeader>,
+  'center' | 'right' | 'title'
+> {
   actions?: MobileWorkspaceHeaderAction[];
   center?: ReactNode;
   right?: ReactNode;

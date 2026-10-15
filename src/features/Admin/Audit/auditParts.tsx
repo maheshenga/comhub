@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
-import { DatePicker, Descriptions, Input } from 'antd';
+import { Button, DateRangePicker, Descriptions, Input, Modal, Tag } from '@lobehub/ui/base-ui';
 import { type ReactNode } from 'react';
 
 import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';
@@ -99,38 +98,66 @@ export const AuditDetailModal = ({
     onCancel={onClose}
   >
     {detail && (
-      <Descriptions bordered column={1} size="small">
-        <Descriptions.Item label="ID">
-          <code>{detail.id}</code>
-        </Descriptions.Item>
-        <Descriptions.Item label="时间">
-          {new Date(detail.createdAt).toLocaleString()}
-        </Descriptions.Item>
-        <Descriptions.Item label="操作">
-          <AuditActionTag action={detail.action} />
-        </Descriptions.Item>
-        <Descriptions.Item label="批量任务">
-          {readBatchCorrelationId(detail) ? (
-            <code>{readBatchCorrelationId(detail)}</code>
-          ) : (
-            ADMIN_EMPTY_TEXT
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label="操作用户">
-          {detail.actorUserId ?? ADMIN_EMPTY_TEXT}
-        </Descriptions.Item>
-        <Descriptions.Item label="目标用户">
-          {detail.targetUserId ?? ADMIN_EMPTY_TEXT}
-        </Descriptions.Item>
-        <Descriptions.Item label="资源">
-          {detail.resourceType ?? ADMIN_EMPTY_TEXT}{' '}
-          {detail.resourceId ? `· ${detail.resourceId}` : ''}
-        </Descriptions.Item>
-        <Descriptions.Item label="IP">{detail.ipAddress ?? ADMIN_EMPTY_TEXT}</Descriptions.Item>
-        <Descriptions.Item label="载荷（Payload）">
-          {renderAuditPayload(detail.payload)}
-        </Descriptions.Item>
-      </Descriptions>
+      <Descriptions
+        bordered
+        column={1}
+        items={[
+          {
+            children: <code>{detail.id}</code>,
+            key: 'id',
+            label: 'ID',
+          },
+          {
+            children: new Date(detail.createdAt).toLocaleString(),
+            key: 'createdAt',
+            label: '时间',
+          },
+          {
+            children: <AuditActionTag action={detail.action} />,
+            key: 'action',
+            label: '操作',
+          },
+          {
+            children: readBatchCorrelationId(detail) ? (
+              <code>{readBatchCorrelationId(detail)}</code>
+            ) : (
+              ADMIN_EMPTY_TEXT
+            ),
+            key: 'batch',
+            label: '批量任务',
+          },
+          {
+            children: detail.actorUserId ?? ADMIN_EMPTY_TEXT,
+            key: 'actorUserId',
+            label: '操作用户',
+          },
+          {
+            children: detail.targetUserId ?? ADMIN_EMPTY_TEXT,
+            key: 'targetUserId',
+            label: '目标用户',
+          },
+          {
+            children: (
+              <>
+                {detail.resourceType ?? ADMIN_EMPTY_TEXT}{' '}
+                {detail.resourceId ? `· ${detail.resourceId}` : ''}
+              </>
+            ),
+            key: 'resource',
+            label: '资源',
+          },
+          {
+            children: detail.ipAddress ?? ADMIN_EMPTY_TEXT,
+            key: 'ipAddress',
+            label: 'IP',
+          },
+          {
+            children: renderAuditPayload(detail.payload),
+            key: 'payload',
+            label: '载荷（Payload）',
+          },
+        ]}
+      />
     )}
   </Modal>
 );
@@ -187,7 +214,7 @@ export const AuditFilterInputs = ({
         onChange('batchCorrelationId', e.target.value)
       }
     />
-    <DatePicker.RangePicker allowClear format="YYYY/MM/DD" style={{ width: 'min(260px, 100%)' }} />
+    <DateRangePicker allowClear format="YYYY/MM/DD" style={{ width: 'min(260px, 100%)' }} />
   </Flexbox>
 );
 

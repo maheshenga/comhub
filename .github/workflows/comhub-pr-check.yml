@@ -63,6 +63,14 @@ jobs:
         working-directory: packages/business-server
         run: npx vitest run src/lambda-routers/admin src/appSettings
 
+      # Lint runs after the test suites and before the type check so that a
+      # cheap, fast failure (seconds of eslint) short-circuits the job before
+      # the expensive swap setup + tsgo run (~7 GB RAM, minutes). It also keeps
+      # all source-quality gates (tests -> lint -> types) ordered from fastest
+      # to slowest, matching the tiering used by the rest of this job.
+      - name: Lint
+        run: pnpm exec eslint src tests --concurrency=auto
+
       # tsgo peaks past the 7 GB hosted runner's RAM and the kernel reaps it
       # (job dies with a shutdown signal ~2.5 min into `tsgo --noEmit`). A
       # swap file absorbs the peak; this step is cheap when there is headroom.

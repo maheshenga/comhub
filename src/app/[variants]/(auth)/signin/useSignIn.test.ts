@@ -56,7 +56,7 @@ vi.mock('@/libs/better-auth/utils/client', () => ({
 }));
 
 vi.mock('@lobechat/business-const', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@lobechat/business-const')>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   BRANDING_NAME: 'LobeHub',
   ORG_NAME: 'LobeHub',
 }));

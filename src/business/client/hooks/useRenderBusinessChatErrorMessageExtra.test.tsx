@@ -19,18 +19,25 @@ vi.mock('@lobehub/ui', () => ({
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('antd-style', () => ({
-  createStaticStyles: (
-    factory: (helpers: { css: (value: TemplateStringsArray) => string }) => any,
-  ) =>
-    Object.fromEntries(Object.keys(factory({ css: () => 'mock-class' })).map((key) => [key, key])),
-  cssVar: new Proxy(
-    {},
-    {
-      get: (_, property) => String(property),
-    },
-  ),
-}));
+vi.mock('antd-style', () => {
+  // antd-style CJS interop 会把命名导出同时挂在 default 命名空间下，default 与命名导出保持同构。
+  const mock = {
+    createStaticStyles: (
+      factory: (helpers: { css: (value: TemplateStringsArray) => string }) => any,
+    ) =>
+      Object.fromEntries(
+        Object.keys(factory({ css: () => 'mock-class' })).map((key) => [key, key]),
+      ),
+    cssVar: new Proxy(
+      {},
+      {
+        get: (_, property) => String(property),
+      },
+    ),
+  };
+
+  return { ...mock, default: mock };
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

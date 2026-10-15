@@ -1,7 +1,8 @@
 import { Flexbox } from '@lobehub/ui';
 import { Skeleton } from '@lobehub/ui/base-ui';
-import { Card } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
+
+import { Card } from '@/components/antd-compat/Card';
 
 const styles = createStaticStyles(({ css }) => ({
   header: css`

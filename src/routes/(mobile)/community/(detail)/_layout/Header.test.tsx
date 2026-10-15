@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import Header from './Header';
+
 const navigate = vi.fn();
 
 vi.mock('@lobehub/ui/mobile', () => ({
@@ -15,8 +17,6 @@ vi.mock('@lobehub/ui/mobile', () => ({
 vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => navigate,
 }));
-
-import Header from './Header';
 
 describe('MobileCommunityDetailHeader', () => {
   beforeEach(() => vi.clearAllMocks());

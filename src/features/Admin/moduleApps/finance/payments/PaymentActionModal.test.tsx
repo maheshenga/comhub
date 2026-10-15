@@ -40,16 +40,16 @@ describe('PaymentActionModal', () => {
         action="refund"
         actionIsValid={false}
         offlineRefundReference=""
+        paymentReference=""
+        reason=""
+        submitting={false}
+        t={t as any}
+        target={{ appName: 'Commerce App', orderId: 'order-42' }}
         onCancel={vi.fn()}
         onOfflineRefundReferenceChange={vi.fn()}
         onOk={vi.fn()}
         onPaymentReferenceChange={vi.fn()}
         onReasonChange={vi.fn()}
-        paymentReference=""
-        reason=""
-        submitting={false}
-        target={{ appName: 'Commerce App', orderId: 'order-42' }}
-        t={t as any}
       />,
     );
 
@@ -65,15 +65,15 @@ describe('PaymentActionModal', () => {
         action="settle"
         actionIsValid={false}
         offlineRefundReference=""
+        paymentReference=""
+        reason=""
+        submitting={false}
+        t={t as any}
         onCancel={vi.fn()}
         onOfflineRefundReferenceChange={vi.fn()}
         onOk={vi.fn()}
         onPaymentReferenceChange={vi.fn()}
         onReasonChange={vi.fn()}
-        paymentReference=""
-        reason=""
-        submitting={false}
-        t={t as any}
       />,
     );
 

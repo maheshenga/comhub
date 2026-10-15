@@ -1,8 +1,8 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Alert, Button } from '@lobehub/ui/base-ui';
-import { Space, Typography } from 'antd';
+import { Alert, Button, Text } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -39,14 +39,12 @@ const AdminSettingsConflictAlert = memo<AdminSettingsConflictAlertProps>(({ erro
       }
       description={
         <Space direction="vertical" size={2}>
-          <Typography.Text>{t('admin.settingsConflict.description')}</Typography.Text>
-          <Typography.Text code>
-            {t('admin.settingsConflict.code')}: APP_SETTINGS_REVISION_CONFLICT
-          </Typography.Text>
+          <Text>{t('admin.settingsConflict.description')}</Text>
+          <Text code>{t('admin.settingsConflict.code')}: APP_SETTINGS_REVISION_CONFLICT</Text>
           {details.correlationId ? (
-            <Typography.Text code>
+            <Text code>
               {t('admin.settingsConflict.correlationId')}: {details.correlationId}
-            </Typography.Text>
+            </Text>
           ) : null}
         </Space>
       }

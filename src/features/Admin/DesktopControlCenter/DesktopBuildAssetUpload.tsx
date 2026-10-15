@@ -1,9 +1,9 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Tag, toast } from '@lobehub/ui/base-ui';
-import type { UploadProps } from 'antd';
-import { Button, Space, Typography, Upload } from 'antd';
+import type { UploadProps } from '@lobehub/ui/base-ui';
+import { Button, Tag, Text, toast, Upload } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -76,17 +76,17 @@ const DesktopBuildAssetUpload = memo<DesktopBuildAssetUploadProps>(
         setUploading(false);
       }
 
-      return Upload.LIST_IGNORE;
+      return false;
     };
 
     return (
       <Space align="center" orientation="vertical" size={4}>
-        <Typography.Text strong>{t(labelKeyByKind[kind] as any)}</Typography.Text>
+        <Text strong>{t(labelKeyByKind[kind] as any)}</Text>
         <Tag color={asset ? 'success' : uploading ? 'processing' : 'default'}>{statusLabel}</Tag>
-        <Typography.Text ellipsis style={{ maxWidth: 180 }} type="secondary">
+        <Text ellipsis style={{ maxWidth: 180 }} type="secondary">
           {asset?.key || t('admin.desktopBuild.assets.help')}
-        </Typography.Text>
-        <Upload accept={accept} beforeUpload={beforeUpload} maxCount={1} showUploadList={false}>
+        </Text>
+        <Upload accept={accept} beforeUpload={beforeUpload} maxCount={1}>
           <Button loading={uploading} size="small">
             {asset ? t('admin.desktopBuild.assets.replace') : t('admin.desktopBuild.assets.upload')}
           </Button>

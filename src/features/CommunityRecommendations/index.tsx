@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Skeleton, Tag, Typography } from 'antd';
+import { Button, SkeletonText, Tag, Text } from '@lobehub/ui/base-ui';
 import { memo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
@@ -26,9 +26,9 @@ const Section = memo<{
 }>(({ children, moreLink, title }) => (
   <Flexbox gap={12}>
     <Flexbox horizontal align="center" distribution="space-between">
-      <Typography.Title level={3} style={{ margin: 0 }}>
+      <Text as="h3" style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>
         {title}
-      </Typography.Title>
+      </Text>
       <Link to={moreLink}>
         <Button type="link">更多</Button>
       </Link>
@@ -90,7 +90,7 @@ const RecommendationContent = memo<{
     (config.generalSkillsEnabled && (generalSkills?.items?.length ?? 0) > 0) ||
     (config.hotSkillsEnabled && (hotSkills?.items?.length ?? 0) > 0);
 
-  if (loading && !hasAnyData) return <Skeleton active paragraph={{ rows: 4 }} />;
+  if (loading && !hasAnyData) return <SkeletonText rows={4} />;
   if (!hasAnyData) return null;
 
   return (

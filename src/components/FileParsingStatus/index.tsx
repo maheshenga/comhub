@@ -106,9 +106,9 @@ const FileParsingStatus = memo<FileParsingStatusProps>(
               >
                 <Tag
                   className={cx('chunk-tag', className)}
+                  icon={preparingEmbedding ? <Spin size="small" /> : <Icon icon={BoltIcon} />}
                   style={{ cursor: 'pointer' }}
                   variant={'filled'}
-                  icon={preparingEmbedding ? <Spin size="small" /> : <Icon icon={BoltIcon} />}
                   onClick={() => {
                     onClick?.(AsyncTaskStatus.Success);
                   }}

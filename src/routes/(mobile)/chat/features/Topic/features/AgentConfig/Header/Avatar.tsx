@@ -1,6 +1,7 @@
 'use client';
 
-import { Avatar, Block } from '@lobehub/ui';
+import { Block } from '@lobehub/ui';
+import { Avatar } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 
 import { useOpenChatSettings } from '@/hooks/useInterceptingRoutes';

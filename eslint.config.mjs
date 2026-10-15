@@ -300,6 +300,7 @@ export default eslint(
       'src/app/**/*.{ts,tsx}',
       'src/libs/**/*.{ts,tsx}',
       'src/scripts/**/*.{ts,tsx}',
+      'src/server/**/*.{ts,tsx}',
       'src/*.{ts,tsx}',
       'src/**/*.server.{ts,tsx}',
     ],

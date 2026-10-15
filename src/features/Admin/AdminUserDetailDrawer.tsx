@@ -2,8 +2,8 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Tag, toast } from '@lobehub/ui/base-ui';
-import { Button, Descriptions, Drawer, InputNumber, Modal, Space } from 'antd';
+import { Button, Descriptions, Drawer, InputNumber, Modal, Tag, toast } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -118,7 +118,6 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
 
   return (
     <Drawer
-      destroyOnClose
       open={!!userId}
       title={t('admin.userDetail.title', '用户详情')}
       width={720}
@@ -206,9 +205,9 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
           <Flexbox gap={12}>
             <div>{t('admin.adjustCredits.amount', '数量（正数增加，负数扣减）')}</div>
             <InputNumber
-              addonAfter={'M'}
               precision={6}
               style={{ width: '100%' }}
+              suffix={'M'}
               value={adjustAmount}
               onChange={(value: number | null) => setAdjustAmount(value ?? 0)}
             />
@@ -227,30 +226,42 @@ const CompactProfile = ({ compactDetail }: { compactDetail: any }) => {
     <Descriptions
       bordered
       column={1}
-      size="small"
       title={t('admin.userDetail.profile', '用户资料')}
-    >
-      <Descriptions.Item label={t('admin.userDetail.userId', 'ID')}>
-        <code>{compactDetail.id}</code>
-      </Descriptions.Item>
-      <Descriptions.Item label={t('admin.role', '角色')}>
-        {compactDetail.role ? (
-          <Tag color={compactDetail.role === 'admin' ? 'purple' : 'blue'}>{compactDetail.role}</Tag>
-        ) : (
-          EMPTY_TEXT
-        )}
-      </Descriptions.Item>
-      <Descriptions.Item label={t('admin.status', '状态')}>
-        {compactDetail.banned ? (
-          <Tag color="red">{t('admin.userStatus.banned', 'Banned')}</Tag>
-        ) : (
-          <Tag color="green">{t('admin.userStatus.active', 'Active')}</Tag>
-        )}
-      </Descriptions.Item>
-      <Descriptions.Item label={t('admin.joined', '注册时间')}>
-        {compactDetail.createdAt ? new Date(compactDetail.createdAt).toLocaleString() : EMPTY_TEXT}
-      </Descriptions.Item>
-    </Descriptions>
+      items={[
+        {
+          children: <code>{compactDetail.id}</code>,
+          key: 'id',
+          label: t('admin.userDetail.userId', 'ID'),
+        },
+        {
+          children: compactDetail.role ? (
+            <Tag color={compactDetail.role === 'admin' ? 'purple' : 'blue'}>
+              {compactDetail.role}
+            </Tag>
+          ) : (
+            EMPTY_TEXT
+          ),
+          key: 'role',
+          label: t('admin.role', '角色'),
+        },
+        {
+          children: compactDetail.banned ? (
+            <Tag color="red">{t('admin.userStatus.banned', 'Banned')}</Tag>
+          ) : (
+            <Tag color="green">{t('admin.userStatus.active', 'Active')}</Tag>
+          ),
+          key: 'status',
+          label: t('admin.status', '状态'),
+        },
+        {
+          children: compactDetail.createdAt
+            ? new Date(compactDetail.createdAt).toLocaleString()
+            : EMPTY_TEXT,
+          key: 'createdAt',
+          label: t('admin.joined', '注册时间'),
+        },
+      ]}
+    />
   );
 };
 

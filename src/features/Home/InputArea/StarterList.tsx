@@ -1,6 +1,5 @@
-import { ModelIcon } from '@lobehub/icons';
-import { Center, Skeleton, Tag, Tooltip } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Center, Tooltip } from '@lobehub/ui';
+import { Button, Skeleton, Tag } from '@lobehub/ui/base-ui';
 import { App } from 'antd';
 import { createStaticStyles, cx } from 'antd-style';
 import { memo, useCallback, useMemo, useState } from 'react';
@@ -12,6 +11,7 @@ import {
 } from '@/business/client/hooks/useBusinessAgentMode';
 import type { HomeNewModelItem } from '@/business/client/hooks/useHomeNewModels';
 import { useHomeNewModels } from '@/business/client/hooks/useHomeNewModels';
+import { ModelIcon } from '@/components/LobeIcons';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { resolveEnabledChatModel } from '@/helpers/resolveEnabledChatModel';
 import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
@@ -168,14 +168,12 @@ const StarterList = memo(() => {
       </Tag>
       {isStarterListLoading
         ? defaultHomeNewModels.map((item, index) => (
-            <Skeleton.Button
-              active
+            <Skeleton
+              animated
+              height={40}
               key={getStarterItemKey(item)}
-              style={{
-                borderRadius: 999,
-                height: 40,
-                width: skeletonWidths[index] ?? 126,
-              }}
+              style={{ borderRadius: 999 }}
+              width={skeletonWidths[index] ?? 126}
             />
           ))
         : resolvedItems.map((item) => {

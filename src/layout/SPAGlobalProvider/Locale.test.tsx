@@ -5,6 +5,8 @@ import { render, waitFor } from '@testing-library/react';
 import { type PropsWithChildren, useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import Locale from './Locale';
+
 const { getAntdLocale, init, instance } = vi.hoisted(() => ({
   getAntdLocale: vi.fn(),
   init: vi.fn(async () => {}),
@@ -27,8 +29,6 @@ vi.mock('@/layout/GlobalProvider/Editor', () => ({
 }));
 vi.mock('dayjs', () => ({ default: { locale: vi.fn() } }));
 vi.mock('rtl-detect', () => ({ isRtlLang: () => false }));
-
-import Locale from './Locale';
 
 let mounts = 0;
 const MountCounter = () => {
