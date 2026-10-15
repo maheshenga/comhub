@@ -1,8 +1,7 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Alert, Input, TextArea } from '@lobehub/ui/base-ui';
-import { Typography } from '@lobehub/ui/base-ui/typography';
+import { Alert, Input, Text, TextArea } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { memo } from 'react';
@@ -27,9 +26,9 @@ const BuildProfileEditor = memo<BuildProfileEditorProps>(
 
     return (
       <Form<BuildProfileFormValues> form={form} layout="vertical" onValuesChange={onValuesChange}>
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+        <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopBuild.profile.title')}
-        </Typography.Title>
+        </Text>
         <Form.Item label={t('admin.desktopBuild.applicationName')} name="applicationName">
           <Input />
         </Form.Item>
@@ -79,9 +78,9 @@ const BuildProfileEditor = memo<BuildProfileEditorProps>(
         {identityLocked ? (
           <Alert message={t('admin.desktopBuild.identity.locked')} type="info" />
         ) : null}
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+        <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopBuild.assets.title')}
-        </Typography.Title>
+        </Text>
         <div className={desktopControlCenterStyles.assetGrid}>
           {WINDOWS_ASSET_KINDS.map((kind) => (
             <DesktopBuildAssetUpload

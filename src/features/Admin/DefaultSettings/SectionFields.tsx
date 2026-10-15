@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Input, Select, Switch, TextArea } from '@lobehub/ui/base-ui';
+import { Alert, InputPassword, Select, Switch, TextArea } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form, type FormInstance } from 'antd';
 
@@ -147,7 +147,7 @@ export const IntegrationFields = ({ settings }: IntegrationFieldsProps) => (
           : '尚未配置 Composio API Key。'
       }
     >
-      <Input.Password autoComplete="new-password" placeholder="ak_..." />
+      <InputPassword autoComplete="new-password" placeholder="ak_..." />
     </Form.Item>
     <Form.Item
       extra="开启后会在保存时清除已保存的 API Key。"

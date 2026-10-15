@@ -49,15 +49,8 @@ const RuntimeModelFieldPair = memo<RuntimeModelFieldPairProps>(
               const selected = options.find((option) => option.value === value);
               if (!selected) return form.setFieldValue(providerField, '');
 
-              form.setFieldsValue({
-                [modelField]: selected.model,
-                [providerField]: selected.provider,
-              });
-            }}
-            onSelect={(value) => {
-              const selected = options.find((option) => option.value === value);
-              if (!selected) return;
-
+              // base-ui AutoComplete has no separate onSelect: onChange already
+              // fires with the picked option value, so selection syncs here.
               form.setFieldsValue({
                 [modelField]: selected.model,
                 [providerField]: selected.provider,

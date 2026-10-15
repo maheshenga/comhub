@@ -28,7 +28,7 @@ const PackageFormFields = ({ editing }: { editing?: { id?: string } | null } = {
       </Form.Item>
       <AdminFormGrid columns={3} label={t('admin.topup.amountFields', '积分与金额字段')}>
         <Form.Item label={t('admin.topup.field.credits', '积分')} name="credits">
-          <InputNumber addonAfter={'M'} min={0} precision={6} style={{ width: '100%' }} />
+          <InputNumber min={0} precision={6} style={{ width: '100%' }} suffix={'M'} />
         </Form.Item>
         <Form.Item label={t('admin.topup.field.amount', '金额')} name="amount">
           <InputNumber min={0} step={0.01} style={{ width: '100%' }} />

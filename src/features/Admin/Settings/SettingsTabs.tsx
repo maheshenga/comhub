@@ -2,8 +2,7 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
-import { Button, Input, Select, Tabs } from '@lobehub/ui/base-ui';
-import { Typography } from '@lobehub/ui/base-ui/typography';
+import { Button, Input, Select, Tabs, Text } from '@lobehub/ui/base-ui';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { cssVar } from 'antd-style';
@@ -16,7 +15,6 @@ import { type AdminSettingsFormValues } from '@/features/Admin/adminSettingsForm
 
 import { AssistantSettingsCard, BrandSettingsCard, EntryCopySettingsCard } from './SettingsCards';
 
-const { Text } = Typography;
 
 const helpMenuActionOptions = HELP_MENU_ACTIONS.map((value) => ({ label: value, value }));
 const helpMenuIconOptions = HELP_MENU_ICONS.map((value) => ({ label: value, value }));

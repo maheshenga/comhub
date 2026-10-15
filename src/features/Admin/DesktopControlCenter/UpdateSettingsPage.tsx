@@ -7,10 +7,10 @@ import {
   InputNumber,
   Segmented,
   Switch,
+  Text,
   TextArea,
   toast,
 } from '@lobehub/ui/base-ui';
-import { Typography } from '@lobehub/ui/base-ui/typography';
 // eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { Save } from 'lucide-react';
@@ -94,9 +94,9 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
 
   return (
     <section className={desktopControlCenterStyles.formSection}>
-      <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+      <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
         {t('admin.desktopControl.tabs.updates')}
-      </Typography.Title>
+      </Text>
       <AdminSettingsConflictAlert
         error={saveError}
         onReload={async () => {

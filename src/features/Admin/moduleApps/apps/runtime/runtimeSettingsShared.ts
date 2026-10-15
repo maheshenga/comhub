@@ -2,7 +2,7 @@
 
 import { createStaticStyles, cssVar } from 'antd-style';
 
-import type { AppSettingKey } from '@/const/appSettingsRegistry';
+import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 
 export const runtimeSettingsStyles = createStaticStyles(({ css }) => ({
   actions: css`
@@ -115,7 +115,7 @@ export type RuntimeSettingsForm = {
 /** 保存负载组装（M5 拆页：从 ModuleAppRuntimeSettings 抽出）。 */
 export const buildRuntimeSettingUpdates = (
   values: RuntimeSettingsForm,
-  keys: Record<AppSettingKey, string>,
+  keys: typeof APP_SETTING_KEYS = APP_SETTING_KEYS,
 ) => [
   { key: keys.moduleAppExecutionEnabled, value: values.executionEnabled },
   { key: keys.moduleAppPublicExecutionEnabled, value: values.publicExecutionEnabled },

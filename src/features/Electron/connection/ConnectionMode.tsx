@@ -171,7 +171,6 @@ const ConnectionMode = memo<ConnectionModeProps>(({ setWaiting }) => {
                     autoFocus
                     className={styles.selfHostedInput}
                     placeholder="https://your-lobechat.com"
-                    status={urlError ? 'error' : undefined}
                     value={selfHostedUrl}
                     onClick={stopPropagation}
                     onChange={(e) => {
