@@ -35,7 +35,7 @@ const MODULES = [
     name: 'Migration chain',
     sync: 'verify-only',
     description:
-      'ComHub-owned migrations (0100-0122 commercial, 0168-0177) + repair 0178. Upstream renumbering: upstream 0111 rewritten in place as fork 0129 (carry-forward header comment); upstream 0112-0126 renumbered verbatim to 0153-0167 (blobs identical to upstream one-for-one); upstream 0110 keeps its original name. v2.2.19 wave: upstream 0167-0175 renumbered verbatim to fork 0179-0187 (+12 offset because the upstream tail collides with the fork-owned 0167_agent_quota_workspace_identity) — SQL blobs byte-identical to upstream, and _journal.json appends the 9 entries (idx 182-190) after the ComHub tail with only idx shifted (version/when/breakpoints verbatim).',
+      'ComHub-owned migrations (0100-0122 commercial, 0168-0177, 0188_module_app_publisher_suspension_reason) + repair 0178. Upstream renumbering: upstream 0111 rewritten in place as fork 0129 (carry-forward header comment); upstream 0112-0126 renumbered verbatim to 0153-0167 (blobs identical to upstream one-for-one); upstream 0110 keeps its original name. v2.2.19 wave: upstream 0167-0175 renumbered verbatim to fork 0179-0187 (+12 offset because the upstream tail collides with the fork-owned 0167_agent_quota_workspace_identity) — SQL blobs byte-identical to upstream, and _journal.json appends the 9 entries (idx 182-190) after the ComHub tail with only idx shifted (version/when/breakpoints verbatim).',
     ownershipRules: [
       [
         'p:packages/database/migrations/meta/',
@@ -52,7 +52,7 @@ const MODULES = [
     ],
     tests: ['packages/database/src/models/__tests__/migrationChain.test.ts'],
     notes:
-      'Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations. 23 orphan original SQL files remain on disk unreferenced by _journal.json (upstream originals of 0104-0109 and 0111-0126, plus 0065_add_document_fields which is upstream-inherent); scripts/verifyMigrationChain.mjs does not detect orphans — when upstream later modifies a renumbered file the merge lands on the orphan copy and must be remapped by hand. v2.2.19 wave (upstream 0167-0175 → fork 0179-0187) left NO orphan originals on disk: the merge deleted the upstream-named copies when re-adding them under 0179-0187. The upstream journal tail is now idx 175 (tag 0175_environment_visibility_and_build_state) — the next upstream wave appends after fork 0187 with the same verbatim + idx-shift-only treatment.',
+      'Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations. 23 orphan original SQL files remain on disk unreferenced by _journal.json (upstream originals of 0104-0109 and 0111-0126, plus 0065_add_document_fields which is upstream-inherent); scripts/verifyMigrationChain.mjs reports them as a warning (report-only, never fails) — the count must stay stable, an unexpected delta means a merge landed on an orphan copy and must be remapped by hand. v2.2.19 wave (upstream 0167-0175 → fork 0179-0187) left NO orphan originals on disk: the merge deleted the upstream-named copies when re-adding them under 0179-0187. The upstream journal tail is now idx 175 (tag 0175_environment_visibility_and_build_state) — the next upstream wave appends after fork 0188 (0188_module_app_publisher_suspension_reason) with the same verbatim + idx-shift-only treatment.',
   },
   {
     id: 'branding',
@@ -545,6 +545,11 @@ const MODULES = [
         'owned',
         'extracted: ledger reconciliation',
       ],
+      [
+        'p:apps/server/src/services/usage/ledgerReconciliation.test.ts',
+        'owned',
+        'extracted: ledger reconciliation tests (usdCost-first spend anchor)',
+      ],
       ['p:apps/server/src/services/usage/', 'upstream', 'ledger merge in index.ts + cost.ts split'],
       [
         'p:apps/server/src/routers/lambda/usageInputSchemas.ts',
@@ -558,7 +563,10 @@ const MODULES = [
       ],
       ['p:src/services/usage.ts', 'upstream', 'findByDateRange client'],
     ],
-    tests: ['apps/server/src/services/usage/index.test.ts'],
+    tests: [
+      'apps/server/src/services/usage/index.test.ts',
+      'apps/server/src/services/usage/ledgerReconciliation.test.ts',
+    ],
     notes:
       'Chat cost: usage.cost → metadata.cost → ledger fallback. Never double-count chat records that already carry message usage cost. New billable reference types must be added to BILLABLE_LEDGER_REFERENCE_TYPES.',
   },

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -280,12 +280,31 @@ export const verifyMigrationChain = ({
   verifyAppend('v2.2.18', V2218_APPEND_TAGS);
   verifyAppend('v2.2.19', V2219_APPEND_TAGS);
 
+  // Reverse orphan detection: SQL files on disk that no journal entry
+  // references. These are expected to exist (the known 23 upstream originals
+  // of the renumbered/repair waves, see the registry's database-migrations
+  // notes), but the count must stay stable: an unexpected delta means a merge
+  // landed on an orphan copy and the journal entry must be remapped by hand.
+  // Report-only: never fails the check.
+  const journalTags = new Set(entries.map((entry) => entry.tag));
+  const orphanTags = (readdirSync(migrationsDirectory) ?? [])
+    .filter((name) => name.endsWith('.sql'))
+    .map((name) => name.slice(0, -'.sql'.length))
+    .filter((tag) => !journalTags.has(tag))
+    .sort();
+  if (orphanTags.length > 0) {
+    warnings.push(
+      `Found ${orphanTags.length} orphan SQL files on disk not referenced by _journal.json: ${orphanTags.join(', ')}`,
+    );
+  }
+
   const summary = {
     appendTags: V2217_APPEND_TAGS,
     entryCount: entries.length,
     fileCount: files.length,
     legacyDuplicateIndexCount: duplicateIndexes.length,
     migrationFiles: files,
+    orphanTags,
     v2218AppendTags: V2218_APPEND_TAGS,
     v2219AppendTags: V2219_APPEND_TAGS,
   };

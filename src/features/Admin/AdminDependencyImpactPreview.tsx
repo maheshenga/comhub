@@ -2,21 +2,29 @@
 
 import { type AdminDependencyImpact, type AdminDependencyImpactItem } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Tag } from '@lobehub/ui/base-ui';
-import { Typography } from 'antd';
+import { Alert, Tag, Text } from '@lobehub/ui/base-ui';
+import { type TFunction } from 'i18next';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AdminInlineSkeleton } from '@/features/Admin/shared';
 
-const { Text } = Typography;
-
-const ImpactItems = ({ items }: { items: AdminDependencyImpactItem[] }) => (
+/**
+ * 影响条目标题按稳定 code 走 i18n（admin.impact.item.<code>）；服务端 title
+ * 现返回同一 code 兜底，未知 code（如上游新增）直接显示 title 原文不炸。
+ */
+const ImpactItems = ({
+  items,
+  t,
+}: {
+  items: AdminDependencyImpactItem[];
+  t: TFunction<'subscription'>;
+}) => (
   <Flexbox gap={6}>
     {items.map((item) => (
       <Flexbox gap={2} key={item.code}>
         <Flexbox horizontal align="center" gap={6}>
-          <Text strong>{item.title}</Text>
+          <Text strong>{t(`admin.impact.item.${item.code}`, item.title)}</Text>
           <Tag>{item.count}</Tag>
         </Flexbox>
         {item.details?.length ? (
@@ -60,21 +68,17 @@ const AdminDependencyImpactPreview = memo<{
       {impact.blocking.length > 0 ? (
         <Alert
           showIcon
-          description={<ImpactItems items={impact.blocking} />}
+          description={<ImpactItems items={impact.blocking} t={t} />}
           message={t('admin.impact.blocking', '必须先处理的阻断依赖')}
           type="error"
         />
       ) : (
-        <Alert
-          showIcon
-          message={t('admin.impact.noBlocking', '未发现阻断依赖')}
-          type="success"
-        />
+        <Alert showIcon message={t('admin.impact.noBlocking', '未发现阻断依赖')} type="success" />
       )}
       {impact.immediateEffects.length > 0 ? (
         <Alert
           showIcon
-          description={<ImpactItems items={impact.immediateEffects} />}
+          description={<ImpactItems items={impact.immediateEffects} t={t} />}
           message={t('admin.impact.immediate', '确认后立即发生')}
           type="warning"
         />
@@ -82,7 +86,7 @@ const AdminDependencyImpactPreview = memo<{
       {impact.liveEffects.length > 0 ? (
         <Alert
           showIcon
-          description={<ImpactItems items={impact.liveEffects} />}
+          description={<ImpactItems items={impact.liveEffects} t={t} />}
           message={t('admin.impact.live', '在线运行影响')}
           type="info"
         />

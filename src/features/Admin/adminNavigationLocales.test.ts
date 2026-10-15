@@ -3,7 +3,12 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { ADMIN_CATALOG, ADMIN_CATALOG_GROUPS, type AdminSubSectionKey } from './adminCatalog';
+import {
+  ADMIN_CATALOG,
+  ADMIN_CATALOG_GROUPS,
+  type AdminNavGroupKey,
+  type AdminSubSectionKey,
+} from './adminCatalog';
 
 const repoFile = (relative: string) =>
   JSON.parse(readFileSync(path.resolve(process.cwd(), relative), 'utf8')) as Record<string, string>;
@@ -129,13 +134,14 @@ describe('adminNavigationLocales', () => {
     const seedIds = Object.keys(MODULE_SECTION_NAV_LABELS).sort();
     expect(seedIds).toEqual([...pseudoItemKeys].sort());
 
-    const drifted = Object.entries(MODULE_SECTION_NAV_LABELS).flatMap(([id, label]) => {
-      const labelKey = `admin.navigation.items.${id}.label`;
-      return [
-        [labelKey, enUS[labelKey], label],
-        [labelKey, defaultSubscription[labelKey], label],
-      ] as const;
-    })
+    const drifted = Object.entries(MODULE_SECTION_NAV_LABELS)
+      .flatMap(([id, label]) => {
+        const labelKey = `admin.navigation.items.${id}.label`;
+        return [
+          [labelKey, enUS[labelKey], label],
+          [labelKey, defaultSubscription[labelKey], label],
+        ] as const;
+      })
       .filter(([, actual, expected]) => actual !== undefined && actual !== expected)
       .map(([key, actual, expected]) => `${key}: locale=${actual} seed=${expected}`);
     expect(drifted, 'pseudo-item labels drifted from the seeds').toEqual([]);
@@ -176,7 +182,9 @@ describe('adminNavigationLocales', () => {
       const [name, dictionary] = source;
       const orphans = Object.keys(dictionary)
         .map((key) => staleGroupKeyPattern.exec(key)?.[1])
-        .filter((key): key is string => !!key && !groupKeys.includes(key));
+        .filter(
+          (key): key is AdminNavGroupKey => !!key && !groupKeys.includes(key as AdminNavGroupKey),
+        );
 
       expect([...new Set(orphans)], `${name} keeps renamed-away admin group keys`).toEqual([]);
     }
@@ -262,15 +270,18 @@ describe('adminNavigationLocales', () => {
     const declared = new Set(declaredSubSections.map((key) => key as AdminSubSectionKey));
     const consumers = new Set<string>([
       ...ADMIN_CATALOG.flatMap((item) => (item.subSection ? [item.subSection] : [])),
-      ...Object.entries(ADMIN_NAV_SUB_SECTIONS).flatMap(([, subSections]) =>
-        subSections.map((s) => s.key),
+      // Set<string>.has 接受任意 string；先把键展平为 string 再过滤，避免把
+      // 窄型 AdminSubSectionKey 直接喂给 has 触发 TS2345（该键来自动态 import
+      // 的结构化数据，静态上不可收窄）。
+      ...Object.values(ADMIN_NAV_SUB_SECTIONS).flatMap((subSections) =>
+        subSections.map((s) => s.key as string),
       ),
     ]);
 
     const dangling = [...declared].filter((key) => !consumers.has(key));
     expect(dangling, 'declared sub-section keys nobody consumes').toEqual(['workbench-quick']);
 
-    const undeclared = [...consumers].filter((key) => !declared.has(key));
+    const undeclared = [...consumers].filter((key) => !declared.has(key as AdminSubSectionKey));
     expect(undeclared, 'consumed sub-section keys missing from the declared list').toEqual([]);
 
     // ADMIN_NAV_SUB_SECTIONS 的组键也必须落在声明清单内，防止两级表私自造键。

@@ -13,15 +13,16 @@ import { AdminPageState } from './AdminPageState';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   pager: css`
-    align-items: center;
     display: flex;
     gap: 8px;
+    align-items: center;
     justify-content: flex-end;
+
     padding-block: 8px;
   `,
   pagerPosition: css`
-    color: ${cssVar.colorTextTertiary};
     font-size: 12px;
+    color: ${cssVar.colorTextTertiary};
     white-space: nowrap;
   `,
   responsive: css`
@@ -77,18 +78,19 @@ export interface AdminDataTableProps<RecordType extends object> extends Omit<
    */
   /** Copy for the gated empty state; falls back to AdminPageState defaults. */
   emptyDescription?: ReactNode;
+  /** `'filtered'` swaps the empty state to the SearchX + clear-filters variant. */
+  emptyKind?: 'filtered' | 'initial';
   emptyTitle?: ReactNode;
   error?: unknown;
   errorDescription?: ReactNode;
   errorTitle?: ReactNode;
   isEmpty?: boolean;
   loading?: boolean;
+  /** Clear-filters action; rendered only together with `emptyKind="filtered"`. */
+  onClearFilters?: () => void;
   onCsvExport?: () => void;
   onRetry?: () => void;
-  /**
-   * Cursor pager wiring: pass the state derived from useAdminCursorQuery to
-   * get built-in previous/next buttons; omit for client-side-only data.
-   */
+  /** Cursor pager wiring from useAdminCursorQuery state; omit for client-side data. */
   pager?: AdminDataTablePagerState;
   /**
    * Client-side pagination opt-in for tables that page a fully-loaded array.
@@ -118,6 +120,7 @@ export const AdminDataTable = <RecordType extends object>({
   csvColumns,
   csvFileName,
   emptyDescription,
+  emptyKind,
   emptyTitle,
   error,
   errorDescription,
@@ -125,6 +128,7 @@ export const AdminDataTable = <RecordType extends object>({
   isEmpty,
   loading,
   locale,
+  onClearFilters,
   onCsvExport,
   onRetry,
   pager,
@@ -142,6 +146,7 @@ export const AdminDataTable = <RecordType extends object>({
     return (
       <AdminPageState
         emptyDescription={emptyDescription}
+        emptyKind={emptyKind}
         emptyTitle={emptyTitle}
         error={error}
         errorDescription={errorDescription}
@@ -149,6 +154,7 @@ export const AdminDataTable = <RecordType extends object>({
         isEmpty={Boolean(isEmpty)}
         loading={loading}
         skeletonVariant="list"
+        onClearFilters={onClearFilters}
         onRetry={onRetry}
       >
         {null}

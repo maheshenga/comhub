@@ -223,9 +223,13 @@ const AdminSubscriptionsPage = memo(() => {
                   <AdminDataTable
                     columns={columns}
                     dataSource={items}
+                    // 筛选无结果走 SearchX 空态 + 一键清除（原语 adminPageParts §filtered）。
+                    emptyKind={plan === 'all' ? 'initial' : 'filtered'}
+                    isEmpty={!isLoading && items.length === 0}
                     loading={isLoading}
                     regionLabel={t('admin.subscriptions.tableLabel', '订阅数据表')}
                     rowKey="id"
+                    onClearFilters={() => handlePlanFilterChange('all')}
                   />
                 )}
 

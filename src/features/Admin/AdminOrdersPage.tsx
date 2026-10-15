@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Input, Select, Tabs, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Tabs, toast } from '@lobehub/ui/base-ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -25,32 +24,12 @@ import {
 } from './Orders/orderBulkToolbar';
 import { buildOrderColumns } from './Orders/orderColumns';
 import { OrderDetailDrawer } from './Orders/OrderDetailDrawer';
+import { OrderFiltersBar } from './Orders/OrderFiltersBar';
 import { OrderPager } from './Orders/orderPager';
 import { OrderTableArea } from './Orders/orderTableArea';
 import type { AdminOrderDetail, OrderStatus, PendingOrderCommand } from './Orders/shared';
 import { buildTopUpPaymentUrl } from './Orders/shared';
 import { useAdminCursorQuery } from './shared/useAdminCursorQuery';
-
-const styles = createStaticStyles(({ css }) => ({
-  filters: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-
-    width: 100%;
-  `,
-  search: css`
-    width: min(280px, 100%);
-  `,
-  status: css`
-    width: 160px;
-
-    @media (width < 560px) {
-      width: 100%;
-    }
-  `,
-}));
 
 const AdminOrdersPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -158,7 +137,7 @@ const AdminOrdersPage = memo(() => {
       <span>
         {t('admin.orders.settleConfirmAmount', '金额')}：
         {formatAdminAmount(row.amount, row.currency)}
-      </span>
+      </span>{' '}
       <span>
         {t('admin.orders.settleConfirmCredits', '积分')}：{formatAdminCredits(row.credits)}
       </span>
@@ -168,7 +147,6 @@ const AdminOrdersPage = memo(() => {
       </span>
     </Flexbox>
   );
-
   const columns = buildOrderColumns({
     actingId,
     handlePendingAction,
@@ -200,39 +178,17 @@ const AdminOrdersPage = memo(() => {
                 })}
               >
                 <AdminToolbar>
-                  <div className={styles.filters}>
-                    <Select
-                      allowClear
-                      className={styles.status}
-                      placeholder={t('admin.orders.filter.status', '状态')}
-                      value={status}
-                      options={(
-                        ['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded'] as const
-                      ).map((value) => ({ label: value, value }))}
-                      onChange={(value: OrderStatus) => {
-                        setStatus(value);
-                        ordersQuery.state.reset();
-                      }}
-                    />
-                    {/* base-ui Input has no Search compound: explicit search
-                        button + Enter both apply the draft value (restores
-                        the antd onSearch affordance lost in the migration). */}
-                    <Input
-                      allowClear
-                      className={styles.search}
-                      placeholder={t('admin.orders.filter.userId', '用户 ID')}
-                      value={userIdDraft}
-                      onChange={(event) => setUserIdDraft(event.currentTarget.value)}
-                      onPressEnter={() => applyUserIdFilter()}
-                    />
-                    <Button
-                      aria-label={t('admin.orders.filter.userId', '用户 ID')}
-                      size="small"
-                      onClick={() => applyUserIdFilter()}
-                    >
-                      {t('admin.orders.filter.search', '搜索')}
-                    </Button>
-                  </div>
+                  <OrderFiltersBar
+                    applyUserIdFilter={applyUserIdFilter}
+                    setUserIdDraft={setUserIdDraft}
+                    status={status}
+                    t={t as any}
+                    userIdDraft={userIdDraft}
+                    setStatus={(value) => {
+                      setStatus(value);
+                      ordersQuery.state.reset();
+                    }}
+                  />
                   {effectiveSelectedIds.length > 0 ? (
                     <OrderBulkToolbar
                       effectiveSelectedIds={effectiveSelectedIds}
@@ -254,18 +210,27 @@ const AdminOrdersPage = memo(() => {
                   columns={columns}
                   data={data}
                   error={error}
+                  hasActiveFilters={status !== undefined || trimUserId !== ''}
                   isLoading={isLoading}
                   rowSelection={orderRowSelection(effectiveSelectedIds, setSelectedOrderIds)}
                   t={t as any}
                   onRetry={() => void refresh()}
+                  onClearFilters={() => {
+                    setStatus(undefined);
+                    setUserId('');
+                    setUserIdDraft('');
+                    ordersQuery.state.reset();
+                  }}
                 />
                 {(ordersQuery.hasPrevious || ordersQuery.hasNext) && (
                   <OrderPager
                     hasNext={ordersQuery.hasNext}
                     hasPrevious={ordersQuery.hasPrevious}
                     isLoading={isLoading}
-                    positionLabel={`第 ${ordersQuery.depth} 页`}
                     t={t as any}
+                    positionLabel={t('admin.pagination.pagePosition', '第 {{page}} 页', {
+                      page: ordersQuery.depth,
+                    })}
                     onNext={ordersQuery.pager.onNext}
                     onPrevious={ordersQuery.pager.onPrevious}
                   />

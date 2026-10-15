@@ -141,15 +141,21 @@ const mapBillableLedgerUsage = (row: {
   const metadata = row.metadata ?? {};
   const type = resolveBillableLedgerUsageType(row.referenceType);
   const tokenUsage = resolveGenerationTokenUsage(type, metadata);
+  const credits = Math.abs(Number(row.amount) || 0);
+  // 美元口径与上方 ledgerUsageMap 聚合保持一致：billing 写入的 usdCost
+  // 优先（credits↔USD 换算是取整近似），缺失/无效时才回退 credits 换算。
+  const usdCost = Number(metadata.usdCost);
+  const fallbackSpend = credits / CREDITS_PER_DOLLAR;
+  const spend = Number.isFinite(usdCost) && usdCost > 0 ? usdCost : fallbackSpend;
 
   return {
     createdAt: row.createdAt,
-    credits: Math.abs(Number(row.amount) || 0),
+    credits,
     id: row.id || row.referenceId || `${row.referenceType}-${row.createdAt.getTime()}`,
     metadata: row.metadata as UsageRecordItem['metadata'],
     model: resolveGenerationModel(type, metadata, row.description, row.title),
     provider: resolveGenerationProvider(type, metadata),
-    spend: Math.abs(Number(row.amount) || 0) / CREDITS_PER_DOLLAR,
+    spend,
     totalInputTokens: tokenUsage.totalInputTokens,
     totalOutputTokens: tokenUsage.totalOutputTokens,
     totalTokens: tokenUsage.totalTokens,

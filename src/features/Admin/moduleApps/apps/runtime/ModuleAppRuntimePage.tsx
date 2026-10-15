@@ -19,13 +19,7 @@ import RecordsTable from '../../RecordsTable';
 import RunsTable from '../../RunsTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
-import type {
-  ModuleAppArtifactRow,
-  ModuleAppInstallRow,
-  ModuleAppRecordRow,
-  ModuleAppRunRow,
-  ModuleAppRuntimeDiagnostics,
-} from '../../types';
+import type { ModuleAppRuntimeDiagnostics } from '../../types';
 import ModuleAppRuntimeSettings from './ModuleAppRuntimeSettings';
 import {
   buildGatewayDiagnosticRows,
@@ -35,8 +29,7 @@ import {
 import { RuntimeDiagnosticsPanel } from './RuntimeDiagnosticsPanel';
 import { RUNTIME_PREVIEW_LIMIT, RuntimeSection } from './RuntimeSection';
 import { runtimeStyles as styles } from './runtimeStyles';
-
-type ListResponse<T> = { items?: T[]; nextCursor?: null | string };
+import { useRuntimePreviewLists } from './useRuntimePreviewLists';
 
 const ModuleAppRuntimePage = memo(() => {
   const { t: translate } = useTranslation('common');
@@ -50,46 +43,8 @@ const ModuleAppRuntimePage = memo(() => {
   const [dispatchingSchedules, setDispatchingSchedules] = useState(false);
   const runtimeSettingsKey = appId ? ADMIN_SETTINGS_SECTION_SWR_KEY('module-runtime') : null;
   const diagnosticsKey = appId ? moduleAppCacheKeys.runtimeDiagnostics() : null;
-  const installsKey = appId ? moduleAppCacheKeys.runtime('installs', appId, RUNTIME_PREVIEW_LIMIT) : null;
-  const recordsKey = appId ? moduleAppCacheKeys.runtime('records', appId, RUNTIME_PREVIEW_LIMIT) : null;
-  const runsKey = appId ? moduleAppCacheKeys.runtime('runs', appId, RUNTIME_PREVIEW_LIMIT) : null;
-  const artifactsKey = appId ? moduleAppCacheKeys.runtime('artifacts', appId, RUNTIME_PREVIEW_LIMIT) : null;
-  const installs = useClientDataSWR<ListResponse<ModuleAppInstallRow>>(
-    installsKey,
-    () =>
-      adminCommercialService.moduleApps.listInstalls({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppInstallRow>>,
-  );
-  const records = useClientDataSWR<ListResponse<ModuleAppRecordRow>>(
-    recordsKey,
-    () =>
-      adminCommercialService.moduleApps.listRecords({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppRecordRow>>,
-  );
-  const runs = useClientDataSWR<ListResponse<ModuleAppRunRow>>(
-    runsKey,
-    () =>
-      adminCommercialService.moduleApps.listRuns({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppRunRow>>,
-  );
-  const artifacts = useClientDataSWR<ListResponse<ModuleAppArtifactRow>>(
-    artifactsKey,
-    () =>
-      adminCommercialService.moduleApps.listArtifacts({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppArtifactRow>>,
-  );
+  const { artifacts, artifactsKey, installs, installsKey, records, recordsKey, runs, runsKey } =
+    useRuntimePreviewLists(appId);
   const runtimeSettings = useClientDataSWR(runtimeSettingsKey, () =>
     adminCommercialService.getSettingsSection('module-runtime'),
   );
@@ -141,9 +96,11 @@ const ModuleAppRuntimePage = memo(() => {
 
   return (
     <section className={styles.page} data-testid="module-app-runtime">
-      <header>
-        <h1>{t('moduleApps.admin.runtime.title')}</h1>
-        <p>{t('moduleApps.admin.runtime.description')}</p>
+      <header className={styles.pageHeader} data-testid="module-app-runtime-header">
+        <div>
+          <h1 className={styles.title}>{t('moduleApps.admin.runtime.title')}</h1>
+          <p className={styles.description}>{t('moduleApps.admin.runtime.description')}</p>
+        </div>
       </header>
       <section className={styles.section} data-testid="module-runtime-control-center">
         <header>
@@ -199,8 +156,8 @@ const ModuleAppRuntimePage = memo(() => {
         isLoading={installs.isLoading}
         limit={RUNTIME_PREVIEW_LIMIT}
         testId="module-runtime-installs"
-        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         title={t('moduleApps.admin.runtime.installs')}
+        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         onRetry={() => installsKey && void mutate(installsKey)}
       >
         <InstallsTable
@@ -224,8 +181,8 @@ const ModuleAppRuntimePage = memo(() => {
         isLoading={records.isLoading}
         limit={RUNTIME_PREVIEW_LIMIT}
         testId="module-runtime-records"
-        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         title={t('moduleApps.admin.runtime.records')}
+        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         onRetry={() => recordsKey && void mutate(recordsKey)}
       >
         <RecordsTable
@@ -248,8 +205,8 @@ const ModuleAppRuntimePage = memo(() => {
         isLoading={runs.isLoading}
         limit={RUNTIME_PREVIEW_LIMIT}
         testId="module-runtime-runs"
-        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         title={t('moduleApps.admin.runtime.runs')}
+        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         onRetry={() => runsKey && void mutate(runsKey)}
       >
         <RunsTable
@@ -273,8 +230,8 @@ const ModuleAppRuntimePage = memo(() => {
         isLoading={artifacts.isLoading}
         limit={RUNTIME_PREVIEW_LIMIT}
         testId="module-runtime-artifacts"
-        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         title={t('moduleApps.admin.runtime.artifacts')}
+        truncatedLabel={t('moduleApps.admin.runtime.truncated')}
         onRetry={() => artifactsKey && void mutate(artifactsKey)}
       >
         <ArtifactsTable

@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, confirmModal } from '@lobehub/ui/base-ui';
+import { Button, confirmModal, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ import { buildModuleAppPublishWarningCodes } from '../formSchema';
 import type { ModuleAppDetailOutletContext } from '../layouts/ModuleAppDetailLayout';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import AppIdentityModal from './AppIdentityModal';
+import { detailSubPageStyles as shell } from './detailSubPageStyles';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -24,22 +25,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
-  `,
-  description: css`
-    margin-block: 4px 0;
-    margin-inline: 0;
-    line-height: 22px;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  header: css`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px 24px;
-    align-items: center;
-    justify-content: space-between;
-
-    padding-block-end: 16px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   metadata: css`
     display: grid;
@@ -78,23 +63,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     line-height: 22px;
     color: ${cssVar.colorText};
     overflow-wrap: anywhere;
-  `,
-  page: css`
-    display: grid;
-    gap: 20px;
-    min-width: 0;
-
-    @media (width < 640px) {
-      gap: 16px;
-    }
-  `,
-  title: css`
-    margin: 0;
-
-    font-size: 20px;
-    font-weight: 600;
-    line-height: 28px;
-    color: ${cssVar.colorText};
   `,
   valueBadge: css`
     display: inline-flex;
@@ -148,11 +116,18 @@ const ModuleAppOverviewPage = memo(() => {
   const changePublication = (nextStatus: 'published' | 'unpublished') => {
     const warningCodes = nextStatus === 'published' ? buildModuleAppPublishWarningCodes(app) : [];
     confirmModal({
-      content: warningCodes.length
-        ? warningCodes
-            .map((code) => t(`moduleApps.admin.overview.publishWarnings.${code}`))
-            .join('\n')
-        : t('moduleApps.admin.overview.publishConfirm'),
+      // 多条警告逐行分段渲染：HTML 文本节点会把 join('\n') 折叠成一行。
+      content: warningCodes.length ? (
+        <div>
+          {warningCodes.map((code) => (
+            <p key={code} style={{ margin: 0 }}>
+              {t(`moduleApps.admin.overview.publishWarnings.${code}`)}
+            </p>
+          ))}
+        </div>
+      ) : (
+        t('moduleApps.admin.overview.publishConfirm')
+      ),
       okButtonProps: { danger: nextStatus === 'unpublished' },
       okText:
         nextStatus === 'published'
@@ -163,20 +138,30 @@ const ModuleAppOverviewPage = memo(() => {
           ? t('moduleApps.admin.overview.publish')
           : t('moduleApps.admin.overview.unpublish'),
       onOk: async () => {
-        if (nextStatus === 'published')
-          await adminCommercialService.moduleApps.publish({ appId: app.id });
-        else await adminCommercialService.moduleApps.unpublish({ appId: app.id });
+        try {
+          if (nextStatus === 'published')
+            await adminCommercialService.moduleApps.publish({ appId: app.id });
+          else await adminCommercialService.moduleApps.unpublish({ appId: app.id });
+        } catch {
+          // 失败必须可见：confirmModal 会静默吞掉 onOk 的 rejection。
+          toast.error(
+            nextStatus === 'published'
+              ? t('moduleApps.admin.overview.publishFailed')
+              : t('moduleApps.admin.overview.unpublishFailed'),
+          );
+          throw new Error('MODULE_APP_PUBLICATION_FAILED');
+        }
         await refreshApplicationCaches(app.id, refresh);
       },
     });
   };
 
   return (
-    <section className={styles.page} data-testid="module-app-overview">
-      <header className={styles.header} data-testid="module-app-overview-header">
+    <section className={shell.page} data-testid="module-app-overview">
+      <header className={shell.header} data-testid="module-app-overview-header">
         <div>
-          <h2 className={styles.title}>{t('moduleApps.admin.overview.title')}</h2>
-          <p className={styles.description}>{app.description}</p>
+          <h2 className={shell.title}>{t('moduleApps.admin.overview.title')}</h2>
+          <p className={shell.description}>{app.description}</p>
         </div>
         {canWrite ? (
           <div className={styles.actions} data-testid="module-app-overview-actions">

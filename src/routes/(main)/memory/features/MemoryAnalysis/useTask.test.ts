@@ -7,12 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getTask: vi.fn(),
   // SWR 层被 mock 掉，测试只关心本 hook 自己驱动的轮询：调用次数、并发度、
-  // 隐藏态下是否安静。
+  // 隐藏态下是否安静。task 在 beforeEach 里按用例覆写（undefined = 未到数据），
+  // 这里显式声明字段让 mocks.task 可索引（vi.hoisted 工厂里无法引用外部类型）。
   mutate: vi.fn(),
+  task: undefined as { id: string; metadata?: unknown; status: string } | undefined,
 }));
 
 vi.mock('@lobechat/types', () => ({
-  AsyncTaskStatus: { Error: 'error', Pending: 'pending', Processing: 'processing', Success: 'success' },
+  AsyncTaskStatus: {
+    Error: 'error',
+    Pending: 'pending',
+    Processing: 'processing',
+    Success: 'success',
+  },
 }));
 
 vi.mock('@/libs/swr', () => ({
@@ -54,7 +61,7 @@ describe('useMemoryAnalysisAsyncTask polling', () => {
     vi.useFakeTimers();
     mocks.mutate.mockReset();
     mocks.mutate.mockResolvedValue(undefined);
-    (mocks as unknown as { task?: unknown }).task = {
+    mocks.task = {
       id: 'task-1',
       status: 'processing',
     };
@@ -77,7 +84,7 @@ describe('useMemoryAnalysisAsyncTask polling', () => {
 
     // 真实 SWR 拿到新数据后会重渲染；mock 是静态的，所以手动 rerender 一次
     // 才能让 hook 看到终态并停表。
-    (mocks as unknown as { task: unknown }).task = { id: 'task-1', status: 'success' };
+    mocks.task = { id: 'task-1', status: 'success' };
     rerender();
 
     await advance(10_000);
@@ -149,7 +156,7 @@ describe('useMemoryAnalysisAsyncTask polling', () => {
   });
 
   it('does not poll before any task data has arrived', async () => {
-    (mocks as unknown as { task: unknown }).task = undefined;
+    mocks.task = undefined;
 
     const useTask = await importHook();
     renderHook(() => useTask('task-1'));

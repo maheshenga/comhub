@@ -3,6 +3,7 @@
 import { Tabs } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
 import { AdminDocumentsPage, AdminFilesPage, AdminTopicsPage } from './AdminContentPages';
@@ -66,15 +67,20 @@ const OPERATION_TABS = ['recommendations', 'expert-plaza', 'notifications', 'ope
 
 export const AdminContentResourcesPage = memo(() => {
   const [activeTab, setActiveTab] = useAdminHubTab(RESOURCE_TABS, 'topics');
+  const { t } = useTranslation('subscription');
 
   return (
     <Tabs
       activeKey={activeTab}
       className={styles.tabs}
       items={[
-        { children: <AdminTopicsPage />, key: 'topics', label: '话题' },
-        { children: <AdminFilesPage />, key: 'files', label: '文件' },
-        { children: <AdminDocumentsPage />, key: 'documents', label: '文档' },
+        { children: <AdminTopicsPage />, key: 'topics', label: t('admin.content.hubs.topics') },
+        { children: <AdminFilesPage />, key: 'files', label: t('admin.content.hubs.files') },
+        {
+          children: <AdminDocumentsPage />,
+          key: 'documents',
+          label: t('admin.content.hubs.documents'),
+        },
       ]}
       onChange={setActiveTab}
     />
@@ -85,16 +91,33 @@ AdminContentResourcesPage.displayName = 'AdminContentResourcesPage';
 
 export const AdminContentOperationsPage = memo(() => {
   const [activeTab, setActiveTab] = useAdminHubTab(OPERATION_TABS, 'recommendations');
+  const { t } = useTranslation('subscription');
 
   return (
     <Tabs
       activeKey={activeTab}
       className={styles.tabs}
       items={[
-        { children: <AdminRecommendationsPage />, key: 'recommendations', label: '推荐' },
-        { children: <AdminExpertPlazaPage />, key: 'expert-plaza', label: '专家广场' },
-        { children: <AdminNotificationsPage />, key: 'notifications', label: '公告与通知' },
-        { children: <AdminOperationsPage />, key: 'operations', label: '运营开关' },
+        {
+          children: <AdminRecommendationsPage />,
+          key: 'recommendations',
+          label: t('admin.content.hubs.recommendations'),
+        },
+        {
+          children: <AdminExpertPlazaPage />,
+          key: 'expert-plaza',
+          label: t('admin.content.hubs.expertPlaza'),
+        },
+        {
+          children: <AdminNotificationsPage />,
+          key: 'notifications',
+          label: t('admin.content.hubs.notifications'),
+        },
+        {
+          children: <AdminOperationsPage />,
+          key: 'operations',
+          label: t('admin.content.hubs.operations'),
+        },
       ]}
       onChange={setActiveTab}
     />

@@ -84,6 +84,14 @@ const REFERRAL_PREVIEW_REWARD_CREDITS = 100 * CREDITS_PER_DOLLAR;
 const REFERRAL_CODE_LENGTH = 7;
 const CREDIT_SOURCE_PRIORITY: CreditSourceType[] = ['subscription', 'referral', 'topup', 'other'];
 const PRICING_CREDIT_MULTIPLIER_KEY = 'pricing.creditMultiplier';
+// 套餐删除影响条目的稳定 code：title 字段现返回同一 code，由前端 AdminDependencyImpactPreview 按 code 走 i18n 渲染（字符串契约成对迁移）。
+const PLAN_IMPACT_ITEM_CODES = {
+  PLAN_ACTIVE_SNAPSHOTS: 'PLAN_ACTIVE_SNAPSHOTS',
+  PLAN_CATALOG_DELETE: 'PLAN_CATALOG_DELETE',
+  PLAN_NEW_ASSIGNMENTS_STOP: 'PLAN_NEW_ASSIGNMENTS_STOP',
+  PLAN_PENDING_CHANGE_REQUESTS: 'PLAN_PENDING_CHANGE_REQUESTS',
+  PLAN_REDEMPTION_CODES: 'PLAN_REDEMPTION_CODES',
+} as const;
 const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
 const REFERRAL_REWARD_CREDITS_KEY = 'referral.rewardCredits';
 
@@ -361,17 +369,17 @@ export const getPlanDeleteImpact = async (
     {
       code: 'PLAN_ACTIVE_SNAPSHOTS',
       count: dependencyCounts.activeSnapshots,
-      title: 'Active subscription snapshots',
+      title: PLAN_IMPACT_ITEM_CODES.PLAN_ACTIVE_SNAPSHOTS,
     },
     {
       code: 'PLAN_REDEMPTION_CODES',
       count: dependencyCounts.redemptionCodes,
-      title: 'Redemption codes',
+      title: PLAN_IMPACT_ITEM_CODES.PLAN_REDEMPTION_CODES,
     },
     {
       code: 'PLAN_PENDING_CHANGE_REQUESTS',
       count: dependencyCounts.pendingChangeRequests,
-      title: 'Pending subscription changes',
+      title: PLAN_IMPACT_ITEM_CODES.PLAN_PENDING_CHANGE_REQUESTS,
     },
   ].filter((item) => item.count > 0);
 
@@ -379,10 +387,22 @@ export const getPlanDeleteImpact = async (
     blocking,
     canProceed: Boolean(target) && blocking.length === 0,
     immediateEffects: target
-      ? [{ code: 'PLAN_CATALOG_DELETE', count: 1, title: 'Plan catalog record removed' }]
+      ? [
+          {
+            code: PLAN_IMPACT_ITEM_CODES.PLAN_CATALOG_DELETE,
+            count: 1,
+            title: PLAN_IMPACT_ITEM_CODES.PLAN_CATALOG_DELETE,
+          },
+        ]
       : [],
     liveEffects: target
-      ? [{ code: 'PLAN_NEW_ASSIGNMENTS_STOP', count: 1, title: 'New assignments stop immediately' }]
+      ? [
+          {
+            code: PLAN_IMPACT_ITEM_CODES.PLAN_NEW_ASSIGNMENTS_STOP,
+            count: 1,
+            title: PLAN_IMPACT_ITEM_CODES.PLAN_NEW_ASSIGNMENTS_STOP,
+          },
+        ]
       : [],
     target: { id: plan, label: target?.displayName ?? plan, type: 'plan' },
     targetExists: Boolean(target),
