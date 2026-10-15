@@ -105,6 +105,20 @@ export const runtimeStyles = createStaticStyles(({ css, cssVar }) => ({
     align-items: baseline;
     justify-content: space-between;
   `,
+  /**
+   * 子页页头（h1 + 描述）：与 detailSubPageStyles.header 同构（分隔线 + 排版），
+   * 独立 token——styles.header 被区块内 header 复用，不能带分隔线。
+   */
+  pageHeader: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: baseline;
+    justify-content: space-between;
+
+    padding-block-end: 16px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+  `,
   page: css`
     display: grid;
     gap: 20px;
@@ -115,9 +129,24 @@ export const runtimeStyles = createStaticStyles(({ css, cssVar }) => ({
     padding-block: 16px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
-  truncated: css`
+  title: css`
     margin: 0;
 
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 28px;
+    color: ${cssVar.colorText};
+  `,
+  description: css`
+    margin-block: 4px 0;
+    margin-inline: 0;
+
+    font-size: 13px;
+    line-height: 20px;
+    color: ${cssVar.colorTextSecondary};
+  `,
+  truncated: css`
+    margin: 0;
     font-size: 13px;
     line-height: 1.5;
     color: ${cssVar.colorTextSecondary};

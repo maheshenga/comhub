@@ -1,13 +1,18 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import ModuleAppOverviewPage from './ModuleAppOverviewPage';
 
-const mocks = vi.hoisted(() => ({ confirmModal: vi.fn(), mutate: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  confirmModal: vi.fn(),
+  mutate: vi.fn(),
+  refresh: vi.fn(),
+  toastError: vi.fn(),
+}));
 const moduleApps = vi.hoisted(() => ({
   publish: vi.fn(),
   unpublish: vi.fn(),
@@ -44,6 +49,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   ),
   TextArea: ({ ...props }: any) => <textarea {...props} />,
   confirmModal: mocks.confirmModal,
+  toast: { error: mocks.toastError },
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
@@ -67,6 +73,8 @@ const app = {
 const ContextRoute = () => <Outlet context={{ app, refresh: mocks.refresh }} />;
 
 describe('ModuleAppOverviewPage', () => {
+  afterEach(() => cleanup());
+
   it('exposes a structured overview header and metadata region', () => {
     render(
       <MemoryRouter>
@@ -98,16 +106,22 @@ describe('ModuleAppOverviewPage', () => {
     expect(screen.getByText('Workbench')).toBeInTheDocument();
     fireEvent.click(screen.getByText('moduleApps.admin.overview.publish'));
 
+    // 多条警告逐行分段渲染（HTML 文本节点会折叠 join('\n')）：
+    // content 是 React element <div><p>…</p>…</div>，逐段断言 warning 文本。
     const [confirmation] = mocks.confirmModal.mock.calls[0] as [
-      { content: string; onOk: () => Promise<void> },
+      {
+        content: { props: { children: Array<{ props: { children: string } }> } };
+        onOk: () => Promise<void>;
+      },
     ];
-    expect(confirmation.content).toBe(
-      [
-        'moduleApps.admin.overview.publishWarnings.noPages',
-        'moduleApps.admin.overview.publishWarnings.noActions',
-        'moduleApps.admin.overview.publishWarnings.noVisibleEntitlement',
-      ].join('\n'),
+    const warningTexts = confirmation.content.props.children.map(
+      (paragraph: { props: { children: string } }) => paragraph.props.children,
     );
+    expect(warningTexts).toEqual([
+      'moduleApps.admin.overview.publishWarnings.noPages',
+      'moduleApps.admin.overview.publishWarnings.noActions',
+      'moduleApps.admin.overview.publishWarnings.noVisibleEntitlement',
+    ]);
     await confirmation.onOk();
 
     expect(moduleApps.publish).toHaveBeenCalledWith({ appId: app.id });
@@ -118,6 +132,26 @@ describe('ModuleAppOverviewPage', () => {
     expect(mocks.mutate).toHaveBeenCalledWith(expect.any(Function), undefined, {
       revalidate: true,
     });
+  });
+
+  it('surfaces a visible toast and rejects when publish fails instead of failing silently', async () => {
+    moduleApps.publish.mockRejectedValueOnce(new Error('NETWORK'));
+    render(
+      <MemoryRouter>
+        <Routes>
+          <Route element={<ContextRoute />}>
+            <Route index element={<ModuleAppOverviewPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText('moduleApps.admin.overview.publish'));
+    const [confirmation] = mocks.confirmModal.mock.calls.at(-1) as [{ onOk: () => Promise<void> }];
+    await expect(confirmation.onOk()).rejects.toThrow('MODULE_APP_PUBLICATION_FAILED');
+    expect(mocks.toastError).toHaveBeenCalledWith('moduleApps.admin.overview.publishFailed');
+    // 失败后不得刷新缓存（数据没变）。
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it('ships English and Chinese publish warning translations', () => {

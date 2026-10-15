@@ -11,21 +11,13 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 import { BulkActionsToolbar } from './ChangeRequests/BulkActionsToolbar';
 import { ChangeRequestFilters, CursorPagination } from './ChangeRequests/filterBar';
-import {
-  buildChangeRequestColumns,
-  RejectReasonModal,
-} from './ChangeRequests/requestColumns';
+import { buildChangeRequestColumns, RejectReasonModal } from './ChangeRequests/requestColumns';
 import {
   type ChangeRequestStatusFilter,
   formatBulkApproveChangeRequestResult,
   formatBulkRejectChangeRequestResult,
 } from './ChangeRequests/shared';
-import {
-  AdminPageError,
-  AdminPageShell,
-  AdminSection,
-  AdminToolbar,
-} from './layout';
+import { AdminPageError, AdminPageShell, AdminSection, AdminToolbar } from './layout';
 import { AdminDataTable } from './shared';
 
 type AdminChangeRequestsPageProps = {
@@ -116,7 +108,8 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
     await mutate();
   };
 
-  const formatBulkApprove = (value: unknown) => formatBulkApproveChangeRequestResult(t as any, value);
+  const formatBulkApprove = (value: unknown) =>
+    formatBulkApproveChangeRequestResult(t as any, value);
 
   const formatBulkReject = (value: unknown) => formatBulkRejectChangeRequestResult(t as any, value);
 
@@ -169,7 +162,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             </AdminToolbar>
           )}
           <AdminSection
-        carded
+            carded
             title={t('admin.changeRequests.tableTitle', '套餐变更请求')}
             description={t(
               'admin.changeRequests.tableDescription',
@@ -179,6 +172,9 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             <AdminDataTable
               columns={columns}
               dataSource={items}
+              // 筛选无结果走 SearchX 空态 + 一键清除（原语 adminPageParts §filtered）。
+              emptyKind={status === 'all' && !userIdFilter ? 'initial' : 'filtered'}
+              isEmpty={!isLoading && items.length === 0}
               loading={isLoading}
               regionLabel={t('admin.changeRequests.tableTitle', '套餐变更请求')}
               rowKey="id"
@@ -186,6 +182,11 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
                 getCheckboxProps: (row: any) => ({ disabled: row.status !== 'pending' }),
                 onChange: (keys) => setSelectedIds(keys as string[]),
                 selectedRowKeys: selectedIds,
+              }}
+              onClearFilters={() => {
+                setStatus('all');
+                setUserIdFilter('');
+                setCursorStack([0]);
               }}
             />
           </AdminSection>
@@ -212,9 +213,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         t={t as any}
         onCancel={() => setRejectTarget(null)}
         onConfirm={handleRejectConfirm}
-        onReasonChange={(reason) =>
-          setRejectTarget((prev) => (prev ? { ...prev, reason } : prev))
-        }
+        onReasonChange={(reason) => setRejectTarget((prev) => (prev ? { ...prev, reason } : prev))}
       />
     </Flexbox>
   );

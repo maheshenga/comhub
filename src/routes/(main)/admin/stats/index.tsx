@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Spin, Tag } from '@lobehub/ui/base-ui';
+import { Tag } from '@lobehub/ui/base-ui';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,6 +14,7 @@ import {
   AdminResponsiveTable,
   AdminSection,
 } from '@/features/Admin/layout';
+import { AdminInlineSkeleton } from '@/features/Admin/shared';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -97,19 +98,21 @@ const AdminStatsPage = memo(() => {
 
   return (
     <AdminPageShell
-      description={t('admin.stats.description', '查看用户活跃度、订阅分布、收入与兑换码的运营趋势。')}
+      description={t(
+        'admin.stats.description',
+        '查看用户活跃度、订阅分布、收入与兑换码的运营趋势。',
+      )}
       title={t('admin.stats.title', '运营统计')}
       width="full"
     >
-      <AdminSection
-        carded title={t('admin.stats.overview', '核心指标')}>
+      <AdminSection carded title={t('admin.stats.overview', '核心指标')}>
         {overviewError ? (
           <AdminPageError
             description={t('admin.stats.overviewLoadFailed', '核心指标加载失败，请重试。')}
             onRetry={refreshOverview}
           />
         ) : overviewLoading ? (
-          <Spin />
+          <AdminInlineSkeleton />
         ) : (
           <AdminMetricStrip
             label={t('admin.stats.overview', '核心指标')}
@@ -149,15 +152,14 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection
-        carded title={t('admin.stats.dauTrend', '最近 30 天日活趋势')}>
+      <AdminSection carded title={t('admin.stats.dauTrend', '最近 30 天日活趋势')}>
         {dauTrendError ? (
           <AdminPageError
             description={t('admin.stats.dauLoadFailed', '日活趋势加载失败，请重试。')}
             onRetry={refreshDauTrend}
           />
         ) : dauTrendLoading ? (
-          <Spin />
+          <AdminInlineSkeleton />
         ) : dauValues.length === 0 ? (
           <span>{t('admin.noData', 'No data')}</span>
         ) : (
@@ -167,15 +169,14 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection
-        carded title={t('admin.stats.subsByPlan', '订阅按套餐分布')}>
+      <AdminSection carded title={t('admin.stats.subsByPlan', '订阅按套餐分布')}>
         {byPlanError ? (
           <AdminPageError
             description={t('admin.stats.subscriptionsLoadFailed', '套餐分布加载失败，请重试。')}
             onRetry={refreshByPlan}
           />
         ) : byPlanLoading ? (
-          <Spin />
+          <AdminInlineSkeleton />
         ) : planBars.length === 0 ? (
           <span>{t('admin.noData', 'No data')}</span>
         ) : (
@@ -206,14 +207,16 @@ const AdminStatsPage = memo(() => {
       </AdminSection>
 
       <AdminSection
-        carded title={t('admin.stats.revenueByMonth', '最近 6 个月实收收入与订阅快照估算')}>
+        carded
+        title={t('admin.stats.revenueByMonth', '最近 6 个月实收收入与订阅快照估算')}
+      >
         {revenueError ? (
           <AdminPageError
             description={t('admin.stats.revenueLoadFailed', '收入趋势加载失败，请重试。')}
             onRetry={refreshRevenue}
           />
         ) : revenueLoading ? (
-          <Spin />
+          <AdminInlineSkeleton />
         ) : revenueStacked.length === 0 ? (
           <span>{t('admin.noData', 'No data')}</span>
         ) : (
@@ -251,15 +254,14 @@ const AdminStatsPage = memo(() => {
         )}
       </AdminSection>
 
-      <AdminSection
-        carded title={t('admin.stats.redemption.title', '兑换码')}>
+      <AdminSection carded title={t('admin.stats.redemption.title', '兑换码')}>
         {redemptionError ? (
           <AdminPageError
             description={t('admin.stats.redemptionLoadFailed', '兑换码统计加载失败，请重试。')}
             onRetry={refreshRedemption}
           />
         ) : redemptionLoading ? (
-          <Spin />
+          <AdminInlineSkeleton />
         ) : (
           <Flexbox gap={16}>
             <AdminMetricStrip
@@ -301,9 +303,9 @@ const AdminStatsPage = memo(() => {
               <Flexbox horizontal gap={8} wrap="wrap">
                 {redemptionStats?.byRewardType.map(
                   (reward: { rewardType: string; total: number }) => (
-                  <Tag key={reward.rewardType}>
-                    {reward.rewardType}: {reward.total}
-                  </Tag>
+                    <Tag key={reward.rewardType}>
+                      {reward.rewardType}: {reward.total}
+                    </Tag>
                   ),
                 )}
               </Flexbox>

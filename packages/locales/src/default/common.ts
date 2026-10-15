@@ -749,7 +749,8 @@ export default {
   'moduleApps.admin.payouts.loading': 'Loading payouts',
   'moduleApps.admin.payouts.manage': 'Manage payout',
   'moduleApps.admin.payouts.modal.create': 'Create payout batch',
-  'moduleApps.admin.payouts.actionTargetContext': 'Managing payout batch {batch} — publisher {publisher}.',
+  'moduleApps.admin.payouts.actionTargetContext':
+    'Managing payout batch {batch} — publisher {publisher}.',
   'moduleApps.admin.payouts.modal.manage': 'Manage payout batch',
   'moduleApps.admin.payouts.next': 'Next page',
   'moduleApps.admin.payouts.operation.manual': 'Record manual Alipay payout',
@@ -809,11 +810,15 @@ export default {
   'moduleApps.admin.products.moduleMultiplier': 'Module multiplier',
   'moduleApps.admin.products.period.monthly': 'Monthly',
   'moduleApps.admin.products.period.yearly': 'Yearly',
+  'moduleApps.admin.products.description':
+    'Manage the pricing and billing products of this module app.',
+  'moduleApps.admin.products.title': 'Products',
   'moduleApps.admin.products.productKey': 'Product key',
   'moduleApps.admin.products.promotionTitle': 'Promotion title',
   'moduleApps.admin.products.revenueShareRate': 'Revenue share rate',
   'moduleApps.admin.products.save': 'Save product',
-  'moduleApps.admin.products.saveInactiveHint': 'Deactivation blocks new purchases; existing subscriptions are unaffected.',
+  'moduleApps.admin.products.saveInactiveHint':
+    'Deactivation blocks new purchases; existing subscriptions are unaffected.',
   'moduleApps.admin.products.saveError': 'Product could not be saved',
   'moduleApps.admin.products.scope': 'Scope',
   'moduleApps.admin.products.scope.personal': 'Personal',
@@ -1425,7 +1430,8 @@ export default {
   'moduleApps.admin.entitlements.defaultMultiplier': 'Default multiplier',
   'moduleApps.admin.entitlements.description':
     'Define plan access and runtime billing settings for this application.',
-  'moduleApps.admin.entitlements.permissionHint': 'Entitlements and billing require the finance management permission (financeWrite); module admins have read-only access.',
+  'moduleApps.admin.entitlements.permissionHint':
+    'Entitlements and billing require the finance management permission (financeWrite); module admins have read-only access.',
   'moduleApps.admin.entitlements.discountPercent': 'Discount percent',
   'moduleApps.admin.entitlements.draftRejected':
     'This draft contains sensitive data and was not stored.',
@@ -1502,6 +1508,7 @@ export default {
   'moduleApps.admin.overview.publish': 'Publish',
   'moduleApps.admin.overview.publishConfirm':
     'Review the application configuration before publishing.',
+  'moduleApps.admin.overview.publishFailed': 'Publishing failed. Please retry.',
   'moduleApps.admin.overview.publishState': 'Publication state',
   'moduleApps.admin.overview.publishWarnings.noActions': 'No runnable actions configured',
   'moduleApps.admin.overview.publishWarnings.noPages': 'No pages configured',
@@ -1510,6 +1517,7 @@ export default {
   'moduleApps.admin.overview.published': 'Published',
   'moduleApps.admin.overview.title': 'Application overview',
   'moduleApps.admin.overview.unpublish': 'Unpublish',
+  'moduleApps.admin.overview.unpublishFailed': 'Unpublishing failed. Please retry.',
   'moduleApps.admin.products.emptyDescription': 'Create a product to set its pricing.',
   'moduleApps.admin.products.emptyTitle': 'No products',
   'moduleApps.admin.products.loadErrorDescription': 'Try loading the products again.',
@@ -1626,7 +1634,8 @@ export default {
   'moduleApps.admin.runtime.emptyDescription':
     'Recent activity for this module app will appear here.',
   'moduleApps.admin.runtime.emptyTitle': 'No recent activity',
-  'moduleApps.admin.runtime.truncated': 'Only the most recent records are shown. Open the full list to see everything.',
+  'moduleApps.admin.runtime.truncated':
+    'Only the most recent records are shown. Open the full list to see everything.',
   'moduleApps.admin.runtime.installs': 'Installs',
   'moduleApps.admin.runtime.records': 'Records',
   'moduleApps.admin.runtime.runs': 'Runs',

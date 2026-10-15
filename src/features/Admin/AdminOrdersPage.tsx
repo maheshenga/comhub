@@ -158,7 +158,7 @@ const AdminOrdersPage = memo(() => {
       <span>
         {t('admin.orders.settleConfirmAmount', '金额')}：
         {formatAdminAmount(row.amount, row.currency)}
-      </span>
+      </span>{' '}
       <span>
         {t('admin.orders.settleConfirmCredits', '积分')}：{formatAdminCredits(row.credits)}
       </span>
@@ -168,7 +168,6 @@ const AdminOrdersPage = memo(() => {
       </span>
     </Flexbox>
   );
-
   const columns = buildOrderColumns({
     actingId,
     handlePendingAction,
@@ -254,17 +253,26 @@ const AdminOrdersPage = memo(() => {
                   columns={columns}
                   data={data}
                   error={error}
+                  hasActiveFilters={status !== undefined || trimUserId !== ''}
                   isLoading={isLoading}
                   rowSelection={orderRowSelection(effectiveSelectedIds, setSelectedOrderIds)}
                   t={t as any}
                   onRetry={() => void refresh()}
+                  onClearFilters={() => {
+                    setStatus(undefined);
+                    setUserId('');
+                    setUserIdDraft('');
+                    ordersQuery.state.reset();
+                  }}
                 />
                 {(ordersQuery.hasPrevious || ordersQuery.hasNext) && (
                   <OrderPager
                     hasNext={ordersQuery.hasNext}
                     hasPrevious={ordersQuery.hasPrevious}
                     isLoading={isLoading}
-                    positionLabel={`第 ${ordersQuery.depth} 页`}
+                    positionLabel={t('admin.pagination.pagePosition', '第 {{page}} 页', {
+                      page: ordersQuery.depth,
+                    })}
                     t={t as any}
                     onNext={ordersQuery.pager.onNext}
                     onPrevious={ordersQuery.pager.onPrevious}
