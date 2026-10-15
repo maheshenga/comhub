@@ -193,10 +193,10 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                   icon={<CheckCircle2 size={14} />}
                   loading={activatingReleaseId === release.id}
                   size="small"
+                  type="link"
                   title={
                     hasPublication ? undefined : t('admin.desktopBuild.history.activateUnavailable')
                   }
-                  type="link"
                   onConfirm={async (envelope) => {
                     setActivatingReleaseId(release.id);
                     try {

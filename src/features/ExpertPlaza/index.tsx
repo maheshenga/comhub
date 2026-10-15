@@ -2,8 +2,6 @@
 
 import { Empty, Flexbox, Icon } from '@lobehub/ui';
 import { Avatar, Segmented, Tag, Text } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd Typography.Title（level 字号/行高为 antd 主题 token，base-ui 无行为不变等价物），属 #135 keep-antd 豁免清单。
-import { Typography } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { ArrowUpRight, Star } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
@@ -14,8 +12,6 @@ import { PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';
 import { DEFAULT_EXPERT_PLAZA_CONFIG, type ExpertPlazaCard } from '@/const/expertPlaza';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
-
-const { Title } = Typography;
 
 const styles = createStaticStyles(({ css }) => ({
   card: css`
@@ -48,6 +44,17 @@ const styles = createStaticStyles(({ css }) => ({
     overflow: auto;
     height: 100%;
     padding: 28px;
+  `,
+  pageTitle: css`
+    margin: 0 !important;
+
+    /* 基线是 antd Typography.Title level=2（fontSizeHeading2=30px、
+       fontWeightStrong=600、标题行高 token）；base-ui Text 的 h2 variant 是
+       fontSize*2≈28px + font-weight:bold(700) + line-height:1.25，逐项补齐
+       token 保持视觉不变（与 DesktopControlCenter sectionTitle 同一口径）。 */
+    font-size: ${cssVar.fontSizeHeading2};
+    font-weight: ${cssVar.fontWeightStrong};
+    line-height: ${cssVar.lineHeightHeading2};
   `,
 }));
 
@@ -130,9 +137,9 @@ const ExpertPlaza = memo(() => {
   return (
     <Flexbox className={styles.page} gap={20}>
       <Flexbox gap={4}>
-        <Title level={2} style={{ margin: 0 }}>
+        <Text as={'h2'} className={styles.pageTitle}>
           {config.name}
-        </Title>
+        </Text>
         <Text type="secondary">{config.description}</Text>
       </Flexbox>
 

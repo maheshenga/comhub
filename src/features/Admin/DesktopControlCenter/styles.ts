@@ -63,10 +63,13 @@ export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
   sectionTitle: css`
     margin: 0 !important;
 
-    /* 基线是 antd Typography.Title level=4（fontSizeHeading4=20px）；base-ui
-       Text 的 h4 variant 是 fontSize*1.25≈17.5px，显式补齐 token 字号保持
-       视觉不变（对齐 TopUpPurchase 的 fontSize={20} 先例）。 */
+    /* 基线是 antd Typography.Title level=4（fontSizeHeading4=20px、
+       fontWeightStrong=600、标题行高 token）；base-ui Text 的 h4 variant 是
+       fontSize*1.25≈17.5px + font-weight:bold(700) + line-height:1.25，逐项
+       补齐 token 保持视觉不变（对齐 TopUpPurchase 的 fontSize={20} 先例）。 */
     font-size: ${cssVar.fontSizeHeading4};
+    font-weight: ${cssVar.fontWeightStrong};
+    line-height: ${cssVar.lineHeightHeading4};
   `,
   tabs: css`
     min-width: 0;
