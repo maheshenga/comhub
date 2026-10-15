@@ -19,13 +19,7 @@ import RecordsTable from '../../RecordsTable';
 import RunsTable from '../../RunsTable';
 import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModulePageState from '../../shared/ModulePageState';
-import type {
-  ModuleAppArtifactRow,
-  ModuleAppInstallRow,
-  ModuleAppRecordRow,
-  ModuleAppRunRow,
-  ModuleAppRuntimeDiagnostics,
-} from '../../types';
+import type { ModuleAppRuntimeDiagnostics } from '../../types';
 import ModuleAppRuntimeSettings from './ModuleAppRuntimeSettings';
 import {
   buildGatewayDiagnosticRows,
@@ -35,8 +29,7 @@ import {
 import { RuntimeDiagnosticsPanel } from './RuntimeDiagnosticsPanel';
 import { RUNTIME_PREVIEW_LIMIT, RuntimeSection } from './RuntimeSection';
 import { runtimeStyles as styles } from './runtimeStyles';
-
-type ListResponse<T> = { items?: T[]; nextCursor?: null | string };
+import { useRuntimePreviewLists } from './useRuntimePreviewLists';
 
 const ModuleAppRuntimePage = memo(() => {
   const { t: translate } = useTranslation('common');
@@ -50,52 +43,8 @@ const ModuleAppRuntimePage = memo(() => {
   const [dispatchingSchedules, setDispatchingSchedules] = useState(false);
   const runtimeSettingsKey = appId ? ADMIN_SETTINGS_SECTION_SWR_KEY('module-runtime') : null;
   const diagnosticsKey = appId ? moduleAppCacheKeys.runtimeDiagnostics() : null;
-  const installsKey = appId
-    ? moduleAppCacheKeys.runtime('installs', appId, RUNTIME_PREVIEW_LIMIT)
-    : null;
-  const recordsKey = appId
-    ? moduleAppCacheKeys.runtime('records', appId, RUNTIME_PREVIEW_LIMIT)
-    : null;
-  const runsKey = appId ? moduleAppCacheKeys.runtime('runs', appId, RUNTIME_PREVIEW_LIMIT) : null;
-  const artifactsKey = appId
-    ? moduleAppCacheKeys.runtime('artifacts', appId, RUNTIME_PREVIEW_LIMIT)
-    : null;
-  const installs = useClientDataSWR<ListResponse<ModuleAppInstallRow>>(
-    installsKey,
-    () =>
-      adminCommercialService.moduleApps.listInstalls({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppInstallRow>>,
-  );
-  const records = useClientDataSWR<ListResponse<ModuleAppRecordRow>>(
-    recordsKey,
-    () =>
-      adminCommercialService.moduleApps.listRecords({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppRecordRow>>,
-  );
-  const runs = useClientDataSWR<ListResponse<ModuleAppRunRow>>(
-    runsKey,
-    () =>
-      adminCommercialService.moduleApps.listRuns({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppRunRow>>,
-  );
-  const artifacts = useClientDataSWR<ListResponse<ModuleAppArtifactRow>>(
-    artifactsKey,
-    () =>
-      adminCommercialService.moduleApps.listArtifacts({
-        appId: appId!,
-        cursor: undefined,
-        limit: RUNTIME_PREVIEW_LIMIT,
-      }) as Promise<ListResponse<ModuleAppArtifactRow>>,
-  );
+  const { artifacts, artifactsKey, installs, installsKey, records, recordsKey, runs, runsKey } =
+    useRuntimePreviewLists(appId);
   const runtimeSettings = useClientDataSWR(runtimeSettingsKey, () =>
     adminCommercialService.getSettingsSection('module-runtime'),
   );
