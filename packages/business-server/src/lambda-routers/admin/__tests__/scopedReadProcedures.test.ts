@@ -96,9 +96,9 @@ describe('scoped admin read procedures', () => {
     expect(users).toContain('ADMIN_CAPABILITIES.financeRead');
     expect(users).toContain('ADMIN_CAPABILITIES.userRead');
     expect(users).toContain('compactDetail: compactUserReadProcedure');
-    expect(users).toContain(
-      'columns: { banned: true, createdAt: true, id: true, lastActiveAt: true, role: true }',
-    );
+    expect(users).toContain('banExpires: true');
+    expect(users).toContain('banReason: true');
+    expect(users).toContain('banned: true');
   });
 
   it('shares only the compact enabled-model catalog with matrix read domains', () => {

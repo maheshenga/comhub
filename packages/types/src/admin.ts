@@ -18,6 +18,8 @@ export const ADMIN_CAPABILITIES = {
 export type AdminCapability = (typeof ADMIN_CAPABILITIES)[keyof typeof ADMIN_CAPABILITIES];
 
 export type AdminCompactUser = {
+  banExpires: Date | null;
+  banReason: string | null;
   banned: boolean;
   createdAt: Date;
   id: string;

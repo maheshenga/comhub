@@ -487,6 +487,7 @@
   "moduleApps.admin.apps.identity.displayName": "Display name",
   "moduleApps.admin.apps.identity.editTitle": "Edit application",
   "moduleApps.admin.apps.identity.slug": "Slug",
+  "moduleApps.admin.apps.identity.slugTaken": "This slug is already used by another app",
   "moduleApps.admin.apps.identity.source": "Source",
   "moduleApps.admin.apps.identity.status": "Status",
   "moduleApps.admin.apps.identity.submitError": "Unable to save the application. Try again.",

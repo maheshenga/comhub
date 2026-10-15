@@ -522,7 +522,8 @@ export const adminModuleAppsRouter = router({
           resourceId: result.id,
           resourceType: 'moduleAppPublisher',
         }),
-        mutation: (tx) => new ModuleAppPublisherModel(tx as LobeChatDatabase).createPublisher(input),
+        mutation: (tx) =>
+          new ModuleAppPublisherModel(tx as LobeChatDatabase).createPublisher(input),
       });
     }),
 
@@ -557,8 +558,7 @@ export const adminModuleAppsRouter = router({
           resourceId: result.id,
           resourceType: 'moduleAppProduct',
         }),
-        mutation: (tx) =>
-          new ModuleAppCommerceModel(tx as LobeChatDatabase).createProduct(input),
+        mutation: (tx) => new ModuleAppCommerceModel(tx as LobeChatDatabase).createProduct(input),
       });
     }),
 
@@ -849,7 +849,8 @@ export const adminModuleAppsRouter = router({
           resourceId: input.publisherId,
           resourceType: 'moduleAppPublisher',
         }),
-        mutation: (tx) => new ModuleAppPublisherModel(tx as LobeChatDatabase).suspendPublisher(input),
+        mutation: (tx) =>
+          new ModuleAppPublisherModel(tx as LobeChatDatabase).suspendPublisher(input),
       });
     }),
 
@@ -1011,12 +1012,12 @@ export const adminModuleAppsRouter = router({
             resourceType: 'moduleAppPackage',
           }),
           mutation: (tx) =>
-            new ModuleAppPackageLifecycleService({ db: tx as LobeChatDatabase }).rescanLegacyPackage(
-              {
-                ...input,
-                reviewedByUserId: ctx.userId,
-              },
-            ),
+            new ModuleAppPackageLifecycleService({
+              db: tx as LobeChatDatabase,
+            }).rescanLegacyPackage({
+              ...input,
+              reviewedByUserId: ctx.userId,
+            }),
         });
       } catch (error) {
         throw mapPackageReviewError(error);
@@ -1067,14 +1068,21 @@ export const adminModuleAppsRouter = router({
   upsert: moduleAppWriteProcedure
     .input(moduleAppAdminUpsertSchema)
     .mutation(async ({ ctx, input }) => {
-      return runRequiredModuleAppAuditMutation<any>(ctx, {
-        audit: (result) => ({
-          eventType: 'module_app.upserted',
-          metadata: { slug: input.slug, status: input.status },
-          resourceId: result.id,
-        }),
-        mutation: (tx) => new ModuleAppModel(tx as LobeChatDatabase).upsertAppForAdmin(input),
-      });
+      try {
+        return await runRequiredModuleAppAuditMutation<any>(ctx, {
+          audit: (result) => ({
+            eventType: 'module_app.upserted',
+            metadata: { slug: input.slug, status: input.status },
+            resourceId: result.id,
+          }),
+          mutation: (tx) => new ModuleAppModel(tx as LobeChatDatabase).upsertAppForAdmin(input),
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === 'MODULE_APP_SLUG_TAKEN') {
+          throw new TRPCError({ cause: error, code: 'CONFLICT', message: error.message });
+        }
+        throw error;
+      }
     }),
 
   upsertBilling: financeWriteProcedure
@@ -1140,7 +1148,8 @@ export const adminModuleAppsRouter = router({
           resourceId: input.publisherId,
           resourceType: 'moduleAppPublisher',
         }),
-        mutation: (tx) => new ModuleAppPublisherModel(tx as LobeChatDatabase).verifyPublisher(input),
+        mutation: (tx) =>
+          new ModuleAppPublisherModel(tx as LobeChatDatabase).verifyPublisher(input),
       });
     }),
 });

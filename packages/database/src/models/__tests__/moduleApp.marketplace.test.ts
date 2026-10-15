@@ -200,6 +200,7 @@ describe('ModuleAppModel marketplace behavior', () => {
       description: 'Updated record desk',
       displayName: 'Record Desk',
       icon: 'Notebook',
+      id: app.id,
       pages: [
         {
           actionBindings: [],
@@ -242,6 +243,76 @@ describe('ModuleAppModel marketplace behavior', () => {
     ]);
   });
 
+  it('rejects creating a new admin app whose slug collides with an existing app', async () => {
+    const app = await createRecordDesk();
+
+    await expect(
+      model.upsertAppForAdmin({
+        actions: [],
+        appType: 'standard_app',
+        billing: baseBilling,
+        category: 'productivity',
+        description: 'A second app reusing the record-desk slug',
+        displayName: 'Record Desk Clone',
+        icon: 'Notebook',
+        pages: [],
+        slug: 'record-desk',
+        source: 'admin',
+        status: 'draft',
+        tags: [],
+      }),
+    ).rejects.toThrow('MODULE_APP_SLUG_TAKEN');
+
+    const rows = await serverDB.query.moduleApps.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ displayName: 'Record Desk', slug: 'record-desk' });
+  });
+
+  it('updates by explicit id without slug fallback and still allows a fresh slug', async () => {
+    const app = await createRecordDesk();
+
+    // Unknown id: no silent slug takeover — treated as a brand-new create path.
+    await expect(
+      model.upsertAppForAdmin({
+        actions: [],
+        appType: 'standard_app',
+        billing: baseBilling,
+        category: 'productivity',
+        description: 'Trying to take over record-desk by slug with an unknown id',
+        displayName: 'Record Desk Clone',
+        icon: 'Notebook',
+        id: '00000000-0000-4000-8000-000000000000',
+        pages: [],
+        slug: 'record-desk',
+        source: 'admin',
+        status: 'draft',
+        tags: [],
+      }),
+    ).rejects.toThrow();
+
+    // No id and a free slug: normal create succeeds.
+    const created = await model.upsertAppForAdmin({
+      actions: [],
+      appType: 'standard_app',
+      billing: baseBilling,
+      category: 'productivity',
+      description: 'A fresh app with its own slug',
+      displayName: 'Fresh Desk',
+      icon: 'Notebook',
+      pages: [],
+      slug: 'fresh-desk',
+      source: 'admin',
+      status: 'draft',
+      tags: [],
+    });
+    expect(created).toMatchObject({ slug: 'fresh-desk' });
+
+    const takenOver = await serverDB.query.moduleApps.findFirst({
+      where: eq(moduleApps.slug, 'record-desk'),
+    });
+    expect(takenOver).toMatchObject({ id: app.id, description: 'A saved records app' });
+  });
+
   it('upgrades and rolls back an installation with optimistic version checks', async () => {
     const app = await createRecordDesk();
     await model.installPersonalApp({ appId: app.id, userId });
@@ -263,6 +334,7 @@ describe('ModuleAppModel marketplace behavior', () => {
       description: 'Record desk version 2',
       displayName: 'Record Desk',
       icon: 'Notebook',
+      id: app.id,
       pages: [
         {
           actionBindings: [],

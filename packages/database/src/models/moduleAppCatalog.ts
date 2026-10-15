@@ -193,11 +193,12 @@ export class ModuleAppCatalogModel {
 
   private findAppForUpsert = async (input: ModuleAppAdminUpsertInput, db: DbExecutor = this.db) => {
     if (input.id) {
-      const byId = await db.query.moduleApps.findFirst({
+      // Explicit id: only that row may be updated. Never fall back to slug,
+      // otherwise a new app created with an existing slug would silently
+      // take over someone else's app (data-hijack-grade behavior).
+      return db.query.moduleApps.findFirst({
         where: eq(moduleApps.id, input.id),
       });
-
-      if (byId) return byId;
     }
 
     return this.findAppBySlug(input.slug, db);
@@ -410,6 +411,14 @@ export class ModuleAppCatalogModel {
     publisherId?: string,
   ): Promise<{ id: string; slug: string }> => {
     const found = await this.findAppForUpsert(input, db);
+    // Admin-created app (no explicit id) whose slug already belongs to an
+    // existing app must fail loudly instead of silently rewriting it. The
+    // package-approval flow passes a publisherId and relies on slug lookup to
+    // update the publisher's own app, guarded separately by
+    // assertModuleAppPackageAppOwnership — it is exempt here.
+    if (found && !input.id && !publisherId) {
+      throw new Error('MODULE_APP_SLUG_TAKEN');
+    }
     const [existing] = found
       ? await db.select().from(moduleApps).where(eq(moduleApps.id, found.id)).for('update')
       : [];

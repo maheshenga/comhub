@@ -246,7 +246,16 @@ const CompactProfile = ({ compactDetail }: { compactDetail: any }) => {
         },
         {
           children: compactDetail.banned ? (
-            <Tag color="red">{t('admin.userStatus.banned', 'Banned')}</Tag>
+            <Space wrap size={4}>
+              <Tag color="red">{t('admin.userStatus.banned', 'Banned')}</Tag>
+              {compactDetail.banReason ? <Tag color="orange">{compactDetail.banReason}</Tag> : null}
+              {compactDetail.banExpires ? (
+                <span>
+                  {t('admin.userStatus.banExpires', 'Banned until')}{' '}
+                  {new Date(compactDetail.banExpires).toLocaleString()}
+                </span>
+              ) : null}
+            </Space>
           ) : (
             <Tag color="green">{t('admin.userStatus.active', 'Active')}</Tag>
           ),
