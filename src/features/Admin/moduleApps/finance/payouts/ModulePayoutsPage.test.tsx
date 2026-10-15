@@ -34,6 +34,37 @@ vi.mock('@/libs/swr', () => ({
   },
 }));
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
+  InputNumber: ({ max, min, onChange, ...props }: any) => (
+    <input
+      aria-valuemax={max}
+      aria-valuemin={min}
+      type="number"
+      onChange={(e) => onChange?.(e.target.value === '' ? undefined : Number(e.target.value))}
+      {...props}
+    />
+  ),
+  Select: ({ options: _o, ...props }: any) => (
+    <select
+      role="combobox"
+      onChange={(e: any) => props.onChange?.(e.target.value)}
+      {...props}
+      value={props.value}
+    />
+  ),
+  SelectItem: (props: any) => <option {...props} />,
+  TextArea: ({ onChange, ...props }: any) => (
+    <textarea onChange={(e) => onChange?.(e)} {...props} />
+  ),
+  Checkbox: ({ checked, onChange, ...props }: any) => (
+    <input
+      checked={checked}
+      type="checkbox"
+      onChange={(e) => onChange?.(e.target.checked)}
+      {...props}
+    />
+  ),
+  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, ...props }: any) => (
     <button type="button" {...props}>
       {children}
@@ -60,8 +91,15 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   ),
   TextArea: (props: any) => <textarea {...props} />,
   toast,
-  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
-  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
+  Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,
+  Alert: ({ message, children, description }: any) => (
+    <div role="alert">
+      {message}
+      {description}
+      {children}
+    </div>
+  ),
+}));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 describe('ModulePayoutsPage', () => {

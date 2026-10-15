@@ -95,6 +95,29 @@ vi.mock('@lobechat/types', async (importOriginal) => ({
 }));
 vi.mock('../../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
+  InputNumber: ({ max, min, onChange, ...props }: any) => (
+    <input
+      aria-valuemax={max}
+      aria-valuemin={min}
+      type="number"
+      onChange={(e) => onChange?.(e.target.value === '' ? undefined : Number(e.target.value))}
+      {...props}
+    />
+  ),
+  Select: ({ options: _o, ...props }: any) => (
+    <select
+      role="combobox"
+      onChange={(e: any) => props.onChange?.(e.target.value)}
+      {...props}
+      value={props.value}
+    />
+  ),
+  SelectItem: (props: any) => <option {...props} />,
+  TextArea: ({ onChange, ...props }: any) => (
+    <textarea onChange={(e) => onChange?.(e)} {...props} />
+  ),
+  Input: (props: any) => <input {...props} />,
   Button: ({
     children,
     danger: _danger,

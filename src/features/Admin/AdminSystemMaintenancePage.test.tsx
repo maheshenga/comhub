@@ -76,8 +76,12 @@ describe('AdminSystemMaintenancePage', () => {
       });
     });
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('已清理模块应用上传')).toBeInTheDocument();
-    expect(within(dialog).getByText('模块应用上传清理失败')).toBeInTheDocument();
+    // base-ui Descriptions 把冒号拼接进 label 文本节点（antd 是 CSS ::after），
+    // 用正则锚定 label 本体以适配两种渲染，断言语义不变。
+    const labelMatcher = (label: string) => (_: string, element?: Element) =>
+      element?.tagName === 'DT' && element.textContent?.startsWith(label);
+    expect(within(dialog).getByText(labelMatcher('已清理模块应用上传'))).toBeInTheDocument();
+    expect(within(dialog).getByText(labelMatcher('模块应用上传清理失败'))).toBeInTheDocument();
     expect(within(dialog).getByText('2')).toBeInTheDocument();
     expect(within(dialog).getByText('1')).toBeInTheDocument();
     // handleRunNow closes with `setRunning(false)` in a finally block; under

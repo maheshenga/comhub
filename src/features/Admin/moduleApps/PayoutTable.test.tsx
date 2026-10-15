@@ -4,14 +4,22 @@ import { describe, expect, it, vi } from 'vitest';
 import PayoutTable from './PayoutTable';
 
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, ...props }: any) => (
     <button type="button" {...props}>
       {children}
     </button>
   ),
 
-  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
-  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
+  Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,
+  Alert: ({ message, children, description }: any) => (
+    <div role="alert">
+      {message}
+      {description}
+      {children}
+    </div>
+  ),
+}));
 
 describe('PayoutTable', () => {
   it('renders payout, revenue, transaction, and audit links', () => {

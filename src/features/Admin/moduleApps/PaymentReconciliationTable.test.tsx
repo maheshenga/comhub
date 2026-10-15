@@ -4,14 +4,22 @@ import { describe, expect, it, vi } from 'vitest';
 import PaymentReconciliationTable from './PaymentReconciliationTable';
 
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, ...props }: any) => (
     <button type="button" {...props}>
       {children}
     </button>
   ),
 
-  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
-  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
+  Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,
+  Alert: ({ message, children, description }: any) => (
+    <div role="alert">
+      {message}
+      {description}
+      {children}
+    </div>
+  ),
+}));
 
 describe('PaymentReconciliationTable', () => {
   it('renders linked operational identifiers without raw payment metadata', () => {
@@ -59,9 +67,7 @@ describe('PaymentReconciliationTable', () => {
       <PaymentReconciliationTable error={new Error('FORBIDDEN')} items={[]} onRetry={onRetry} />,
     );
 
-    expect(
-      screen.getByText('moduleApps.admin.center.state.permissionDenied'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('moduleApps.admin.center.state.permissionDenied')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledOnce();
   });

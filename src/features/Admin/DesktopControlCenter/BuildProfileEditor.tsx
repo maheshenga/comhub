@@ -7,7 +7,11 @@ import { Form } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { type BuildProfileFormValues, WINDOWS_ASSET_KINDS } from './buildProfileForm';
+import {
+  type BuildProfileFormValues,
+  createDefaultBuildProfileForm,
+  WINDOWS_ASSET_KINDS,
+} from './buildProfileForm';
 import DesktopBuildAssetUpload from './DesktopBuildAssetUpload';
 import { desktopControlCenterStyles } from './styles';
 
@@ -25,7 +29,16 @@ const BuildProfileEditor = memo<BuildProfileEditorProps>(
     const { t } = useTranslation('subscription');
 
     return (
-      <Form<BuildProfileFormValues> form={form} layout="vertical" onValuesChange={onValuesChange}>
+      // initialValues 与 useEffect 里 buildProfileFormFromProfile 的默认基底一致：
+      // base-ui Input 走 @base-ui useControlled 的首帧受控判定（antd Form.Item 首帧
+      // 注入 value=undefined 时会被永久判为非受控，mount 后 setFieldsValue 不再落
+      // DOM），用 initialValues 让首帧即受控，保持基线 antd Input 的显示行为。
+      <Form<BuildProfileFormValues>
+        form={form}
+        initialValues={createDefaultBuildProfileForm()}
+        layout="vertical"
+        onValuesChange={onValuesChange}
+      >
         <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopBuild.profile.title')}
         </Text>

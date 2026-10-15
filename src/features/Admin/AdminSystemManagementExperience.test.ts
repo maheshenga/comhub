@@ -55,9 +55,10 @@ describe('admin system management experience', () => {
     // M3 split: the page kept Button/Select from base-ui; the result modal's
     // base-ui Modal import moved with the RunResultModal block.
     // B4/B5 收敛：base-ui 导入并集含 Alert/toast（message→toast、Alert→base-ui）。
+    // 第八轮：antd Descriptions 迁 base-ui（同 import 合并 Modal+Descriptions）。
     expect(page).toContain("import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui'");
     expect(readRepoFile('src/features/Admin/SystemMaintenance/RunResultModal.tsx')).toContain(
-      "import { Modal } from '@lobehub/ui/base-ui'",
+      "import { Descriptions, Modal } from '@lobehub/ui/base-ui'",
     );
   });
 
