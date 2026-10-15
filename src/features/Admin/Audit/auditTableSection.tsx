@@ -2,6 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
+import { type KeyboardEvent } from 'react';
 
 import { type AuditRow, BulkAuditGroupSummary } from '@/features/Admin/Audit/auditParts';
 import { AdminDataTable } from '@/features/Admin/shared';
@@ -40,7 +41,16 @@ export const AdminAuditTableSection = ({
         rowKey="id"
         onRow={(record) => ({
           onClick: () => onDetail(record as AuditRow),
+          // 键盘可达性：行可聚焦，Enter/Space 与点击同义打开详情。
+          onKeyDown: (event: KeyboardEvent) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onDetail(record as AuditRow);
+            }
+          },
+          role: 'button',
           style: { cursor: 'pointer' },
+          tabIndex: 0,
         })}
       />
       {groups

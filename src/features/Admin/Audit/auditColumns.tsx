@@ -1,12 +1,21 @@
 'use client';
 
 import { Tag } from '@lobehub/ui/base-ui';
+import { type KeyboardEvent } from 'react';
 
 import type { AuditRow } from '@/features/Admin/Audit/auditParts';
 import { isBulkAuditAction, readBatchCorrelationId } from '@/features/Admin/Audit/auditParts';
 import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';
 
 type TFn = (key: any, defaultValue?: any, values?: any) => string;
+
+/** 无 href 的占位 <a> 的键盘激活：Enter/Space 与点击同义。 */
+const activateOnKey = (action: () => void) => (event: KeyboardEvent<HTMLAnchorElement>) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    action();
+  }
+};
 
 /** 审计表列定义（§5.3：批量命令行带「批量」徽标与失败态）。 */
 export const buildAuditColumns = ({
@@ -43,9 +52,15 @@ export const buildAuditColumns = ({
     render: (v: string | null) =>
       v ? (
         <a
+          role="button"
+          tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
             onOpenUser(v);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            activateOnKey(() => onOpenUser(v))(e);
           }}
         >
           <code>{v.slice(0, 8)}</code>
@@ -61,9 +76,15 @@ export const buildAuditColumns = ({
     render: (v: string | null) =>
       v ? (
         <a
+          role="button"
+          tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
             onOpenUser(v);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            activateOnKey(() => onOpenUser(v))(e);
           }}
         >
           <code>{v.slice(0, 8)}</code>

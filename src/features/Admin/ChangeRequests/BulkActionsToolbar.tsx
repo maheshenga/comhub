@@ -35,7 +35,8 @@ export const BulkActionsToolbar = ({
       type="primary"
       confirmTitle={t(
         'admin.changeRequests.confirmBulkApprove',
-        `确认通过 ${selectedIds.length} 个套餐变更请求？`,
+        '确认通过 {{count}} 个套餐变更请求？',
+        { count: selectedIds.length },
       )}
       progressDescription={t(
         'admin.changeRequests.bulkApproveProgress',
@@ -44,7 +45,9 @@ export const BulkActionsToolbar = ({
       onRun={handleBulkApprove}
       onSuccess={finishBulkAction}
     >
-      {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
+      {t('admin.changeRequests.bulkApprove', '批量通过（{{count}}）', {
+        count: selectedIds.length,
+      })}
     </AdminBulkActionFlow>
     <AdminBulkActionFlow
       danger
@@ -54,7 +57,8 @@ export const BulkActionsToolbar = ({
       summary={formatBulkReject}
       confirmTitle={t(
         'admin.changeRequests.confirmBulkReject',
-        `确认拒绝 ${selectedIds.length} 个套餐变更请求？`,
+        '确认拒绝 {{count}} 个套餐变更请求？',
+        { count: selectedIds.length },
       )}
       progressDescription={t(
         'admin.changeRequests.bulkRejectProgress',
@@ -63,7 +67,9 @@ export const BulkActionsToolbar = ({
       onRun={handleBulkReject}
       onSuccess={finishBulkAction}
     >
-      {t('admin.changeRequests.bulkReject', `批量拒绝（${selectedIds.length}）`)}
+      {t('admin.changeRequests.bulkReject', '批量拒绝（{{count}}）', {
+        count: selectedIds.length,
+      })}
     </AdminBulkActionFlow>
     <Button size="small" onClick={onClearSelection}>
       {t('admin.changeRequests.clearSel', '清空选择')}

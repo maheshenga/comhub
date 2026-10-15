@@ -1,7 +1,4 @@
-export const formatBulkApproveChangeRequestResult = (
-  t: any,
-  value: unknown,
-) => {
+export const formatBulkApproveChangeRequestResult = (t: any, value: unknown) => {
   const result = value as { results: { ok: boolean; requestId: string }[] };
   const succeeded = result.results.filter((item) => item.ok).length;
   const failed = result.results.length - succeeded;
@@ -10,14 +7,18 @@ export const formatBulkApproveChangeRequestResult = (
     failed,
     requested: result.results.length,
     succeeded,
-    title: t('admin.changeRequests.bulkApproveDone', `已通过 ${succeeded} 个，失败 ${failed} 个`),
+    title: t(
+      'admin.changeRequests.bulkApproveDone',
+      '已通过 {{succeeded}} 个，失败 {{failed}} 个',
+      {
+        failed,
+        succeeded,
+      },
+    ),
   };
 };
 
-export const formatBulkRejectChangeRequestResult = (
-  t: any,
-  value: unknown,
-) => {
+export const formatBulkRejectChangeRequestResult = (t: any, value: unknown) => {
   const result = value as { results: { ok: boolean; requestId: string }[] };
   const succeeded = result.results.filter((item) => item.ok).length;
   const failed = result.results.length - succeeded;
@@ -26,7 +27,10 @@ export const formatBulkRejectChangeRequestResult = (
     failed,
     requested: result.results.length,
     succeeded,
-    title: t('admin.changeRequests.bulkRejectDone', `已拒绝 ${succeeded} 个，失败 ${failed} 个`),
+    title: t('admin.changeRequests.bulkRejectDone', '已拒绝 {{succeeded}} 个，失败 {{failed}} 个', {
+      failed,
+      succeeded,
+    }),
   };
 };
 
