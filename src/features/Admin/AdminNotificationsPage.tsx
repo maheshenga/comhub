@@ -41,6 +41,13 @@ import {
   type NotificationSettingsForm,
 } from './Notifications/shared';
 
+const SYSTEM_TYPE_OPTIONS = [
+  { label: '信息', value: 'info' },
+  { label: '成功', value: 'success' },
+  { label: '警告', value: 'warning' },
+  { label: '错误', value: 'error' },
+];
+
 const AdminNotificationsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const {
@@ -236,15 +243,7 @@ const AdminNotificationsPage = memo(() => {
                 <Switch />
               </Form.Item>
               <Form.Item label={t('admin.notifications.systemType', '公告类型')} name="systemType">
-                <Select
-                  disabled={isLoading}
-                  options={[
-                    { label: '信息', value: 'info' },
-                    { label: '成功', value: 'success' },
-                    { label: '警告', value: 'warning' },
-                    { label: '错误', value: 'error' },
-                  ]}
-                />
+                <Select disabled={isLoading} options={SYSTEM_TYPE_OPTIONS} />
               </Form.Item>
               <Form.Item
                 label={t('admin.notifications.systemTitle', '公告标题')}
