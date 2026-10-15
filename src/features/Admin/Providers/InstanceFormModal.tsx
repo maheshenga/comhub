@@ -1,8 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Modal, Select, toast } from '@lobehub/ui/base-ui';
-import { Form, Input, InputNumber, Switch } from 'antd';
+import { Input, InputNumber, InputPassword, Modal, Select, Switch, TextArea, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -213,7 +214,7 @@ const InstanceFormModal = memo<{
                 : undefined
           }
         >
-          <Input.Password placeholder="sk-..." />
+          <InputPassword placeholder="sk-..." />
         </Form.Item>
         <Flexbox horizontal gap={12}>
           <Form.Item
@@ -260,7 +261,7 @@ const InstanceFormModal = memo<{
           />
         </Form.Item>
         <Form.Item label={t('admin.providers.field.description', '描述')} name="description">
-          <Input.TextArea rows={2} />
+          <TextArea rows={2} />
         </Form.Item>
       </Form>
     </Modal>

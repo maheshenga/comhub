@@ -1,5 +1,6 @@
 'use client';
 
+// eslint-disable-next-line no-restricted-imports -- @lobehub/ui FormGroup 属 Form 系布局组件（settings 表单分组语义），base-ui/form 无行内等价项；迁 FormKit 属另行立项。
 import { FormGroup } from '@lobehub/ui';
 import { createStaticStyles, cx } from 'antd-style';
 import { ChevronDown } from 'lucide-react';
@@ -61,7 +62,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     width: 100%;
     min-height: 44px;
-    padding: 8px 0;
+    padding-block: 8px;
+    padding-inline: 0;
     border: 0;
 
     font: inherit;

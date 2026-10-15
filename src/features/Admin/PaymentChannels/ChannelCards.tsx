@@ -1,16 +1,16 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Select, Switch, Tag } from '@lobehub/ui/base-ui';
-import { Form, Input, Typography } from 'antd';
+import { Input, InputPassword, Select, Switch, Tag, Text, TextArea } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import type { TFunction } from 'i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 
-import type { PaymentFormValues,PaymentSettingsData } from './paymentSettingsShared';
+import type { PaymentFormValues, PaymentSettingsData } from './paymentSettingsShared';
 import { SecretHint } from './SecretHint';
 
-const { Text } = Typography;
 
 interface ChannelCardProps {
   config: PaymentSettingsData['paymentConfig'];
@@ -26,7 +26,6 @@ interface AlipaySettingsCardProps extends ChannelCardProps {
 }
 
 export const AlipaySettingsCard = ({ certMode, config, t, urlRule }: AlipaySettingsCardProps) => {
-
   return (
     <Card>
       <Flexbox gap={12}>
@@ -34,9 +33,7 @@ export const AlipaySettingsCard = ({ certMode, config, t, urlRule }: AlipaySetti
           <Form.Item noStyle name="alipayEnabled" valuePropName="checked">
             <Switch />
           </Form.Item>
-          <Text strong>
-            {t('admin.payments.alipay.enabled', 'Enable Alipay website payments')}
-          </Text>
+          <Text strong>{t('admin.payments.alipay.enabled', 'Enable Alipay website payments')}</Text>
           {config?.alipay?.configured && (
             <Tag color="green">{t('admin.payments.configured', 'Configured')}</Tag>
           )}
@@ -92,11 +89,12 @@ export const AlipaySettingsCard = ({ certMode, config, t, urlRule }: AlipaySetti
             />
           }
         >
-          <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+          <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
         </Form.Item>
         {certMode === 'certificate' ? (
           <>
             <Form.Item
+              label={t('admin.payments.alipay.certificate', 'Alipay public-key certificate')}
               name="alipayCertificate"
               extra={
                 <SecretHint
@@ -104,28 +102,18 @@ export const AlipaySettingsCard = ({ certMode, config, t, urlRule }: AlipaySetti
                   masked={config?.alipay?.certificateMasked}
                 />
               }
-              label={t(
-                'admin.payments.alipay.certificate',
-                'Alipay public-key certificate',
-              )}
             >
-              <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+              <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
             </Form.Item>
             <Form.Item
+              label={t('admin.payments.alipay.appCertSn', 'Application certificate serial number')}
               name="alipayAppCertSn"
-              label={t(
-                'admin.payments.alipay.appCertSn',
-                'Application certificate serial number',
-              )}
             >
               <Input />
             </Form.Item>
             <Form.Item
+              label={t('admin.payments.alipay.rootCertSn', 'Alipay root certificate serial number')}
               name="alipayRootCertSn"
-              label={t(
-                'admin.payments.alipay.rootCertSn',
-                'Alipay root certificate serial number',
-              )}
             >
               <Input />
             </Form.Item>
@@ -141,7 +129,7 @@ export const AlipaySettingsCard = ({ certMode, config, t, urlRule }: AlipaySetti
               />
             }
           >
-            <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+            <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
           </Form.Item>
         )}
       </Flexbox>
@@ -156,9 +144,7 @@ export const WechatSettingsCard = ({ config, t, urlRule }: ChannelCardProps) => 
         <Form.Item noStyle name="wechatEnabled" valuePropName="checked">
           <Switch />
         </Form.Item>
-        <Text strong>
-          {t('admin.payments.wechat.enabled', 'Enable WeChat Native Pay')}
-        </Text>
+        <Text strong>{t('admin.payments.wechat.enabled', 'Enable WeChat Native Pay')}</Text>
         {config?.wechat?.configured && (
           <Tag color="green">{t('admin.payments.configured', 'Configured')}</Tag>
         )}
@@ -166,18 +152,12 @@ export const WechatSettingsCard = ({ config, t, urlRule }: ChannelCardProps) => 
       <Form.Item label={t('admin.payments.appId', 'App ID')} name="wechatAppId">
         <Input />
       </Form.Item>
-      <Form.Item
-        label={t('admin.payments.wechat.mchId', 'Merchant ID')}
-        name="wechatMchId"
-      >
+      <Form.Item label={t('admin.payments.wechat.mchId', 'Merchant ID')} name="wechatMchId">
         <Input />
       </Form.Item>
       <Form.Item
+        label={t('admin.payments.wechat.serialNo', 'Merchant certificate serial number')}
         name="wechatMerchantSerialNo"
-        label={t(
-          'admin.payments.wechat.serialNo',
-          'Merchant certificate serial number',
-        )}
       >
         <Input />
       </Form.Item>
@@ -198,7 +178,7 @@ export const WechatSettingsCard = ({ config, t, urlRule }: ChannelCardProps) => 
           />
         }
       >
-        <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+        <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
       </Form.Item>
       <Form.Item
         label={t('admin.payments.wechat.apiV3Key', 'API v3 key (32 bytes)')}
@@ -210,9 +190,10 @@ export const WechatSettingsCard = ({ config, t, urlRule }: ChannelCardProps) => 
           />
         }
       >
-        <Input.Password />
+        <InputPassword />
       </Form.Item>
       <Form.Item
+        label={t('admin.payments.wechat.platformCertificate', 'WeChat Pay platform certificate')}
         name="wechatPlatformCertificate"
         extra={
           <SecretHint
@@ -220,12 +201,8 @@ export const WechatSettingsCard = ({ config, t, urlRule }: ChannelCardProps) => 
             masked={config?.wechat?.platformCertificateMasked}
           />
         }
-        label={t(
-          'admin.payments.wechat.platformCertificate',
-          'WeChat Pay platform certificate',
-        )}
       >
-        <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+        <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
       </Form.Item>
       <Form.Item
         name="wechatPlatformCertificateSerialNo"
@@ -275,7 +252,7 @@ export const ZpaySettingsCard = ({ config, t, urlRule }: ChannelCardProps) => (
           />
         }
       >
-        <Input.Password />
+        <InputPassword />
       </Form.Item>
       <Flexbox horizontal gap={24}>
         <Form.Item

@@ -3,6 +3,7 @@
 // Highlighter is intentionally avoided: it pulls every shiki grammar (~10 MB) into the auth bundle
 import { Block, Flexbox, FluentEmoji } from '@lobehub/ui';
 import { Button, Result, Text } from '@lobehub/ui/base-ui';
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
@@ -18,11 +19,11 @@ const FailedPage = () => {
       icon={<FluentEmoji emoji={'🥵'} size={96} type={'anim'} />}
       status="error"
       extra={
-        <a href="/">
+        <Link href="/">
           <Button block size={'large'} style={{ minWidth: 240 }}>
             {t('error.backToHome')}
           </Button>
-        </a>
+        </Link>
       }
       subTitle={
         <Flexbox gap={8}>

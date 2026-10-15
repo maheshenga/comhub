@@ -23,6 +23,25 @@ vi.mock('@/libs/swr', () => ({
 }));
 
 vi.mock('@lobehub/ui/base-ui', () => ({
+  // 基线是 antd Select/InputNumber（role=combobox / aria-valuemax 由 antd
+  // 渲染、onChange 收 number）；组件迁 base-ui 后桩按 antd 语义透传，
+  // 保持断言面不变。
+  Select: ({ allowClear: _allowClear, options: _options, ...props }: any) => (
+    <select role="combobox" {...props} />
+  ),
+  SelectItem: (props: any) => <option {...props} />,
+  InputNumber: ({ max, min, onChange, ...props }: any) => (
+    <input
+      aria-valuemax={max}
+      aria-valuemin={min}
+      type="number"
+      onChange={(event) =>
+        onChange?.(event.target.value === '' ? undefined : Number(event.target.value))
+      }
+      {...props}
+    />
+  ),
+  Input: ({ maxLength, ...props }: any) => <input maxLength={maxLength} {...props} />,
   Button: ({
     children,
     block: _block,
@@ -32,13 +51,27 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     type: _type,
     ...props
   }: any) => (
-    <button type={htmlType} {...props}>
+    <button
+      type={htmlType}
+      // happy-dom 的 click→implicit submission 不稳定：htmlType=submit 时
+      // 显式派发 submit 事件，保持与真实浏览器一致的提交流程。
+      onClick={(event: any) => {
+        if (htmlType === 'submit') {
+          event.currentTarget
+            .closest('form')
+            ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+          return;
+        }
+        props.onClick?.(event);
+      }}
+      {...props}
+    >
       {children}
     </button>
   ),
   Modal: ({ children, open }: any) => (open ? <div>{children}</div> : null),
 
-  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
+  Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,
   Alert: ({ message, children, description }: any) => (
     <div role="alert">
       {message}

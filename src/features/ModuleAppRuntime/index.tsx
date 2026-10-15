@@ -1,6 +1,6 @@
 import type { ModuleAppLaunchContext, ModuleAppScopeType } from '@lobechat/types';
-import { Flexbox, Icon, Text } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { Button, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Clock3, RefreshCw, ServerOff, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { memo } from 'react';

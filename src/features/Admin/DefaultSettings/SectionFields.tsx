@@ -1,9 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Select } from '@lobehub/ui/base-ui';
-import type { FormInstance } from 'antd';
-import { Form, Input, Switch } from 'antd';
+import { Alert, InputPassword, Select, Switch, TextArea } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormInstance } from 'antd';
 
 import { Card } from '@/components/antd-compat/Card';
 import type { DefaultModelOption } from '@/features/Admin/adminSettingsForm';
@@ -147,7 +147,7 @@ export const IntegrationFields = ({ settings }: IntegrationFieldsProps) => (
           : '尚未配置 Composio API Key。'
       }
     >
-      <Input.Password autoComplete="new-password" placeholder="ak_..." />
+      <InputPassword autoComplete="new-password" placeholder="ak_..." />
     </Form.Item>
     <Form.Item
       extra="开启后会在保存时清除已保存的 API Key。"
@@ -162,7 +162,7 @@ export const IntegrationFields = ({ settings }: IntegrationFieldsProps) => (
       label="Auth Config IDs"
       name="composioAuthConfigIds"
     >
-      <Input.TextArea autoSize={{ maxRows: 6, minRows: 2 }} placeholder='{"gmail":"ac_xxx"}' />
+      <TextArea autoSize={{ maxRows: 6, minRows: 2 }} placeholder='{"gmail":"ac_xxx"}' />
     </Form.Item>
   </Card>
 );
@@ -230,21 +230,21 @@ export const UserDefaultsFields = ({
         name="languageModelDefaultsJson"
         rules={[{ message: '请填写 JSON 对象，留空请填 {}', required: true }]}
       >
-        <Input.TextArea rows={8} spellCheck={false} />
+        <TextArea rows={8} spellCheck={false} />
       </Form.Item>
       <Form.Item
         extra="每行一个工具或技能 identifier；留空表示默认不禁用。"
         label="默认禁用的内置技能/工具"
         name="disabledBuiltinToolsText"
       >
-        <Input.TextArea placeholder="web-browsing" rows={4} spellCheck={false} />
+        <TextArea placeholder="web-browsing" rows={4} spellCheck={false} />
       </Form.Item>
       <Form.Item
         label="默认设置 JSON"
         name="userGlobalSettingsJson"
         rules={[{ message: '请填写 JSON 对象，留空请填 {}', required: true }]}
       >
-        <Input.TextArea rows={12} spellCheck={false} />
+        <TextArea rows={12} spellCheck={false} />
       </Form.Item>
     </Card>
     <ProfileDefaultsCard form={form} uploadPublicUrlPrefix={uploadPublicUrlPrefix} />

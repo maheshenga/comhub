@@ -9,8 +9,8 @@ import type {
   ModuleAppDeveloperRevenueSummary,
   ModuleAppDeveloperVersionSummary,
 } from '@lobechat/types';
-import { Icon, Skeleton, Text } from '@lobehub/ui';
-import { Button, confirmModal, Input, Tabs, toast } from '@lobehub/ui/base-ui';
+import { Icon } from '@lobehub/ui';
+import { Button, confirmModal, Input, SkeletonText, Tabs, Text, toast } from '@lobehub/ui/base-ui';
 import { EyeOff, RefreshCw, Rocket, RotateCcw } from 'lucide-react';
 import { type FormEvent, memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -188,7 +188,7 @@ const VersionList = memo<{
     });
   };
 
-  if (versions.isLoading) return <Skeleton active paragraph={{ rows: 2 }} title={false} />;
+  if (versions.isLoading) return <SkeletonText rows={2} />;
   if (versions.error) return <ResourceError onRetry={() => void versions.mutate()} />;
 
   return (
@@ -499,7 +499,7 @@ const ApplicationsTab = memo<{
     moduleAppService.listMyDeveloperApps({ cursor, limit: 20 }),
   );
 
-  if (resource.isLoading) return <Skeleton active paragraph={{ rows: 5 }} />;
+  if (resource.isLoading) return <SkeletonText rows={5} />;
   if (resource.error) return <ResourceError onRetry={() => void resource.mutate()} />;
 
   return (
@@ -531,7 +531,7 @@ const SubmissionsTab = memo<{ publisherVerified: boolean }>(({ publisherVerified
     moduleAppService.listMyDeveloperSubmissions({ cursor, limit: 20 }),
   );
 
-  if (resource.isLoading) return <Skeleton active paragraph={{ rows: 5 }} />;
+  if (resource.isLoading) return <SkeletonText rows={5} />;
   if (resource.error) return <ResourceError onRetry={() => void resource.mutate()} />;
 
   return (
@@ -572,11 +572,11 @@ const FinanceTab = memo(() => {
 
   return (
     <div className={styles.section}>
-      {summary.isLoading ? <Skeleton active paragraph={{ rows: 2 }} /> : null}
+      {summary.isLoading ? <SkeletonText rows={2} /> : null}
       {summary.error ? <ResourceError onRetry={() => void summary.mutate()} /> : null}
       {summary.data ? <FinanceSummary data={summary.data} /> : null}
 
-      {revenue.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : null}
+      {revenue.isLoading ? <SkeletonText rows={3} /> : null}
       {revenue.error ? <ResourceError onRetry={() => void revenue.mutate()} /> : null}
       {revenue.data ? (
         <>
@@ -595,7 +595,7 @@ const FinanceTab = memo(() => {
         </>
       ) : null}
 
-      {payouts.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : null}
+      {payouts.isLoading ? <SkeletonText rows={3} /> : null}
       {payouts.error ? <ResourceError onRetry={() => void payouts.mutate()} /> : null}
       {payouts.data ? (
         <>
@@ -641,7 +641,7 @@ const ModuleAppDeveloper = memo(() => {
   if (profile.isLoading) {
     return (
       <section className={styles.frame}>
-        <Skeleton active paragraph={{ rows: 8 }} />
+        <SkeletonText rows={8} />
       </section>
     );
   }

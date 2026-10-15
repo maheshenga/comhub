@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Input, InputNumber, Modal, Select } from 'antd';
+import { InputNumber, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -70,7 +70,6 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
             <div>{t('admin.assignPlan.plan', '套餐')}</div>
             <Select
               showSearch
-              optionFilterProp="label"
               placeholder={t('admin.assignPlan.plan.placeholder', '选择套餐')}
               style={{ width: '100%' }}
               value={plan}
@@ -80,19 +79,19 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
                   label: `${item.displayName || item.plan} (${item.plan})`,
                   value: item.plan,
                 }))}
-              onChange={onPlanChange}
+              onChange={(value) => onPlanChange(String(value ?? ''))}
             />
           </Flexbox>
           <Flexbox gap={4}>
             <div>{t('admin.assignPlan.cycle', '周期')}</div>
-            <Select<AssignPlanCycle>
+            <Select
               style={{ width: '100%' }}
               value={cycle}
               options={ADMIN_SUBSCRIPTION_CYCLES.map((item) => ({
                 label: t(`admin.assignPlan.${item}`, getAdminSubscriptionCycleLabel(item)),
                 value: item,
               }))}
-              onChange={onCycleChange}
+              onChange={(value) => onCycleChange(value as AssignPlanCycle)}
             />
           </Flexbox>
           <Flexbox gap={4}>
@@ -110,7 +109,7 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
           </Flexbox>
           <Flexbox gap={4}>
             <div>{t('admin.assignPlan.reason', '原因')}</div>
-            <Input.TextArea
+            <TextArea
               rows={3}
               value={reason}
               placeholder={t(

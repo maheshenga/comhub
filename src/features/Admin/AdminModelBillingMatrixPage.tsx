@@ -149,7 +149,7 @@ const AdminModelBillingMatrixPage = memo(() => {
 
         {canReadPlans && canReadSettings ? (
           <AdminSection
-        carded
+            carded
             description="检查服务商模型、套餐开放范围、默认模型和计费数据是否可以正常使用。"
             title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}
           >
@@ -209,8 +209,8 @@ const AdminModelBillingMatrixPage = memo(() => {
           canWriteSystem={canWriteSystem}
           displayRows={displayRows}
           focusedPlanKeySet={focusedPlanKeySet}
-          loading={loading}
           loadFailed={hasLoadError}
+          loading={loading}
           planData={planData}
           plans={plans}
           rows={rows}

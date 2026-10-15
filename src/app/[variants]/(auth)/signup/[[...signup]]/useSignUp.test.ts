@@ -27,7 +27,7 @@ vi.mock('@/libs/better-auth/auth-client', () => ({
 }));
 
 vi.mock('@lobechat/business-const', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@lobechat/business-const')>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   BRANDING_NAME: 'LobeHub',
   ORG_NAME: 'LobeHub',
 }));
@@ -40,7 +40,6 @@ vi.mock('@/business/client/hooks/useBusinessSignup', () => ({
     preSocialSignupCheck: mockPreSocialSignupCheck,
   }),
 }));
-
 
 let mockEnableEmailVerification = false;
 let mockEnableBusinessFeatures = false;

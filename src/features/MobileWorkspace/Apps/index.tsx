@@ -1,7 +1,7 @@
 'use client';
 
-import { Icon, Skeleton } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Icon } from '@lobehub/ui';
+import { Button, SkeletonAvatar } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Boxes, CircleAlert, KeyRound, RefreshCw, Store } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
@@ -185,7 +185,7 @@ const MobileAppGridSkeleton = ({ label }: { label: string }) => (
     <MobileIconGrid className={styles.appGrid} minCellSize={APP_GRID_MIN_CELL_SIZE}>
       {Array.from({ length: APP_LOADING_CELL_COUNT }, (_, index) => (
         <div className={styles.skeletonCell} key={index}>
-          <Skeleton.Avatar active shape="square" size={44} />
+          <SkeletonAvatar shape="square" size={44} />
           <div className={styles.skeletonLabel}>
             <span className={styles.skeletonLabelBar} data-testid="apps-loading-label" />
           </div>

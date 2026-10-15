@@ -1,6 +1,7 @@
 'use client';
 
-import { ActionIcon, Flexbox, Icon } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { RadioTowerIcon, X } from 'lucide-react';
 import type { FC } from 'react';

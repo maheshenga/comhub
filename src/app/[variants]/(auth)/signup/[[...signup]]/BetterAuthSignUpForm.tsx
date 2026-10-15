@@ -1,8 +1,9 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Text } from '@lobehub/ui/base-ui';
-import { Form, Input, type InputRef } from 'antd';
+import { Button, Input, InputPassword, Text } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/setFieldsValue/dependencies 跨字段校验）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { Lock, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -12,7 +13,6 @@ import { useTranslation } from 'react-i18next';
 import { AuthCard } from '../../../../../features/AuthCard';
 import { trackLoginOrSignupClicked } from '../../../../../features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
 import { AuthAgreement, useAuthAgreement } from '../../_layout/AuthAgreement';
-import { type SignUpFormValues } from './useSignUp';
 import { useSignUp } from './useSignUp';
 
 const BetterAuthSignUpForm = () => {
@@ -22,8 +22,8 @@ const BetterAuthSignUpForm = () => {
   const searchParams = useSearchParams();
   const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
 
-  const emailInputRef = useRef<InputRef>(null);
-  const passwordInputRef = useRef<InputRef>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const email = searchParams.get('email');
@@ -108,7 +108,7 @@ const BetterAuthSignUpForm = () => {
             },
           ]}
         >
-          <Input.Password
+          <InputPassword
             autoComplete="new-password"
             placeholder={t('betterAuth.signup.passwordPlaceholder')}
             ref={passwordInputRef}
@@ -138,7 +138,7 @@ const BetterAuthSignUpForm = () => {
             }),
           ]}
         >
-          <Input.Password
+          <InputPassword
             autoComplete="new-password"
             placeholder={t('betterAuth.signup.confirmPasswordPlaceholder')}
             size="large"

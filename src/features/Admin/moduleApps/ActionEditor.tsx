@@ -1,8 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Form, Input, InputNumber, Select } from 'antd';
+import { Button, Input, InputNumber, Select, TextArea } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -76,7 +77,7 @@ const ActionEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
                   label={t('moduleApps.admin.configuration.inputSchemaJson')}
                   name={[field.name, 'inputSchemaJson']}
                 >
-                  <Input.TextArea
+                  <TextArea
                     autoSize={{ maxRows: 5, minRows: 2 }}
                     placeholder={'{\n  "fields": []\n}'}
                   />
@@ -85,13 +86,13 @@ const ActionEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
                   label={t('moduleApps.admin.configuration.outputSchemaJson')}
                   name={[field.name, 'outputSchemaJson']}
                 >
-                  <Input.TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
+                  <TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
                 </Form.Item>
                 <Form.Item
                   label={t('moduleApps.admin.configuration.runtimeConfigJson')}
                   name={[field.name, 'runtimeConfigJson']}
                 >
-                  <Input.TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
+                  <TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
                 </Form.Item>
                 <Button
                   danger

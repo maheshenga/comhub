@@ -1,7 +1,7 @@
-import { Flexbox, Icon, Input } from '@lobehub/ui';
-import { Alert, Button, Text } from '@lobehub/ui/base-ui';
-import { type FormInstance, type InputRef } from 'antd';
-import { Badge, Divider, Form } from 'antd';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { Alert, Badge, Button, Divider, Input, Text } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules/FormInstance 类型）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormInstance } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { Mail } from 'lucide-react';
 import { type CSSProperties, useEffect, useRef } from 'react';
@@ -72,7 +72,7 @@ export const SignInEmailStep = ({
   const { t } = useTranslation('auth');
   const brand = useBrand();
   const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
-  const emailInputRef = useRef<InputRef>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     emailInputRef.current?.focus();
@@ -136,7 +136,7 @@ export const SignInEmailStep = ({
                 color="var(--ant-color-info)"
                 count={t('betterAuth.signin.lastUsed')}
                 key={provider}
-                styles={{ root: { display: 'block', width: '100%' } }}
+                style={{ display: 'block', width: '100%' }}
               >
                 {button}
               </Badge>

@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- LOBE_DEFAULT_MODEL_LIST（服务端 builtin 模型目录）仅在 model-bank 根桶导出，无可用 value 子路径（./aiModel 仅含类型/工具、./modelProviders 为 deprecated 旧列表）；类型成员本可用 type-import 分离，与该 value 同源保留一处避免双导入。
 import {
   LOBE_DEFAULT_MODEL_LIST,
   type ModelAbilities,

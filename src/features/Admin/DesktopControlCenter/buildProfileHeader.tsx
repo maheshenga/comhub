@@ -1,7 +1,6 @@
 'use client';
 
-import { Select } from '@lobehub/ui/base-ui';
-import { Typography } from 'antd';
+import { Select, Text } from '@lobehub/ui/base-ui';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import type { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';
@@ -32,10 +31,10 @@ export const BuildProfileHeader = ({
 }) => (
   <div className={desktopControlCenterStyles.buildProfileHeader}>
     <div>
-      <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+      <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
         {t('admin.desktopControl.tabs.buildProfile')}
-      </Typography.Title>
-      <Typography.Text type="secondary">{t('admin.desktopBuild.subtitle')}</Typography.Text>
+      </Text>
+      <Text type="secondary">{t('admin.desktopBuild.subtitle')}</Text>
     </div>
     <div className={desktopControlCenterStyles.buildProfileActions}>
       <label

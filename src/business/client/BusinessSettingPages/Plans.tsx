@@ -1,9 +1,20 @@
 'use client';
 
 import { Plans as SubscriptionPlan, type SubscriptionCycleType } from '@lobechat/types';
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, Modal, Segmented } from '@lobehub/ui/base-ui';
-import { Alert, Collapse, Empty, Input, message, Skeleton, Table, Tag, Tooltip } from 'antd';
+import { Empty, Flexbox, Icon } from '@lobehub/ui';
+import {
+  Accordion,
+  Alert,
+  Button,
+  Input,
+  Modal,
+  Segmented,
+  SkeletonText,
+  Table,
+  Tag,
+  toast,
+  Tooltip,
+} from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
 import {
   BookOpen,
@@ -695,9 +706,9 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
         return;
       }
 
-      message.info(t('billing.purchaseDisabledHint'));
+      toast.info(t('billing.purchaseDisabledHint'));
     } catch {
-      message.error(t('plans.payment.methodsFailed', '支付方式加载失败，请稍后重试'));
+      toast.error(t('plans.payment.methodsFailed', '支付方式加载失败，请稍后重试'));
     } finally {
       setCheckoutLoadingPlan(undefined);
     }
@@ -706,14 +717,14 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   const handleRedeem = async () => {
     const code = redeemCode.trim().toUpperCase();
     if (!code) {
-      message.error('请输入兑换码');
+      toast.error('请输入兑换码');
       return;
     }
 
     setRedeeming(true);
     try {
       await commercialService.redeemCode(code);
-      message.success('兑换成功，权益已发放');
+      toast.success('兑换成功，权益已发放');
       setRedeemCode('');
       setRedeemOpen(false);
       await refreshCommercialEntitlementState();
@@ -727,7 +738,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
         CODE_RACE: '兑换码已被使用',
       };
       const matched = Object.keys(errorMap).find((key) => msg.includes(key));
-      message.error(matched ? errorMap[matched] : '兑换失败，请检查兑换码');
+      toast.error(matched ? errorMap[matched] : '兑换失败，请检查兑换码');
     } finally {
       setRedeeming(false);
     }
@@ -849,7 +860,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                 .slice(0, 3)
                 .map((plan) => (
                   <Card className={styles.card} key={plan}>
-                    <Skeleton active paragraph={{ rows: 12 }} />
+                    <SkeletonText rows={12} />
                   </Card>
                 ))}
             </div>
@@ -1071,7 +1082,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
             <Table
               columns={comparisonColumns as any}
               dataSource={comparisonRows}
-              locale={{ emptyText: <Empty description="暂无套餐对比数据" /> }}
+              emptyText={<Empty description="暂无套餐对比数据" />}
               pagination={false}
               rowKey="key"
               scroll={{ x: Math.max(720, visiblePlans.length * 168 + 132) }}
@@ -1083,9 +1094,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
           defaultOpen={false}
           desktopClassName={styles.pricingCard}
           mobile={mobile}
-          title={
-            <SettingsSearchAnchor id="plans-model-pricing">文本模型价格</SettingsSearchAnchor>
-          }
+          title={<SettingsSearchAnchor id="plans-model-pricing">文本模型价格</SettingsSearchAnchor>}
         >
           <Flexbox gap={12}>
             <Flexbox gap={4}>
@@ -1146,12 +1155,11 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                 }
               />
             ) : null}
-            <Collapse
-              ghost
+            <Accordion
               items={planFaqItems.map((item) => ({
                 children: item.answer,
                 key: item.id,
-                label: item.question,
+                title: item.question,
               }))}
             />
           </Flexbox>

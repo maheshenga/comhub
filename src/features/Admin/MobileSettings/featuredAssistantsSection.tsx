@@ -1,5 +1,5 @@
-import { Button, Flexbox } from '@lobehub/ui';
-import { Input } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Input } from '@lobehub/ui/base-ui';
 
 import type { MobileFeaturedAssistantV1 } from '@/const/mobileConfig';
 
@@ -60,7 +60,11 @@ const AssistantEntry = ({
   tr: any;
   updateForm: (values: any) => void;
 }) => {
-  const titleKey = ['admin.mobile.assistantTitle', 'Assistant {{id}} title', { id: assistant.assistantId }] as const;
+  const titleKey = [
+    'admin.mobile.assistantTitle',
+    'Assistant {{id}} title',
+    { id: assistant.assistantId },
+  ] as const;
   const descriptionKey = [
     'admin.mobile.assistantDescription',
     'Assistant {{id}} description',
@@ -71,7 +75,11 @@ const AssistantEntry = ({
     'Assistant {{id}} model label',
     { id: assistant.assistantId },
   ] as const;
-  const targetKey = ['admin.mobile.target.assistant', 'assistant {{id}}', { id: assistant.assistantId }] as const;
+  const targetKey = [
+    'admin.mobile.target.assistant',
+    'assistant {{id}}',
+    { id: assistant.assistantId },
+  ] as const;
 
   return (
     <div className={styles.orderedEntry}>
@@ -246,7 +254,9 @@ export const FeaturedAssistantsSection = ({
           options={assistantOptions}
           value={selectedAssistantId}
           disabled={
-            assistantStatus.loading || Boolean(assistantStatus.error) || assistantOptions.length === 0
+            assistantStatus.loading ||
+            Boolean(assistantStatus.error) ||
+            assistantOptions.length === 0
           }
           onChange={setSelectedAssistantId}
         />

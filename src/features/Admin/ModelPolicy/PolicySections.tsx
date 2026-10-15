@@ -1,8 +1,8 @@
 'use client';
 
-import { Alert, Button } from '@lobehub/ui/base-ui';
-import type { FormInstance } from 'antd';
-import { Form, Input, Radio, Switch } from 'antd';
+import { Alert, Button, Input, RadioGroup, Switch, TextArea } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form, type FormInstance } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
@@ -62,7 +62,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
             <Switch />
           </Form.Item>
           <Form.Item label={t('admin.modelPolicy.mode', '策略模式')} name="mode">
-            <Radio.Group
+            <RadioGroup
               options={[
                 {
                   label: t('admin.modelPolicy.mode.blocklist', '禁用列表中的模型'),
@@ -95,7 +95,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
               '启用允许列表模式后，仅这些模型可以使用。每行一个条目。',
             )}
           >
-            <Input.TextArea
+            <TextArea
               placeholder={'openai:gpt-4o-mini\ndeepseek:deepseek-chat'}
               rows={6}
               onBlur={handleNormalizeAllowlist}
@@ -109,7 +109,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
               '启用禁用列表模式后，这些模型会被拒绝。每行一个条目。',
             )}
           >
-            <Input.TextArea
+            <TextArea
               placeholder={'openai:o1*\n*:old-*'}
               rows={6}
               onBlur={handleNormalizeBlocklist}
@@ -158,7 +158,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
           ))}
         </datalist>
         <Form.Item label={t('admin.modelPolicy.deniedMessage', '拒绝提示')} name="deniedMessage">
-          <Input.TextArea rows={3} />
+          <TextArea rows={3} />
         </Form.Item>
       </AdminSection>
     </>

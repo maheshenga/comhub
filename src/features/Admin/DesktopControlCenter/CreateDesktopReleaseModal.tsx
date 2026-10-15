@@ -1,8 +1,9 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { toast } from '@lobehub/ui/base-ui';
-import { Descriptions, Form, Input, Modal, Radio } from 'antd';
+import { Descriptions, Input, Modal, Segmented, TextArea, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -70,10 +71,8 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
         destroyOnHidden
         aria-label={t('admin.desktopBuild.release.title')}
         confirmLoading={submitting}
-        maskTransitionName=""
         okText={t('admin.desktopBuild.release.confirm')}
         open={open}
-        transitionName=""
         title={
           <span id="desktop-build-release-title">{t('admin.desktopBuild.release.title')}</span>
         }
@@ -94,10 +93,12 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
           layout="vertical"
         >
           <Form.Item label={t('admin.desktopBuild.release.channel')} name="channel">
-            <Radio.Group>
-              <Radio.Button value="canary">{t('admin.desktopControl.status.canary')}</Radio.Button>
-              <Radio.Button value="stable">{t('admin.desktopControl.status.stable')}</Radio.Button>
-            </Radio.Group>
+            <Segmented
+              options={[
+                { label: t('admin.desktopControl.status.canary'), value: 'canary' },
+                { label: t('admin.desktopControl.status.stable'), value: 'stable' },
+              ]}
+            />
           </Form.Item>
           <Form.Item
             label={t('admin.desktopBuild.release.version')}
@@ -107,23 +108,35 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
             <Input placeholder="2.4.0" />
           </Form.Item>
           <Form.Item label={t('admin.desktopBuild.release.notes')} name="releaseNotes">
-            <Input.TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
+            <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
           </Form.Item>
         </Form>
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label={t('admin.desktopBuild.profile.revision')}>
-            {profile.currentRevision || '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label={t('admin.desktopBuild.applicationName')}>
-            {payload.applicationName}
-          </Descriptions.Item>
-          <Descriptions.Item label={t('admin.desktopBuild.executableName')}>
-            {payload.executableName}
-          </Descriptions.Item>
-          <Descriptions.Item label={t('admin.desktopBuild.release.artifact')}>
-            {artifactName}
-          </Descriptions.Item>
-        </Descriptions>
+        <Descriptions
+          bordered
+          column={1}
+          items={[
+            {
+              children: profile.currentRevision || '-',
+              key: 'revision',
+              label: t('admin.desktopBuild.profile.revision'),
+            },
+            {
+              children: payload.applicationName,
+              key: 'applicationName',
+              label: t('admin.desktopBuild.applicationName'),
+            },
+            {
+              children: payload.executableName,
+              key: 'executableName',
+              label: t('admin.desktopBuild.executableName'),
+            },
+            {
+              children: artifactName,
+              key: 'artifact',
+              label: t('admin.desktopBuild.release.artifact'),
+            },
+          ]}
+        />
         {!profile.firstStableReleaseAt ? (
           <p>{t('admin.desktopBuild.release.firstStableWarning')}</p>
         ) : null}

@@ -127,10 +127,10 @@ const DesktopControlCenter = memo(() => {
           {
             children: (
               <DistributionPage
-                onConfigure={() => void changeTab('updates')}
-                onDirtyChange={setDirty}
                 overview={overview}
                 settings={settings}
+                onConfigure={() => void changeTab('updates')}
+                onDirtyChange={setDirty}
               />
             ),
             key: 'distribution',

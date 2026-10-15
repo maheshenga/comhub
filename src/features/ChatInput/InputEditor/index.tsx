@@ -50,6 +50,7 @@ import {
   useSlashActionItems,
 } from './ActionTag';
 import { createInputCompletionError, isInputCompletionAbortError } from './inputCompletionError';
+import InputFloatMenu from './InputFloatMenu';
 import InputHistoryPopup, { getHistoryPreviewText } from './InputHistoryPopup';
 import { INSERT_LOCAL_FILE_TAG_COMMAND } from './LocalFileTag';
 import { mentionPlainClassName } from './mentionStyle';
@@ -58,7 +59,6 @@ import { CHAT_INPUT_EMBED_PLUGINS, createChatInputRichPlugins } from './plugins'
 import { INSERT_REFER_TOPIC_COMMAND } from './ReferTopic';
 import { useLocalFileTag } from './useLocalFileTag';
 import { useMentionCategories } from './useMentionCategories';
-import InputFloatMenu from './InputFloatMenu';
 
 const className = cx(
   css`

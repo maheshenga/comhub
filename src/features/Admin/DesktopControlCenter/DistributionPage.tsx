@@ -1,8 +1,9 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Tag, toast } from '@lobehub/ui/base-ui';
-import { Descriptions, Form, Input, Typography } from 'antd';
+import { Alert, Button, Descriptions, Input, Tag, Text, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -55,14 +56,14 @@ const DistributionPage = memo<DistributionPageProps>((props) => {
       errorTitle={t('admin.desktopControl.error.title')}
       isEmpty={!overview.isLoading && !overview.error && !overview.data?.diagnostics.configured}
       loading={overview.isLoading}
-      onRetry={() => void overview.mutate()}
+      retryLabel={t('admin.desktopControl.retry')}
+      skeletonVariant="list"
       primaryAction={
         onConfigure
           ? { label: t('admin.desktopControl.configure'), onClick: onConfigure }
           : undefined
       }
-      retryLabel={t('admin.desktopControl.retry')}
-      skeletonVariant="list"
+      onRetry={() => void overview.mutate()}
     >
       <DistributionDiagnosticsTable overview={overview} t={t as any} />
     </AdminPageState>
@@ -96,16 +97,16 @@ const DistributionPage = memo<DistributionPageProps>((props) => {
   return (
     <Flexbox gap={24}>
       <section className={desktopControlCenterStyles.channelSection}>
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+        <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopControl.tabs.distribution')}
-        </Typography.Title>
+        </Text>
         {diagnosticsContent}
       </section>
 
       <section className={desktopControlCenterStyles.formSection}>
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+        <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopControl.downloadSettings')}
-        </Typography.Title>
+        </Text>
         <AdminSettingsConflictAlert
           error={saveError}
           onReload={async () => {
@@ -115,9 +116,9 @@ const DistributionPage = memo<DistributionPageProps>((props) => {
         />
         {settings.error ? (
           <AdminPageError
-            onRetry={() => void settings.mutate()}
             retryLabel={t('admin.desktopControl.retry')}
             title={t('admin.desktopControl.settingsError')}
+            onRetry={() => void settings.mutate()}
           />
         ) : settings.isLoading && !settings.data ? (
           <AdminInlineSkeleton rows={4} />
@@ -152,26 +153,41 @@ const DistributionPage = memo<DistributionPageProps>((props) => {
               message={t('admin.desktopControl.managedByCi')}
               type="info"
             />
-            <Descriptions bordered column={1} size="small" style={{ marginTop: 16 }}>
-              <Descriptions.Item label={t('admin.desktopControl.oss.bucket')}>
-                {initialValues.ossBucket || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('admin.desktopControl.oss.endpoint')}>
-                {initialValues.ossEndpoint || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('admin.desktopControl.oss.credentials')}>
-                <Tag color={initialValues.ossCredentialsConfigured ? 'success' : 'default'}>
-                  {t(
-                    initialValues.ossCredentialsConfigured
-                      ? 'admin.desktopControl.oss.configured'
-                      : 'admin.desktopControl.oss.notConfigured',
-                  )}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label={t('admin.desktopControl.oss.path')}>
-                {initialValues.ossPath || '-'}
-              </Descriptions.Item>
-            </Descriptions>
+            <Descriptions
+              bordered
+              column={1}
+              style={{ marginTop: 16 }}
+              items={[
+                {
+                  children: initialValues.ossBucket || '-',
+                  key: 'bucket',
+                  label: t('admin.desktopControl.oss.bucket'),
+                },
+                {
+                  children: initialValues.ossEndpoint || '-',
+                  key: 'endpoint',
+                  label: t('admin.desktopControl.oss.endpoint'),
+                },
+                {
+                  children: (
+                    <Tag color={initialValues.ossCredentialsConfigured ? 'success' : 'default'}>
+                      {t(
+                        initialValues.ossCredentialsConfigured
+                          ? 'admin.desktopControl.oss.configured'
+                          : 'admin.desktopControl.oss.notConfigured',
+                      )}
+                    </Tag>
+                  ),
+                  key: 'credentials',
+                  label: t('admin.desktopControl.oss.credentials'),
+                },
+                {
+                  children: initialValues.ossPath || '-',
+                  key: 'path',
+                  label: t('admin.desktopControl.oss.path'),
+                },
+              ]}
+            />
             <div className={desktopControlCenterStyles.formActions}>
               <Button
                 icon={<Icon icon={Save} size={16} />}

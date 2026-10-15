@@ -1,9 +1,8 @@
 'use client';
 
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Empty, Flexbox, Icon } from '@lobehub/ui';
+import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
-import { Alert, Empty, Tag } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { Check } from 'lucide-react';
 import { memo, useMemo, useRef, useState } from 'react';
@@ -344,9 +343,7 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
         <BusinessSettingsSection
           mobile={mobile}
           open={mobile ? billingHistoryOpen : undefined}
-          title={
-            <SettingsSearchAnchor id="billing-history">账单历史</SettingsSearchAnchor>
-          }
+          title={<SettingsSearchAnchor id="billing-history">账单历史</SettingsSearchAnchor>}
           onOpenChange={mobile ? setBillingHistoryOpen : undefined}
         >
           {mobile ? (

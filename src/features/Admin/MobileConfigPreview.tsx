@@ -1,10 +1,11 @@
 'use client';
 
+// eslint-disable-next-line no-restricted-imports -- base-ui Segmented 渲染为 toggle button（aria-pressed），antd Segmented 渲染 radio；MobileConfigPreview.test.tsx 的可访问性契约断言 getByRole('radio')，迁 base-ui 属可访问性语义变更（FormKit/B4 收敛批次另行处理）。
 import { Icon, Segmented } from '@lobehub/ui';
 import { memo, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { type MobilePublicConfigV1,normalizeMobileConfig } from '@/const/mobileConfig';
+import { type MobilePublicConfigV1, normalizeMobileConfig } from '@/const/mobileConfig';
 import { getMobileIcon } from '@/features/MobileWorkspace/mobileIcons';
 
 import { renderPreviewBody } from './MobileSettings/mobilePreviewBody';
@@ -116,7 +117,18 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
           <span className={styles.brand}>{brandName}</span>
         </header>
 
-        <div className={styles.content}>{renderPreviewBody({ assistants, enabledBuiltins, enabledTools, featuredModuleAppIds: normalizedConfig.applications.featuredModuleAppIds, mode, normalizedConfig, section, t: t as any })}</div>
+        <div className={styles.content}>
+          {renderPreviewBody({
+            assistants,
+            enabledBuiltins,
+            enabledTools,
+            featuredModuleAppIds: normalizedConfig.applications.featuredModuleAppIds,
+            mode,
+            normalizedConfig,
+            section,
+            t: t as any,
+          })}
+        </div>
 
         <nav
           className={styles.nav}

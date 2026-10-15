@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
-import { Input } from 'antd';
+import { Button, Modal, Tag, TextArea } from '@lobehub/ui/base-ui';
 
 import { REASON_COLORS, STATUS_COLORS } from './shared';
 
@@ -116,7 +115,7 @@ export const RejectReasonModal = ({
   >
     <Flexbox gap={8}>
       <div>{t('admin.changeRequests.rejectReason', '原因（可选）')}</div>
-      <Input.TextArea
+      <TextArea
         placeholder={t('admin.changeRequests.rejectPlaceholder', '请输入拒绝原因')}
         rows={3}
         value={rejectTarget?.reason ?? ''}

@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, CopyButton, Flexbox, Icon, Modal, Segmented, Text } from '@lobehub/ui';
+import { CopyButton, Flexbox, Icon } from '@lobehub/ui';
+import { Button, Modal, Segmented, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { DownloadIcon, MonitorDownIcon, ShieldCheckIcon, TerminalIcon } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';

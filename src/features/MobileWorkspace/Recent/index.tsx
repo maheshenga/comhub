@@ -11,7 +11,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +18,7 @@ import useSWRInfinite from 'swr/infinite';
 
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { useSingleton } from '@/hooks/useSingleton';
 import { recentService } from '@/services/recent';
 import { useHomeStore } from '@/store/home';
 import { useUserStore } from '@/store/user';
@@ -72,9 +72,13 @@ const MobileRecentPage = memo(() => {
   } = useMobileSlotState({ scopeId: activeWorkspaceId ?? 'personal', slotId: 'slot-1' });
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [mode, setMode] = useState<'pending' | 'recent'>('recent');
-  const pinningKeysRef = useRef(new Set<string>());
+  const pinningKeysRef = useSingleton<{ current: Set<string> }>(() => ({
+    current: new Set<string>(),
+  }));
   const [pinningKeys, setPinningKeys] = useState<Set<string>>(() => new Set());
-  const togglePinRef = useRef<(item: MobileRecentConversation) => void>(() => undefined);
+  const togglePinRef = useSingleton<{ current: (item: MobileRecentConversation) => void }>(() => ({
+    current: () => undefined,
+  }));
   const { createAssistant, creating } = useCreateAssistant();
   const getKey = useCallback(
     (

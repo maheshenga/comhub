@@ -1,11 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Typography } from 'antd';
+import { Text } from '@lobehub/ui/base-ui';
 
 import type { AdminDangerousActionEnvelope } from '../adminDangerousActions';
-
-const { Text } = Typography;
 
 export type ContentMode = 'documents' | 'files' | 'topics';
 export type TopicStatus = 'active' | 'archived' | 'completed';

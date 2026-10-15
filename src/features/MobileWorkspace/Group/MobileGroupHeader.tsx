@@ -17,13 +17,13 @@ const MobileGroupHeader = memo(() => {
 
   return (
     <ChatHeader
+      showBackButton
+      style={{ width: '100%' }}
       center={
         <ChatHeader.Title
           title={group?.name || t('navigation.groupChat', { defaultValue: 'Group chat' })}
         />
       }
-      showBackButton
-      style={{ width: '100%' }}
       onBackClick={() => navigate('/')}
     />
   );

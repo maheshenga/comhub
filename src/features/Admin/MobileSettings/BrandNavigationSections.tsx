@@ -1,4 +1,4 @@
-import { Input } from 'antd';
+import { Input } from '@lobehub/ui/base-ui';
 import { useEffect, useState } from 'react';
 
 import { IconSelect, LabeledField, OrderButtons } from '../MobileSettingsControls';

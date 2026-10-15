@@ -8,8 +8,7 @@ import type {
   SubscriptionCycleType,
 } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Segmented } from '@lobehub/ui/base-ui';
-import { Alert, QRCode, Typography } from 'antd';
+import { Alert, Button, Modal, QRCode, Segmented, Text } from '@lobehub/ui/base-ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR, { mutate } from 'swr';
@@ -178,19 +177,19 @@ export const SubscriptionCheckoutModal = ({ onClose, target }: SubscriptionCheck
       onCancel={onClose}
     >
       <Flexbox gap={12}>
-        {error && <Alert showIcon message={error} type="error" />}
-        {paid && <Alert showIcon message={t('plans.payment.paid', '套餐已生效')} type="success" />}
+        {error && <Alert showIcon title={error} type="error" />}
+        {paid && <Alert showIcon title={t('plans.payment.paid', '套餐已生效')} type="success" />}
         {terminalFailure && !paid && (
           <Alert
             showIcon
-            message={t('plans.payment.failed', '支付未完成，请重新发起')}
+            title={t('plans.payment.failed', '支付未完成，请重新发起')}
             type="error"
           />
         )}
         {!methods.isLoading && !methods.data?.length && (
           <Alert
             showIcon
-            message={t('plans.payment.unavailable', '套餐在线支付暂未开放')}
+            title={t('plans.payment.unavailable', '套餐在线支付暂未开放')}
             type="info"
           />
         )}
@@ -206,15 +205,13 @@ export const SubscriptionCheckoutModal = ({ onClose, target }: SubscriptionCheck
         {checkout?.type === 'qrcode' && (
           <Flexbox align="center" gap={8}>
             <QRCode size={220} value={checkout.url} />
-            <Typography.Text type="secondary">
-              {t('plans.payment.scan', '请使用微信扫码支付')}
-            </Typography.Text>
+            <Text type="secondary">{t('plans.payment.scan', '请使用微信扫码支付')}</Text>
           </Flexbox>
         )}
         {orderId && !paid && !terminalFailure && (
           <Alert
             showIcon
-            message={t('plans.payment.pending', '等待支付确认')}
+            title={t('plans.payment.pending', '等待支付确认')}
             type="info"
             action={
               <Button

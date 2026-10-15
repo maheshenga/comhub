@@ -1,14 +1,12 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
-import { Space, Typography } from 'antd';
+import { Alert, Button, Tag, Text } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 
 import type { MatrixConfigHealthCheck } from '@/features/Admin/adminModelBillingMatrix';
 
 import { CONFIG_HEALTH_CHECK_STATUS, CONFIG_HEALTH_STATUS } from './shared';
-
-const { Text } = Typography;
 
 interface ConfigHealthSectionProps {
   canFocusConfigHealthCheck: (check: MatrixConfigHealthCheck) => boolean;
@@ -52,7 +50,8 @@ export const ConfigHealthSection = ({
           <Space wrap size={[8, 8]}>
             <Tag color={configHealthMeta.color}>{configHealthMeta.label}</Tag>
             <Tag>
-              {t('admin.modelBillingMatrix.healthModels', 'Models')}: {configHealth.summary.modelCount}
+              {t('admin.modelBillingMatrix.healthModels', 'Models')}:{' '}
+              {configHealth.summary.modelCount}
             </Tag>
             <Tag>
               {t('admin.modelBillingMatrix.healthPlans', 'Plans')}: {configHealth.summary.planCount}
@@ -93,7 +92,11 @@ export const ConfigHealthSection = ({
                   {typeof check.count === 'number' ? <Tag>{check.count}</Tag> : null}
                   {check.detail ? <Text type="secondary">{check.detail}</Text> : null}
                   {canFocusConfigHealthCheck(check) ? (
-                    <Button size="small" type="link" onClick={() => onFocusConfigHealthCheck(check)}>
+                    <Button
+                      size="small"
+                      type="link"
+                      onClick={() => onFocusConfigHealthCheck(check)}
+                    >
                       {focusedHealthCheckKey === check.key ? '取消定位' : '定位'}
                     </Button>
                   ) : null}

@@ -1,7 +1,16 @@
 'use client';
 
 import { formatElapsedClockTime } from '@lobechat/utils';
-import { ActionIcon, Avatar, Button, Flexbox, Skeleton, Tag, Text } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import {
+  ActionIcon,
+  Avatar,
+  Button,
+  Skeleton,
+  SkeletonAvatar,
+  Tag,
+  Text,
+} from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar, useTheme } from 'antd-style';
 import { ListXIcon, PlusIcon } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
@@ -147,10 +156,10 @@ SidebarTaskItem.displayName = 'FleetSidebarTaskItem';
 /** Placeholder row matching `SidebarTaskItem`'s layout while the list loads. */
 const SidebarTaskSkeleton = memo(() => (
   <Flexbox horizontal align={'center'} gap={10} paddingBlock={8} paddingInline={10}>
-    <Skeleton.Avatar active shape={'square'} size={28} />
+    <SkeletonAvatar shape={'square'} size={28} />
     <Flexbox flex={1} gap={6} style={{ overflow: 'hidden' }}>
-      <Skeleton.Button active style={{ height: 13, minWidth: 0, width: '70%' }} />
-      <Skeleton.Button active style={{ height: 12, minWidth: 0, width: '45%' }} />
+      <Skeleton animated height={13} style={{ minWidth: 0 }} width={'70%'} />
+      <Skeleton animated height={12} style={{ minWidth: 0 }} width={'45%'} />
     </Flexbox>
   </Flexbox>
 ));

@@ -17,6 +17,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
+  Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
+}));
+
+vi.mock('@lobehub/ui/base-ui', () => ({
   ActionIcon: ({
     'aria-label': ariaLabel,
     onClick,
@@ -31,13 +35,7 @@ vi.mock('@lobehub/ui', () => ({
       {children}
     </button>
   ),
-  Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
-  Skeleton: {
-    Button: () => <div data-testid="record-skeleton" />,
-  },
-}));
-
-vi.mock('@lobehub/ui/base-ui', () => ({
+  Skeleton: () => <div data-testid="record-skeleton" />,
   FloatingSheet: ({
     children,
     headerActions,

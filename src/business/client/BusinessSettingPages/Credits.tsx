@@ -1,9 +1,8 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Empty, Flexbox } from '@lobehub/ui';
+import { Button, Tag } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
-import { Empty, Tag } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -266,8 +265,8 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
         mobile={mobile}
         title={<SettingsSearchAnchor id="credits-top-up">购买积分</SettingsSearchAnchor>}
       >
-          <TopUpPurchase />
-        </BusinessSettingsSection>
+        <TopUpPurchase />
+      </BusinessSettingsSection>
       <BusinessSettingsSection
         defaultOpen={false}
         mobile={mobile}
@@ -277,8 +276,8 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
           </SettingsSearchAnchor>
         }
       >
-          <CostEstimateAlert />
-        </BusinessSettingsSection>
+        <CostEstimateAlert />
+      </BusinessSettingsSection>
       <BusinessSettingsSection
         defaultOpen={false}
         mobile={mobile}
@@ -288,49 +287,49 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
           </SettingsSearchAnchor>
         }
       >
-          <AutoTopUpSettings isPaidPlan={isPaidPlan(currentPlan)} />
-        </BusinessSettingsSection>
+        <AutoTopUpSettings isPaidPlan={isPaidPlan(currentPlan)} />
+      </BusinessSettingsSection>
       <BusinessSettingsSection
         mobile={mobile}
         title={<SettingsSearchAnchor id="credits-packages">积分包</SettingsSearchAnchor>}
       >
-          <CreditPackageList mobile={mobile} />
-        </BusinessSettingsSection>
+        <CreditPackageList mobile={mobile} />
+      </BusinessSettingsSection>
       <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'兑换码'}>
-          <RedemptionPanel onSuccess={refreshCreditData} />
-        </BusinessSettingsSection>
+        <RedemptionPanel onSuccess={refreshCreditData} />
+      </BusinessSettingsSection>
       <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'积分使用详情'}>
-          {mobile ? (
-            <Flexbox gap={8}>
-              <BusinessMobileRecordList
-                emptyDescription={t('credits.ledger.empty')}
-                error={ledgerError ? t('mobile.error.title') : undefined}
-                isLoading={isLedgerLoading}
-                records={ledgerItems.map((item) => buildCreditLedgerRecord(item, recordFormatters))}
-                sheetTitle={t('credits.ledger.details')}
-                onRetry={() => void refreshLedger()}
-              />
-              {hasMoreLedger ? (
-                <Button
-                  loading={isLedgerValidating}
-                  onClick={() => void setLedgerSize(ledgerPageCount + 1)}
-                >
-                  加载更多
-                </Button>
-              ) : null}
-            </Flexbox>
-          ) : ledgerError ? (
-            <BusinessTableError onRetry={() => void refreshLedger()} />
-          ) : (
-            <InlineTable
-              columns={ledgerColumns as any}
-              dataSource={ledgerItems}
-              loading={isLedgerLoading}
-              locale={{ emptyText: <Empty description={'暂无积分明细'} /> }}
-              rowKey={(record) => record.id}
+        {mobile ? (
+          <Flexbox gap={8}>
+            <BusinessMobileRecordList
+              emptyDescription={t('credits.ledger.empty')}
+              error={ledgerError ? t('mobile.error.title') : undefined}
+              isLoading={isLedgerLoading}
+              records={ledgerItems.map((item) => buildCreditLedgerRecord(item, recordFormatters))}
+              sheetTitle={t('credits.ledger.details')}
+              onRetry={() => void refreshLedger()}
             />
-          )}
-        </BusinessSettingsSection>
+            {hasMoreLedger ? (
+              <Button
+                loading={isLedgerValidating}
+                onClick={() => void setLedgerSize(ledgerPageCount + 1)}
+              >
+                加载更多
+              </Button>
+            ) : null}
+          </Flexbox>
+        ) : ledgerError ? (
+          <BusinessTableError onRetry={() => void refreshLedger()} />
+        ) : (
+          <InlineTable
+            columns={ledgerColumns as any}
+            dataSource={ledgerItems}
+            loading={isLedgerLoading}
+            locale={{ emptyText: <Empty description={'暂无积分明细'} /> }}
+            rowKey={(record) => record.id}
+          />
+        )}
+      </BusinessSettingsSection>
     </BusinessSettingsPageShell>
   );
 });

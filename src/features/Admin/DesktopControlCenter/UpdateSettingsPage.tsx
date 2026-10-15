@@ -1,8 +1,18 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Segmented, Switch, toast } from '@lobehub/ui/base-ui';
-import { Form, Input, InputNumber, Typography } from 'antd';
+import {
+  Button,
+  Input,
+  InputNumber,
+  Segmented,
+  Switch,
+  Text,
+  TextArea,
+  toast,
+} from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -73,9 +83,9 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
   if (settings.error) {
     return (
       <AdminPageError
-        onRetry={() => void settings.mutate()}
         retryLabel={t('admin.desktopControl.retry')}
         title={t('admin.desktopControl.settingsError')}
+        onRetry={() => void settings.mutate()}
       />
     );
   }
@@ -84,9 +94,9 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
 
   return (
     <section className={desktopControlCenterStyles.formSection}>
-      <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+      <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
         {t('admin.desktopControl.tabs.updates')}
-      </Typography.Title>
+      </Text>
       <AdminSettingsConflictAlert
         error={saveError}
         onReload={async () => {
@@ -157,7 +167,7 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
           label={t('admin.desktopUpdate.releaseNotes')}
           name="releaseNotes"
         >
-          <Input.TextArea autoSize={{ maxRows: 10, minRows: 5 }} />
+          <TextArea autoSize={{ maxRows: 10, minRows: 5 }} />
         </Form.Item>
 
         <div className={desktopControlCenterStyles.formActions}>

@@ -212,13 +212,10 @@ const AdminAuditPage = memo(() => {
           />
         ) : items.length === 0 && !isLoading ? (
           <AdminPageState
-            emptyDescription={t(
-              'admin.audit.emptyDescription',
-              '调整筛选条件或时间范围后重试。',
-            )}
+            isEmpty
             emptyKind="initial"
             emptyTitle={t('admin.audit.empty', '暂无审计日志')}
-            isEmpty
+            emptyDescription={t('admin.audit.emptyDescription', '调整筛选条件或时间范围后重试。')}
           >
             {null}
           </AdminPageState>

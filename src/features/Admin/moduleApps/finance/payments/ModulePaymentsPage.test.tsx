@@ -39,21 +39,16 @@ vi.mock('@/libs/swr', () => ({
   },
 }));
 vi.mock('@lobehub/ui/base-ui', () => ({
-  Button: ({ children, ...props }: any) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
+  Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
+  InputNumber: ({ max, min, onChange, ...props }: any) => (
+    <input
+      aria-valuemax={max}
+      aria-valuemin={min}
+      type="number"
+      onChange={(e) => onChange?.(e.target.value === '' ? undefined : Number(e.target.value))}
+      {...props}
+    />
   ),
-  Input: (props: any) => <input {...props} />,
-  Modal: (props: any) =>
-    props.open ? (
-      <div>
-        {props.children}
-        <button disabled={props.okButtonProps?.disabled} type="button" onClick={props.onOk}>
-          {props.okText}
-        </button>
-      </div>
-    ) : null,
   Select: ({ options, onChange, ...props }: any) => (
     <select {...props} onChange={(event) => onChange?.(event.target.value)}>
       {options?.map((option: any) => (
@@ -63,11 +58,44 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       ))}
     </select>
   ),
-  TextArea: (props: any) => <textarea {...props} />,
+  SelectItem: (props: any) => <option {...props} />,
+  TextArea: ({ onChange, ...props }: any) => (
+    <textarea onChange={(e) => onChange?.(e)} {...props} />
+  ),
+  Checkbox: ({ checked, onChange, ...props }: any) => (
+    <input
+      checked={checked}
+      type="checkbox"
+      onChange={(e) => onChange?.(e.target.checked)}
+      {...props}
+    />
+  ),
+  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+  Button: ({ children, ...props }: any) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Modal: (props: any) =>
+    props.open ? (
+      <div>
+        {props.children}
+        <button disabled={props.okButtonProps?.disabled} type="button" onClick={props.onOk}>
+          {props.okText}
+        </button>
+      </div>
+    ) : null,
   toast: { error: vi.fn(), success: vi.fn() },
 
-  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
-  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
+  Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,
+  Alert: ({ message, children, description }: any) => (
+    <div role="alert">
+      {message}
+      {description}
+      {children}
+    </div>
+  ),
+}));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 describe('ModulePaymentsPage', () => {

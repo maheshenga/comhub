@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
-import { Input } from 'antd';
+import { Button, Input, Select } from '@lobehub/ui/base-ui';
 
 import type { ChangeRequestStatusFilter } from './shared';
 

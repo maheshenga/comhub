@@ -1,15 +1,12 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Tag } from '@lobehub/ui/base-ui';
-import { Checkbox, Typography } from 'antd';
+import { Button, Checkbox, Modal, Tag, Text } from '@lobehub/ui/base-ui';
 import { memo, useMemo, useState } from 'react';
 
 import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 
 import { AdminDataTable } from '../shared';
-
-const { Text } = Typography;
 
 export type ModuleAppRevenueRow = {
   appId: string;
@@ -156,7 +153,7 @@ const CommerceTable = memo<CommerceTableProps>(
                     aria-label={`${copy.select} ${row.id}`}
                     checked={selectedIds.includes(row.id)}
                     disabled={!selectable}
-                    onChange={(event) => toggle(row.id, event.target.checked)}
+                    onChange={(checked) => toggle(row.id, checked)}
                   />
                 );
               },

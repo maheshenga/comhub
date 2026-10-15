@@ -8,9 +8,18 @@ import type {
   PaymentMethodId,
   PaymentProvider,
 } from '@lobechat/types';
-import { ActionIcon, Flexbox } from '@lobehub/ui';
-import { Button, FloatingSheet, Modal, Segmented } from '@lobehub/ui/base-ui';
-import { Alert, QRCode, Tag, Typography } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  FloatingSheet,
+  Modal,
+  QRCode,
+  Segmented,
+  Tag,
+  Text,
+} from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { X } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
@@ -206,7 +215,7 @@ const PurchaseModal = memo<PurchaseModalProps>(
     const qrCode = checkout?.type === 'qrcode' && (
       <Flexbox align="center" gap={8}>
         <QRCode size={220} value={checkout.url} />
-        <Typography.Text type="secondary">{t('moduleApps.purchase.scanToPay')}</Typography.Text>
+        <Text type={'secondary'}>{t('moduleApps.purchase.scanToPay')}</Text>
       </Flexbox>
     );
 
@@ -243,19 +252,19 @@ const PurchaseModal = memo<PurchaseModalProps>(
         {license ? (
           <Flexbox gap={8}>
             <Tag color="green">{t('moduleApps.purchase.authorized')}</Tag>
-            <Typography.Text type="secondary">
+            <Text type={'secondary'}>
               {license.endsAt
                 ? t('moduleApps.purchase.validUntil', { date: String(license.endsAt) })
                 : t('moduleApps.purchase.perpetual')}
-            </Typography.Text>
+            </Text>
           </Flexbox>
         ) : pendingOrder ? (
           <Flexbox gap={12}>
             {(error || paymentStatus.data?.paymentStatus === 'failed') && (
               <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
             )}
-            <Typography.Text>{t('moduleApps.purchase.pending')}</Typography.Text>
-            <Typography.Text code>{pendingOrder.id}</Typography.Text>
+            <Text>{t('moduleApps.purchase.pending')}</Text>
+            <Text code>{pendingOrder.id}</Text>
             {paymentMethodControl}
             {qrCode}
             {onCreatePayment && (
@@ -289,10 +298,10 @@ const PurchaseModal = memo<PurchaseModalProps>(
         ) : order?.status === 'paid' ? (
           <Flexbox gap={8}>
             <Tag color="blue">{t('moduleApps.purchase.paymentConfirmed')}</Tag>
-            <Typography.Text code>{order.id}</Typography.Text>
+            <Text code>{order.id}</Text>
           </Flexbox>
         ) : !selected ? (
-          <Typography.Text type="secondary">{t('moduleApps.purchase.noProducts')}</Typography.Text>
+          <Text type={'secondary'}>{t('moduleApps.purchase.noProducts')}</Text>
         ) : (
           <>
             {error && (
@@ -316,7 +325,7 @@ const PurchaseModal = memo<PurchaseModalProps>(
             {!isFree && paymentMethodControl}
             {qrCode}
             <Flexbox horizontal align="center" justify="space-between">
-              <Typography.Text>{t('moduleApps.purchase.scopeLabel')}</Typography.Text>
+              <Text>{t('moduleApps.purchase.scopeLabel')}</Text>
               <Tag>
                 {t(
                   selectedScope === 'personal'
@@ -326,39 +335,37 @@ const PurchaseModal = memo<PurchaseModalProps>(
               </Tag>
             </Flexbox>
             <Flexbox horizontal align="center" justify="space-between">
-              <Typography.Text>{t('moduleApps.purchase.serverQuote')}</Typography.Text>
-              <Typography.Title level={4} style={{ margin: 0 }}>
+              <Text>{t('moduleApps.purchase.serverQuote')}</Text>
+              <Text as={'h4'} fontSize={20} style={{ margin: 0 }} weight={600}>
                 {formatPrice(
                   quote.data?.currency ?? selected?.currency,
                   quote.data?.price ?? selected?.amount,
                 )}
-              </Typography.Title>
+              </Text>
             </Flexbox>
             {requiresWorkspace && !workspaceId && (
-              <Typography.Text type="danger">
-                {t('moduleApps.purchase.workspaceRequired')}
-              </Typography.Text>
+              <Text type={'danger'}>{t('moduleApps.purchase.workspaceRequired')}</Text>
             )}
             {promotion?.title && <Tag color="red">{promotion.title}</Tag>}
             {typeof promotion?.discountAmount === 'number' && promotion.discountAmount > 0 && (
-              <Typography.Text type="secondary">
+              <Text type={'secondary'}>
                 {t('moduleApps.purchase.discountAmount', { amount: promotion.discountAmount })}
-              </Typography.Text>
+              </Text>
             )}
             {typeof promotion?.discountPercent === 'number' && promotion.discountPercent > 0 && (
-              <Typography.Text type="secondary">
+              <Text type={'secondary'}>
                 {t('moduleApps.purchase.discountPercent', { percent: promotion.discountPercent })}
-              </Typography.Text>
+              </Text>
             )}
             {promotion?.validUntil && (
-              <Typography.Text type="secondary">
+              <Text type={'secondary'}>
                 {t('moduleApps.purchase.validUntil', { date: promotion.validUntil })}
-              </Typography.Text>
+              </Text>
             )}
             {selected?.trialDays ? (
-              <Typography.Text type="secondary">
+              <Text type={'secondary'}>
                 {t('moduleApps.purchase.trial', { days: selected.trialDays })}
-              </Typography.Text>
+              </Text>
             ) : null}
             <Button
               block

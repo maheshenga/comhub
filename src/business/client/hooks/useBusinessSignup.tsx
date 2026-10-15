@@ -1,8 +1,6 @@
-import { Alert } from 'antd';
-import { toast } from '@lobehub/ui/base-ui';
+import { Alert, toast } from '@lobehub/ui/base-ui';
 
 import type { BaseSignUpFormValues } from '@/features/Auth/SignUp/types';
-
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 

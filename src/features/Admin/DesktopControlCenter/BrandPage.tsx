@@ -1,8 +1,9 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Alert, Button, toast } from '@lobehub/ui/base-ui';
-import { Form, Input, Typography } from 'antd';
+import { Alert, Button, Input, Text, TextArea, toast } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -80,9 +81,9 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
 
   return (
     <section className={desktopControlCenterStyles.formSection}>
-      <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+      <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
         {t('admin.desktopControl.tabs.brand')}
-      </Typography.Title>
+      </Text>
       <AdminSettingsConflictAlert
         error={saveError}
         onReload={async () => {
@@ -92,7 +93,7 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
       />
       <Alert
         showIcon
-        description={<Typography.Text code>{DESKTOP_DEFAULT_BUSINESS_SERVER_URL}</Typography.Text>}
+        description={<Text code>{DESKTOP_DEFAULT_BUSINESS_SERVER_URL}</Text>}
         message={t('admin.desktopControl.businessServer')}
         type="info"
       />
@@ -118,7 +119,7 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
           <Input />
         </Form.Item>
         <Form.Item label={t('admin.desktopUpdate.loginDescription')} name="loginDescription">
-          <Input.TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
+          <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
         </Form.Item>
         <Form.Item
           label={t('admin.desktopUpdate.loginCloudButtonLabel')}

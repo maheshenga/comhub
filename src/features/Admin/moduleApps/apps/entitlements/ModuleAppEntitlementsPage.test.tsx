@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createModuleDraftScope, loadModuleDraft } from '../../shared/draftStorage';
@@ -79,7 +80,37 @@ vi.mock('@lobechat/types', async (importOriginal) => ({
   hasAdminCapability: () => roleState.canWrite,
 }));
 vi.mock('../../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
+// antd Form 的 disabled 经 DisabledContext 传播；基线 antd Input 消费该
+// context，桩同步消费以保持 read-only 断言不变。
+const antdDisabledContext = () =>
+  require('antd/lib/config-provider/DisabledContext').default as React.Context<boolean>;
+
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Input: ({ onChange, disabled: customDisabled, ...props }: any) => {
+    const DisabledContext = antdDisabledContext();
+    const ctxDisabled = React.use(DisabledContext);
+    return (
+      <input disabled={customDisabled ?? ctxDisabled} onChange={(e) => onChange?.(e)} {...props} />
+    );
+  },
+  InputNumber: ({ max, min, onChange, ...props }: any) => (
+    <input
+      aria-valuemax={max}
+      aria-valuemin={min}
+      type="number"
+      onChange={(e) => onChange?.(e.target.value === '' ? undefined : Number(e.target.value))}
+      {...props}
+    />
+  ),
+  Select: ({ options: _o, ...props }: any) => (
+    <select
+      role="combobox"
+      onChange={(e: any) => props.onChange?.(e.target.value)}
+      {...props}
+      value={props.value}
+    />
+  ),
+  SelectItem: (props: any) => <option {...props} />,
   Button: ({
     children,
     danger: _danger,

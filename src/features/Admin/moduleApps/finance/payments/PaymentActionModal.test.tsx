@@ -16,7 +16,19 @@ vi.mock('antd', () => ({
       </div>
     ) : null,
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({ TextArea: (props: any) => <textarea {...props} /> }));
+vi.mock('@lobehub/ui/base-ui', () => ({
+  Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
+  Modal: (props: any) =>
+    props.open ? (
+      <div role="dialog">
+        {props.children}
+        <button disabled={props.okButtonProps?.disabled} type="button" onClick={props.onOk}>
+          {props.okText}
+        </button>
+      </div>
+    ) : null,
+  TextArea: (props: any) => <textarea {...props} />,
+}));
 
 // 带插值的 t：key 在测试里没有词典，返回固定模板再注入，让断言能看到目标内容。
 const TEMPLATES: Record<string, string> = {
@@ -40,16 +52,16 @@ describe('PaymentActionModal', () => {
         action="refund"
         actionIsValid={false}
         offlineRefundReference=""
+        paymentReference=""
+        reason=""
+        submitting={false}
+        t={t as any}
+        target={{ appName: 'Commerce App', orderId: 'order-42' }}
         onCancel={vi.fn()}
         onOfflineRefundReferenceChange={vi.fn()}
         onOk={vi.fn()}
         onPaymentReferenceChange={vi.fn()}
         onReasonChange={vi.fn()}
-        paymentReference=""
-        reason=""
-        submitting={false}
-        target={{ appName: 'Commerce App', orderId: 'order-42' }}
-        t={t as any}
       />,
     );
 
@@ -65,15 +77,15 @@ describe('PaymentActionModal', () => {
         action="settle"
         actionIsValid={false}
         offlineRefundReference=""
+        paymentReference=""
+        reason=""
+        submitting={false}
+        t={t as any}
         onCancel={vi.fn()}
         onOfflineRefundReferenceChange={vi.fn()}
         onOk={vi.fn()}
         onPaymentReferenceChange={vi.fn()}
         onReasonChange={vi.fn()}
-        paymentReference=""
-        reason=""
-        submitting={false}
-        t={t as any}
       />,
     );
 

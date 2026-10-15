@@ -3,6 +3,7 @@
 import { Block, Flexbox, FluentEmoji } from '@lobehub/ui';
 import { Button, Result, Text } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
+import Link from 'next/link';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -41,11 +42,11 @@ const OAuthAuthorizeError = memo(() => {
       icon={<FluentEmoji emoji={'🥵'} size={96} type={'anim'} />}
       status={'error'}
       extra={
-        <a href="/">
+        <Link href="/">
           <Button block size={'large'} style={{ minWidth: 240 }}>
             {t('authorizeError.backToHome')}
           </Button>
-        </a>
+        </Link>
       }
       subTitle={
         <Flexbox align={'center'} gap={16} style={{ marginInline: 'auto', maxWidth: 440 }}>

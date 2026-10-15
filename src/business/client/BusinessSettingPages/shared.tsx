@@ -2,7 +2,8 @@
 
 import { DISPLAY_CREDITS_UNIT, toAtomicCredits, toDisplayCredits } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
-import { Button, Flexbox } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs from 'dayjs';
 import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -15,11 +16,7 @@ import { commercialService } from '@/services/commercial';
 import { useUserStore } from '@/store/user';
 import { authSelectors, userProfileSelectors } from '@/store/user/selectors';
 
-import {
-  formatCredits,
-  formatCreditsAmount,
-  formatSignedCredits,
-} from './creditsDisplay';
+import { formatCredits, formatCreditsAmount, formatSignedCredits } from './creditsDisplay';
 
 export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
   actionRow: css`

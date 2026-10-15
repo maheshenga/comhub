@@ -1,7 +1,7 @@
 'use client';
 
-import { toast } from '@lobehub/ui/base-ui';
-import { Button, Input, Space, Upload } from 'antd';
+import { Button, Input, toast, Upload } from '@lobehub/ui/base-ui';
+import { Space } from 'antd';
 import { sha256 } from 'js-sha256';
 import { ImageUpIcon } from 'lucide-react';
 import { type CSSProperties, memo, useState } from 'react';
@@ -76,7 +76,7 @@ const ImageUrlUploadInput = memo<ImageUrlUploadInputProps>(
     const handleBeforeUpload = async (file: File) => {
       if (!file.type.startsWith('image/')) {
         toast.error('请选择图片文件');
-        return Upload.LIST_IGNORE;
+        return false;
       }
 
       setUploading(true);
@@ -97,7 +97,7 @@ const ImageUrlUploadInput = memo<ImageUrlUploadInputProps>(
         setUploading(false);
       }
 
-      return Upload.LIST_IGNORE;
+      return false;
     };
 
     return (
@@ -112,11 +112,13 @@ const ImageUrlUploadInput = memo<ImageUrlUploadInputProps>(
           accept="image/*"
           beforeUpload={handleBeforeUpload}
           disabled={disabled || uploading}
-          itemRender={() => null}
           maxCount={1}
-          showUploadList={false}
         >
-          <Button disabled={disabled || uploading} icon={<ImageUpIcon size={16} />} loading={uploading}>
+          <Button
+            disabled={disabled || uploading}
+            icon={<ImageUpIcon size={16} />}
+            loading={uploading}
+          >
             上传图片
           </Button>
         </Upload>

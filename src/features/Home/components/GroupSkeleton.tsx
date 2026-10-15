@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@lobehub/ui';
+import { Skeleton } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
 import { memo } from 'react';
 
@@ -10,13 +10,13 @@ export const GroupSkeleton = memo<{
   width?: number | string;
 }>(({ rows = 12, width, height }) => {
   return Array.from({ length: rows }).map((_, i) => (
-    <Skeleton.Button
-      active
+    <Skeleton
+      animated
+      height={height}
       key={i}
-      size={'large'}
+      width={width}
       style={{
         borderRadius: cssVar.borderRadiusLG,
-        height,
         maxHeight: height,
         maxWidth: width,
         minWidth: width,

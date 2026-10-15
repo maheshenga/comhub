@@ -1,8 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Tag } from '@lobehub/ui/base-ui';
-import { Button, Descriptions, Drawer } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Tag } from '@lobehub/ui/base-ui';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 
@@ -22,81 +21,117 @@ import {
 const renderDateTime = (value?: Date | null | string) =>
   value ? new Date(value).toLocaleString() : ADMIN_EMPTY_TEXT;
 
-const OrderDetailDrawerBody = ({
-  orderDetail,
-}: {
-  orderDetail: AdminOrderDetail;
-}) => {
+const OrderDetailDrawerBody = ({ orderDetail }: { orderDetail: AdminOrderDetail }) => {
   const { t } = useTranslation('subscription');
   const navigate = useNavigate();
 
   return (
     <Flexbox gap={16}>
-      <Descriptions bordered column={1} size="small">
-        <Descriptions.Item label={t('admin.orders.detail.orderId', '订单 ID')}>
-          <code>{orderDetail.id}</code>
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.user', '用户')}>
-          {orderDetail.userEmail ||
-            orderDetail.userFullName ||
-            orderDetail.userName ||
-            orderDetail.userId}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.status', '状态')}>
-          <Tag color={statusColor[orderDetail.status as OrderStatus] ?? 'default'}>
-            {orderDetail.status}
-          </Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.amount', '金额')}>
-          {formatAdminAmount(orderDetail.amount, orderDetail.currency)}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.credits', '积分')}>
-          {formatAdminCredits(orderDetail.credits)}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.provider', '渠道')}>
-          {orderDetail.provider || ADMIN_EMPTY_TEXT} / {orderDetail.source || ADMIN_EMPTY_TEXT}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.externalOrderId', '外部订单号')}>
-          {orderDetail.externalOrderId || ADMIN_EMPTY_TEXT}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.createdAt', '创建时间')}>
-          {renderDateTime(orderDetail.createdAt)}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.paidAt', '支付时间')}>
-          {renderDateTime(orderDetail.paidAt)}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.updatedAt', '更新时间')}>
-          {renderDateTime(orderDetail.updatedAt)}
-        </Descriptions.Item>
-      </Descriptions>
+      <Descriptions
+        bordered
+        column={1}
+        items={[
+          {
+            children: <code>{orderDetail.id}</code>,
+            key: 'orderId',
+            label: t('admin.orders.detail.orderId', '订单 ID'),
+          },
+          {
+            children:
+              orderDetail.userEmail ||
+              orderDetail.userFullName ||
+              orderDetail.userName ||
+              orderDetail.userId,
+            key: 'user',
+            label: t('admin.orders.detail.user', '用户'),
+          },
+          {
+            children: (
+              <Tag color={statusColor[orderDetail.status as OrderStatus] ?? 'default'}>
+                {orderDetail.status}
+              </Tag>
+            ),
+            key: 'status',
+            label: t('admin.orders.detail.status', '状态'),
+          },
+          {
+            children: formatAdminAmount(orderDetail.amount, orderDetail.currency),
+            key: 'amount',
+            label: t('admin.orders.detail.amount', '金额'),
+          },
+          {
+            children: formatAdminCredits(orderDetail.credits),
+            key: 'credits',
+            label: t('admin.orders.detail.credits', '积分'),
+          },
+          {
+            children: (
+              <>
+                {orderDetail.provider || ADMIN_EMPTY_TEXT} /{' '}
+                {orderDetail.source || ADMIN_EMPTY_TEXT}
+              </>
+            ),
+            key: 'provider',
+            label: t('admin.orders.detail.provider', '渠道'),
+          },
+          {
+            children: orderDetail.externalOrderId || ADMIN_EMPTY_TEXT,
+            key: 'externalOrderId',
+            label: t('admin.orders.detail.externalOrderId', '外部订单号'),
+          },
+          {
+            children: renderDateTime(orderDetail.createdAt),
+            key: 'createdAt',
+            label: t('admin.orders.detail.createdAt', '创建时间'),
+          },
+          {
+            children: renderDateTime(orderDetail.paidAt),
+            key: 'paidAt',
+            label: t('admin.orders.detail.paidAt', '支付时间'),
+          },
+          {
+            children: renderDateTime(orderDetail.updatedAt),
+            key: 'updatedAt',
+            label: t('admin.orders.detail.updatedAt', '更新时间'),
+          },
+        ]}
+      />
 
       <Descriptions
         bordered
         column={1}
-        size="small"
         title={t('admin.orders.detail.redemptionCode', '关联兑换码')}
-      >
-        <Descriptions.Item label={t('admin.orders.detail.redemptionCodeId', '兑换码 ID')}>
-          {orderDetail.redemptionCodeId ? (
-            <code>{orderDetail.redemptionCodeId}</code>
-          ) : (
-            ADMIN_EMPTY_TEXT
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.redemptionCodeValue', '兑换码')}>
-          {orderDetail.redemptionCode?.code ? (
-            <code>{orderDetail.redemptionCode.code}</code>
-          ) : (
-            ADMIN_EMPTY_TEXT
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.redemptionCodeStatus', '兑换码状态')}>
-          {orderDetail.redemptionCode?.status || ADMIN_EMPTY_TEXT}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('admin.orders.detail.redemptionCodeBatch', '批次')}>
-          {orderDetail.redemptionCode?.batchId || ADMIN_EMPTY_TEXT}
-        </Descriptions.Item>
-      </Descriptions>
+        items={[
+          {
+            children: orderDetail.redemptionCodeId ? (
+              <code>{orderDetail.redemptionCodeId}</code>
+            ) : (
+              ADMIN_EMPTY_TEXT
+            ),
+            key: 'redemptionCodeId',
+            label: t('admin.orders.detail.redemptionCodeId', '兑换码 ID'),
+          },
+          {
+            children: orderDetail.redemptionCode?.code ? (
+              <code>{orderDetail.redemptionCode.code}</code>
+            ) : (
+              ADMIN_EMPTY_TEXT
+            ),
+            key: 'redemptionCodeValue',
+            label: t('admin.orders.detail.redemptionCodeValue', '兑换码'),
+          },
+          {
+            children: orderDetail.redemptionCode?.status || ADMIN_EMPTY_TEXT,
+            key: 'redemptionCodeStatus',
+            label: t('admin.orders.detail.redemptionCodeStatus', '兑换码状态'),
+          },
+          {
+            children: orderDetail.redemptionCode?.batchId || ADMIN_EMPTY_TEXT,
+            key: 'redemptionCodeBatch',
+            label: t('admin.orders.detail.redemptionCodeBatch', '批次'),
+          },
+        ]}
+      />
 
       <Alert
         showIcon
@@ -149,7 +184,6 @@ export const OrderDetailDrawer = ({
 
   return (
     <Drawer
-      destroyOnClose
       open={open}
       title={t('admin.orders.detail.title', '订单详情')}
       width={640}

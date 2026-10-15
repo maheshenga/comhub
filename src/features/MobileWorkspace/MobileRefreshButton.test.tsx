@@ -15,7 +15,7 @@ describe('MobileRefreshButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(onRefresh).toHaveBeenCalledTimes(1);
 
-    rerender(<MobileRefreshButton label="Refresh" loading onRefresh={onRefresh} />);
+    rerender(<MobileRefreshButton loading label="Refresh" onRefresh={onRefresh} />);
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-busy', 'true');
   });

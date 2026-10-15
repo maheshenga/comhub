@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
 import { Form } from 'antd';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -28,7 +29,21 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, type: _type, ...props }: any) => <button {...props}>{children}</button>,
+  Input: (props: any) => <input {...props} />,
+  InputNumber: ({ onChange, ...props }: any) => (
+    <input onChange={(event) => onChange?.(event.target.value)} {...props} />
+  ),
+  Select: ({ onChange, options = [], ...props }: any) => (
+    <select onChange={(event) => onChange?.(event.target.value)} {...props}>
+      {options.map((option: any) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Switch: (props: any) => <input type="checkbox" {...props} />,
+  TextArea: (props: any) => <textarea {...props} />,
 }));
 
 const renderWithForm = (node: React.ReactNode, initialValues = {}) =>

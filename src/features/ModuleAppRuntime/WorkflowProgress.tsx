@@ -1,4 +1,5 @@
-import { Button, Flexbox, Text } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { X } from 'lucide-react';
 import { memo, useState } from 'react';
@@ -18,12 +19,14 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   root: css`
     position: absolute;
     z-index: 10;
-    right: 16px;
-    bottom: 16px;
+    inset-block-end: 16px;
+    inset-inline-end: 16px;
+
     width: min(360px, calc(100% - 32px));
     padding: 12px;
     border: 1px solid ${cssVar.colorBorderSecondary};
     border-radius: 8px;
+
     background: ${cssVar.colorBgContainer};
     box-shadow: ${cssVar.boxShadowSecondary};
   `,
@@ -43,9 +46,7 @@ interface WorkflowProgressViewProps {
 export const WorkflowProgressView = memo<WorkflowProgressViewProps>(
   ({ cancelFailed, cancelling, nodes, onCancel, run }) => {
     const { t } = useTranslation('common');
-    const completed = nodes.filter((node) =>
-      ['skipped', 'succeeded'].includes(node.status),
-    ).length;
+    const completed = nodes.filter((node) => ['skipped', 'succeeded'].includes(node.status)).length;
     const terminal = TERMINAL_STATUSES.has(run.status);
 
     return (
@@ -66,12 +67,7 @@ export const WorkflowProgressView = memo<WorkflowProgressViewProps>(
           value={completed}
         />
         {!terminal && (
-          <Button
-            disabled={cancelling}
-            icon={<X size={16} />}
-            size={'small'}
-            onClick={onCancel}
-          >
+          <Button disabled={cancelling} icon={<X size={16} />} size={'small'} onClick={onCancel}>
             {t('cancel')}
           </Button>
         )}

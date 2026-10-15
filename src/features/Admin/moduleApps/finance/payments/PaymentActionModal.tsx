@@ -1,7 +1,6 @@
 'use client';
 
-import { TextArea } from '@lobehub/ui/base-ui';
-import { Input, Modal } from 'antd';
+import { Input, Modal, TextArea } from '@lobehub/ui/base-ui';
 
 import type { PaymentFormAction } from './modulePaymentsShared';
 import { modulePaymentStyles as styles } from './modulePaymentsShared';
@@ -70,7 +69,9 @@ export const PaymentActionModal = ({
             required
             maxLength={240}
             value={paymentReference}
-            onChange={(event: { target: { value: string } }) => onPaymentReferenceChange(event.target.value)}
+            onChange={(event: { target: { value: string } }) =>
+              onPaymentReferenceChange(event.target.value)
+            }
           />
         </label>
       ) : (
@@ -91,7 +92,9 @@ export const PaymentActionModal = ({
             required
             maxLength={240}
             value={offlineRefundReference}
-            onChange={(event: { target: { value: string } }) => onOfflineRefundReferenceChange(event.target.value)}
+            onChange={(event: { target: { value: string } }) =>
+              onOfflineRefundReferenceChange(event.target.value)
+            }
           />
         </label>
       ) : null}

@@ -1,8 +1,8 @@
 import type { InstallMarketplaceAgentSummary } from '@lobechat/builtin-tool-web-onboarding/agentMarketplace';
 import { customAlphabet } from 'nanoid/non-secure';
 
-import { getLocalOnboardingAgentTemplate } from '@/const/onboardingAgentTemplates';
 import { getActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
+import { getLocalOnboardingAgentTemplate } from '@/const/onboardingAgentTemplates';
 import { lambdaClient } from '@/libs/trpc/client';
 import { agentService } from '@/services/agent';
 import { discoverService } from '@/services/discover';

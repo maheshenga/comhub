@@ -1,6 +1,8 @@
 'use client';
 
-import { Form, Input, Switch } from 'antd';
+import { Input, Switch } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -15,10 +17,7 @@ export const BrandSettingsCard = () => {
       <Form.Item
         label={t('admin.settings.brandName', '品牌名称')}
         name="brandName"
-        extra={t(
-          'admin.settings.brandName.help',
-          '用于页面标题、导航、关于页面和站内品牌展示。',
-        )}
+        extra={t('admin.settings.brandName.help', '用于页面标题、导航、关于页面和站内品牌展示。')}
       >
         <Input placeholder="玄果 AI" />
       </Form.Item>
@@ -181,6 +180,5 @@ export const EntryCopySettingsCard = () => {
     </Card>
   );
 };
-
 
 export default BrandSettingsCard;

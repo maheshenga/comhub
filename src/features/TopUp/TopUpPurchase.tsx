@@ -7,8 +7,7 @@ import type {
   TopUpPackageItem,
 } from '@lobechat/types';
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, Segmented } from '@lobehub/ui/base-ui';
-import { Alert, QRCode, Tag, Typography } from 'antd';
+import { Alert, Button, QRCode, Segmented, Tag, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { CreditCard } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -230,9 +229,9 @@ export const TopUpPurchase = () => {
       <Flexbox gap={12}>
         <Flexbox horizontal align="center" gap={8}>
           <Icon icon={CreditCard} size={18} />
-          <Typography.Title id="topup-online-title" level={4} style={{ margin: 0 }}>
+          <Text as={'h4'} fontSize={20} id="topup-online-title" style={{ margin: 0 }} weight={600}>
             {t('topup.online.title', '在线充值')}
-          </Typography.Title>
+          </Text>
         </Flexbox>
         {error && <Alert showIcon message={error} type="error" />}
         {paid && <Alert showIcon message={t('topup.online.paid', '充值已到账')} type="success" />}
@@ -300,9 +299,9 @@ export const TopUpPurchase = () => {
                     <Tag color="gold">{t('topup.online.recommended', '推荐')}</Tag>
                   )}
                 </Flexbox>
-                <Typography.Text type="secondary">
+                <Text type={'secondary'}>
                   {displayCredits(item.credits)} · ¥{item.amount}
-                </Typography.Text>
+                </Text>
               </button>
             ))}
           </div>
@@ -327,9 +326,7 @@ export const TopUpPurchase = () => {
         {checkout?.type === 'qrcode' && (
           <Flexbox align="center" gap={8}>
             <QRCode size={220} value={checkout.url} />
-            <Typography.Text type="secondary">
-              {t('topup.online.scan', '请使用微信扫码支付')}
-            </Typography.Text>
+            <Text type={'secondary'}>{t('topup.online.scan', '请使用微信扫码支付')}</Text>
           </Flexbox>
         )}
         <Button

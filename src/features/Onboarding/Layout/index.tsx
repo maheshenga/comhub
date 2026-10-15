@@ -1,7 +1,7 @@
 'use client';
 
-import { Center, Flexbox, Text } from '@lobehub/ui';
-import { Divider } from 'antd';
+import { Center, Flexbox } from '@lobehub/ui';
+import { Divider, Text } from '@lobehub/ui/base-ui';
 import { cx, useTheme } from 'antd-style';
 import { type FC, type PropsWithChildren, useEffect } from 'react';
 import { useLocation } from 'react-router';

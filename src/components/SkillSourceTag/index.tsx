@@ -1,5 +1,6 @@
 import { type SkillSource } from '@lobechat/types';
-import { Icon, Tag } from '@lobehub/ui';
+import { Icon } from '@lobehub/ui';
+import { Tag } from '@lobehub/ui/base-ui';
 import { BadgeCheck, CircleUser, Package } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

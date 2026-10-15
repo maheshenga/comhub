@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import CommerceTable from './CommerceTable';
 
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Checkbox: (props: any) => <input type="checkbox" {...props} />,
+  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, ...props }: any) => (
     <button type="button" {...props}>
       {children}
@@ -19,8 +21,15 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       </div>
     ) : null,
 
-  Tag: ({ children, color }: any) => (<span data-color={color}>{children}</span>),
-  Alert: ({ message, children, description }: any) => (<div role="alert">{message}{description}{children}</div>),}));
+  Tag: ({ children, color }: any) => <span data-color={color}>{children}</span>,
+  Alert: ({ message, children, description }: any) => (
+    <div role="alert">
+      {message}
+      {description}
+      {children}
+    </div>
+  ),
+}));
 
 describe('module app commerce table', () => {
   it('settles only selected pending accrual entries', async () => {

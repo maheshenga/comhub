@@ -1,7 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Form, InputNumber, Select } from 'antd';
+import { InputNumber, Select } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

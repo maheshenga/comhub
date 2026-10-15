@@ -1,8 +1,8 @@
 'use client';
 
 import { DOWNLOAD_URL, isDesktop, USAGE_DOCUMENTS } from '@lobechat/const';
-import { Block, CopyButton, Flexbox, Icon, Text, ThemeProvider, Tooltip } from '@lobehub/ui';
-import { Button, ScrollArea } from '@lobehub/ui/base-ui';
+import { Block, CopyButton, Flexbox, Icon, ThemeProvider, Tooltip } from '@lobehub/ui';
+import { Button, ScrollArea, Text } from '@lobehub/ui/base-ui';
 import { Lark, Line, QQ, WeChat } from '@lobehub/ui/icons';
 import { createStaticStyles, cx } from 'antd-style';
 import {

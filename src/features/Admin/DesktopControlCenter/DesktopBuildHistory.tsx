@@ -1,9 +1,9 @@
 'use client';
 
 import type { DesktopReleaseStatus } from '@lobechat/types';
-import { Button, Tag, toast } from '@lobehub/ui/base-ui';
+import { Button, Tag, Text, toast } from '@lobehub/ui/base-ui';
 import type { TableColumnsType } from 'antd';
-import { Space, Typography } from 'antd';
+import { Space } from 'antd';
 import { CheckCircle2, RefreshCw, RotateCcw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -193,8 +193,10 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
                   icon={<CheckCircle2 size={14} />}
                   loading={activatingReleaseId === release.id}
                   size="small"
-                  title={hasPublication ? undefined : t('admin.desktopBuild.history.activateUnavailable')}
                   type="link"
+                  title={
+                    hasPublication ? undefined : t('admin.desktopBuild.history.activateUnavailable')
+                  }
                   onConfirm={async (envelope) => {
                     setActivatingReleaseId(release.id);
                     try {
@@ -227,9 +229,9 @@ const DesktopBuildHistory = memo<DesktopBuildHistoryProps>(
 
     return (
       <section>
-        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+        <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopBuild.history.title')}
-        </Typography.Title>
+        </Text>
         <AdminDataTable
           columns={columns}
           dataSource={releases}

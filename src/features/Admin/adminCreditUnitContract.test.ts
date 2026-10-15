@@ -18,7 +18,8 @@ describe('admin credit unit contract', () => {
       expect(source).toContain('toAdminAtomicCredits');
       expect(source).toContain('toAdminDisplayCredits');
     }
-    expect(packageFormFields).toContain("addonAfter={'M'}");
+    // base-ui InputNumber 无 addonAfter，单位后缀改用等价的 suffix prop。
+    expect(packageFormFields).toContain("suffix={'M'}");
   });
 
   it('converts every general-commercial admin adjustment before submission', () => {

@@ -19,10 +19,11 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
-  // shared.tsx 的 BusinessTableError 从这里取 Button。
+  // shared.tsx 的 BusinessTableError 从这里取 Button；组件的空态 Empty 也在此桶。
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button {...props}>{children}</button>
   ),
+  Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Select: () => <div />,
 }));
@@ -39,6 +40,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       ))}
     </div>
   ),
+  Tag: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
 }));
 
 // InlineTable 只在「加载成功」分支渲染；mock 成一个可见标记，一旦错误态

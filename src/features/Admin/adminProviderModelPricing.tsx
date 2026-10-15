@@ -1,17 +1,10 @@
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Flexbox } from '@lobehub/ui';
-import { InputNumber } from 'antd';
+import { InputNumber } from '@lobehub/ui/base-ui';
 import { useEffect, useState } from 'react';
 
 export type AiProviderModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 export const DEFAULT_PRICING_MARGIN_MULTIPLIER = DEFAULT_PRICING_CREDIT_MULTIPLIER;
 

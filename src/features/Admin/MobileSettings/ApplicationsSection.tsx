@@ -1,5 +1,5 @@
-import { Button, Flexbox } from '@lobehub/ui';
-import { Input } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Input } from '@lobehub/ui/base-ui';
 
 import {
   AccessibleSwitch,
@@ -80,7 +80,9 @@ export const ApplicationsSection = ({
           options={moduleAppOptions}
           value={selectedModuleAppId}
           disabled={
-            moduleAppStatus.loading || Boolean(moduleAppStatus.error) || moduleAppOptions.length === 0
+            moduleAppStatus.loading ||
+            Boolean(moduleAppStatus.error) ||
+            moduleAppOptions.length === 0
           }
           onChange={setSelectedModuleAppId}
         />

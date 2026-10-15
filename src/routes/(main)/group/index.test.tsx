@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import ChatPage from './index';
+
 const rendered = vi.hoisted(() => ({
   conversation: vi.fn(),
   portal: vi.fn(),
@@ -27,8 +29,6 @@ vi.mock('./features/TelemetryNotification', () => ({
     return null;
   },
 }));
-
-import ChatPage from './index';
 
 describe('GroupChatPage', () => {
   it('forwards mobile mode to every group conversation surface', () => {

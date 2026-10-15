@@ -1,8 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
-import { Popconfirm, Switch, Tooltip } from 'antd';
+import { Button, Switch, Tag, Tooltip } from '@lobehub/ui/base-ui';
+import { Popconfirm } from 'antd';
 
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate } from '@/libs/swr';
@@ -15,7 +15,10 @@ import { type InstanceRow, INSTANCES_KEY, PROVIDER_TYPE_LABELS } from './shared'
 type TFn = (key: any, defaultValue?: any, values?: any) => string;
 
 interface BuildInstanceColumnsParams {
-  handleDelete: (row: InstanceRow, command: AdminDangerousActionEnvelope<'newapiProvider.deleteInstance'>) => Promise<void>;
+  handleDelete: (
+    row: InstanceRow,
+    command: AdminDangerousActionEnvelope<'newapiProvider.deleteInstance'>,
+  ) => Promise<void>;
   handleSyncModels: (row: InstanceRow) => Promise<void>;
   handleTestConnection: (row: InstanceRow) => Promise<void>;
   handleToggle: (row: InstanceRow) => Promise<void>;
@@ -181,5 +184,4 @@ export const buildInstanceColumns = ({ ...params }: BuildInstanceColumnsParams) 
       width: 240,
     },
   ];
-
 };

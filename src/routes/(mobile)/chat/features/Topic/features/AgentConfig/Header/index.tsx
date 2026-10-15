@@ -1,6 +1,7 @@
 'use client';
 
-import { Flexbox, Text } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
@@ -15,9 +16,7 @@ const HeaderInfo = memo(() => {
   const title = useAgentStore(agentSelectors.currentAgentTitle);
   const { config } = useMobileConfig();
 
-  const displayTitle = isInbox
-    ? config.brand.displayName || DEFAULT_RUNTIME_BRAND.name
-    : title;
+  const displayTitle = isInbox ? config.brand.displayName || DEFAULT_RUNTIME_BRAND.name : title;
 
   return (
     <Flexbox

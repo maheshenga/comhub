@@ -1,9 +1,7 @@
 'use client';
 
-import { Typography } from 'antd';
+import { Text } from '@lobehub/ui/base-ui';
 import { useTranslation } from 'react-i18next';
-
-const { Text } = Typography;
 
 export const SecretHint = ({
   configured,

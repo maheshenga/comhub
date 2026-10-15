@@ -1,6 +1,7 @@
 import { type StorageMode } from '@lobechat/electron-client-ipc';
 import { StorageModeEnum } from '@lobechat/electron-client-ipc';
-import { Button, Center, Flexbox, Input, stopPropagation } from '@lobehub/ui';
+import { Center, Flexbox, stopPropagation } from '@lobehub/ui';
+import { Button, Input } from '@lobehub/ui/base-ui';
 import { LobeHub } from '@lobehub/ui/brand';
 import { createStaticStyles } from 'antd-style';
 import { Server } from 'lucide-react';
@@ -170,7 +171,6 @@ const ConnectionMode = memo<ConnectionModeProps>(({ setWaiting }) => {
                     autoFocus
                     className={styles.selfHostedInput}
                     placeholder="https://your-lobechat.com"
-                    status={urlError ? 'error' : undefined}
                     value={selfHostedUrl}
                     onClick={stopPropagation}
                     onChange={(e) => {

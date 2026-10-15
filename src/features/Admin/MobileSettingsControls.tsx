@@ -1,7 +1,7 @@
 'use client';
 
-import { Button, Flexbox } from '@lobehub/ui';
-import { Alert, Switch } from '@lobehub/ui/base-ui';
+import { Flexbox } from '@lobehub/ui';
+import { Alert, Button, Switch } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
@@ -35,7 +35,9 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     height: ${cssVar.controlHeight};
     border: 1px solid ${cssVar.colorBorder};
     border-radius: ${cssVar.borderRadius};
+
     background: ${cssVar.colorBgContainer};
+
     color: ${cssVar.colorText};
 
     /* Composed from adminDesignStyles.focusRing (token consumption). */

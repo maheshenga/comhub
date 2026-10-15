@@ -1,15 +1,13 @@
 'use client';
 
 import type { PaymentMethodId, PaymentProvider } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Typography } from 'antd';
+import { CopyButton, Flexbox } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 
 import { AdminDataTable } from '../shared';
 import { AdminTableState } from './AdminTableState';
 import { buildReconciliationColumns } from './reconciliationColumns';
-
-const { Text } = Typography;
 
 export type ModuleAppPaymentDiagnosticRow = {
   appId: string;
@@ -120,9 +118,12 @@ export const IdList = ({ ids }: { ids: Array<null | string | undefined> }) => {
   return values.length ? (
     <Flexbox gap={2} style={{ maxWidth: 220 }}>
       {values.map((id) => (
-        <Text code copyable key={id} style={{ overflowWrap: 'anywhere' }}>
-          {id}
-        </Text>
+        <Flexbox horizontal align="center" gap={2} key={id}>
+          <Text code style={{ overflowWrap: 'anywhere' }}>
+            {id}
+          </Text>
+          <CopyButton content={id} size="small" />
+        </Flexbox>
       ))}
     </Flexbox>
   ) : (

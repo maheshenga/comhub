@@ -1,6 +1,6 @@
 import { Block, Flexbox } from '@lobehub/ui';
 import { css, cx } from 'antd-style';
-import { memo, type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, memo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 const menuRootTopClassName = css`
@@ -64,17 +64,17 @@ const InputFloatMenu = memo<InputFloatMenuProps>(
 
     return createPortal(
       <Flexbox
+        paddingInline={8}
+        style={styles?.root}
+        width="100%"
         className={cx(
           placement === 'bottom' ? menuRootBottomClassName : menuRootTopClassName,
           classNames?.root,
         )}
-        paddingInline={8}
-        style={styles?.root}
-        width="100%"
       >
         <Block
-          className={cx(menuContainerClassName, className, classNames?.container)}
           shadow
+          className={cx(menuContainerClassName, className, classNames?.container)}
           style={{ maxHeight, ...style, ...styles?.container }}
           variant="outlined"
         >

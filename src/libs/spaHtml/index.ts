@@ -9,7 +9,7 @@ export const resolveViteDevOrigin = () =>
 
 const SERVER_CONFIG_PLACEHOLDER =
   /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*\/\*\s*SERVER_CONFIG\s*\*\//;
-const LOADING_BRAND_PLACEHOLDER = /<div\b(?=[^>]*\bid=["']loading-brand["'])[^>]*>[\s\S]*?<\/div>/;
+const LOADING_BRAND_PLACEHOLDER = /<div\b(?=[^>]+\bid=["']loading-brand["'])[^>]+>[\s\S]*?<\/div>/;
 
 async function rewriteViteAssetUrls(
   html: string,

@@ -16,37 +16,35 @@ vi.mock('@lobehub/ui', () => ({
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('antd', () => {
-  const Input = Object.assign(
-    (props: { value?: string }) => <input readOnly value={props.value} />,
-    { TextArea: (props: { value?: string }) => <textarea readOnly value={props.value} /> },
-  );
+vi.mock('@lobehub/ui/base-ui', () => {
+  const Input = (props: { value?: string }) => <input readOnly value={props.value} />;
+  const TextArea = (props: { value?: string }) => <textarea readOnly value={props.value} />;
 
   return {
-    Button: ({
-      children,
-      onClick,
-    }: {
-      children?: ReactNode;
-      onClick?: () => void;
-    }) => <button onClick={onClick}>{children}</button>,
+    Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
+      <button onClick={onClick}>{children}</button>
+    ),
     Input,
     Modal: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Popconfirm: ({
-      children,
-      onConfirm,
-    }: {
-      children?: ReactNode;
-      onConfirm?: () => Promise<void> | void;
-    }) => (
-      <div>
-        {children}
-        <button onClick={() => void onConfirm?.()}>Confirm action</button>
-      </div>
-    ),
-    Typography: { Text: ({ children }: { children?: ReactNode }) => <span>{children}</span> },
+    TextArea,
+    Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   };
 });
+
+vi.mock('antd', () => ({
+  Popconfirm: ({
+    children,
+    onConfirm,
+  }: {
+    children?: ReactNode;
+    onConfirm?: () => Promise<void> | void;
+  }) => (
+    <div>
+      {children}
+      <button onClick={() => void onConfirm?.()}>Confirm action</button>
+    </div>
+  ),
+}));
 
 vi.mock('@/libs/trpc/client', () => ({
   lambdaClient: {
@@ -89,7 +87,10 @@ describe('AdminDangerousActionButton effect forwarding', () => {
     const boundary = ADMIN_COMMANDS['user.impersonate.attempt'].serverBoundary;
     expect(boundary).toMatchObject({ kind: 'http', method: 'POST' });
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(boundary.kind === 'http' ? boundary.path : '', expect.anything());
+      expect(fetchMock).toHaveBeenCalledWith(
+        boundary.kind === 'http' ? boundary.path : '',
+        expect.anything(),
+      );
     });
     const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
     expect(JSON.parse(requestInit.body as string)).toEqual({

@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type * as AntdModule from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ImageUrlUploadInput from './ImageUrlUploadInput';
@@ -22,7 +21,7 @@ vi.mock('@/services/upload', () => ({
 }));
 
 vi.mock('antd', async (importOriginal) => {
-  const actual = await importOriginal<typeof AntdModule>();
+  const actual = await importOriginal<Record<string, unknown>>();
 
   return {
     ...actual,

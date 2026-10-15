@@ -17,7 +17,8 @@ import {
   rectSortingStrategy,
   SortableContext,
 } from '@dnd-kit/sortable';
-import { Flexbox, Icon, Text } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { LayersIcon } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';

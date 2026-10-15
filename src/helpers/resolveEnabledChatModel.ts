@@ -1,4 +1,4 @@
-import { ModelProvider } from 'model-bank';
+import { ModelProvider } from 'model-bank/modelProvider';
 
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
 

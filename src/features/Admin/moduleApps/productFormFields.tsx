@@ -1,8 +1,9 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { Form, Input, InputNumber, Select } from 'antd';
+import { Button, Input, InputNumber, Select } from '@lobehub/ui/base-ui';
+// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
+import { Form } from 'antd';
 import { Save } from 'lucide-react';
 
 type ProductType = 'free' | 'one_time' | 'subscription';
@@ -86,11 +87,7 @@ export const ProductFormFields = ({
       <Input disabled={Boolean(editing)} />
     </Form.Item>
     <Flexbox horizontal gap={12}>
-      <Form.Item
-        label={t('moduleApps.admin.products.type')}
-        name="productType"
-        style={{ flex: 1 }}
-      >
+      <Form.Item label={t('moduleApps.admin.products.type')} name="productType" style={{ flex: 1 }}>
         <Select
           options={typeOptions(t)}
           onChange={(value: ProductType) => {
@@ -199,6 +196,8 @@ export const ProductFormFields = ({
     </Flexbox>
     {editing ? (
       <Form.Item
+        label={t('moduleApps.admin.products.status')}
+        name="status"
         extra={
           // 停用是影响真实付费动作的状态切换，表单里先说清后果再让管理员提交。
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.status !== next.status}>
@@ -209,8 +208,6 @@ export const ProductFormFields = ({
             }
           </Form.Item>
         }
-        label={t('moduleApps.admin.products.status')}
-        name="status"
       >
         <Select
           options={[

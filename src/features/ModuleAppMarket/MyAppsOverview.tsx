@@ -4,8 +4,8 @@ import type {
   ModuleAppPackageSubmissionListResult,
   ModuleAppPackageSubmissionSummary,
 } from '@lobechat/types';
-import { Flexbox, Skeleton, Text } from '@lobehub/ui';
-import { Button, Input } from '@lobehub/ui/base-ui';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Input, SkeletonText, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -100,7 +100,7 @@ const statusClassNames = {
   rejected: styles.statusRejected,
 } as const;
 
-const Loading = () => <Skeleton active paragraph={{ rows: 2 }} title={false} />;
+const Loading = () => <SkeletonText fontSize={14} rows={2} />;
 
 export const ModuleAppMyAppsView = memo<ModuleAppMyAppsViewProps>(
   ({

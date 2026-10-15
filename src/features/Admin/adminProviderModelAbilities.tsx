@@ -1,5 +1,4 @@
-import { Flexbox } from '@lobehub/ui';
-import { Checkbox } from 'antd';
+import { CheckboxGroup } from '@lobehub/ui/base-ui';
 
 const ABILITY_KEYS = [
   'vision',
@@ -46,8 +45,13 @@ export const AiProviderModelAbilitiesCell = ({
   const manualAbilities = getManualAbilities(metadata);
 
   return (
-    <Checkbox.Group
+    <CheckboxGroup
+      gap={8}
       value={ABILITY_KEYS.filter((key) => manualAbilities[key])}
+      options={ABILITY_KEYS.map((key) => ({
+        label: t(`admin.providers.models.abilities.${key}`, key),
+        value: key,
+      }))}
       onChange={(values) => {
         const selected = new Set(values as AdminModelAbilityKey[]);
         onSave(
@@ -57,14 +61,6 @@ export const AiProviderModelAbilitiesCell = ({
           }, {}),
         );
       }}
-    >
-      <Flexbox horizontal gap={8} style={{ flexWrap: 'wrap' }}>
-        {ABILITY_KEYS.map((key) => (
-          <Checkbox key={key} value={key}>
-            {t(`admin.providers.models.abilities.${key}`, key)}
-          </Checkbox>
-        ))}
-      </Flexbox>
-    </Checkbox.Group>
+    />
   );
 };

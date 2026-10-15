@@ -1,4 +1,5 @@
 import { type TableProps } from 'antd';
+// eslint-disable-next-line no-restricted-imports -- InlineTable is the sanctioned antd Table wrapper for business settings pages (same role as Admin/shared/AdminDataTable): the base-ui Table is a separate tanstack-based re-implementation, and this wrapper's styles target the `.ant-table` class names its consumers rely on.
 import { ConfigProvider, Table } from 'antd';
 import { createStaticStyles, cssVar, cx } from 'antd-style';
 import { memo } from 'react';
