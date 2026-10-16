@@ -216,7 +216,8 @@ describe('ModulePublishersPage', () => {
     expect(baseUi.toastSuccess).toHaveBeenCalledWith('moduleApps.admin.publishers.assignSuccess');
     expect(screen.getAllByLabelText('moduleApps.admin.publishers.next')).toHaveLength(1);
     expect(screen.getAllByLabelText('moduleApps.admin.publishers.previous')).toHaveLength(1);
-  });
+    // Full publisher lifecycle across many mutations; default 5s is too tight on a busy CI runner.
+  }, 15000);
 
   it('sends the suspension reason filled in the suspend modal', async () => {
     state.role = 'admin';

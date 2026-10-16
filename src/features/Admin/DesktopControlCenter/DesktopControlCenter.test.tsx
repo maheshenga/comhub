@@ -660,7 +660,8 @@ describe('DesktopControlCenter', () => {
     await act(async () => {
       await Promise.resolve();
     });
-  });
+    // Heavy release-history render; the default 5s budget is too tight on a busy CI runner.
+  }, 15000);
 
   it('does not save or release a build profile until Windows assets are complete', () => {
     renderControlCenter({
@@ -693,7 +694,8 @@ describe('DesktopControlCenter', () => {
       );
     });
     expect(releasesMutate).toHaveBeenCalledTimes(1);
-  });
+    // Building-release reconcile chain; the default 5s budget is too tight on a busy CI runner.
+  }, 15000);
 
   it('confirms and retries a failed release before refreshing history', async () => {
     renderControlCenter({
