@@ -44,20 +44,22 @@ export const ChangeRequestFilters = ({
 );
 
 export const CursorPagination = ({
-  cursorStack,
+  hasNext: _hasNext,
+  hasPrevious,
   isLoading,
   onNext,
   onPrevious,
   t,
 }: {
-  cursorStack: number[];
+  hasNext: boolean;
+  hasPrevious: boolean;
   isLoading: boolean;
   onNext: () => void;
   onPrevious: () => void;
   t: TFn;
 }) => (
   <Flexbox horizontal align="center" gap={8}>
-    <Button disabled={cursorStack.length === 1} onClick={onPrevious}>
+    <Button disabled={!hasPrevious} onClick={onPrevious}>
       {t('admin.pagination.previous', '上一页')}
     </Button>
     <Button loading={isLoading} onClick={onNext}>
