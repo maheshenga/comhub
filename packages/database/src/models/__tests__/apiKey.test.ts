@@ -74,7 +74,7 @@ describe('ApiKeyModel', () => {
       const created = await apiKeyModel.createWithPlaintext({ name: 'One-time Key' });
 
       expect(created.key.startsWith(API_KEY_PREFIX)).toBe(true);
-      expect(created.key.slice(API_KEY_PREFIX.length)).toMatch(/^[\da-z]{16}$/);
+      expect(created.key.slice(API_KEY_PREFIX.length)).toMatch(/^[\da-f]{64}$/);
 
       const stored = await apiKeyModel.findById(created.id);
       expect(stored?.key).not.toBe(created.key);
@@ -158,7 +158,7 @@ describe('ApiKeyModel', () => {
       const keys = await apiKeyModel.query();
       expect(keys).toHaveLength(2);
       expect(keys[0].key.startsWith(API_KEY_PREFIX)).toBe(true);
-      expect(keys[0].key.slice(API_KEY_PREFIX.length)).toMatch(/^[\da-z]{16}$/);
+      expect(keys[0].key.slice(API_KEY_PREFIX.length)).toMatch(/^[\da-f]{64}$/);
     });
 
     it('keeps metadata queries free of decrypted plaintext', async () => {
@@ -207,7 +207,7 @@ describe('ApiKeyModel', () => {
       expect(staleResult).toMatchObject({ key: '', keyDecryptionFailed: true });
       expect(freshResult).toMatchObject({ keyDecryptionFailed: false });
       expect(freshResult?.key.startsWith(API_KEY_PREFIX)).toBe(true);
-      expect(freshResult?.key.slice(API_KEY_PREFIX.length)).toMatch(/^[\da-z]{16}$/);
+      expect(freshResult?.key.slice(API_KEY_PREFIX.length)).toMatch(/^[\da-f]{64}$/);
     });
 
     it('lets workspace admins list all keys while members only see their own', async () => {

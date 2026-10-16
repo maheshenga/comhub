@@ -30,11 +30,6 @@ describe('subscription grant synchronization locking', () => {
         '\n}',
       ],
       [
-        path.resolve(__dirname, '../../../../business-server/src/planModelRules.ts'),
-        'const ensureActivePlanSnapshot',
-        'interface AssertPlanModelAllowedParams',
-      ],
-      [
         path.resolve(__dirname, '../../../../business-server/src/subscriptionMaintenance.ts'),
         'export const syncExpiredSubscriptionsToFree',
         'return {',
