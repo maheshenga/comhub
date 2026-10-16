@@ -1407,6 +1407,11 @@ const MODULES = [
         'node module stub; conservative over-cover: also claims fork-new files (mobileHtmlFallback, nodeModuleStub tests)',
       ],
       ['p:packages/database/vitest.config.mts', 'upstream', 'db test aliases'],
+      [
+        'p:packages/database/vitest.config.server.mts',
+        'upstream',
+        'server-mode db test config; round-9 added alias-array form (appSettingsRegistry pin) + 30s hook/test timeout for shared-DB bootstrap under load',
+      ],
       ['p:packages/database/package.json', 'upstream', 'exports'],
       ['p:packages/business-server/package.json', 'upstream', 'test scripts + deps'],
       ['p:packages/business-server/vitest.config.mts', 'owned', 'business-server tests'],
