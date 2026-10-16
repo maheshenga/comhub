@@ -458,6 +458,13 @@ export class ModuleAppCatalogModel {
       }
       app = updated;
     } else {
+      // An explicit id that does not exist falls through to the insert path.
+      // If that slug is already owned by another app, fail with the friendly
+      // conflict error instead of a raw DB unique-constraint failure.
+      const slugOwner = await this.findAppBySlug(input.slug, db);
+      if (slugOwner) {
+        throw new Error('MODULE_APP_SLUG_TAKEN');
+      }
       const [inserted] = await db
         .insert(moduleApps)
         .values({ ...appValues, id: input.id })
