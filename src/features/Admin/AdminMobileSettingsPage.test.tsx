@@ -329,9 +329,10 @@ describe('AdminMobileSettingsPage', { timeout: 30_000 }, () => {
     ).toBeInTheDocument();
     // §7.3-1 flaky-watchlist fix: this selector-loading test runs ~14s in
     // isolation and inflates past its previous 30s timeout under full-suite
-    // parallel load (observed 32.65s in the M1 gate JSON). Budget 60s so the
-    // behavior assertion, not scheduler contention, decides the outcome.
-  }, 60_000);
+    // parallel load (observed 32.65s in the M1 gate JSON, then >60s on a
+    // busier runner). Budget 120s so the behavior assertion, not scheduler
+    // contention, decides the outcome.
+  }, 120_000);
 
   it('reorders and removes configurable tools, assistants, and app entries', async () => {
     setupLoaders(
