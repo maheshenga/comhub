@@ -10,8 +10,8 @@ import AdminSubscriptionsPage from './AdminSubscriptionsPage';
 
 const paginationData = (key: readonly unknown[]) => {
   const [resource] = key;
-  const cursor =
-    resource === 'admin-orders' ? key[1] : resource === 'admin-subscriptions' ? key[2] : key[3];
+  // 三页统一走 useAdminCursorQuery，swrKey 位形均为 [key, cursor, limit, ...deps]。
+  const cursor = key[1];
   const initial = cursor === undefined || cursor === 0;
 
   // filtered 空态（U5）接手后空列表会走 AdminPageState 分支，region 与

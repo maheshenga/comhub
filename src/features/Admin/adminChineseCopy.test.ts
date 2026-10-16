@@ -85,9 +85,9 @@ describe('admin Chinese copy', () => {
   });
 
   it('keeps legacy sidebar fallback labels aligned with the merged admin navigation', () => {
-    expect(subscription['admin.sidebar.orders']).toBe('订单与充值');
-    expect(subscription['admin.sidebar.topup']).toBe('充值入口已合并');
-    expect(subscription['admin.sidebar.pricing']).toBe('模型与计费矩阵');
+    expect(subscription['admin.sidebar.orders']).toBe('Orders and top-up');
+    expect(subscription['admin.sidebar.topup']).toBe('Top-up entry merged');
+    expect(subscription['admin.sidebar.pricing']).toBe('Models and billing matrix');
   });
 
   it('keeps subscription customer-facing business pages in Chinese', () => {
@@ -117,101 +117,109 @@ describe('admin Chinese copy', () => {
   });
 
   it('keeps recommendation admin locale labels in Chinese', () => {
-    expect(subscription['admin.recommendations.enabled']).toBe('启用推荐模块');
-    expect(subscription['admin.recommendations.criteria']).toBe('推荐条件');
-    expect(subscription['admin.recommendations.selectedTags']).toBe('用户选择标签');
-    expect(subscription['admin.recommendations.assistantsEnabled']).toBe('显示推荐助手');
-    expect(subscription['admin.recommendations.assistantTags']).toBe('助手标签/分类');
-    expect(subscription['admin.recommendations.mcpsEnabled']).toBe('显示推荐 MCP/工具');
-    expect(subscription['admin.recommendations.mcpCategories']).toBe('MCP 分类');
-    expect(subscription['admin.recommendations.skillsEnabled']).toBe('显示推荐技能');
-    expect(subscription['admin.recommendations.skillCategories']).toBe('推荐技能分类');
-    expect(subscription['admin.recommendations.generalSkillsEnabled']).toBe('显示通用技能');
-    expect(subscription['admin.recommendations.generalSkillCategories']).toBe('通用技能分类');
-    expect(subscription['admin.recommendations.hotSkillsEnabled']).toBe('显示热门技能');
-    expect(subscription['admin.recommendations.hotSkillSort']).toBe('热门技能排序');
-    expect(subscription['admin.recommendations.saveSuccess']).toBe('推荐配置已保存');
-    expect(subscription['admin.recommendations.saveFailed']).toBe('保存失败');
+    expect(subscription['admin.recommendations.enabled']).toBe('Enable recommendation module');
+    expect(subscription['admin.recommendations.criteria']).toBe('Recommendation criteria');
+    expect(subscription['admin.recommendations.selectedTags']).toBe('Selected user tags');
+    expect(subscription['admin.recommendations.assistantsEnabled']).toBe(
+      'Show recommended assistants',
+    );
+    expect(subscription['admin.recommendations.assistantTags']).toBe('Assistant tags/categories');
+    expect(subscription['admin.recommendations.mcpsEnabled']).toBe('Show recommended MCP/tools');
+    expect(subscription['admin.recommendations.mcpCategories']).toBe('MCP categories');
+    expect(subscription['admin.recommendations.skillsEnabled']).toBe('Show recommended skills');
+    expect(subscription['admin.recommendations.skillCategories']).toBe(
+      'Recommended skill categories',
+    );
+    expect(subscription['admin.recommendations.generalSkillsEnabled']).toBe('Show general skills');
+    expect(subscription['admin.recommendations.generalSkillCategories']).toBe(
+      'General skill categories',
+    );
+    expect(subscription['admin.recommendations.hotSkillsEnabled']).toBe('Show hot skills');
+    expect(subscription['admin.recommendations.hotSkillSort']).toBe('Hot skills sort order');
+    expect(subscription['admin.recommendations.saveSuccess']).toBe('Recommendation settings saved');
+    expect(subscription['admin.recommendations.saveFailed']).toBe('Save failed');
   });
 
   it('keeps operations growth orders and settings locale labels in Chinese', () => {
-    expect(subscription['admin.orders.actionSuccess']).toBe('订单已更新');
-    expect(subscription['admin.orders.cancel']).toBe('取消订单');
-    expect(subscription['admin.orders.col.amount']).toBe('金额');
-    expect(subscription['admin.orders.detail.title']).toBe('订单详情');
-    expect(subscription['admin.orders.detail.redemptionCode']).toBe('关联兑换码');
+    expect(subscription['admin.orders.actionSuccess']).toBe('Order updated');
+    expect(subscription['admin.orders.cancel']).toBe('Cancel order');
+    expect(subscription['admin.orders.col.amount']).toBe('Amount');
+    expect(subscription['admin.orders.detail.title']).toBe('Order details');
+    expect(subscription['admin.orders.detail.redemptionCode']).toBe('Linked redemption code');
     expect(subscription['admin.orders.detail.auditHint']).toBe(
-      '如需追踪后台操作，请在审计日志中按订单 ID 检索。',
+      'To trace admin actions, search the audit log by order ID.',
     );
-    expect(subscription['admin.orders.detail.viewAudit']).toBe('查看审计日志');
-    expect(subscription['admin.orders.loadMore']).toBe('加载更多');
-    expect(subscription['admin.orders.settle']).toBe('手动结算');
-    expect(subscription['admin.orders.settleConfirm']).toBe('确认手动结算这个待支付订单？');
+    expect(subscription['admin.orders.detail.viewAudit']).toBe('View audit log');
+    expect(subscription['admin.orders.loadMore']).toBe('Load more');
+    expect(subscription['admin.orders.settle']).toBe('Manual settle');
+    expect(subscription['admin.orders.settleConfirm']).toBe('Manually settle this pending order?');
     expect(subscription['admin.orders.settleConfirmDescription']).toBe(
-      '该操作会将订单标记为已支付并发放积分，请核对以下信息。',
+      'This marks the order as paid and grants credits. Please verify the details below.',
     );
 
-    expect(subscription['admin.operations.bannerSection']).toBe('社区横幅');
-    expect(subscription['admin.operations.featuredSection']).toBe('精选模块');
-    expect(subscription['admin.operations.saveSuccess']).toBe('运营配置已保存');
+    expect(subscription['admin.operations.bannerSection']).toBe('Community banner');
+    expect(subscription['admin.operations.featuredSection']).toBe('Featured modules');
+    expect(subscription['admin.operations.saveSuccess']).toBe('Operations settings saved');
 
-    expect(subscription['admin.growth.signupSection']).toBe('注册');
-    expect(subscription['admin.growth.initialCredits']).toBe('初始积分');
-    expect(subscription['admin.growth.uploadSection']).toBe('上传限制');
+    expect(subscription['admin.growth.signupSection']).toBe('Sign-up');
+    expect(subscription['admin.growth.initialCredits']).toBe('Initial credits');
+    expect(subscription['admin.growth.uploadSection']).toBe('Upload limits');
 
-    expect(subscription['admin.settings']).toBe('设置');
-    expect(subscription['admin.settings.title']).toBe('站点基础设置');
-    expect(subscription['admin.settings.save']).toBe('保存');
-    expect(subscription['admin.settings.noChanges']).toBe('没有需要保存的变更');
+    expect(subscription['admin.settings']).toBe('Settings');
+    expect(subscription['admin.settings.title']).toBe('Site settings');
+    expect(subscription['admin.settings.save']).toBe('Save');
+    expect(subscription['admin.settings.noChanges']).toBe('No changes to save');
     expect(subscription['admin.settings.brandName.help']).toBe(
-      '用于页面标题、导航、关于页面和站内品牌展示。',
+      'Used for the page title, navigation, About page, and in-site brand display.',
     );
     expect(subscription['admin.settings.defaultSkillName.help']).toBe(
-      '用于配置内置默认技能的显示名称；留空时使用品牌名称。',
+      'Display name of the built-in default skill; falls back to the brand name when left blank.',
     );
     expect(subscription['admin.settings.defaultModel.help']).toBe(
-      '默认模型、模型套餐权限和模型计费请在“模型与计费矩阵”维护。',
+      'Maintain the default model, model plan access, and model billing in the model and billing matrix.',
     );
     expect(subscription['admin.settings.defaultProvider.help']).toBe(
-      '默认模型服务商已迁移到“模型与计费矩阵”维护。',
+      'The default model provider has been migrated to the model and billing matrix.',
     );
     expect(subscription['admin.settings.defaultImageProvider.help']).toBe(
-      '默认图像模型服务商已迁移到“模型与计费矩阵”维护。',
+      'The default image model provider has been migrated to the model and billing matrix.',
     );
     expect(subscription['admin.settings.defaultVideoProvider.help']).toBe(
-      '默认视频模型服务商已迁移到“模型与计费矩阵”维护。',
+      'The default video model provider has been migrated to the model and billing matrix.',
     );
   });
 
   it('keeps default admin desktop update labels in Chinese', () => {
-    expect(subscription['admin.sidebar.desktopUpdate']).toBe('桌面端控制中心');
-    expect(subscription['admin.desktopUpdate.businessSection']).toBe('桌面业务连接');
-    expect(subscription['admin.desktopUpdate.serverSection']).toBe('更新服务');
-    expect(subscription['admin.desktopUpdate.downloadSection']).toBe('客户端下载入口');
-    expect(subscription['admin.desktopUpdate.channel']).toBe('默认更新渠道');
-    expect(subscription['admin.desktopUpdate.save']).toBe('保存');
+    expect(subscription['admin.sidebar.desktopUpdate']).toBe('Desktop Control Center');
+    expect(subscription['admin.desktopUpdate.businessSection']).toBe('Desktop Business Connection');
+    expect(subscription['admin.desktopUpdate.serverSection']).toBe('Update Service');
+    expect(subscription['admin.desktopUpdate.downloadSection']).toBe('Client Download Entry');
+    expect(subscription['admin.desktopUpdate.channel']).toBe('Default update channel');
+    expect(subscription['admin.desktopUpdate.save']).toBe('Save');
   });
 
   it('includes default Chinese copy for provider instance management', () => {
-    expect(subscription['admin.providers.createInstance']).toBe('新建实例');
-    expect(subscription['admin.providers.empty']).toBe('暂未配置服务商实例');
-    expect(subscription['admin.providers.field.providerType']).toBe('服务商类型');
+    expect(subscription['admin.providers.createInstance']).toBe('Create instance');
+    expect(subscription['admin.providers.empty']).toBe('No provider instances configured yet');
+    expect(subscription['admin.providers.field.providerType']).toBe('Provider type');
     expect(subscription['admin.providers.field.providerTypeNewapiHint']).toBe(
-      'AI 服务商网关支持同步模型和价格。',
+      'AI provider gateways support syncing models and pricing.',
     );
-    expect(subscription['admin.providers.field.upstreamPricing']).toBe('同步上游价格');
+    expect(subscription['admin.providers.field.upstreamPricing']).toBe('Sync upstream pricing');
     expect(subscription['admin.providers.field.lobeHubOfficialPricing']).toBe(
-      '使用 LobeHub 官方价格',
+      'Use LobeHub official pricing',
     );
-    expect(subscription['admin.providers.field.modelBankFallback']).toBe('按模型名使用系统价格');
+    expect(subscription['admin.providers.field.modelBankFallback']).toBe(
+      'Use system pricing by model name',
+    );
     expect(subscription['admin.providers.models.bulkAddHint']).toBe(
-      '可批量添加模型 ID，使用换行或逗号分隔。',
+      'You can add model IDs in bulk, separated by line breaks or commas.',
     );
     expect(subscription['admin.providers.sync.success']).toBe(
-      '同步完成：删除 {{deletedCount}} 个旧模型，导入 {{count}} 个新模型；同步价格 {{pricingCount}} 条，能力信息覆盖 {{abilitiesCount}} 个模型。新模型默认未启用。',
+      'Sync complete: deleted {{deletedCount}} old models and imported {{count}} new models; synchronized {{pricingCount}} prices and capability data for {{abilitiesCount}} models. New models are disabled.',
     );
-    expect(subscription['admin.providers.test.failed']).toBe('连接失败：{{error}}');
-    expect(subscription['admin.providers.col.providerType']).toBe('服务商');
+    expect(subscription['admin.providers.test.failed']).toBe('Connection failed: {{error}}');
+    expect(subscription['admin.providers.col.providerType']).toBe('Provider');
   });
 
   it('keeps redemption filters in Chinese', () => {
@@ -222,33 +230,35 @@ describe('admin Chinese copy', () => {
   });
 
   it('includes default Chinese copy for redemption bulk action flow', () => {
-    expect(subscription['admin.bulkAction.count']).toBe('将处理 {{count}} 个项目。');
-    expect(subscription['admin.bulkAction.progress']).toBe('正在执行批量操作，请勿关闭页面。');
-    expect(subscription['admin.bulkAction.done']).toBe('批量操作已完成');
+    expect(subscription['admin.bulkAction.count']).toBe('{{count}} items will be processed.');
+    expect(subscription['admin.bulkAction.progress']).toBe(
+      'Running bulk action. Keep this page open.',
+    );
+    expect(subscription['admin.bulkAction.done']).toBe('Bulk action completed');
     expect(subscription['admin.redemption.bulkDisableProgress']).toBe(
-      '正在停用选中的兑换码，请勿关闭页面。',
+      'Disabling selected redemption codes. Keep this page open.',
     );
     expect(subscription['admin.redemption.bulkDeleteProgress']).toBe(
-      '正在删除选中的未兑换兑换码，请勿关闭页面。',
+      'Deleting selected unredeemed codes. Keep this page open.',
     );
     expect(subscription['admin.changeRequests.bulkApproveProgress']).toBe(
-      '正在通过选中的套餐变更请求，请勿关闭页面。',
+      'Approving selected subscription change requests. Keep this page open.',
     );
     expect(subscription['admin.changeRequests.bulkRejectProgress']).toBe(
-      '正在拒绝选中的套餐变更请求，请勿关闭页面。',
+      'Rejecting selected subscription change requests. Keep this page open.',
     );
   });
 
   it('includes default Chinese copy for the M5 three-domain batch actions', () => {
-    expect(subscription['admin.orders.bulkExpire']).toBe('批量过期');
-    expect(subscription['admin.orders.bulkExpireTitle']).toBe('批量过期 {{count}} 个待支付订单？');
-    expect(subscription['admin.orders.bulkCancel']).toBe('批量取消');
-    expect(subscription['admin.orders.bulkDryRun']).toBe('预检');
-    expect(subscription['admin.users.bulkBan']).toBe('批量封禁');
-    expect(subscription['admin.users.bulkSetRole']).toBe('批量改角色');
-    expect(subscription['admin.users.clearSelection']).toBe('清空选择');
-    expect(subscription['admin.payments.topups.bulkRefund']).toBe('批量退款');
-    expect(subscription['admin.payments.subscriptions.bulkRefund']).toBe('批量退款');
+    expect(subscription['admin.orders.bulkExpire']).toBe('Bulk expire');
+    expect(subscription['admin.orders.bulkExpireTitle']).toBe('Expire {{count}} pending orders?');
+    expect(subscription['admin.orders.bulkCancel']).toBe('Bulk cancel');
+    expect(subscription['admin.orders.bulkDryRun']).toBe('Dry run');
+    expect(subscription['admin.users.bulkBan']).toBe('Bulk ban');
+    expect(subscription['admin.users.bulkSetRole']).toBe('Bulk set role');
+    expect(subscription['admin.users.clearSelection']).toBe('Clear selection');
+    expect(subscription['admin.payments.topups.bulkRefund']).toBe('Bulk refund');
+    expect(subscription['admin.payments.subscriptions.bulkRefund']).toBe('Bulk refund');
   });
 
   it('includes default Chinese copy for assigning user plans from the user list', () => {
@@ -258,9 +268,9 @@ describe('admin Chinese copy', () => {
       readRepoFile('src/routes/(main)/admin/users/index.tsx') +
       readRepoFile('src/features/Admin/Users/userColumns.tsx');
 
-    expect(subscription['admin.assignPlan']).toBe('设置套餐');
-    expect(subscription['admin.assignPlan.title']).toBe('设置用户套餐');
-    expect(subscription['admin.assignPlan.durationMonths']).toBe('使用时长（月）');
+    expect(subscription['admin.assignPlan']).toBe('Set plan');
+    expect(subscription['admin.assignPlan.title']).toBe('Set User Plan');
+    expect(subscription['admin.assignPlan.durationMonths']).toBe('Duration (months)');
     expect(usersPage).toContain("t('admin.assignPlan', '设置套餐')");
     expect(usersPage).toContain('adminCommercialService.assignUserPlan');
     expect(usersPage).toContain("t('admin.impersonate', '以用户身份登录')");

@@ -268,6 +268,34 @@ describe('ModuleAppModel marketplace behavior', () => {
     expect(rows[0]).toMatchObject({ displayName: 'Record Desk', slug: 'record-desk' });
   });
 
+  it('rejects upserting with an unknown explicit id whose slug is already taken', async () => {
+    const app = await createRecordDesk();
+
+    // Unknown explicit id falls through to the insert path; a taken slug must
+    // surface the friendly conflict error instead of a raw DB unique failure.
+    await expect(
+      model.upsertAppForAdmin({
+        actions: [],
+        appType: 'standard_app',
+        billing: baseBilling,
+        category: 'productivity',
+        description: 'Unknown id colliding with the record-desk slug',
+        displayName: 'Record Desk Clone',
+        icon: 'Notebook',
+        id: '00000000-0000-4000-8000-000000000001',
+        pages: [],
+        slug: 'record-desk',
+        source: 'admin',
+        status: 'draft',
+        tags: [],
+      }),
+    ).rejects.toThrow('MODULE_APP_SLUG_TAKEN');
+
+    const rows = await serverDB.query.moduleApps.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: app.id, slug: 'record-desk' });
+  });
+
   it('updates by explicit id without slug fallback and still allows a fresh slug', async () => {
     const app = await createRecordDesk();
 

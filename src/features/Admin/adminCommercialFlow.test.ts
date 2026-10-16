@@ -592,7 +592,9 @@ describe('admin commercial flow pages', () => {
     expect(matrixBillingBasisSource()).toContain('disabled');
     expect(matrixBillingBasisSource()).toContain("'admin.pricing.ordersEnabled'");
     expect(billingMatrixPage).not.toContain('SETTING_KEYS.ordersManagementEnabled');
-    expect(defaultLocale).toContain("'admin.pricing.ordersEnabled': '在线平台支付（已关闭）'");
+    expect(defaultLocale).toContain(
+      "'admin.pricing.ordersEnabled': 'Online platform payment (disabled)'",
+    );
     expect(enLocale).toContain(
       '"admin.pricing.ordersEnabled": "Online platform payment (disabled)"',
     );

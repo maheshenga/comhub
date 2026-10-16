@@ -2,10 +2,9 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { toast } from '@lobehub/ui/base-ui';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
@@ -19,6 +18,7 @@ import {
 } from './ChangeRequests/shared';
 import { AdminPageError, AdminPageShell, AdminSection, AdminToolbar } from './layout';
 import { AdminDataTable } from './shared';
+import { useAdminCursorQuery } from './shared/useAdminCursorQuery';
 
 type AdminChangeRequestsPageProps = {
   embedded?: boolean;
@@ -28,26 +28,30 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
   const { t } = useTranslation('subscription');
   const [status, setStatus] = useState<ChangeRequestStatusFilter>('pending');
   const [userIdFilter, setUserIdFilter] = useState('');
-  const [cursorStack, setCursorStack] = useState([0]);
-  const cursor = cursorStack.at(-1) ?? 0;
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<{ id: string; reason: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const swrKey = useMemo(
-    () => ['admin-change-requests', status, userIdFilter, cursor] as const,
-    [status, userIdFilter, cursor],
-  );
+  // T1 样板（AdminOrdersPage §useAdminCursorQuery）：手搓 cursorStack（[0] 起）
+  // 与 status/userIdFilter 变化重置收编进 primitive；首页 fetch 序列化层保持
+  // cursor ?? 0，limit 50 与 status==='all'/userIdFilter 空串映射逐字节不变。
+  const crQuery = useAdminCursorQuery<number, { items: any[]; nextCursor: number | null }>({
+    key: 'admin-change-requests',
+    deps: [status, userIdFilter],
+    fetcher: ({ cursor, limit }) =>
+      adminCommercialService.listChangeRequests({
+        cursor: cursor ?? 0,
+        limit,
+        status: status === 'all' ? undefined : status,
+        userId: userIdFilter || undefined,
+      }),
+  });
+  const { data, error, isLoading, mutate } = crQuery;
+  const cursor = crQuery.state.cursor ?? 0;
 
-  const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
-    adminCommercialService.listChangeRequests({
-      cursor,
-      limit: 50,
-      status: status === 'all' ? undefined : status,
-      userId: userIdFilter || undefined,
-    }),
-  );
-
+  // 选中集跨页/改筛选清空是既有行为契约：旧实现依赖 [cursor, status,
+  // userIdFilter]（cursorStack 首页值为 0）；迁移后 cursor 取 query.state.cursor
+  // ?? 0 同一值域，契约不变。
   useEffect(() => {
     setSelectedIds([]);
   }, [cursor, status, userIdFilter]);
@@ -134,14 +138,8 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
           status={status}
           t={t as any}
           userIdFilter={userIdFilter}
-          onStatusChange={(value) => {
-            setStatus(value);
-            setCursorStack([0]);
-          }}
-          onUserIdFilterChange={(value) => {
-            setUserIdFilter(value);
-            setCursorStack([0]);
-          }}
+          onStatusChange={setStatus}
+          onUserIdFilterChange={setUserIdFilter}
         />
       </AdminToolbar>
 
@@ -186,23 +184,21 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
               onClearFilters={() => {
                 setStatus('all');
                 setUserIdFilter('');
-                setCursorStack([0]);
               }}
             />
           </AdminSection>
         </>
       )}
 
-      {(cursorStack.length > 1 || data?.nextCursor != null) && (
+      {(crQuery.hasPrevious || crQuery.hasNext) && (
         <AdminToolbar>
           <CursorPagination
-            cursorStack={cursorStack}
+            hasNext={crQuery.hasNext}
+            hasPrevious={crQuery.hasPrevious}
             isLoading={isLoading}
             t={t as any}
-            onNext={() => setCursorStack((current) => [...current, data!.nextCursor!])}
-            onPrevious={() =>
-              setCursorStack((current) => (current.length > 1 ? current.slice(0, -1) : current))
-            }
+            onNext={crQuery.pager.onNext}
+            onPrevious={crQuery.pager.onPrevious}
           />
         </AdminToolbar>
       )}
