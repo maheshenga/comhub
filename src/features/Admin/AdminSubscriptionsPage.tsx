@@ -1,6 +1,5 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
 import { Button, Select, Tabs, Tag, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
@@ -11,7 +10,6 @@ import {
   formatCurrencyAmount,
 } from '@/business/client/BusinessSettingPages/shared';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
-import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminChangeRequestsPage from './AdminChangeRequestsPage';
@@ -19,8 +17,10 @@ import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
 import { AdminPageShell, AdminSection, AdminToolbar } from './layout';
 import { AdminDataTable } from './shared';
 import { AdminPageError } from './shared/AdminPageState';
+import { useAdminCursorQuery } from './shared/useAdminCursorQuery';
 import ForcePlanModal from './Subscriptions/ForcePlanModal';
 import { PLAN_COLORS, type PlanFilter, STATUS_COLORS } from './Subscriptions/shared';
+import { SubscriptionsPager } from './Subscriptions/SubscriptionsPager';
 
 const styles = createStaticStyles(({ css }) => ({
   filter: css`
@@ -35,8 +35,6 @@ const styles = createStaticStyles(({ css }) => ({
 const AdminSubscriptionsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [plan, setPlan] = useState<PlanFilter>('all');
-  const [cursorStack, setCursorStack] = useState<Array<number | undefined>>([undefined]);
-  const cursor = cursorStack.at(-1);
   const [forceModal, setForceModal] = useState<{
     cycle: AdminSubscriptionCycle;
     plan: string;
@@ -46,31 +44,28 @@ const AdminSubscriptionsPage = memo(() => {
   }>({ cycle: 'monthly', plan: 'free', reason: '', userId: '', visible: false });
   const [submitting, setSubmitting] = useState(false);
 
-  const swrKey = useMemo(() => ['admin-subscriptions', plan, cursor] as const, [plan, cursor]);
-
-  const { data, error, isLoading, mutate } = useClientDataSWR(swrKey, () =>
-    adminCommercialService.listSubscriptions({
-      cursor,
-      limit: 20,
-      plan: plan === 'all' ? undefined : plan,
-    }),
-  );
+  // T1 样板（AdminOrdersPage §useAdminCursorQuery）：手搓 cursorStack 与 plan
+  // 变化重置收编进 primitive；首页 fetch 序列化层保持 cursor ?? undefined，
+  // limit 20 与 plan==='all'→undefined 映射逐字节不变。refresh 用 primitive
+  // 的 mutate（swrKey 单一事实源在 hook 内部）。
+  const subsQuery = useAdminCursorQuery<number, { items: any[]; nextCursor: number | null }>({
+    key: 'admin-subscriptions',
+    deps: [plan],
+    fetcher: ({ cursor, limit }) =>
+      adminCommercialService.listSubscriptions({
+        cursor: cursor ?? undefined,
+        limit,
+        plan: plan === 'all' ? undefined : plan,
+      }),
+    limit: 20,
+  });
+  const { data, error, isLoading, mutate } = subsQuery;
 
   const items = data?.items ?? [];
-  const nextCursor = data?.nextCursor;
 
   const handlePlanFilterChange = (value: PlanFilter) => {
     setPlan(value);
-    setCursorStack([undefined]);
   };
-
-  const handleNextPage = () => {
-    if (nextCursor == null) return;
-    setCursorStack((current) => [...current, nextCursor]);
-  };
-
-  const handlePreviousPage = () =>
-    setCursorStack((current) => (current.length > 1 ? current.slice(0, -1) : current));
 
   const openForceModal = (userId: string) => {
     setForceModal({ cycle: 'monthly', plan: 'free', reason: '', userId, visible: true });
@@ -233,19 +228,18 @@ const AdminSubscriptionsPage = memo(() => {
                   />
                 )}
 
-                {(cursorStack.length > 1 || nextCursor != null) && (
-                  <Flexbox horizontal align="center" gap={8}>
-                    <Button disabled={cursorStack.length === 1} onClick={handlePreviousPage}>
-                      {t('admin.pagination.previous', '上一页')}
-                    </Button>
-                    <Button
-                      disabled={nextCursor == null}
-                      loading={isLoading}
-                      onClick={handleNextPage}
-                    >
-                      {t('admin.pagination.next', '下一页')}
-                    </Button>
-                  </Flexbox>
+                {(subsQuery.hasPrevious || subsQuery.hasNext) && (
+                  <SubscriptionsPager
+                    hasNext={subsQuery.hasNext}
+                    hasPrevious={subsQuery.hasPrevious}
+                    isLoading={isLoading}
+                    t={t as any}
+                    positionLabel={t('admin.pagination.pagePosition', '第 {{page}} 页', {
+                      page: subsQuery.depth,
+                    })}
+                    onNext={subsQuery.pager.onNext}
+                    onPrevious={subsQuery.pager.onPrevious}
+                  />
                 )}
 
                 <ForcePlanModal
