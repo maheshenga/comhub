@@ -72,6 +72,10 @@ export default defineConfig({
       reporter: ['text', 'json'],
     },
     environment: 'happy-dom',
+    // Shared test-DB bootstrap (getTestDB) can exceed the 10s hook default when
+    // the full src/models suite runs in parallel.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     exclude: [
       'node_modules/**/**',
       'src/server/**/**',

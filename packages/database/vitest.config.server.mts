@@ -62,6 +62,10 @@ export default defineConfig({
       TEST_SERVER_DB: '1',
     },
     environment: 'node',
+    // Shared test-DB bootstrap (getTestDB) can exceed the 10s hook default when
+    // the full src/models suite runs in parallel.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     isolate: false,
     maxWorkers: 1,
     setupFiles: './tests/setup-db.ts',
