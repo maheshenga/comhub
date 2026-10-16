@@ -14,6 +14,8 @@ const topicId = 'test-topic-1';
 let messageModel: MessageModel;
 let serverDB: LobeChatDatabase;
 
+// The shared test database bootstrap can exceed the 10s hook budget when the
+// full src/models suite runs in parallel.
 beforeEach(async () => {
   serverDB = await getTestDB();
 
@@ -31,7 +33,7 @@ beforeEach(async () => {
 
   // Initialize model
   messageModel = new MessageModel(serverDB, userId);
-});
+}, 30_000);
 
 afterEach(async () => {
   await serverDB.delete(users);

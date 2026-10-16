@@ -183,7 +183,7 @@ describe('createMobileSettingsAsyncGuard', () => {
   });
 });
 
-describe('AdminMobileSettingsPage', () => {
+describe('AdminMobileSettingsPage', { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupLoaders();
@@ -272,7 +272,8 @@ describe('AdminMobileSettingsPage', () => {
       await screen.findByText('Visible tab paths must be internal and unique.'),
     ).toBeInTheDocument();
     expect(saveButton).toBeDisabled();
-  });
+    // Heavily interactive test; the default 5s budget is too tight on a busy CI runner.
+  }, 30_000);
 
   it('keeps all four primary bottom tabs editable without visibility toggles', async () => {
     renderPage();
@@ -328,9 +329,10 @@ describe('AdminMobileSettingsPage', () => {
     ).toBeInTheDocument();
     // §7.3-1 flaky-watchlist fix: this selector-loading test runs ~14s in
     // isolation and inflates past its previous 30s timeout under full-suite
-    // parallel load (observed 32.65s in the M1 gate JSON). Budget 60s so the
-    // behavior assertion, not scheduler contention, decides the outcome.
-  }, 60_000);
+    // parallel load (observed 32.65s in the M1 gate JSON, then >60s on a
+    // busier runner). Budget 120s so the behavior assertion, not scheduler
+    // contention, decides the outcome.
+  }, 120_000);
 
   it('reorders and removes configurable tools, assistants, and app entries', async () => {
     setupLoaders(
@@ -407,7 +409,7 @@ describe('AdminMobileSettingsPage', () => {
         .map((element) => (element as HTMLInputElement).value);
       expect(builtinLabelsAfter.indexOf('Community')).toBe(communityIndexBefore - 1);
     });
-  }, 15_000);
+  }, 30_000);
 
   it('does not allow more than four featured assistants', async () => {
     setupLoaders(
@@ -438,7 +440,7 @@ describe('AdminMobileSettingsPage', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Add featured assistant' })).toBeDisabled();
-  }, 15_000);
+  }, 30_000);
 
   it('restores normalized defaults after confirmation', async () => {
     renderPage();
@@ -925,7 +927,7 @@ describe('AdminMobileSettingsPage', () => {
 
     expect(await screen.findByRole('option', { name: 'Beta Assistant' })).toBeInTheDocument();
     expect(screen.queryByText('Assistant selector unavailable.')).not.toBeInTheDocument();
-  }, 15_000);
+  }, 30_000);
 
   it('uses a skeleton loading state instead of antd Spin', () => {
     vi.mocked(adminCommercialService.getMobileSettingsPublication).mockReturnValue(

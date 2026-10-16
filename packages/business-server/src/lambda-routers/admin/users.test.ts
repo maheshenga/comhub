@@ -337,6 +337,8 @@ describe('adminUsersRouter compact detail', () => {
       .fn()
       .mockResolvedValueOnce({ banned: false, role: 'finance_admin' })
       .mockResolvedValueOnce({
+        banExpires: new Date('2026-02-01T00:00:00.000Z'),
+        banReason: 'spam',
         banned: false,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
         id: 'target-user',
@@ -351,6 +353,8 @@ describe('adminUsersRouter compact detail', () => {
         userId: 'target-user',
       }),
     ).resolves.toEqual({
+      banExpires: new Date('2026-02-01T00:00:00.000Z'),
+      banReason: 'spam',
       banned: false,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       id: 'target-user',
@@ -361,7 +365,15 @@ describe('adminUsersRouter compact detail', () => {
     expect(findFirst).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        columns: { banned: true, createdAt: true, id: true, lastActiveAt: true, role: true },
+        columns: {
+          banExpires: true,
+          banReason: true,
+          banned: true,
+          createdAt: true,
+          id: true,
+          lastActiveAt: true,
+          role: true,
+        },
       }),
     );
     expect(JSON.stringify(await findFirst.mock.results[1].value)).not.toContain('email');

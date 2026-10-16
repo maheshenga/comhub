@@ -277,6 +277,8 @@ describe('adminCommercialService NewAPI helpers', () => {
 
   it('uses the compact user detail endpoint for cross-domain drawers', async () => {
     vi.mocked(lambdaClient.admin.users.compactDetail.query).mockResolvedValue({
+      banExpires: null,
+      banReason: null,
       banned: false,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       id: 'target-user',

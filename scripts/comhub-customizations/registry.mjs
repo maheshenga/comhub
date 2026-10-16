@@ -52,7 +52,7 @@ const MODULES = [
     ],
     tests: ['packages/database/src/models/__tests__/migrationChain.test.ts'],
     notes:
-      'Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations. 23 orphan original SQL files remain on disk unreferenced by _journal.json (upstream originals of 0104-0109 and 0111-0126, plus 0065_add_document_fields which is upstream-inherent); scripts/verifyMigrationChain.mjs reports them as a warning (report-only, never fails) — the count must stay stable, an unexpected delta means a merge landed on an orphan copy and must be remapped by hand. v2.2.19 wave (upstream 0167-0175 → fork 0179-0187) left NO orphan originals on disk: the merge deleted the upstream-named copies when re-adding them under 0179-0187. The upstream journal tail is now idx 175 (tag 0175_environment_visibility_and_build_state) — the next upstream wave appends after fork 0188 (0188_module_app_publisher_suspension_reason) with the same verbatim + idx-shift-only treatment.',
+      'Never reorder/renumber deployed migrations. New upstream migrations append after the ComHub tail. 0178 replays skipped 0127-0148 guarded by created_at checks. CI: pnpm verify:database-migrations. The 23 orphan original SQL files (upstream originals of 0104-0109 and 0111-0126, plus 0065_add_document_fields which is upstream-inherent) were archived in round 9 (2026-10) into packages/database/migrations/orphan-archive/ — contents byte-identical, _journal.json untouched; drizzle reads only journal-tagged files, so the subdirectory has zero runtime impact and the top-level orphan warning from scripts/verifyMigrationChain.mjs is expected to disappear. Warning semantics remain: the top-level orphan count must stay at zero; a reappearing or unexpected orphan means a merge landed on an orphan copy and the journal entry must be remapped by hand to the fork twin versions (see packages/database/migrations/orphan-archive/README.md). v2.2.19 wave (upstream 0167-0175 → fork 0179-0187) left NO orphan originals on disk: the merge deleted the upstream-named copies when re-adding them under 0179-0187. The upstream journal tail is now idx 175 (tag 0175_environment_visibility_and_build_state) — the next upstream wave appends after fork 0188 (0188_module_app_publisher_suspension_reason) with the same verbatim + idx-shift-only treatment.',
   },
   {
     id: 'branding',
@@ -1407,6 +1407,11 @@ const MODULES = [
         'node module stub; conservative over-cover: also claims fork-new files (mobileHtmlFallback, nodeModuleStub tests)',
       ],
       ['p:packages/database/vitest.config.mts', 'upstream', 'db test aliases'],
+      [
+        'p:packages/database/vitest.config.server.mts',
+        'upstream',
+        'server-mode db test config; round-9 added alias-array form (appSettingsRegistry pin) + 30s hook/test timeout for shared-DB bootstrap under load',
+      ],
       ['p:packages/database/package.json', 'upstream', 'exports'],
       ['p:packages/business-server/package.json', 'upstream', 'test scripts + deps'],
       ['p:packages/business-server/vitest.config.mts', 'owned', 'business-server tests'],

@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -11,22 +12,36 @@ export default defineConfig({
     },
   ],
   test: {
-    alias: {
-      '@/const': resolve(__dirname, '../const/src'),
-      '@/utils/errorResponse': resolve(__dirname, '../../src/utils/errorResponse'),
-      '@/utils': resolve(__dirname, '../utils/src'),
-      '@/database': resolve(__dirname, '../database/src'),
-      '@/libs/model-runtime': resolve(__dirname, '../model-runtime/src'),
-      '@/types': resolve(__dirname, '../types/src'),
-      '@/config': resolve(__dirname, '../app-config/src'),
-      '@/envs': resolve(__dirname, '../env/src'),
-      '@/libs/trpc': resolve(__dirname, '../trpc/src'),
-      '@/locales': resolve(__dirname, '../locales/src'),
-      '@/business/server': resolve(__dirname, '../business-server/src'),
-      '@/server/services': resolve(__dirname, '../../apps/server/src/services'),
-      '@/server/modules': resolve(__dirname, '../../apps/server/src/modules'),
-      '@': resolve(__dirname, '../../src'),
-    },
+    alias: [
+      // `@/server/services/appSettings` (under src/server) pulls `@/const/appSettingsRegistry`,
+      // which only exists under the repo-root src/const (not packages/const) — pin the
+      // exact file before the directory-level `@/const` alias.
+      {
+        find: '@/const/appSettingsRegistry',
+        replacement: resolve(__dirname, '../../src/const/appSettingsRegistry.ts'),
+      },
+      { find: '@/const', replacement: resolve(__dirname, '../const/src') },
+      { find: '@/business/server', replacement: resolve(__dirname, '../business-server/src') },
+      {
+        find: '@/utils/errorResponse',
+        replacement: resolve(__dirname, '../../src/utils/errorResponse'),
+      },
+      { find: '@/utils', replacement: resolve(__dirname, '../utils/src') },
+      { find: '@/database', replacement: resolve(__dirname, '../database/src') },
+      { find: '@/libs/model-runtime', replacement: resolve(__dirname, '../model-runtime/src') },
+      { find: '@/types', replacement: resolve(__dirname, '../types/src') },
+      { find: '@/config', replacement: resolve(__dirname, '../app-config/src') },
+      { find: '@/envs', replacement: resolve(__dirname, '../env/src') },
+      { find: '@/libs/trpc', replacement: resolve(__dirname, '../trpc/src') },
+      { find: '@/locales', replacement: resolve(__dirname, '../locales/src') },
+      {
+        find: '@/server/services/appSettings',
+        replacement: resolve(__dirname, '../../src/server/services/appSettings'),
+      },
+      { find: '@/server/services', replacement: resolve(__dirname, '../../apps/server/src/services') },
+      { find: '@/server/modules', replacement: resolve(__dirname, '../../apps/server/src/modules') },
+      { find: '@', replacement: resolve(__dirname, '../../src') },
+    ],
     coverage: {
       exclude: [
         // https://github.com/lobehub/lobe-chat/pull/7265
@@ -47,6 +62,10 @@ export default defineConfig({
       TEST_SERVER_DB: '1',
     },
     environment: 'node',
+    // Shared test-DB bootstrap (getTestDB) can exceed the 10s hook default when
+    // the full src/models suite runs in parallel.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     isolate: false,
     maxWorkers: 1,
     setupFiles: './tests/setup-db.ts',

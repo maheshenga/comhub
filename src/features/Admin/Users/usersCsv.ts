@@ -4,10 +4,13 @@
  * 用户 CSV 导出（B2 拆分自 routes/(main)/admin/users/index.tsx，字节级
  * 同逻辑迁移：header 列、转义与文件名规则保持不变）。
  */
+import type { TFunction } from 'i18next';
+
 export const exportUsersCsv = async (
   rows: Array<Record<string, unknown>>,
-   
-  t: any,
+  // Narrow helper-local view of i18next TFunction<'subscription'>; keeps this
+  // module decoupled from the generated resource-key union.
+  t: TFunction<'subscription'>,
 ) => {
   const header = [
     'id',
@@ -50,5 +53,5 @@ export const exportUsersCsv = async (
   link.href = URL.createObjectURL(blob);
   link.click();
   URL.revokeObjectURL(link.href);
-  t('admin.exportSuccess', `已导出 ${rows.length} 条`);
+  t('admin.exportSuccess', { count: rows.length });
 };

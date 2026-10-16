@@ -352,9 +352,9 @@ const AdminUsersPage = memo(() => {
         query: query || undefined,
       });
       exportUsersCsv(result.items as any[], t);
-      toast.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
+      toast.success(t('admin.exportSuccess', { count: result.items.length }));
     } catch {
-      toast.error(t('admin.exportFailed', '导出失败'));
+      toast.error(t('admin.exportFailed'));
     } finally {
       setExporting(false);
     }

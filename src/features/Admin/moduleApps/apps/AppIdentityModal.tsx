@@ -95,6 +95,14 @@ const AppIdentityModal = memo<AppIdentityModalProps>(
       try {
         await onSubmit(identity);
       } catch (error) {
+        const candidate = error as { data?: { code?: string }; message?: string } | undefined;
+        if (
+          candidate?.data?.code === 'CONFLICT' ||
+          candidate?.message?.includes('MODULE_APP_SLUG_TAKEN')
+        ) {
+          setSubmitError(t('moduleApps.admin.apps.identity.slugTaken'));
+          return;
+        }
         setSubmitError(
           error instanceof Error && error.message.trim()
             ? error.message

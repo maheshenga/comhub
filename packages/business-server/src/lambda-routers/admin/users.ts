@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
 import { ADMIN_ROLE_IDS, type AdminCompactUser, Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gte, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -262,7 +263,7 @@ const recordBulkUserItemAudit = async ({
     {
       action: `user.${action}.item`,
       payload: {
-        ...(payload ?? {}),
+        ...payload,
         error: error ?? null,
         batchCorrelationId,
         result: error ? 'failed' : 'succeeded',
@@ -275,7 +276,11 @@ const recordBulkUserItemAudit = async ({
 
 /** Row-locked existence check for a bulk user batch; throws on any missing id. */
 const loadUsersForBulk = async (tx: Transaction, userIds: string[]) => {
-  const rows = await tx.select({ id: users.id }).from(users).where(inArray(users.id, userIds)).for('update');
+  const rows = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.id, userIds))
+    .for('update');
   const foundIds = new Set(rows.map((row) => row.id));
   const missing = userIds.filter((userId) => !foundIds.has(userId));
   if (missing.length > 0) {
@@ -426,9 +431,7 @@ export const adminUsersRouter = router({
                   : ('USER_NOT_FOUND' as string | null),
               ok: Boolean(user) && !isSelf,
               orderId: undefined,
-              preview: user
-                ? { email: user.email, fromRole: user.role, toRole: input.role }
-                : null,
+              preview: user ? { email: user.email, fromRole: user.role, toRole: input.role } : null,
               userId,
             };
           }),
@@ -532,7 +535,15 @@ export const adminUsersRouter = router({
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const user: AdminCompactUser | undefined = await ctx.serverDB.query.users.findFirst({
-        columns: { banned: true, createdAt: true, id: true, lastActiveAt: true, role: true },
+        columns: {
+          banExpires: true,
+          banReason: true,
+          banned: true,
+          createdAt: true,
+          id: true,
+          lastActiveAt: true,
+          role: true,
+        },
         where: eq(users.id, input.userId),
       });
       if (!user) throw new TRPCError({ code: 'NOT_FOUND' });

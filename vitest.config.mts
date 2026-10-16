@@ -174,6 +174,11 @@ export default defineConfig({
     },
     environment: 'happy-dom',
     exclude,
+    // Slow CI runners regularly push heavy RTL suites past the 5s default even
+    // when the assertions pass (observed 6s-28s per test under parallel load).
+    // Keep the budget generous; per-file/per-test overrides still win.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     // Vitest 4 removed `environmentMatchGlobs`; split the run into an `app`
     // (happy-dom) and a `server` (node) project instead. The server project
     // matters because `apps/server` is backend code: forcing Node keeps

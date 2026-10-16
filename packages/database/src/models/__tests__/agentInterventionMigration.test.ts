@@ -128,5 +128,7 @@ describe('Agent Intervention and ActivityKit migration', () => {
   it('can replay the complete migration after it has already been applied', async () => {
     const db = await getTestDB();
     for (const statement of migration.sql) await db.execute(sql.raw(statement));
-  }, 15_000);
+    // Full-statement replay over the shared test DB can exceed 15s under
+    // parallel suite load (observed 21.3s).
+  }, 60_000);
 });

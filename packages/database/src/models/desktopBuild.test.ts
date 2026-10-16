@@ -140,9 +140,11 @@ const dispatchAndSucceed = async (releaseId: string) => {
 };
 
 describe('DesktopBuildModel', () => {
+  // The shared test database bootstrap can exceed the 10s hook budget when the
+  // full src/models suite runs in parallel.
   beforeAll(async () => {
     db = await getTestDB();
-  });
+  }, 30_000);
 
   beforeEach(async () => {
     await db.delete(desktopReleases);

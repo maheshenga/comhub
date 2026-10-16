@@ -489,6 +489,7 @@
   "moduleApps.admin.apps.identity.displayName": "显示名称",
   "moduleApps.admin.apps.identity.editTitle": "编辑应用",
   "moduleApps.admin.apps.identity.slug": "标识符",
+  "moduleApps.admin.apps.identity.slugTaken": "该标识已被其他应用占用",
   "moduleApps.admin.apps.identity.source": "来源",
   "moduleApps.admin.apps.identity.status": "状态",
   "moduleApps.admin.apps.identity.submitError": "无法保存应用，请重试。",
