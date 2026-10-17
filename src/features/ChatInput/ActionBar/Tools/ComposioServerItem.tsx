@@ -200,7 +200,7 @@ const ComposioServerItem = memo<ComposioServerItemProps>(
     const togglePlugin = useCallback(
       async (pluginIdToToggle: string) => {
         if (!effectiveAgentId) return;
-        const currentPlugins = plugins;
+        const currentPlugins = plugins ?? [];
         const hasPlugin = currentPlugins.includes(pluginIdToToggle);
         const newPlugins = hasPlugin
           ? currentPlugins.filter((id) => id !== pluginIdToToggle)

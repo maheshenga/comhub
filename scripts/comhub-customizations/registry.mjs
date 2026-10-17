@@ -766,6 +766,13 @@ const MODULES = [
         'market auth provider + types (fork-modified)',
       ],
       ['p:src/layout/SPAGlobalProvider/', 'upstream', 'SPA locale defaults (fork-modified)'],
+      // Round-11 lint-zero touched this upstream-derived editor shell; it stays
+      // upstream-owned (fork-modified), ahead of the owned generic layout rule.
+      [
+        'p:src/layout/GlobalProvider/Editor.tsx',
+        'upstream',
+        'editor provider shell (fork-modified, round-11 lint cleanup)',
+      ],
       [
         'p:src/layout/',
         'owned',
@@ -933,6 +940,44 @@ const MODULES = [
       ['p:src/features/Eval/', 'owned', 'benchmark eval UI'],
       ['p:src/features/ExpertPlaza/', 'owned', 'expert plaza'],
       ['p:src/features/ModuleAppDeveloper/', 'owned', 'module developer portal'],
+      // Round-11 lint-zero touched two upstream-derived Portal files; they stay
+      // upstream-owned (fork-modified), ahead of the owned LocalFile pipeline rule.
+      [
+        'p:src/features/Portal/Home/Body/Plugins/ArtifactList/Item/index.tsx',
+        'upstream',
+        'artifact list item (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/features/Portal/MessageDetail/Body/index.tsx',
+        'upstream',
+        'message detail body (fork-modified, round-11 lint cleanup)',
+      ],
+      // Round-11 lint-zero touched these upstream-derived feature components.
+      [
+        'p:src/features/AgentDocumentReader/index.tsx',
+        'upstream',
+        'agent document reader (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/features/PluginAvatar/index.tsx',
+        'upstream',
+        'plugin avatar (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/features/Share/ErrorView.tsx',
+        'upstream',
+        'share error view (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/features/ToolTag/index.tsx',
+        'upstream',
+        'tool tag (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/features/WideScreenContainer/index.tsx',
+        'upstream',
+        'wide screen container (fork-modified, round-11 lint cleanup)',
+      ],
       ['p:src/features/Portal/', 'owned', 'local-file HTML artifact pipeline'],
       ['p:src/features/ProfileInterests/', 'owned', 'profile interest areas'],
       ['p:src/features/ProviderSettings/', 'owned', 'provider settings navigation helper'],
@@ -1369,7 +1414,45 @@ const MODULES = [
       ['p:src/libs/qstash/index.test.ts', 'owned', 'fork-new qstash otel cache tests'],
       ['p:src/libs/qstash/', 'upstream', 'otel client caching'],
       ['p:src/libs/composio/', 'upstream', 'composio client lib (fork-modified index.ts)'],
+      // Round-11 lint-zero touched these upstream-derived lib files; they stay
+      // upstream-owned (fork-modified), ahead of the owned generic libs rule.
+      [
+        'p:src/libs/debug-file-logger.ts',
+        'upstream',
+        'debug file logger (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/libs/document-loaders/',
+        'upstream',
+        'document loaders (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/libs/mcp/__tests__/index.test.ts',
+        'upstream',
+        'mcp lib tests (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/libs/oidc-provider/http-adapter.test.ts',
+        'upstream',
+        'oidc http-adapter tests (fork-modified, round-11 lint cleanup)',
+      ],
       ['p:src/libs/', 'owned', 'fork libs not covered elsewhere'],
+      // Round-11 lint-zero touched these upstream-derived test/util files.
+      [
+        'p:src/app/(backend)/api/agent/stream/__tests__/route.test.ts',
+        'upstream',
+        'agent stream route tests (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/app/(backend)/middleware/auth/index.test.ts',
+        'upstream',
+        'auth middleware tests (fork-modified, round-11 lint cleanup)',
+      ],
+      [
+        'p:src/services/utils/abortableRequest.test.ts',
+        'upstream',
+        'abortable request tests (fork-modified, round-11 lint cleanup)',
+      ],
     ],
     tests: ['co-located suites'],
     notes:
