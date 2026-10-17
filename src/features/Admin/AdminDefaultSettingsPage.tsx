@@ -30,7 +30,11 @@ import type {
   DefaultSettingsData,
   FormValues,
 } from './DefaultSettings/shared';
-import { RUNTIME_SAVE_ERROR_MESSAGES, scopeCopy } from './DefaultSettings/shared';
+import {
+  DEFAULTS_INITIAL_VALUES,
+  RUNTIME_SAVE_ERROR_MESSAGES,
+  scopeCopy,
+} from './DefaultSettings/shared';
 import SyncActionButtons from './DefaultSettings/SyncActionButtons';
 import {
   applyIntegrationsToForm,
@@ -47,7 +51,12 @@ export type { AdminDefaultSettingsScope };
 
 const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ scope }) => {
   const { t } = useTranslation('subscription');
-  const form = useForm<FormValues>();
+  // TanStack defaultValues is a partial-records contract at runtime (unset
+  // fields stay undefined until set); the cast bridges FormKit's stricter
+  // `initialValues?: T` signature so load-time display keeps antd-era defaults.
+  const form = useForm<FormValues>({
+    initialValues: DEFAULTS_INITIAL_VALUES as unknown as FormValues,
+  });
   const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
