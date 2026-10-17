@@ -224,12 +224,20 @@ describe('ProductManager', () => {
     expect(screen.getByText('pro')).toBeInTheDocument();
     expect(screen.getByText('CNY 88')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Add product' }));
-    fireEvent.change(screen.getByLabelText('Product key'), { target: { value: 'team-pro' } });
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120' } });
+    // FormKit renders the required marker as a real text node inside <label>;
+    // match the label text loosely so the query stays behavior-focused.
+    fireEvent.change(screen.getByLabelText('Product key', { exact: false }), {
+      target: { value: 'team-pro' },
+    });
+    fireEvent.change(screen.getByLabelText('Amount', { exact: false }), {
+      target: { value: '120' },
+    });
     fireEvent.change(screen.getByLabelText('Module multiplier'), { target: { value: '1.25' } });
     fireEvent.change(screen.getByLabelText('Revenue share rate'), { target: { value: '0.75' } });
     fireEvent.change(screen.getByLabelText('Seat count'), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText('Terms version'), { target: { value: '2026-07' } });
+    fireEvent.change(screen.getByLabelText('Terms version', { exact: false }), {
+      target: { value: '2026-07' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save product' }));
 
     await waitFor(() =>
@@ -267,7 +275,9 @@ describe('ProductManager', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit product' }));
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '99' } });
+    fireEvent.change(screen.getByLabelText('Amount', { exact: false }), {
+      target: { value: '99' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save product' }));
 
     await waitFor(() =>
@@ -309,8 +319,8 @@ describe('ProductManager', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add product' }));
 
-    expect(screen.getByLabelText('Amount')).toHaveAttribute('step', '1');
-    expect(screen.getByLabelText('Currency')).toHaveAttribute('role', 'combobox');
+    expect(screen.getByLabelText('Amount', { exact: false })).toHaveAttribute('step', '1');
+    expect(screen.getByLabelText('Currency', { exact: false })).toHaveAttribute('role', 'combobox');
     expect(screen.getByLabelText('Trial days')).toHaveAttribute('aria-valuemax', '365');
     expect(screen.getByLabelText('Promotion title')).toHaveAttribute('maxlength', '160');
   });

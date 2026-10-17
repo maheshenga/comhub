@@ -1,6 +1,5 @@
 import { toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +10,7 @@ import { trackLoginOrSignupClicked } from '@/features/User/UserLoginOrSignup/tra
 import { signUp } from '@/libs/better-auth/auth-client';
 import { buildOnboardingRedirectUrl, toAbsoluteAuthCallbackUrl } from '@/utils/onboardingRedirect';
 
+import { useAuthAgreement } from '../../_layout/AuthAgreement';
 import { useAuthServerConfigStore } from '../../_layout/AuthServerConfigProvider';
 import type { AuthFetchOptions } from '../../utils/authFetchOptions';
 import { withCaptchaToken } from '../../utils/authFetchOptions';
@@ -32,7 +32,16 @@ export const useSignUp = () => {
   const { t } = useTranslation(['auth', 'authError']);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [form] = Form.useForm<SignUpFormValues>();
+  // Consent lives here so the agreement gate wraps the validated form submit;
+  // the form renders the same state back as a controlled checkbox.
+  const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
+  const form = useForm<SignUpFormValues>({
+    initialValues: { confirmPassword: '', email: '', password: '' },
+    onSubmit: (values) =>
+      continueWithAgreement(() => {
+        void handleSignUp(values);
+      }),
+  });
   const [loading, setLoading] = useState(false);
   const { getCaptchaTokenOnError, getFetchOptions, preSocialSignupCheck, businessElement } =
     useBusinessSignup(form);
@@ -114,5 +123,12 @@ export const useSignUp = () => {
     }
   };
 
-  return { businessElement, form, loading, onSubmit: handleSignUp };
+  return {
+    agreementChecked,
+    businessElement,
+    form,
+    loading,
+    onSubmit: handleSignUp,
+    setAgreementChecked,
+  };
 };

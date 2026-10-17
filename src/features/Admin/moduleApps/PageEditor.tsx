@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Input, InputNumber, Select, TextArea } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -20,87 +19,97 @@ const PageEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
     <Flexbox data-testid="admin-module-app-page-editor" gap={12}>
       <h3>{t('moduleApps.admin.configuration.pages')}</h3>
       <Form.List name="pages">
-        {(fields, { add, remove }) => (
+        {({ add, fields, remove }) => (
           <Flexbox gap={12}>
             {fields.map((field, index) => (
               <Flexbox gap={8} key={field.key}>
                 <Flexbox horizontal gap={12}>
-                  <Form.Item
+                  <Form.Field
+                    required
                     label={t('moduleApps.admin.configuration.pageKey')}
-                    name={[field.name, 'key']}
-                    rules={[{ required: true }]}
-                    style={{ flex: 1 }}
-                  >
-                    <Input placeholder={t('moduleApps.admin.configuration.pageKeyPlaceholder')} />
-                  </Form.Item>
-                  <Form.Item
-                    label={t('moduleApps.admin.configuration.pageTitle')}
-                    name={[field.name, 'title']}
-                    rules={[{ required: true }]}
+                    name={`${field.name}.key`}
                     style={{ flex: 1 }}
                   >
                     <Input
+                      disabled={disabled}
+                      placeholder={t('moduleApps.admin.configuration.pageKeyPlaceholder')}
+                    />
+                  </Form.Field>
+                  <Form.Field
+                    required
+                    label={t('moduleApps.admin.configuration.pageTitle')}
+                    name={`${field.name}.title`}
+                    style={{ flex: 1 }}
+                  >
+                    <Input
+                      disabled={disabled}
                       placeholder={t('moduleApps.admin.configuration.pageTitlePlaceholder', {
                         index: index + 1,
                       })}
                     />
-                  </Form.Item>
+                  </Form.Field>
                 </Flexbox>
                 <Flexbox horizontal gap={12}>
-                  <Form.Item
+                  <Form.Field
+                    required
                     label={t('moduleApps.admin.configuration.pageType')}
-                    name={[field.name, 'type']}
-                    rules={[{ required: true }]}
+                    name={`${field.name}.type`}
                     style={{ flex: 1 }}
                   >
-                    <Select options={pageTypeOptions} />
-                  </Form.Item>
-                  <Form.Item
+                    <Select disabled={disabled} options={pageTypeOptions} />
+                  </Form.Field>
+                  <Form.Field
+                    required
                     label={t('moduleApps.admin.configuration.routePath')}
-                    name={[field.name, 'routePath']}
-                    rules={[{ required: true }]}
+                    name={`${field.name}.routePath`}
                     style={{ flex: 1 }}
                   >
-                    <Input placeholder="/" />
-                  </Form.Item>
-                  <Form.Item
+                    <Input disabled={disabled} placeholder="/" />
+                  </Form.Field>
+                  <Form.Field
                     label={t('moduleApps.admin.configuration.sortOrder')}
-                    name={[field.name, 'sortOrder']}
+                    name={`${field.name}.sortOrder`}
                     style={{ width: 140 }}
                   >
-                    <InputNumber precision={0} style={{ width: '100%' }} />
-                  </Form.Item>
+                    <InputNumber disabled={disabled} precision={0} style={{ width: '100%' }} />
+                  </Form.Field>
                 </Flexbox>
-                <Form.Item
+                <Form.Field
                   label={t('moduleApps.admin.configuration.dataSourceJson')}
-                  name={[field.name, 'dataSourceJson']}
+                  name={`${field.name}.dataSourceJson`}
                 >
                   <TextArea
                     autoSize={{ maxRows: 5, minRows: 2 }}
+                    disabled={disabled}
                     placeholder={'{\n  "collectionKey": "records"\n}'}
                   />
-                </Form.Item>
-                <Form.Item
+                </Form.Field>
+                <Form.Field
                   label={t('moduleApps.admin.configuration.layoutSchemaJson')}
-                  name={[field.name, 'layoutSchemaJson']}
-                >
-                  <TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
-                </Form.Item>
-                <Form.Item
-                  label={t('moduleApps.admin.configuration.actionBindingsJson')}
-                  name={[field.name, 'actionBindingsJson']}
+                  name={`${field.name}.layoutSchemaJson`}
                 >
                   <TextArea
                     autoSize={{ maxRows: 5, minRows: 2 }}
+                    disabled={disabled}
+                    placeholder="{}"
+                  />
+                </Form.Field>
+                <Form.Field
+                  label={t('moduleApps.admin.configuration.actionBindingsJson')}
+                  name={`${field.name}.actionBindingsJson`}
+                >
+                  <TextArea
+                    autoSize={{ maxRows: 5, minRows: 2 }}
+                    disabled={disabled}
                     placeholder={'[{ "event": "submit", "actionKey": "create_record" }]'}
                   />
-                </Form.Item>
+                </Form.Field>
                 <Button
                   danger
                   disabled={disabled}
                   onClick={() => {
                     if (disabled) return;
-                    remove(field.name);
+                    remove(field.index);
                   }}
                 >
                   {t('moduleApps.admin.configuration.removePage')}

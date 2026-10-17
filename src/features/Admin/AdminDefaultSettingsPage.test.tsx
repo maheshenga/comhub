@@ -248,4 +248,70 @@ describe('AdminDefaultSettingsPage runtime models', () => {
       await Promise.resolve();
     });
   });
+
+  it('keeps the submit path silent when FormKit validation fails', async () => {
+    render(
+      <ConfigProvider motion={m}>
+        <AdminDefaultSettingsPage scope="user-defaults" />
+      </ConfigProvider>,
+    );
+
+    const jsonField = await screen.findByRole('textbox', { name: '默认设置 JSON' });
+    fireEvent.change(jsonField, { target: { value: '' } });
+
+    fireEvent.click(screen.getByRole('button', { name: '保存用户默认值' }));
+
+    // FormKit surfaces field-level errors inline; handleSave must bail out
+    // before any settings write when validate() resolves valid=false.
+    expect(await screen.findByText('请填写 JSON 对象，留空请填 {}')).toBeInTheDocument();
+    expect(adminCommercialService.setAppSettingsBatch).not.toHaveBeenCalled();
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
+
+  it('binds Switch checked state to the user-defaults form values', async () => {
+    render(
+      <ConfigProvider motion={m}>
+        <AdminDefaultSettingsPage scope="user-defaults" />
+      </ConfigProvider>,
+    );
+
+    const followUpSwitch = await screen.findByRole('switch', { name: '启用追问建议' });
+    const promptRewriteSwitch = screen.getByRole('switch', { name: '启用提示词改写' });
+
+    // applyUserDefaultsToForm resolves promptRewrite.enabled to true and
+    // followUpAction.enabled to false; both must land on the bound controls.
+    await waitFor(() => expect(promptRewriteSwitch).toBeChecked());
+    expect(followUpSwitch).not.toBeChecked();
+
+    fireEvent.click(followUpSwitch);
+
+    await waitFor(() => expect(followUpSwitch).toBeChecked());
+    expect(promptRewriteSwitch).toBeChecked();
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
+
+  it('adds and removes Form.List rows in the profile defaults card', async () => {
+    render(
+      <ConfigProvider motion={m}>
+        <AdminDefaultSettingsPage scope="user-defaults" />
+      </ConfigProvider>,
+    );
+
+    expect(screen.queryByPlaceholderText('唯一标识')).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: /添加兴趣领域/ }));
+
+    expect(await screen.findByPlaceholderText('唯一标识')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('minus-circle'));
+
+    await waitFor(() => expect(screen.queryByPlaceholderText('唯一标识')).not.toBeInTheDocument());
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
 });

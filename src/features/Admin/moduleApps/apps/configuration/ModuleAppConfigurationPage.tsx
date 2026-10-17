@@ -2,8 +2,7 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Button } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOutletContext } from 'react-router';
@@ -43,7 +42,15 @@ const ModuleAppConfigurationPage = memo(() => {
     (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
   );
   const canWrite = hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppWrite);
-  const [form] = Form.useForm<ConfigurationDraft>();
+  const form = useForm<ConfigurationDraft>({
+    onSubmit: (values) => save(values),
+    onValuesChange: () => {
+      if (!canWrite) return;
+
+      setDirty(true);
+      persistDraft();
+    },
+  });
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string>();
@@ -64,7 +71,7 @@ const ModuleAppConfigurationPage = memo(() => {
       actions: draft?.actions ?? app.actions,
       pages: sourcePages,
     });
-    form.setFieldsValue({
+    form.setValues({
       actions: values.actions,
       pages: sourcePages.length === 0 ? [] : values.pages,
     });
@@ -75,7 +82,7 @@ const ModuleAppConfigurationPage = memo(() => {
   const persistDraft = () => {
     if (!canWrite) return;
 
-    const values = form.getFieldsValue(true);
+    const values = form.getValues();
     try {
       saveModuleDraft(draftScope, normalizeConfigurationDraft(values));
     } catch {
@@ -83,10 +90,9 @@ const ModuleAppConfigurationPage = memo(() => {
     }
   };
 
-  const save = async () => {
+  async function save(values: ConfigurationDraft) {
     if (!canWrite) return;
 
-    const values = await form.validateFields();
     let normalized: ConfigurationDraft;
     try {
       normalized = normalizeConfigurationDraft(values);
@@ -148,7 +154,7 @@ const ModuleAppConfigurationPage = memo(() => {
     setDirty(false);
     setSaveStatus(t('moduleApps.admin.configuration.saved'));
     await refresh();
-  };
+  }
 
   return (
     <section className={styles.page} data-testid="module-app-configuration">
@@ -158,18 +164,7 @@ const ModuleAppConfigurationPage = memo(() => {
           <p className={styles.description}>{t('moduleApps.admin.configuration.description')}</p>
         </div>
       </header>
-      <Form<ConfigurationDraft>
-        disabled={!canWrite}
-        form={form}
-        layout="vertical"
-        onFinish={save}
-        onValuesChange={() => {
-          if (!canWrite) return;
-
-          setDirty(true);
-          persistDraft();
-        }}
-      >
+      <Form<ConfigurationDraft> form={form} layout="vertical">
         <PageEditor disabled={!canWrite} />
         <ActionEditor disabled={!canWrite} />
         {saveStatus ? <p role="status">{saveStatus}</p> : null}

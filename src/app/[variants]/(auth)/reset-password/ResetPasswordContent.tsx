@@ -1,11 +1,13 @@
 import { Block, Icon } from '@lobehub/ui';
 import { Button, InputPassword, Text } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules 跨字段校验）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useResetPassword } from './useResetPassword';
+
+// antd Form.Item's default bottom margin (24px), preserved on FormKit Fields.
+const FIELD_STYLE = { gap: 0, paddingBlock: '0 24px' };
 
 interface ResetPasswordContentProps {
   email: string | null;
@@ -19,7 +21,7 @@ export const ResetPasswordContent = ({
   onSuccessRedirect,
 }: ResetPasswordContentProps) => {
   const { t } = useTranslation('auth');
-  const { form, handleResetPassword, loading } = useResetPassword({
+  const { form, loading } = useResetPassword({
     email,
     onSuccessRedirect,
     token,
@@ -36,14 +38,15 @@ export const ResetPasswordContent = ({
   }
 
   return (
-    <Form form={form} layout="vertical" onFinish={handleResetPassword}>
-      <Form.Item
+    <Form form={form} gap={0} layout="vertical">
+      <Form.Field
         name="newPassword"
-        rules={[
-          { message: t('betterAuth.errors.passwordRequired'), required: true },
-          { message: t('betterAuth.errors.passwordMinLength'), min: 8 },
-          { max: 64, message: t('betterAuth.errors.passwordMaxLength') },
-        ]}
+        style={FIELD_STYLE}
+        validate={(value: string) => {
+          if (!value) return t('betterAuth.errors.passwordRequired');
+          if (value.length < 8) return t('betterAuth.errors.passwordMinLength');
+          if (value.length > 64) return t('betterAuth.errors.passwordMaxLength');
+        }}
       >
         <InputPassword
           autoComplete="new-password"
@@ -58,19 +61,17 @@ export const ResetPasswordContent = ({
             />
           }
         />
-      </Form.Item>
-      <Form.Item
-        dependencies={['newPassword']}
+      </Form.Field>
+      {/* J4: `dependencies={['newPassword']}` → FormKit `deps`; the validate
+          second argument is the live value snapshot at validation time. */}
+      <Form.Field
+        deps={['newPassword']}
         name="confirmPassword"
-        rules={[
-          { message: t('betterAuth.resetPassword.confirmPasswordRequired'), required: true },
-          ({ getFieldValue }) => ({
-            validator(_, value) {
-              if (!value || getFieldValue('newPassword') === value) return Promise.resolve();
-              return Promise.reject(new Error(t('betterAuth.resetPassword.passwordMismatch')));
-            },
-          }),
-        ]}
+        style={FIELD_STYLE}
+        validate={(value: string, values: { newPassword: string }) => {
+          if (!value) return t('betterAuth.resetPassword.confirmPasswordRequired');
+          if (values.newPassword !== value) return t('betterAuth.resetPassword.passwordMismatch');
+        }}
       >
         <InputPassword
           autoComplete="new-password"
@@ -85,12 +86,10 @@ export const ResetPasswordContent = ({
             />
           }
         />
-      </Form.Item>
-      <Form.Item style={{ marginBottom: 0 }}>
-        <Button block htmlType="submit" loading={loading} size="large" type="primary">
-          {t('betterAuth.resetPassword.submit')}
-        </Button>
-      </Form.Item>
+      </Form.Field>
+      <Button block htmlType="submit" loading={loading} size="large" type="primary">
+        {t('betterAuth.resetPassword.submit')}
+      </Button>
     </Form>
   );
 };

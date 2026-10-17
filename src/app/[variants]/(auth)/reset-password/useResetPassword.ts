@@ -1,6 +1,5 @@
 import { toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,7 +18,6 @@ interface UseResetPasswordParams {
 
 export const useResetPassword = ({ email, token, onSuccessRedirect }: UseResetPasswordParams) => {
   const { t } = useTranslation('auth');
-  const [form] = Form.useForm<ResetPasswordFormValues>();
   const [loading, setLoading] = useState(false);
 
   const handleResetPassword = async (values: ResetPasswordFormValues) => {
@@ -45,6 +43,11 @@ export const useResetPassword = ({ email, token, onSuccessRedirect }: UseResetPa
       setLoading(false);
     }
   };
+
+  const form = useForm<ResetPasswordFormValues>({
+    initialValues: { confirmPassword: '', newPassword: '' },
+    onSubmit: handleResetPassword,
+  });
 
   return {
     form,

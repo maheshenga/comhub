@@ -11,22 +11,23 @@ import { useSignIn } from './useSignIn';
 
 const SignInPage = () => {
   const {
+    agreementChecked,
+    continueWithAgreement,
     disableEmailPassword,
     email,
     form,
     handleBackFromSent,
     handleBackToEmail,
-    handleCheckUser,
     handleGoToSignup,
     handleForgotPassword,
     handleResendEmail,
-    handleSignIn,
     handleSocialSignIn,
     isSocialOnly,
     lastAuthProvider,
     loading,
     oAuthSSOProviders,
     serverConfigInit,
+    setAgreementChecked,
     socialLoading,
     sending,
     sentInfo,
@@ -45,6 +46,8 @@ const SignInPage = () => {
         />
       ) : step === 'email' ? (
         <SignInEmailStep
+          agreementChecked={agreementChecked}
+          continueWithAgreement={continueWithAgreement}
           disableEmailPassword={disableEmailPassword}
           form={form as any}
           isSocialOnly={isSocialOnly}
@@ -52,8 +55,8 @@ const SignInPage = () => {
           loading={loading}
           oAuthSSOProviders={oAuthSSOProviders}
           serverConfigInit={serverConfigInit}
+          setAgreementChecked={setAgreementChecked}
           socialLoading={socialLoading}
-          onCheckUser={handleCheckUser}
           onGoToSignup={handleGoToSignup}
           onResetEmail={handleBackToEmail}
           onSetPassword={handleForgotPassword}
@@ -67,7 +70,6 @@ const SignInPage = () => {
           loading={loading}
           onBackToEmail={handleBackToEmail}
           onForgotPassword={handleForgotPassword}
-          onSubmit={handleSignIn}
         />
       )}
     </Suspense>

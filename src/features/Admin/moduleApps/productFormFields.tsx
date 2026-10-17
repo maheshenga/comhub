@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Input, InputNumber, Select } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, type FormInstance, useWatch } from '@lobehub/ui/base-ui/form';
 import { Save } from 'lucide-react';
 
 type ProductType = 'free' | 'one_time' | 'subscription';
@@ -58,174 +57,197 @@ export const ProductFormFields = ({
   editing,
   form,
   licenseScope,
-  onFinish,
   productType,
   saving,
   t,
 }: {
   canWrite: boolean;
   editing?: { productId: string };
-  form: ReturnType<typeof Form.useForm<ProductFormValues>>[0];
+  form: FormInstance<ProductFormValues>;
   licenseScope?: LicenseScope;
-  onFinish: (values: ProductFormValues) => void;
   productType?: ProductType;
   saving: boolean;
   t: TFn;
-}) => (
-  <Form<ProductFormValues>
-    disabled={!canWrite}
-    form={form}
-    initialValues={productFormInitialValues}
-    layout="vertical"
-    onFinish={onFinish}
-  >
-    <Form.Item
-      label={t('moduleApps.admin.products.productKey')}
-      name="productKey"
-      rules={[{ required: true }]}
-    >
-      <Input disabled={Boolean(editing)} />
-    </Form.Item>
-    <Flexbox horizontal gap={12}>
-      <Form.Item label={t('moduleApps.admin.products.type')} name="productType" style={{ flex: 1 }}>
-        <Select
-          options={typeOptions(t)}
-          onChange={(value: ProductType) => {
-            if (value === 'free') form.setFieldValue('amount', 0);
-            if (value !== 'subscription') form.setFieldValue('billingPeriod', undefined);
-          }}
-        />
-      </Form.Item>
-      <Form.Item
-        label={t('moduleApps.admin.products.scope')}
-        name="licenseScope"
-        style={{ flex: 1 }}
+}) => {
+  const status = useWatch(form, 'status');
+
+  return (
+    <Form<ProductFormValues> form={form} layout="vertical">
+      <Form.Field required label={t('moduleApps.admin.products.productKey')} name="productKey">
+        <Input disabled={!canWrite || Boolean(editing)} />
+      </Form.Field>
+      <Flexbox horizontal gap={12}>
+        <Form.Field
+          label={t('moduleApps.admin.products.type')}
+          name="productType"
+          style={{ flex: 1 }}
+        >
+          <Select
+            disabled={!canWrite}
+            options={typeOptions(t)}
+            onChange={(value: ProductType) => {
+              if (value === 'free') form.setValue('amount', 0);
+              if (value !== 'subscription') form.setValue('billingPeriod', undefined);
+            }}
+          />
+        </Form.Field>
+        <Form.Field
+          label={t('moduleApps.admin.products.scope')}
+          name="licenseScope"
+          style={{ flex: 1 }}
+        >
+          <Select disabled={!canWrite} options={scopeOptions(t)} />
+        </Form.Field>
+      </Flexbox>
+      <Flexbox horizontal gap={12}>
+        <Form.Field
+          required
+          label={t('moduleApps.admin.products.amount')}
+          name="amount"
+          style={{ flex: 1 }}
+        >
+          <InputNumber
+            disabled={!canWrite || productType === 'free'}
+            min={0}
+            precision={0}
+            step={1}
+            style={{ width: '100%' }}
+          />
+        </Form.Field>
+        <Form.Field
+          required
+          label={t('moduleApps.admin.products.currency')}
+          name="currency"
+          style={{ flex: 1 }}
+        >
+          <Select
+            disabled={!canWrite}
+            options={[
+              { label: 'CNY', value: 'CNY' },
+              { label: 'USD', value: 'USD' },
+            ]}
+          />
+        </Form.Field>
+      </Flexbox>
+      <Flexbox horizontal gap={12}>
+        <Form.Field
+          label={t('moduleApps.admin.products.billingPeriod')}
+          name="billingPeriod"
+          required={productType === 'subscription'}
+          style={{ flex: 1 }}
+        >
+          <Select
+            allowClear
+            disabled={!canWrite || productType !== 'subscription'}
+            options={[
+              { label: t('moduleApps.admin.products.period.monthly'), value: 'monthly' },
+              { label: t('moduleApps.admin.products.period.yearly'), value: 'yearly' },
+            ]}
+          />
+        </Form.Field>
+        <Form.Field
+          label={t('moduleApps.admin.products.trialDays')}
+          name="trialDays"
+          style={{ flex: 1 }}
+        >
+          <InputNumber
+            disabled={!canWrite}
+            max={365}
+            min={0}
+            precision={0}
+            step={1}
+            style={{ width: '100%' }}
+          />
+        </Form.Field>
+      </Flexbox>
+      <Form.Field label={t('moduleApps.admin.products.promotionTitle')} name="promotionTitle">
+        <Input disabled={!canWrite} maxLength={160} />
+      </Form.Field>
+      <Flexbox horizontal gap={12}>
+        <Form.Field
+          label={t('moduleApps.admin.products.moduleMultiplier')}
+          name="moduleMultiplier"
+          style={{ flex: 1 }}
+        >
+          <InputNumber
+            disabled={!canWrite}
+            max={100}
+            min={0}
+            precision={4}
+            step={0.0001}
+            style={{ width: '100%' }}
+          />
+        </Form.Field>
+        <Form.Field
+          label={t('moduleApps.admin.products.revenueShareRate')}
+          name="revenueShareRate"
+          style={{ flex: 1 }}
+        >
+          <InputNumber
+            disabled={!canWrite}
+            max={1}
+            min={0}
+            precision={4}
+            step={0.0001}
+            style={{ width: '100%' }}
+          />
+        </Form.Field>
+      </Flexbox>
+      <Flexbox horizontal gap={12}>
+        <Form.Field
+          label={t('moduleApps.admin.products.seatCount')}
+          name="seatCount"
+          required={licenseScope === 'workspace_seat'}
+          style={{ flex: 1 }}
+        >
+          <InputNumber
+            disabled={!canWrite}
+            max={100_000}
+            min={1}
+            precision={0}
+            step={1}
+            style={{ width: '100%' }}
+          />
+        </Form.Field>
+        <Form.Field
+          required
+          label={t('moduleApps.admin.products.termsVersion')}
+          name="termsVersion"
+          style={{ flex: 1 }}
+        >
+          <Input disabled={!canWrite} maxLength={80} />
+        </Form.Field>
+      </Flexbox>
+      {editing ? (
+        <Form.Field
+          label={t('moduleApps.admin.products.status')}
+          name="status"
+          extra={
+            status === 'inactive' ? (
+              // 停用是影响真实付费动作的状态切换，表单里先说清后果再让管理员提交。
+              <span>{t('moduleApps.admin.products.saveInactiveHint')}</span>
+            ) : null
+          }
+        >
+          <Select
+            disabled={!canWrite}
+            options={[
+              { label: t('moduleApps.admin.products.status.active'), value: 'active' },
+              { label: t('moduleApps.admin.products.status.inactive'), value: 'inactive' },
+            ]}
+          />
+        </Form.Field>
+      ) : null}
+      <Button
+        block
+        disabled={!canWrite}
+        htmlType="submit"
+        icon={<Save size={16} />}
+        loading={saving}
+        type="primary"
       >
-        <Select options={scopeOptions(t)} />
-      </Form.Item>
-    </Flexbox>
-    <Flexbox horizontal gap={12}>
-      <Form.Item
-        label={t('moduleApps.admin.products.amount')}
-        name="amount"
-        rules={[{ required: true }]}
-        style={{ flex: 1 }}
-      >
-        <InputNumber
-          disabled={productType === 'free'}
-          min={0}
-          precision={0}
-          step={1}
-          style={{ width: '100%' }}
-        />
-      </Form.Item>
-      <Form.Item
-        label={t('moduleApps.admin.products.currency')}
-        name="currency"
-        rules={[{ required: true }]}
-        style={{ flex: 1 }}
-      >
-        <Select
-          options={[
-            { label: 'CNY', value: 'CNY' },
-            { label: 'USD', value: 'USD' },
-          ]}
-        />
-      </Form.Item>
-    </Flexbox>
-    <Flexbox horizontal gap={12}>
-      <Form.Item
-        label={t('moduleApps.admin.products.billingPeriod')}
-        name="billingPeriod"
-        rules={[{ required: productType === 'subscription' }]}
-        style={{ flex: 1 }}
-      >
-        <Select
-          allowClear
-          disabled={productType !== 'subscription'}
-          options={[
-            { label: t('moduleApps.admin.products.period.monthly'), value: 'monthly' },
-            { label: t('moduleApps.admin.products.period.yearly'), value: 'yearly' },
-          ]}
-        />
-      </Form.Item>
-      <Form.Item
-        label={t('moduleApps.admin.products.trialDays')}
-        name="trialDays"
-        style={{ flex: 1 }}
-      >
-        <InputNumber max={365} min={0} precision={0} step={1} style={{ width: '100%' }} />
-      </Form.Item>
-    </Flexbox>
-    <Form.Item label={t('moduleApps.admin.products.promotionTitle')} name="promotionTitle">
-      <Input maxLength={160} />
-    </Form.Item>
-    <Flexbox horizontal gap={12}>
-      <Form.Item
-        label={t('moduleApps.admin.products.moduleMultiplier')}
-        name="moduleMultiplier"
-        style={{ flex: 1 }}
-      >
-        <InputNumber max={100} min={0} precision={4} step={0.0001} style={{ width: '100%' }} />
-      </Form.Item>
-      <Form.Item
-        label={t('moduleApps.admin.products.revenueShareRate')}
-        name="revenueShareRate"
-        style={{ flex: 1 }}
-      >
-        <InputNumber max={1} min={0} precision={4} step={0.0001} style={{ width: '100%' }} />
-      </Form.Item>
-    </Flexbox>
-    <Flexbox horizontal gap={12}>
-      <Form.Item
-        label={t('moduleApps.admin.products.seatCount')}
-        name="seatCount"
-        rules={[{ required: licenseScope === 'workspace_seat' }]}
-        style={{ flex: 1 }}
-      >
-        <InputNumber max={100_000} min={1} precision={0} step={1} style={{ width: '100%' }} />
-      </Form.Item>
-      <Form.Item
-        label={t('moduleApps.admin.products.termsVersion')}
-        name="termsVersion"
-        rules={[{ required: true }]}
-        style={{ flex: 1 }}
-      >
-        <Input maxLength={80} />
-      </Form.Item>
-    </Flexbox>
-    {editing ? (
-      <Form.Item
-        label={t('moduleApps.admin.products.status')}
-        name="status"
-        extra={
-          // 停用是影响真实付费动作的状态切换，表单里先说清后果再让管理员提交。
-          <Form.Item noStyle shouldUpdate={(prev, next) => prev.status !== next.status}>
-            {() =>
-              form.getFieldValue('status') === 'inactive' ? (
-                <span>{t('moduleApps.admin.products.saveInactiveHint')}</span>
-              ) : null
-            }
-          </Form.Item>
-        }
-      >
-        <Select
-          options={[
-            { label: t('moduleApps.admin.products.status.active'), value: 'active' },
-            { label: t('moduleApps.admin.products.status.inactive'), value: 'inactive' },
-          ]}
-        />
-      </Form.Item>
-    ) : null}
-    <Button
-      block
-      disabled={!canWrite}
-      htmlType="submit"
-      icon={<Save size={16} />}
-      loading={saving}
-      type="primary"
-    >
-      {t('moduleApps.admin.products.save')}
-    </Button>
-  </Form>
-);
+        {t('moduleApps.admin.products.save')}
+      </Button>
+    </Form>
+  );
+};

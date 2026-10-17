@@ -1,3 +1,4 @@
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,9 +8,6 @@ const mocks = vi.hoisted(() => ({
   brand: {
     authTitle: 'Admin auth title',
     name: 'ComHub Runtime',
-  },
-  form: {
-    submit: vi.fn(),
   },
 }));
 
@@ -36,37 +34,32 @@ vi.mock('@/components/AuthIcons', () => ({
   default: () => null,
 }));
 
-vi.mock('antd', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  const Form = ({ children }: { children: React.ReactNode }) => <form>{children}</form>;
-  Form.Item = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+const TestSignInEmailStep = () => {
+  const form = useForm<{ email: string }>();
 
-  return {
-    ...actual,
-    Badge: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Divider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Form,
-  };
-});
+  return (
+    <SignInEmailStep
+      serverConfigInit
+      agreementChecked={false}
+      continueWithAgreement={(continueAction) => continueAction()}
+      disableEmailPassword={false}
+      form={form}
+      isSocialOnly={false}
+      loading={false}
+      oAuthSSOProviders={[]}
+      setAgreementChecked={vi.fn()}
+      socialLoading={null}
+      onGoToSignup={vi.fn()}
+      onResetEmail={vi.fn()}
+      onSetPassword={vi.fn()}
+      onSocialSignIn={vi.fn()}
+    />
+  );
+};
 
 describe('SignInEmailStep', () => {
   it('uses the admin-configured name without replacing the upstream sign-in hierarchy', () => {
-    render(
-      <SignInEmailStep
-        serverConfigInit
-        disableEmailPassword={false}
-        form={mocks.form as any}
-        isSocialOnly={false}
-        loading={false}
-        oAuthSSOProviders={[]}
-        socialLoading={null}
-        onCheckUser={vi.fn()}
-        onGoToSignup={vi.fn()}
-        onResetEmail={vi.fn()}
-        onSetPassword={vi.fn()}
-        onSocialSignIn={vi.fn()}
-      />,
-    );
+    render(<TestSignInEmailStep />);
 
     expect(screen.getByText('Sign in to ComHub Runtime')).toBeInTheDocument();
     expect(screen.queryByText('Admin auth title')).not.toBeInTheDocument();

@@ -1,6 +1,5 @@
 import { toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +16,7 @@ import {
   toAbsoluteAuthCallbackUrl,
 } from '@/utils/onboardingRedirect';
 
+import { useAuthAgreement } from '../_layout/AuthAgreement';
 import { useAuthServerConfigStore } from '../_layout/AuthServerConfigProvider';
 import { EMAIL_REGEX, USERNAME_REGEX } from './SignInEmailStep';
 
@@ -53,7 +53,21 @@ export const useSignIn = () => {
   const enableBusinessFeatures = useAuthServerConfigStore(
     (s) => s.serverConfig.enableBusinessFeatures || false,
   );
-  const [form] = Form.useForm<SignInFormValues>();
+  // The agreement consent is hoisted here so the form's submit handler can gate
+  // both steps; the email step renders the same state back as a controlled checkbox.
+  const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
+  const form = useForm<SignInFormValues>({
+    initialValues: { email: '', password: '' },
+    onSubmit: (values) => {
+      if (step === 'password') {
+        void handleSignIn(values);
+        return;
+      }
+      continueWithAgreement(() => {
+        void handleCheckUser(values);
+      });
+    },
+  });
   const [loading, setLoading] = useState(false);
   // Locks the email-dispatch actions (magic link / password reset / resend) so a
   // slow network can't be double-clicked into multiple emails.
@@ -80,18 +94,22 @@ export const useSignIn = () => {
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
-    if (emailParam) form.setFieldValue('email', emailParam);
+    if (emailParam) form.setValue('email', emailParam);
   }, [searchParams, form]);
 
   const handleSendMagicLink = async (targetEmail?: string): Promise<boolean> => {
     if (sending) return false;
     try {
+      // J2: antd's validateFields rejected with an `errorFields` payload, which
+      // the old catch branch used to tell validation failures (already rendered
+      // inline) apart from real errors (toasted). FormKit's validate() resolves
+      // `{ errors, valid }` without throwing, so the branch becomes !valid and
+      // the catch below only handles unexpected failures.
       const emailValue =
         targetEmail ||
         (await form
-          .validateFields(['email'])
-          .then((v) => v.email as string)
-          .catch(() => null));
+          .validate(['email'])
+          .then(({ valid }) => (valid ? form.getValue('email') : null)));
       if (!emailValue) return false;
 
       setSending(true);
@@ -116,10 +134,8 @@ export const useSignIn = () => {
       setStep('emailSent');
       return true;
     } catch (error) {
-      if (!(error as any)?.errorFields) {
-        console.error('Magic link error:', error);
-        toast.error(t('betterAuth.signin.magicLinkError'));
-      }
+      console.error('Magic link error:', error);
+      toast.error(t('betterAuth.signin.magicLinkError'));
       return false;
     } finally {
       setSending(false);
@@ -245,12 +261,7 @@ export const useSignIn = () => {
         // Wrong password is the most common sign-in failure. Keep the error
         // pinned inline on the field (persistent, with retry context) rather
         // than a toast that vanishes in 3s (ux Read §1.1 / Same-Page Error).
-        form.setFields([
-          {
-            errors: [result.error.message || t('betterAuth.signin.error')],
-            name: 'password',
-          },
-        ]);
+        form.setErrors({ password: result.error.message || t('betterAuth.signin.error') });
       }
     } catch (error) {
       console.error('Sign in error:', error);
@@ -322,11 +333,11 @@ export const useSignIn = () => {
     // Drop the previous account's password + any inline error. The form
     // instance is shared across steps and defaults to preserve, so without this
     // the next email's password step remounts pre-filled with the stale value.
-    form.resetFields(['password']);
+    form.resetField('password');
   };
 
   const handleGoToSignup = () => {
-    const currentEmail = form.getFieldValue('email');
+    const currentEmail = form.getValue('email');
     const callbackUrl = searchParams.get('callbackUrl') || '/';
     const params = new URLSearchParams();
     if (currentEmail) params.set('email', currentEmail);
@@ -399,6 +410,8 @@ export const useSignIn = () => {
     : resolvedProviders;
 
   return {
+    agreementChecked,
+    continueWithAgreement,
     disableEmailPassword,
     email,
     form,
@@ -418,6 +431,7 @@ export const useSignIn = () => {
     sessionExpired,
     sentInfo,
     serverConfigInit: enableBusinessFeatures ? true : serverConfigInit,
+    setAgreementChecked,
     socialLoading,
     step,
   };

@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Modal, Tag, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { useForm, useWatch } from '@lobehub/ui/base-ui/form';
 import { Pencil, Plus } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -58,9 +57,12 @@ const ProductManager = memo<{
   service?: ProductService;
 }>(({ appId, canWrite = true, service = adminCommercialService.moduleApps }) => {
   const { t } = useTranslation('common');
-  const [form] = Form.useForm<ProductFormValues>();
-  const licenseScope = Form.useWatch('licenseScope', form);
-  const productType = Form.useWatch('productType', form);
+  const form = useForm<ProductFormValues>({
+    initialValues: productFormInitialValues,
+    onSubmit: (values) => save(values),
+  });
+  const licenseScope = useWatch(form, 'licenseScope');
+  const productType = useWatch(form, 'productType');
   const [editing, setEditing] = useState<ProductRow>();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,14 +77,14 @@ const ProductManager = memo<{
   const close = () => {
     setOpen(false);
     setEditing(undefined);
-    form.resetFields();
+    form.reset(productFormInitialValues);
   };
 
   const add = () => {
     if (!canWrite) return;
 
     setEditing(undefined);
-    form.setFieldsValue(productFormInitialValues);
+    form.setValues(productFormInitialValues);
     setOpen(true);
   };
 
@@ -90,7 +92,7 @@ const ProductManager = memo<{
     if (!canWrite) return;
 
     setEditing(row);
-    form.setFieldsValue({
+    form.setValues({
       amount: row.amount,
       billingPeriod: row.billingPeriod,
       currency: row.currency,
@@ -108,7 +110,7 @@ const ProductManager = memo<{
     setOpen(true);
   };
 
-  const save = async (values: ProductFormValues) => {
+  async function save(values: ProductFormValues) {
     if (!canWrite) return;
 
     setSaving(true);
@@ -159,7 +161,7 @@ const ProductManager = memo<{
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   const columns = [
     { dataIndex: 'productKey', title: t('moduleApps.admin.products.productKey') },
@@ -270,7 +272,6 @@ const ProductManager = memo<{
           productType={productType}
           saving={saving}
           t={t as any}
-          onFinish={(values) => void save(values)}
         />
       </Modal>
     </Flexbox>

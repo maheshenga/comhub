@@ -96,6 +96,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
+  SkeletonAvatar: () => <span data-testid="apps-loading-icon" />,
 }));
 vi.mock('../MobilePageLayout', () => ({
   default: ({ children, header }: any) => (

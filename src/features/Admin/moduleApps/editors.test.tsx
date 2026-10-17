@@ -1,6 +1,5 @@
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { fireEvent, render, screen } from '@testing-library/react';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
 import { describe, expect, it, vi } from 'vitest';
 
 import ActionEditor from './ActionEditor';
@@ -46,8 +45,20 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   TextArea: (props: any) => <textarea {...props} />,
 }));
 
+const FormHarness = ({
+  children,
+  initialValues,
+}: {
+  children: React.ReactNode;
+  initialValues?: Record<string, any>;
+}) => {
+  const form = useForm<Record<string, any>>({ initialValues });
+
+  return <Form form={form}>{children}</Form>;
+};
+
 const renderWithForm = (node: React.ReactNode, initialValues = {}) =>
-  render(<Form initialValues={initialValues}>{node}</Form>);
+  render(<FormHarness initialValues={initialValues}>{node}</FormHarness>);
 
 describe('module app admin section editors', () => {
   it('renders page editor controls', () => {

@@ -2,8 +2,7 @@
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Button } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOutletContext } from 'react-router';
@@ -34,7 +33,15 @@ const ModuleAppEntitlementsPage = memo(() => {
     (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
   );
   const canWrite = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
-  const [form] = Form.useForm<EntitlementsDraft>();
+  const form = useForm<EntitlementsDraft>({
+    onSubmit: (values) => save(values),
+    onValuesChange: () => {
+      if (!canWrite) return;
+
+      setDirty(true);
+      persistDraft();
+    },
+  });
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string>();
@@ -54,7 +61,7 @@ const ModuleAppEntitlementsPage = memo(() => {
       billing: draft?.billing ?? app.billing,
       entitlements: draft?.entitlements ?? app.entitlements,
     });
-    form.setFieldsValue({ billing: values.billing, entitlements: values.entitlements });
+    form.setValues({ billing: values.billing, entitlements: values.entitlements });
     setDirty(Boolean(draft));
     setSaveStatus(draft ? t('moduleApps.admin.entitlements.draftRestored') : undefined);
   }, [app.billing, app.entitlements, draftScope, form, t]);
@@ -62,7 +69,7 @@ const ModuleAppEntitlementsPage = memo(() => {
   const persistDraft = () => {
     if (!canWrite) return;
 
-    const values = form.getFieldsValue(true);
+    const values = form.getValues();
     try {
       saveModuleDraft(draftScope, values);
     } catch {
@@ -71,10 +78,9 @@ const ModuleAppEntitlementsPage = memo(() => {
     }
   };
 
-  const save = async () => {
+  async function save(values: EntitlementsDraft) {
     if (!canWrite) return;
 
-    const values = await form.validateFields();
     try {
       saveModuleDraft(draftScope, values);
     } catch {
@@ -123,7 +129,7 @@ const ModuleAppEntitlementsPage = memo(() => {
     setDirty(false);
     setSaveStatus(t('moduleApps.admin.entitlements.saved'));
     await refresh();
-  };
+  }
 
   return (
     <section className={styles.page} data-testid="module-app-entitlements">
@@ -134,20 +140,9 @@ const ModuleAppEntitlementsPage = memo(() => {
         </div>
         {!canWrite ? <p role="note">{t('moduleApps.admin.entitlements.permissionHint')}</p> : null}
       </header>
-      <Form<EntitlementsDraft>
-        disabled={!canWrite}
-        form={form}
-        layout="vertical"
-        onFinish={save}
-        onValuesChange={() => {
-          if (!canWrite) return;
-
-          setDirty(true);
-          persistDraft();
-        }}
-      >
+      <Form<EntitlementsDraft> form={form} layout="vertical">
         <EntitlementEditor disabled={!canWrite} />
-        <BillingEditor />
+        <BillingEditor disabled={!canWrite} />
         {saveStatus ? <p role="status">{saveStatus}</p> : null}
         {canWrite ? (
           <Button htmlType="submit" loading={saving} type="primary">

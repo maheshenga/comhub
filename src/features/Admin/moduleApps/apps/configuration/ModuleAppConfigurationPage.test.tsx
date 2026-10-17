@@ -203,8 +203,12 @@ describe('ModuleAppConfigurationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add page' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove action' }));
 
-    expect(screen.getAllByLabelText('moduleApps.admin.configuration.pageKey')).toHaveLength(1);
-    expect(screen.getAllByLabelText('moduleApps.admin.configuration.actionId')).toHaveLength(1);
+    expect(
+      screen.getAllByLabelText('moduleApps.admin.configuration.pageKey', { exact: false }),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByLabelText('moduleApps.admin.configuration.actionId', { exact: false }),
+    ).toHaveLength(1);
     expect(loadModuleDraft(draftScope)).toBeNull();
     expect(moduleApps.upsertConfiguration).not.toHaveBeenCalled();
   });
