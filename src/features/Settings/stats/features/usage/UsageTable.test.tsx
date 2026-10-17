@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
@@ -38,36 +39,42 @@ vi.mock('@/components/SpendType', () => ({
   ),
 }));
 
-vi.mock('@lobehub/ui/base-ui', () => ({
-  Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Button: ({ children, ...props }: { children: ReactNode }) => (
-    <button {...props}>{children}</button>
-  ),
-  Select: ({
-    'aria-label': ariaLabel,
-    options = [],
-    value,
-    onChange,
-  }: {
-    'aria-label'?: string;
-    'onChange'?: (value?: string) => void;
-    'options'?: Array<{ label: string; value: string }>;
-    'value'?: string;
-  }) => (
-    <select
-      aria-label={ariaLabel}
-      value={value || ''}
-      onChange={(event) => onChange?.(event.target.value || undefined)}
-    >
-      <option value="">全部类型</option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
-}));
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof LobeUIBaseModule>();
+
+  return {
+    ...actual,
+    Input: ({ allowClear: _allowClear, ...props }: Record<string, unknown>) => <input {...props} />,
+    Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    Button: ({ children, ...props }: { children: ReactNode }) => (
+      <button {...props}>{children}</button>
+    ),
+    Select: ({
+      'aria-label': ariaLabel,
+      options = [],
+      value,
+      onChange,
+    }: {
+      'aria-label'?: string;
+      'onChange'?: (value?: string) => void;
+      'options'?: Array<{ label: string; value: string }>;
+      'value'?: string;
+    }) => (
+      <select
+        aria-label={ariaLabel}
+        value={value || ''}
+        onChange={(event) => onChange?.(event.target.value || undefined)}
+      >
+        <option value="">全部类型</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    ),
+  };
+});
 
 vi.mock('antd', () => ({
   DatePicker: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
@@ -221,13 +228,21 @@ describe('UsageTable', () => {
     renderTable();
 
     expect(screen.getAllByTestId('usage-row').map((row) => row.textContent)).toEqual([
-      'model-1', 'model-2', 'model-3', 'model-4', 'model-5',
+      'model-1',
+      'model-2',
+      'model-3',
+      'model-4',
+      'model-5',
     ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'next-page' }));
 
     expect(screen.getAllByTestId('usage-row').map((row) => row.textContent)).toEqual([
-      'model-6', 'model-7', 'model-8', 'model-9', 'model-10',
+      'model-6',
+      'model-7',
+      'model-8',
+      'model-9',
+      'model-10',
     ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'resize' }));

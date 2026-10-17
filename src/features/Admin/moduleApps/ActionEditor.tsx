@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Input, InputNumber, Select, TextArea } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -30,76 +29,94 @@ const ActionEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
     <Flexbox data-testid="admin-module-app-action-editor" gap={12}>
       <h3>{t('moduleApps.admin.configuration.actions')}</h3>
       <Form.List name="actions">
-        {(fields, { add, remove }) => (
+        {({ add, fields, remove }) => (
           <Flexbox gap={12}>
             {fields.map((field, index) => (
               <Flexbox gap={8} key={field.key}>
                 <Flexbox horizontal gap={12}>
-                  <Form.Item
+                  <Form.Field
+                    required
                     label={t('moduleApps.admin.configuration.actionId')}
-                    name={[field.name, 'id']}
-                    rules={[{ required: true }]}
-                    style={{ flex: 1 }}
-                  >
-                    <Input placeholder={t('moduleApps.admin.configuration.actionIdPlaceholder')} />
-                  </Form.Item>
-                  <Form.Item
-                    label={t('moduleApps.admin.configuration.actionName')}
-                    name={[field.name, 'name']}
-                    rules={[{ required: true }]}
+                    name={`${field.name}.id`}
                     style={{ flex: 1 }}
                   >
                     <Input
+                      disabled={disabled}
+                      placeholder={t('moduleApps.admin.configuration.actionIdPlaceholder')}
+                    />
+                  </Form.Field>
+                  <Form.Field
+                    required
+                    label={t('moduleApps.admin.configuration.actionName')}
+                    name={`${field.name}.name`}
+                    style={{ flex: 1 }}
+                  >
+                    <Input
+                      disabled={disabled}
                       placeholder={t('moduleApps.admin.configuration.actionNamePlaceholder', {
                         index: index + 1,
                       })}
                     />
-                  </Form.Item>
+                  </Form.Field>
                 </Flexbox>
                 <Flexbox horizontal gap={12}>
-                  <Form.Item
+                  <Form.Field
+                    required
                     label={t('moduleApps.admin.configuration.runtimeType')}
-                    name={[field.name, 'runtimeType']}
-                    rules={[{ required: true }]}
+                    name={`${field.name}.runtimeType`}
                     style={{ flex: 1 }}
                   >
-                    <Select options={runtimeTypeOptions} />
-                  </Form.Item>
-                  <Form.Item
+                    <Select disabled={disabled} options={runtimeTypeOptions} />
+                  </Form.Field>
+                  <Form.Field
                     label={t('moduleApps.admin.configuration.moduleMultiplier')}
-                    name={[field.name, 'moduleMultiplier']}
+                    name={`${field.name}.moduleMultiplier`}
                     style={{ width: 180 }}
                   >
-                    <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-                  </Form.Item>
+                    <InputNumber
+                      disabled={disabled}
+                      min={0}
+                      precision={2}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Field>
                 </Flexbox>
-                <Form.Item
+                <Form.Field
                   label={t('moduleApps.admin.configuration.inputSchemaJson')}
-                  name={[field.name, 'inputSchemaJson']}
+                  name={`${field.name}.inputSchemaJson`}
                 >
                   <TextArea
                     autoSize={{ maxRows: 5, minRows: 2 }}
+                    disabled={disabled}
                     placeholder={'{\n  "fields": []\n}'}
                   />
-                </Form.Item>
-                <Form.Item
+                </Form.Field>
+                <Form.Field
                   label={t('moduleApps.admin.configuration.outputSchemaJson')}
-                  name={[field.name, 'outputSchemaJson']}
+                  name={`${field.name}.outputSchemaJson`}
                 >
-                  <TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
-                </Form.Item>
-                <Form.Item
+                  <TextArea
+                    autoSize={{ maxRows: 5, minRows: 2 }}
+                    disabled={disabled}
+                    placeholder="{}"
+                  />
+                </Form.Field>
+                <Form.Field
                   label={t('moduleApps.admin.configuration.runtimeConfigJson')}
-                  name={[field.name, 'runtimeConfigJson']}
+                  name={`${field.name}.runtimeConfigJson`}
                 >
-                  <TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
-                </Form.Item>
+                  <TextArea
+                    autoSize={{ maxRows: 5, minRows: 2 }}
+                    disabled={disabled}
+                    placeholder="{}"
+                  />
+                </Form.Field>
                 <Button
                   danger
                   disabled={disabled}
                   onClick={() => {
                     if (disabled) return;
-                    remove(field.name);
+                    remove(field.index);
                   }}
                 >
                   {t('moduleApps.admin.configuration.removeAction')}

@@ -2,14 +2,13 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { InputNumber, Select } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 const CHARGE_MODES = ['free', 'fixed', 'ai_usage', 'external_api', 'hybrid'] as const;
 
-const BillingEditor = memo(() => {
+const BillingEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
   const { t } = useTranslation('common');
   const chargeModeOptions = CHARGE_MODES.map((value) => ({
     label: t(`moduleApps.admin.entitlements.chargeModeOptions.${value}`),
@@ -21,45 +20,53 @@ const BillingEditor = memo(() => {
       <h3>{t('moduleApps.admin.entitlements.billing')}</h3>
       <p>{t('moduleApps.admin.entitlements.billingNotice')}</p>
       <Flexbox horizontal gap={12}>
-        <Form.Item
+        <Form.Field
           label={t('moduleApps.admin.entitlements.chargeMode')}
-          name={['billing', 'chargeMode']}
+          name="billing.chargeMode"
           style={{ flex: 1 }}
         >
           <Select
             aria-label={t('moduleApps.admin.entitlements.chargeMode')}
+            disabled={disabled}
             options={chargeModeOptions}
           />
-        </Form.Item>
-        <Form.Item
+        </Form.Field>
+        <Form.Field
           label={t('moduleApps.admin.entitlements.defaultMultiplier')}
-          name={['billing', 'defaultMultiplier']}
+          name="billing.defaultMultiplier"
           style={{ flex: 1 }}
         >
-          <InputNumber max={100} min={0} precision={2} style={{ width: '100%' }} />
-        </Form.Item>
+          <InputNumber
+            disabled={disabled}
+            max={100}
+            min={0}
+            precision={2}
+            style={{ width: '100%' }}
+          />
+        </Form.Field>
       </Flexbox>
       <Flexbox horizontal gap={12}>
-        <Form.Item
+        <Form.Field
           label={t('moduleApps.admin.entitlements.fixedServiceFeeCredits')}
-          name={['billing', 'fixedServiceFeeCredits']}
+          name="billing.fixedServiceFeeCredits"
           style={{ flex: 1 }}
         >
-          <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-        </Form.Item>
-        <Form.Item
+          <InputNumber disabled={disabled} min={0} precision={2} style={{ width: '100%' }} />
+        </Form.Field>
+        <Form.Field
           label={t('moduleApps.admin.entitlements.externalApiCostCredits')}
-          name={['billing', 'externalApiCostCredits']}
+          name="billing.externalApiCostCredits"
           style={{ flex: 1 }}
         >
-          <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-        </Form.Item>
+          <InputNumber disabled={disabled} min={0} precision={2} style={{ width: '100%' }} />
+        </Form.Field>
       </Flexbox>
-      <Form.Item
+      <Form.Field
         label={t('moduleApps.admin.entitlements.failureFixedFeePolicy')}
-        name={['billing', 'failureFixedFeePolicy']}
+        name="billing.failureFixedFeePolicy"
       >
         <Select
+          disabled={disabled}
           options={[
             {
               label: t('moduleApps.admin.entitlements.failureFixedFeePolicyOptions.doNotCharge'),
@@ -67,7 +74,7 @@ const BillingEditor = memo(() => {
             },
           ]}
         />
-      </Form.Item>
+      </Form.Field>
     </Flexbox>
   );
 });

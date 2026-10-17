@@ -1,7 +1,6 @@
 import * as BaseUI from '@lobehub/ui/base-ui';
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -68,18 +67,21 @@ describe('SignInEmailStep', () => {
     const onSocialSignIn = vi.fn();
 
     const TestSignInEmailStep = () => {
-      const [form] = Form.useForm<{ email: string }>();
+      const form = useForm<{ email: string }>();
+      const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
 
       return (
         <SignInEmailStep
           disableEmailPassword
           serverConfigInit
+          agreementChecked={agreementChecked}
+          continueWithAgreement={continueWithAgreement}
           form={form}
           isSocialOnly={false}
           loading={false}
           oAuthSSOProviders={['google']}
+          setAgreementChecked={setAgreementChecked}
           socialLoading={null}
-          onCheckUser={vi.fn(async () => {})}
           onGoToSignup={vi.fn()}
           onResetEmail={vi.fn()}
           onSetPassword={vi.fn()}

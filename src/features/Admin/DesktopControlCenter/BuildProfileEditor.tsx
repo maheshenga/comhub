@@ -2,92 +2,80 @@
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
 import { Alert, Input, Text, TextArea } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, type FormInstance } from '@lobehub/ui/base-ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  type BuildProfileFormValues,
-  createDefaultBuildProfileForm,
-  WINDOWS_ASSET_KINDS,
-} from './buildProfileForm';
+import { type BuildProfileFormValues, WINDOWS_ASSET_KINDS } from './buildProfileForm';
 import DesktopBuildAssetUpload from './DesktopBuildAssetUpload';
 import { desktopControlCenterStyles } from './styles';
 
 interface BuildProfileEditorProps {
   assets: Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>;
-  form: ReturnType<typeof Form.useForm<BuildProfileFormValues>>[0];
+  form: FormInstance<BuildProfileFormValues>;
   identityLocked?: boolean;
   onAssetUploaded: (kind: DesktopBuildAssetKind, asset: DesktopBuildAsset) => void;
-  onValuesChange?: () => void;
   profileId: string;
 }
 
 const BuildProfileEditor = memo<BuildProfileEditorProps>(
-  ({ assets, form, identityLocked, onAssetUploaded, onValuesChange, profileId }) => {
+  ({ assets, form, identityLocked, onAssetUploaded, profileId }) => {
     const { t } = useTranslation('subscription');
 
     return (
-      // initialValues 与 useEffect 里 buildProfileFormFromProfile 的默认基底一致：
-      // base-ui Input 走 @base-ui useControlled 的首帧受控判定（antd Form.Item 首帧
-      // 注入 value=undefined 时会被永久判为非受控，mount 后 setFieldsValue 不再落
-      // DOM），用 initialValues 让首帧即受控，保持基线 antd Input 的显示行为。
-      <Form<BuildProfileFormValues>
-        form={form}
-        initialValues={createDefaultBuildProfileForm()}
-        layout="vertical"
-        onValuesChange={onValuesChange}
-      >
+      <Form<BuildProfileFormValues> form={form} layout="vertical">
         <Text as={'h4'} className={desktopControlCenterStyles.sectionTitle}>
           {t('admin.desktopBuild.profile.title')}
         </Text>
-        <Form.Item label={t('admin.desktopBuild.applicationName')} name="applicationName">
+        <Form.Field label={t('admin.desktopBuild.applicationName')} name="applicationName">
           <Input />
-        </Form.Item>
-        <Form.Item
+        </Form.Field>
+        <Form.Field
           extra={t('admin.desktopBuild.identity.help')}
           label={t('admin.desktopBuild.applicationId')}
           name="applicationId"
         >
           <Input disabled={identityLocked} />
-        </Form.Item>
-        <Form.Item
+        </Form.Field>
+        <Form.Field
           extra={t('admin.desktopBuild.identity.help')}
           label={t('admin.desktopBuild.protocolScheme')}
           name="protocolScheme"
         >
           <Input disabled={identityLocked} />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopBuild.executableName')} name="executableName">
+        </Form.Field>
+        <Form.Field label={t('admin.desktopBuild.executableName')} name="executableName">
           <Input />
-        </Form.Item>
-        <Form.Item
+        </Form.Field>
+        <Form.Field
           extra={t('admin.desktopBuild.publisher.help')}
           label={t('admin.desktopBuild.publisher')}
           name="publisher"
         >
           <Input />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopBuild.homepage')} name="homepage">
+        </Form.Field>
+        <Form.Field label={t('admin.desktopBuild.homepage')} name="homepage">
           <Input />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopBuild.description')} name="description">
+        </Form.Field>
+        <Form.Field label={t('admin.desktopBuild.description')} name="description">
           <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopBuild.shortcutName')} name="shortcutName">
+        </Form.Field>
+        <Form.Field label={t('admin.desktopBuild.shortcutName')} name="shortcutName">
           <Input />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopBuild.uninstallDisplayName')} name="uninstallDisplayName">
+        </Form.Field>
+        <Form.Field
+          label={t('admin.desktopBuild.uninstallDisplayName')}
+          name="uninstallDisplayName"
+        >
           <Input />
-        </Form.Item>
-        <Form.Item
+        </Form.Field>
+        <Form.Field
           extra={t('admin.desktopBuild.installerArtifactName.help')}
           label={t('admin.desktopBuild.installerArtifactName')}
           name="installerArtifactName"
         >
           <Input />
-        </Form.Item>
+        </Form.Field>
         {identityLocked ? (
           <Alert message={t('admin.desktopBuild.identity.locked')} type="info" />
         ) : null}

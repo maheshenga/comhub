@@ -2,8 +2,7 @@
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
 import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -64,7 +63,10 @@ const withDraftApplied = (
 const BuildProfilePage = memo<BuildProfilePageProps>(
   ({ currentRelease, onDirtyChange, onReleaseActivated }) => {
     const { t } = useTranslation('subscription');
-    const [form] = Form.useForm<BuildProfileFormValues>();
+    const form = useForm<BuildProfileFormValues>({
+      initialValues: createDefaultBuildProfileForm(),
+      onValuesChange: () => markDirty(),
+    });
     const profiles = useClientDataSWR(['admin-desktop-build-profiles'], () =>
       adminCommercialService.listBuildProfiles({ limit: 50 }),
     );
@@ -145,7 +147,7 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
       if (dirtyRef.current && loadedProfileIdRef.current === selectedProfile.id) return;
       setSelectedProfileId((current) => current ?? selectedProfile.id);
       const profileFormValues = buildProfileFormFromProfile(selectedProfile);
-      form.setFieldsValue(profileFormValues);
+      form.setValues(profileFormValues);
       const assetManifest = selectedProfile.currentDraft?.assetManifest ?? {};
       setAssets(assetManifest);
       setSavedAssets(assetManifest);
@@ -171,7 +173,9 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
     const canSaveDraft = hasCompleteWindowsAssets(assets);
 
     const handleSaveDraft = async () => {
-      const payload = buildProfilePayloadFromForm(await form.validateFields());
+      const { valid } = await form.validate();
+      if (!valid) return;
+      const payload = buildProfilePayloadFromForm(form.getValues());
       if (!hasCompleteWindowsAssets(assets)) return;
       setSaving(true);
       try {
@@ -251,7 +255,6 @@ const BuildProfilePage = memo<BuildProfilePageProps>(
           form={form}
           identityLocked={selectedProfile.identityLocked}
           profileId={selectedProfile.id}
-          onValuesChange={markDirty}
           onAssetUploaded={(kind, asset) => {
             setAssets((current) => ({ ...current, [kind]: asset }));
             markDirty();

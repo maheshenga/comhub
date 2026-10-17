@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, Input, InputNumber, Switch } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,63 +13,77 @@ const EntitlementEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
     <Flexbox data-testid="admin-module-app-entitlement-editor" gap={12}>
       <h3>{t('moduleApps.admin.entitlements.entitlements')}</h3>
       <Form.List name="entitlements">
-        {(fields, { add, remove }) => (
+        {({ add, fields, remove }) => (
           <Flexbox gap={12}>
             {fields.map((field) => (
               <Flexbox gap={8} key={field.key}>
                 <Flexbox horizontal gap={12}>
-                  <Form.Item
+                  <Form.Field
+                    required
                     label={t('moduleApps.admin.entitlements.plan')}
-                    name={[field.name, 'plan']}
-                    rules={[{ required: true }]}
+                    name={`${field.name}.plan`}
                     style={{ flex: 1 }}
                   >
-                    <Input placeholder={t('moduleApps.admin.entitlements.planPlaceholder')} />
-                  </Form.Item>
-                  <Form.Item
+                    <Input
+                      disabled={disabled}
+                      placeholder={t('moduleApps.admin.entitlements.planPlaceholder')}
+                    />
+                  </Form.Field>
+                  <Form.Field
                     label={t('moduleApps.admin.entitlements.freeQuotaCredits')}
-                    name={[field.name, 'freeQuotaCredits']}
+                    name={`${field.name}.freeQuotaCredits`}
                     style={{ flex: 1 }}
                   >
-                    <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                  <Form.Item
+                    <InputNumber
+                      disabled={disabled}
+                      min={0}
+                      precision={0}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Field>
+                  <Form.Field
                     label={t('moduleApps.admin.entitlements.discountPercent')}
-                    name={[field.name, 'discountPercent']}
+                    name={`${field.name}.discountPercent`}
                     style={{ flex: 1 }}
                   >
-                    <InputNumber max={100} min={0} precision={0} style={{ width: '100%' }} />
-                  </Form.Item>
+                    <InputNumber
+                      disabled={disabled}
+                      max={100}
+                      min={0}
+                      precision={0}
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Field>
                 </Flexbox>
                 <Flexbox horizontal gap={24}>
-                  <Form.Item
+                  <Form.Field
                     label={t('moduleApps.admin.entitlements.visible')}
-                    name={[field.name, 'visible']}
-                    valuePropName="checked"
+                    name={`${field.name}.visible`}
+                    valueProp="checked"
                   >
                     <Switch disabled={disabled} />
-                  </Form.Item>
-                  <Form.Item
+                  </Form.Field>
+                  <Form.Field
                     label={t('moduleApps.admin.entitlements.installable')}
-                    name={[field.name, 'installable']}
-                    valuePropName="checked"
+                    name={`${field.name}.installable`}
+                    valueProp="checked"
                   >
                     <Switch disabled={disabled} />
-                  </Form.Item>
-                  <Form.Item
+                  </Form.Field>
+                  <Form.Field
                     label={t('moduleApps.admin.entitlements.runnable')}
-                    name={[field.name, 'runnable']}
-                    valuePropName="checked"
+                    name={`${field.name}.runnable`}
+                    valueProp="checked"
                   >
                     <Switch disabled={disabled} />
-                  </Form.Item>
+                  </Form.Field>
                 </Flexbox>
                 <Button
                   danger
                   disabled={disabled}
                   onClick={() => {
                     if (disabled) return;
-                    remove(field.name);
+                    remove(field.index);
                   }}
                 >
                   {t('moduleApps.admin.entitlements.remove')}

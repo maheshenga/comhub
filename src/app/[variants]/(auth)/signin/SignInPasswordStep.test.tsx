@@ -1,13 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { type FormInstance, useForm } from '@lobehub/ui/base-ui/form';
+import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SignInPasswordStep } from './SignInPasswordStep';
-
-const mocks = vi.hoisted(() => ({
-  form: {
-    submit: vi.fn(),
-  },
-}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -16,32 +11,56 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('antd', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  const Form = ({ children }: { children: React.ReactNode }) => <form>{children}</form>;
-  Form.Item = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+const TestSignInPasswordStep = () => {
+  const form = useForm<{ password: string }>();
 
-  return {
-    ...actual,
-    Form,
-  };
-});
+  return (
+    <SignInPasswordStep
+      email="user@example.com"
+      forgotLoading={false}
+      form={form}
+      loading={false}
+      onBackToEmail={vi.fn()}
+      onForgotPassword={vi.fn()}
+    />
+  );
+};
 
 describe('SignInPasswordStep', () => {
   it('uses the upstream password title and the account email as subtitle', () => {
-    render(
-      <SignInPasswordStep
-        email="user@example.com"
-        forgotLoading={false}
-        form={mocks.form as any}
-        loading={false}
-        onBackToEmail={vi.fn()}
-        onForgotPassword={vi.fn()}
-        onSubmit={vi.fn()}
-      />,
-    );
+    render(<TestSignInPasswordStep />);
 
     expect(screen.getByText('Enter your password')).toBeInTheDocument();
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
+  });
+
+  // J2: useSignIn reports bad credentials via form.setErrors; the FormKit
+  // Form.Field error node must render that message inline (not a toast).
+  it('renders a form-level server error inline under the password field', async () => {
+    let formRef: FormInstance<{ password: string }> | undefined;
+
+    const Harness = () => {
+      const form = useForm<{ password: string }>();
+      formRef = form;
+
+      return (
+        <SignInPasswordStep
+          email="user@example.com"
+          forgotLoading={false}
+          form={form}
+          loading={false}
+          onBackToEmail={vi.fn()}
+          onForgotPassword={vi.fn()}
+        />
+      );
+    };
+
+    render(<Harness />);
+
+    act(() => {
+      formRef!.setErrors({ password: 'Invalid credentials' });
+    });
+
+    expect(await screen.findByText('Invalid credentials')).toBeInTheDocument();
   });
 });

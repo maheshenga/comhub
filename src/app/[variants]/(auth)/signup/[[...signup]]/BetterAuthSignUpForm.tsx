@@ -2,8 +2,7 @@
 
 import { Icon } from '@lobehub/ui';
 import { Button, Input, InputPassword, Text } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/setFieldsValue/dependencies 跨字段校验）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { Lock, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -12,15 +11,25 @@ import { useTranslation } from 'react-i18next';
 
 import { AuthCard } from '../../../../../features/AuthCard';
 import { trackLoginOrSignupClicked } from '../../../../../features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
-import { AuthAgreement, useAuthAgreement } from '../../_layout/AuthAgreement';
+import { AuthAgreement } from '../../_layout/AuthAgreement';
 import { useSignUp } from './useSignUp';
 
+// Mirrors @rc-component/async-validator's `type: 'email'` rule, which antd ran
+// for the pre-migration `{ type: 'email' }` Form.Item rule (pattern + 320-char
+// cap). Keeping the exact pattern preserves edge-case acceptance behavior.
+const EMAIL_PATTERN =
+  // eslint-disable-next-line regexp/no-unused-capturing-group, regexp/prefer-d, regexp/strict, regexp/use-ignore-case -- verbatim copy of @rc-component/async-validator's email pattern keeps the pre-migration `type: 'email'` rule semantics
+  /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+\.)+[a-zA-Z\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]{2,}))$/;
+
+// antd Form.Item's default bottom margin (24px), preserved on FormKit Fields
+// because Field has no spacing of its own.
+const FIELD_STYLE = { gap: 0, paddingBlock: '0 24px' };
+
 const BetterAuthSignUpForm = () => {
-  const { form, loading, onSubmit, businessElement } = useSignUp();
+  const { agreementChecked, businessElement, form, loading, setAgreementChecked } = useSignUp();
 
   const { t } = useTranslation('auth');
   const searchParams = useSearchParams();
-  const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
 
   const emailInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +37,7 @@ const BetterAuthSignUpForm = () => {
   useEffect(() => {
     const email = searchParams.get('email');
     if (email) {
-      form.setFieldsValue({ email });
+      form.setValue('email', email);
       passwordInputRef.current?.focus();
     } else {
       emailInputRef.current?.focus();
@@ -61,21 +70,15 @@ const BetterAuthSignUpForm = () => {
       subtitle={t('betterAuth.signup.subtitle')}
       title={t('betterAuth.signup.title')}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={(values) =>
-          continueWithAgreement(() => {
-            void onSubmit(values);
-          })
-        }
-      >
-        <Form.Item
+      <Form form={form} gap={0} layout="vertical">
+        <Form.Field
           name="email"
-          rules={[
-            { message: t('betterAuth.errors.emailRequired'), required: true },
-            { message: t('betterAuth.errors.emailInvalid'), type: 'email' },
-          ]}
+          style={FIELD_STYLE}
+          validate={(value: string) => {
+            if (!value) return t('betterAuth.errors.emailRequired');
+            if (value.length > 320 || !EMAIL_PATTERN.test(value))
+              return t('betterAuth.errors.emailInvalid');
+          }}
         >
           <Input
             autoComplete="email"
@@ -93,23 +96,17 @@ const BetterAuthSignUpForm = () => {
               />
             }
           />
-        </Form.Item>
-        <Form.Item
+        </Form.Field>
+        <Form.Field
           name="password"
-          rules={[
-            { message: t('betterAuth.errors.passwordRequired'), required: true },
-            { message: t('betterAuth.errors.passwordMinLength'), min: 8 },
-            { max: 64, message: t('betterAuth.errors.passwordMaxLength') },
-            {
-              message: t('betterAuth.errors.passwordFormat'),
-              validator: (_, value) => {
-                if (!value) return Promise.resolve();
-                const hasLetter = /[a-z]/i.test(value);
-                const hasNumber = /\d/.test(value);
-                return hasLetter && hasNumber ? Promise.resolve() : Promise.reject();
-              },
-            },
-          ]}
+          style={FIELD_STYLE}
+          validate={(value: string) => {
+            if (!value) return t('betterAuth.errors.passwordRequired');
+            if (value.length < 8) return t('betterAuth.errors.passwordMinLength');
+            if (value.length > 64) return t('betterAuth.errors.passwordMaxLength');
+            if (!/[a-z]/i.test(value) || !/\d/.test(value))
+              return t('betterAuth.errors.passwordFormat');
+          }}
         >
           <InputPassword
             autoComplete="new-password"
@@ -125,21 +122,18 @@ const BetterAuthSignUpForm = () => {
               />
             }
           />
-        </Form.Item>
-        <Form.Item
-          dependencies={['password']}
+        </Form.Field>
+        {/* J4: antd's `dependencies={['password']}` re-validation maps to
+            FormKit's `deps`; `values` is the live engine snapshot at validation
+            time, so the cross-field comparison reads the same source. */}
+        <Form.Field
+          deps={['password']}
           name="confirmPassword"
-          rules={[
-            { message: t('betterAuth.errors.confirmPasswordRequired'), required: true },
-            ({ getFieldValue }) => ({
-              validator(_, value) {
-                if (!value || getFieldValue('password') === value) {
-                  return Promise.resolve();
-                }
-                return Promise.reject(new Error(t('betterAuth.errors.passwordMismatch')));
-              },
-            }),
-          ]}
+          style={FIELD_STYLE}
+          validate={(value: string, values: { password: string }) => {
+            if (!value) return t('betterAuth.errors.confirmPasswordRequired');
+            if (values.password !== value) return t('betterAuth.errors.passwordMismatch');
+          }}
         >
           <InputPassword
             autoComplete="new-password"
@@ -154,16 +148,14 @@ const BetterAuthSignUpForm = () => {
               />
             }
           />
-        </Form.Item>
+        </Form.Field>
 
         {businessElement}
 
         <AuthAgreement checked={agreementChecked} onChange={setAgreementChecked} />
-        <Form.Item>
-          <Button block htmlType="submit" loading={loading} size="large" type="primary">
-            {t('betterAuth.signup.submit')}
-          </Button>
-        </Form.Item>
+        <Button block htmlType="submit" loading={loading} size="large" type="primary">
+          {t('betterAuth.signup.submit')}
+        </Button>
       </Form>
     </AuthCard>
   );

@@ -1,7 +1,6 @@
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Alert, Badge, Button, Divider, Input, Text } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules/FormInstance 类型）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form, type FormInstance } from 'antd';
+import { Form, type FormInstance } from '@lobehub/ui/base-ui/form';
 import { createStaticStyles } from 'antd-style';
 import { Mail } from 'lucide-react';
 import { type CSSProperties, useEffect, useRef } from 'react';
@@ -11,7 +10,7 @@ import AuthIcons from '@/components/AuthIcons';
 import { useBrand } from '@/features/Brand';
 
 import AuthCard from '../../../../features/AuthCard';
-import { AuthAgreement, useAuthAgreement } from '../_layout/AuthAgreement';
+import { AuthAgreement } from '../_layout/AuthAgreement';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   inlineLink: css`
@@ -37,23 +36,27 @@ const getProviderName = (provider: string) =>
     .replaceAll(/(^|[_-])([a-z])/g, (_, __, character) => character.toUpperCase());
 
 export interface SignInEmailStepProps {
+  agreementChecked: boolean;
+  continueWithAgreement: (continueAction: () => void) => void;
   disableEmailPassword?: boolean;
   form: FormInstance<{ email: string }>;
   isSocialOnly: boolean;
   lastAuthProvider?: string | null;
   loading: boolean;
   oAuthSSOProviders: string[];
-  onCheckUser: (values: { email: string }) => Promise<void>;
   onGoToSignup: () => void;
   onResetEmail: () => void;
   onSetPassword: () => void;
   onSocialSignIn: (provider: string) => void;
   serverConfigInit: boolean;
   sessionExpired?: boolean;
+  setAgreementChecked: (checked: boolean) => void;
   socialLoading: string | null;
 }
 
 export const SignInEmailStep = ({
+  agreementChecked,
+  continueWithAgreement,
   disableEmailPassword,
   form,
   isSocialOnly,
@@ -62,8 +65,8 @@ export const SignInEmailStep = ({
   oAuthSSOProviders,
   serverConfigInit,
   sessionExpired,
+  setAgreementChecked,
   socialLoading,
-  onCheckUser,
   onGoToSignup,
   onResetEmail,
   onSetPassword,
@@ -71,7 +74,6 @@ export const SignInEmailStep = ({
 }: SignInEmailStepProps) => {
   const { t } = useTranslation('auth');
   const brand = useBrand();
-  const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
   const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -151,30 +153,18 @@ export const SignInEmailStep = ({
         <Alert showIcon description={t('betterAuth.signin.ssoOnlyNoProviders')} type="warning" />
       )}
       {showEmailForm && (
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={(values) =>
-            continueWithAgreement(() => {
-              void onCheckUser(values as { email: string });
-            })
-          }
-        >
-          <Form.Item
+        <Form form={form} gap={0} layout="vertical">
+          {/* J2: antd's required+validator rules become one FormKit validate;
+              the { errors, valid } result gates submit in useSignIn's onSubmit. */}
+          <Form.Field
             name="email"
-            rules={[
-              { message: t('betterAuth.errors.emailRequired'), required: true },
-              {
-                validator: (_, value) => {
-                  if (!value) return Promise.resolve();
-                  const trimmedValue = (value as string).trim();
-                  if (EMAIL_REGEX.test(trimmedValue) || USERNAME_REGEX.test(trimmedValue)) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error(t('betterAuth.errors.emailInvalid')));
-                },
-              },
-            ]}
+            style={{ gap: 0, paddingBlock: '0 24px' }}
+            validate={(value: string) => {
+              if (!value) return t('betterAuth.errors.emailRequired');
+              const trimmedValue = value.trim();
+              if (EMAIL_REGEX.test(trimmedValue) || USERNAME_REGEX.test(trimmedValue)) return;
+              return t('betterAuth.errors.emailInvalid');
+            }}
           >
             <Input
               autoComplete="username"
@@ -185,7 +175,7 @@ export const SignInEmailStep = ({
               size="large"
               style={{ padding: 6 }}
             />
-          </Form.Item>
+          </Form.Field>
           <AuthAgreement checked={agreementChecked} onChange={setAgreementChecked} />
           <Button block htmlType="submit" loading={loading} size="large" type="primary">
             {t('betterAuth.signin.nextStep')}

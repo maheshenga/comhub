@@ -84,32 +84,25 @@ vi.mock('../_layout/AuthServerConfigProvider', () => ({
     }),
 }));
 
-// Mock antd Form.useForm
-const mockSetFieldValue = vi.fn();
-const mockGetFieldValue = vi.fn();
-const mockValidateFields = vi.fn();
-const mockSetFields = vi.fn();
-const mockResetFields = vi.fn();
+// Mock FormKit's useForm (the hook only consumes the instance in this test;
+// no fields are rendered, matching the hook-level scope of the suite).
+const mockSetValue = vi.fn();
+const mockGetValue = vi.fn();
+const mockValidate = vi.fn();
+const mockSetErrors = vi.fn();
+const mockResetField = vi.fn();
 const mockSubmit = vi.fn();
-vi.mock('antd', async () => {
-  const actual: any = await vi.importActual('antd');
-  return {
-    ...actual,
-    Form: {
-      ...actual.Form,
-      useForm: () => [
-        {
-          getFieldValue: mockGetFieldValue,
-          resetFields: mockResetFields,
-          setFields: mockSetFields,
-          setFieldValue: mockSetFieldValue,
-          submit: mockSubmit,
-          validateFields: mockValidateFields,
-        },
-      ],
-    },
-  };
-});
+vi.mock('@lobehub/ui/base-ui/form', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useForm: () => ({
+    getValue: mockGetValue,
+    resetField: mockResetField,
+    setErrors: mockSetErrors,
+    setValue: mockSetValue,
+    submit: mockSubmit,
+    validate: mockValidate,
+  }),
+}));
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -327,9 +320,7 @@ describe('useSignIn', () => {
       });
 
       // Error is pinned inline on the password field, not shown as a toast
-      expect(mockSetFields).toHaveBeenCalledWith([
-        { errors: ['Invalid credentials'], name: 'password' },
-      ]);
+      expect(mockSetErrors).toHaveBeenCalledWith({ password: 'Invalid credentials' });
       expect(mockMessageError).not.toHaveBeenCalled();
     });
 
@@ -537,7 +528,7 @@ describe('useSignIn', () => {
       expect(result.current.isSocialOnly).toBe(false);
       // The shared form's password (+ any inline error) must be cleared so the
       // next email doesn't remount pre-filled with the previous account's value.
-      expect(mockResetFields).toHaveBeenCalledWith(['password']);
+      expect(mockResetField).toHaveBeenCalledWith('password');
     });
   });
 
@@ -723,7 +714,7 @@ describe('useSignIn', () => {
       expect(result.current.step).toBe('email');
       expect(result.current.email).toBe('');
       expect(result.current.sentInfo).toBeNull();
-      expect(mockResetFields).toHaveBeenCalledWith(['password']);
+      expect(mockResetField).toHaveBeenCalledWith('password');
     });
   });
 

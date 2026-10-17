@@ -294,6 +294,70 @@ errorFields—— 三页必须同步换 `useForm` + Field 面（合计 31 个 Fo
 tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 4 生产文件 + 测试 #33 随迁 -1+... 见 §2
 状态列更新）。
 
+### 3.3.2 P1 auth 域实测结论（第十二轮，wt-round12 @ 7e9fd93689 + FormKit P1 批次）
+
+> 实测对象：#35-#41 七个生产文件 + #42 AuthAgreement.test（随迁）+ 为保持行为等价而触达的
+> `src/app/[variants]/(auth)/signin/page.tsx` 接线文件。结论全部来自 `@lobehub/ui@5.57.1` FormKit 源码实读
+> （`Field.mjs` / `engine/tanstack.mjs` / `instance.mjs`）+ 迁移后真跑测试，非设计推断。实现形态与 upstream
+> 已迁移版本（`src/features/Auth/**`）逐点对齐，仅保留 fork 的 next/navigation/brand /props 契约。
+
+**J2 errorFields 判据（本域主考场，结论：`errorFields` 结构可完全退场）**：
+
+- **唯一真实使用点**是 `useSignIn.ts` 旧第 119 行：`if (!(error as any)?.errorFields)` 用来区分
+  `validateFields(['email'])` 的校验拒绝（错误已内联渲染 → 不弹 toast）与真实异常（toast）。FormKit
+  `form.validate(names?)` **resolve `{ errors, valid }` 且不抛异常**（`engine/tanstack.mjs:validate`），因此：
+  `targetEmail || (await form.validate(['email']).then(({ valid }) => (valid ? form.getValue('email') : null)))`
+  —— `!valid` 即返回 false（提交中断、错误留在字段级），catch 分支只处理真实异常并 toast。旧分支的
+  “校验失败不 toast / 真实错误 toast” 二义性由 `valid` + catch 两段显式承担，**无静默吞错**。
+- **错误展示路径保持不变**：登录失败的内联密码错误由 antd `form.setFields([{ name:'password', errors:[msg] }])`
+  改为 `form.setErrors({ password: msg })`；FormKit 将其写入 `serverErrors`，`Field.mjs` 的
+  `errorNode = field.error && !bare` 渲染在字段下方（`instance.mjs:errorOf` 优先级
+  serverErrors > fieldErrors > formErrors），用户再次编辑该字段时 `afterUserChange` 清除 serverErrors。
+  实测：`useSignIn.test.ts`（31 tests）断言 `setErrors({password:'Invalid credentials'})` 且**不**弹 toast；
+  `SignInPasswordStep.test.tsx` 新增用例真实渲染 FormKit Form.Field，`setErrors` 后断言
+  “Invalid credentials” 内联可见。**没有任何消费点需要 `errorFields` 的字段路径数组结构**；
+  逐字段 message 由 `errors: Record<path,message>` 覆盖，提交中断由 `!valid` 覆盖。
+- **J1 映射实测**：`setFieldsValue`→`setValues`（本域用单字段 `setValue`）、`getFieldValue`→`getValue`、
+  `resetFields(['password'])`→`resetField('password')`（只重置该字段值 + dirty / 错误，等价 antd 单字段 reset）。
+
+**J4 dependencies 跨字段判据（结论：`deps` + validate 第二参达到行为等价）**：
+
+- antd `Form.Item dependencies={['password']}` + `({ getFieldValue }) => validator(_, value)` 改为
+  FormKit `Form.Field deps={['password']}` + `validate={(value, values) => ...}`：第二参是引擎在**校验时刻**
+  的 values 快照（`Field.mjs` 把 `values` 透传给 validator），与 antd `getFieldValue` 同源。
+- 重校验时序实测：`engine/tanstack.mjs:afterUserChange` 在用户改动 path 后，对
+  `registration.deps?.includes(path) && isTouched(other)` 的字段执行 `runField(other, true)` —— 即
+  “依赖字段被触碰过才重校验”，与 antd 依赖字段已交互后的行为一致。新增
+  `BetterAuthSignUpForm.test.tsx`：密码 / 确认密码输入不一致 → 提交出现
+  `passwordMismatch`（提交使全部字段 touched）→ 仅改密码为一致值（不再提交）→ 错误自动消失，1/1 绿。
+  `ResetPasswordContent.tsx` 的 `dependencies={['newPassword']}` 采用同一形态。
+- 结论：**不需要自建 useWatch 监听重算**；`deps` 已是原生能力（`FormFieldProps.deps: FieldPath<T>[]`，
+  `type.d.mts`）。
+
+**本域其余迁移形态（实测）**：
+
+- `useForm({ initialValues, onSubmit })` 在 hook 层创建（`useSignIn` / `useSignUp` / `useResetPassword`）；
+  `Form` 的原生 submit 会先 `form.submit()` 校验全部注册字段，`valid` 后才调用 `onSubmit`，因此
+  `onFinish` 的顺序语义（校验通过 → 业务提交）保持一致。**agreement 门闸随之上移**到 `useSignIn` /
+  `useSignUp`（与 upstream 同构），`signin/page.tsx` 仅做 props 接线；否则组件级 `useAuthAgreement` 会话与
+  submit 闭包会分裂成两个 state 实例，勾选后仍会弹确认框（行为不等价）。
+- antd `rules` 的 required/min/max/type:'email'/format 合并为单个 `validate`（按原顺序返回首个错误，
+  `Field.mjs` 的 required 短路优先于 validate）。signup 的 `{type:'email'}` 规则按
+  `@rc-component/async-validator` 原正则逐字复刻（含 320 字符上限，仅调整 lint 要求的转义与 `eslint-disable`
+  注释），避免换成 sign-in 的宽松 EMAIL_REGEX 造成边界行为漂移。
+- 布局等价：antd `Form.Item` 默认 `margin-bottom: 24px` → FormKit Field
+  `style={{ gap: 0, paddingBlock: '0 24px' }}`（upstream 同款）；按钮不再需要 `Form.Item` 包裹。
+- 测试 mock 边界随迁：`useSignIn.test.ts` 的 antd `Form.useForm` mock 改为 FormKit `useForm` mock（断言
+  `setErrors` / `resetField`）；SignIn 两个组件测试改为传入真实 `useForm` 实例；`AuthAgreement.test.tsx`
+  改用 FormKit `useForm`（#42 随迁）。
+
+**P1 批次门禁自证（实测数字）**：auth 8 个测试文件（7 个既有 + 新增 BetterAuthSignUpForm.test）
+**60/60 tests、8/8 files 全绿**；触达 13 个文件 eslint **0 error / 0 warning**；全仓 tsgo 对 auth 域 **0 错误**
+（当日全仓仅 5 条错误位于 `src/features/Admin/moduleApps/apps/entitlements/ModuleAppEntitlementsPage.tsx`，
+属并行的 P2a 施工线，与 P1 无关）；registry `registry.test.mjs` 13/13 + `verify.mjs` 全 changed files 已登记；
+本批 8 个文件的 `no-restricted-imports` 豁免行全部删除（工作区共享，当前全仓豁免计数 47 含其他施工线并发改动，
+不单独归因）。
+
 ### 3.4 同文件混合导入约定（迁移时沿用第八轮规范）
 
 普通组件 base-ui、Form 系留 antd 的混合文件在迁移时遵循第八轮已固化的拆行规范（报告 ②共性替换模式第 6 条）：
@@ -334,6 +398,11 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
 - auth 域特殊注意：认证流程页有 `(auth)/_layout` 的测试包裹器，登录 / 注册冒烟测试必须逐文件成对跑绿；
   BetterAuthSignUpForm 曾遗留基线既有 warning `no-location-assign-relative-destination`（报告 g4 记录），
   迁移不得使其净增。
+- ✅ **第十二轮已执行**（wt-round12，三批串行、每批成对测试后进入下一批）：7 个生产文件 + #42 测试迁移完成，
+  额外触达 `signin/page.tsx` 接线（agreement 上移后 props 传递）；新增 `BetterAuthSignUpForm.test.tsx`
+  作为 J4 `deps` 行为证据。实测结论见 §3.3.2。验收：auth 8 文件 / 60 tests 全绿、触达文件 eslint 0/0、
+  tsgo auth 域 0 错误、registry 双门禁通过、8 个豁免行全部删除（P0 完成态 45 再 -8 = **37**；工作区实测
+  计数 47 是三条施工线共享树的并发结果，见 §3.3.2 计数说明）。
 
 ### P2：Admin 稠密表单域按页分批（32 个非测试 + 2 个测试）
 
