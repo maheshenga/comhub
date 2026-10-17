@@ -588,11 +588,8 @@ export class AiProviderActionImpl {
     return useClientDataSWR<AiProviderRuntimeStateWithBuiltinModels | undefined>(
       shouldFetch ? [AiProviderSwrKey.fetchAiProviderRuntimeState, isLogin] : null,
       async ([, isLogin]) => {
-        const [{ loadDefaultHiddenBuiltinModels, loadModels }, { DEFAULT_MODEL_PROVIDER_LIST }] =
-          await Promise.all([
-            import('@/business/client/model-bank/loadModels'),
-            import('model-bank/modelProviders'),
-          ]);
+        const { loadDefaultHiddenBuiltinModels, loadModels } =
+          await import('@/business/client/model-bank/loadModels');
         const [allBuiltinAiModels, defaultHiddenBuiltinModels] = await Promise.all([
           loadModels(),
           loadDefaultHiddenBuiltinModels(),

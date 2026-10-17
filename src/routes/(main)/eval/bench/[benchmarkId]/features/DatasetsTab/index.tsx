@@ -48,7 +48,7 @@ interface DatasetsTabProps {
 }
 
 const DatasetsTab = memo<DatasetsTabProps>(
-  ({ benchmarkId, datasets, loading: datasetsLoading, onImport, onRefresh }) => {
+  ({ benchmarkId, datasets, loading: datasetsLoading, onImport: _onImport, onRefresh }) => {
     const { t } = useTranslation('eval');
 
     const [expandedDs, setExpandedDs] = useState<string | null>(null);

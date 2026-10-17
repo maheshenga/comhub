@@ -151,20 +151,20 @@ const TaskPriorityTag = memo<TaskPriorityTagProps>(
     const IconRender = meta.icon;
     const isUrgent = currentLevel === 1;
 
-    const triggerNode = children ? (
-      children
-    ) : loading ? (
-      <Spin size={size} style={{ color: cssVar.colorTextDescription }} />
-    ) : (
-      <Tooltip title={t(`taskDetail.${meta.labelKey}` as never, { defaultValue: meta.label })}>
-        <span
-          className={isUrgent ? styles.triggerUrgent : styles.trigger}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <IconRender size={size} />
-        </span>
-      </Tooltip>
-    );
+    const triggerNode =
+      children ??
+      (loading ? (
+        <Spin size={size} style={{ color: cssVar.colorTextDescription }} />
+      ) : (
+        <Tooltip title={t(`taskDetail.${meta.labelKey}` as never, { defaultValue: meta.label })}>
+          <span
+            className={isUrgent ? styles.triggerUrgent : styles.trigger}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconRender size={size} />
+          </span>
+        </Tooltip>
+      ));
 
     if (disableDropdown) return <>{triggerNode}</>;
 

@@ -208,7 +208,16 @@ const UserAgentCard = memo<UserAgentCardProps>(
       } finally {
         setIsEditLoading(false);
       }
-    }, [canCreate, canEdit, identifier, navigate, createAgent, refreshAgentList, t]);
+    }, [
+      canCreate,
+      canEdit,
+      identifier,
+      activeWorkspaceId,
+      navigate,
+      createAgent,
+      refreshAgentList,
+      t,
+    ]);
 
     const handleStatusAction = useCallback(
       (action: 'deprecate') => {

@@ -21,7 +21,7 @@ export const useWorkspaceModal = (
     if (!showMobileWorkspace) {
       setIsModalOpen(false);
     }
-  }, [mobile, showMobileWorkspace]);
+  }, [mobile, setIsModalOpen, showMobileWorkspace]);
 
   return [isModalOpen, setIsModalOpen];
 };

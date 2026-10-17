@@ -523,8 +523,8 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
       isSupportImageUrls,
       imageUrl,
       imageUrls,
-      setImageUrl,
-      setImageUrls,
+      setImageUrlValue,
+      setImageUrlsValue,
       framePreviewUrls.length,
       maxCount,
       canCreate,
@@ -541,7 +541,7 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
         setImageUrlsValue((imageUrls ?? []).filter((item) => item !== url));
       }
     },
-    [canCreate, imageUrl, imageUrls, setImageUrl, setImageUrls],
+    [canCreate, imageUrl, imageUrls, setImageUrlValue, setImageUrlsValue],
   );
 
   const handleEndImageChange = useCallback(

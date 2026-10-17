@@ -154,16 +154,15 @@ const LobehubSkillServerItem = memo<LobehubSkillServerItemProps>(
     );
 
     const pluginId = server ? server.identifier : '';
-    const plugins =
-      useAgentStore(agentSelectors.getAgentConfigById(effectiveAgentId))?.plugins || [];
-    const checked = plugins.includes(pluginId);
+    const plugins = useAgentStore(agentSelectors.getAgentConfigById(effectiveAgentId))?.plugins;
+    const checked = plugins?.includes(pluginId) ?? false;
     const updateAgentConfigById = useAgentStore((s) => s.updateAgentConfigById);
 
     // Toggle plugin for the effective agent
     const togglePlugin = useCallback(
       async (pluginIdToToggle: string) => {
         if (!effectiveAgentId) return;
-        const currentPlugins = plugins;
+        const currentPlugins = plugins ?? [];
         const hasPlugin = currentPlugins.includes(pluginIdToToggle);
         const newPlugins = hasPlugin
           ? currentPlugins.filter((id) => id !== pluginIdToToggle)

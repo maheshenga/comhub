@@ -36,7 +36,7 @@ const SessionHydration = memo(() => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [setSession, switchTopic]);
 
   return null;
 });

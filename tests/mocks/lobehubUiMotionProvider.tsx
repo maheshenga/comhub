@@ -60,7 +60,12 @@ const motionStub = new Proxy(
   { get: (_target, prop) => (typeof prop === 'string' ? stubFor(prop) : undefined) },
 );
 
-export const MotionComponent = createContext<unknown>(motionStub);
+// Upstream barrels (`@lobehub/ui` es/index.mjs) import `MotionComponent` from
+// the aliased MotionProvider module, so the context must stay exported under
+// that exact name; the Context suffix lives on the local binding instead.
+const MotionContext = createContext<unknown>(motionStub);
+
+export const MotionComponent = MotionContext;
 
 export const MotionProvider = ({ children, motion }: { children?: ReactNode; motion?: unknown }) =>
   createElement(MotionComponent, { value: motion ?? motionStub }, children);

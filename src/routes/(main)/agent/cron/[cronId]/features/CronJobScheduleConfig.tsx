@@ -1,9 +1,8 @@
 'use client';
 
 import { type ScheduleType } from '@lobechat/utils/cron';
-// eslint-disable-next-line no-restricted-imports -- @lobehub/ui FormGroup 属 Form 系布局组件（表单分组语义），base-ui/form 无行内等价项；迁 FormKit 属另行立项。
-import { Flexbox, FormGroup } from '@lobehub/ui';
-import { CheckboxGroup, InputNumber, Select } from '@lobehub/ui/base-ui';
+import { Flexbox } from '@lobehub/ui';
+import { CheckboxGroup, FormGroup, InputNumber, Select } from '@lobehub/ui/base-ui';
 import { TimePicker } from 'antd';
 import { type Dayjs } from 'dayjs';
 import { memo } from 'react';

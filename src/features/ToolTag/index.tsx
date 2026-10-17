@@ -9,7 +9,6 @@ import isEqual from 'fast-deep-equal';
 import { memo, useMemo } from 'react';
 
 import PluginAvatar from '@/components/Plugins/PluginAvatar';
-import { useIsDark } from '@/hooks/useIsDark';
 import { useDiscoverStore } from '@/store/discover';
 import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useToolStore } from '@/store/tool';
@@ -62,7 +61,6 @@ export interface ToolTagProps {
  * Unlike PluginTag, this component is not closable and is designed for display-only purposes.
  */
 const ToolTag = memo<ToolTagProps>(({ identifier, variant = 'default' }) => {
-  const isDarkMode = useIsDark();
   const isCompact = variant === 'compact';
 
   // Get local plugin lists

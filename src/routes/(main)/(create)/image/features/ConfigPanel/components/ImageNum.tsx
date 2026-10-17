@@ -109,14 +109,16 @@ const ImageNum = memo<ImageNumSelectorProps>(
     }, []);
 
     useEffect(() => {
-      if (isEditing) {
-        setTimeout(() => {
-          if (inputRef.current) {
-            inputRef.current.focus();
-            inputRef.current.select();
-          }
-        }, 100);
-      }
+      if (!isEditing) return;
+
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
     }, [isEditing]);
 
     const isValidInput = customCount !== null;

@@ -6,7 +6,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
-import { useBusinessInputCompletionErrorAlert } from '@/business/client/hooks/useBusinessInputCompletionErrorAlert';
+import { getBusinessInputCompletionErrorAlert } from '@/business/client/hooks/getBusinessInputCompletionErrorAlert';
 import { selectors, useChatInputStore } from '@/features/ChatInput/store';
 import type { InputCompletionError } from '@/features/ChatInput/store/initialState';
 
@@ -18,7 +18,7 @@ export const InputCompletionErrorAlertContent = memo<{
   const dismissInputCompletionError = useChatInputStore(
     (state) => state.dismissInputCompletionError,
   );
-  const businessAlert = useBusinessInputCompletionErrorAlert({
+  const businessAlert = getBusinessInputCompletionErrorAlert({
     error: inputCompletionError,
     onRetry: clearInputCompletionError,
   });

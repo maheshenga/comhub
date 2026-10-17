@@ -1,7 +1,6 @@
 import { type DropdownMenuProps, type MenuProps } from '@lobehub/ui';
 import { DropdownMenu, Icon } from '@lobehub/ui';
 import { ActionIcon, confirmModal, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
 import { MoreVertical, PencilLine, Plus, Settings2, Trash, UsersRound } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,11 +10,6 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAgentGroupStore } from '@/store/agentGroup';
 import { useSessionStore } from '@/store/session';
 
-const styles = createStaticStyles(({ css }) => ({
-  modalRoot: css`
-    z-index: 2000;
-  `,
-}));
 interface ActionsProps extends Pick<DropdownMenuProps, 'onOpenChange'> {
   id?: string;
   isCustomGroup?: boolean;
@@ -42,40 +36,49 @@ const Actions = memo<ActionsProps>(
 
     const [createGroup] = useAgentGroupStore((s) => [s.createGroup]);
 
-    const sessionGroupConfigPublicItem: MenuItemType = {
-      icon: <Icon icon={Settings2} />,
-      key: 'config',
-      label: t('sessionGroup.config'),
-      onClick: ({ domEvent }) => {
-        domEvent.stopPropagation();
-        openConfigModal();
-      },
-    };
+    const sessionGroupConfigPublicItem: MenuItemType = useMemo(
+      () => ({
+        icon: <Icon icon={Settings2} />,
+        key: 'config',
+        label: t('sessionGroup.config'),
+        onClick: ({ domEvent }) => {
+          domEvent.stopPropagation();
+          openConfigModal();
+        },
+      }),
+      [t, openConfigModal],
+    );
 
-    const newAgentPublicItem: MenuItemType = {
-      icon: <Icon icon={Plus} />,
-      key: 'newAgent',
-      label: t('newAgent'),
-      onClick: async ({ domEvent }) => {
-        domEvent.stopPropagation();
-        const creatingToast = toast.loading(t('sessionGroup.creatingAgent'));
+    const newAgentPublicItem: MenuItemType = useMemo(
+      () => ({
+        icon: <Icon icon={Plus} />,
+        key: 'newAgent',
+        label: t('newAgent'),
+        onClick: async ({ domEvent }) => {
+          domEvent.stopPropagation();
+          const creatingToast = toast.loading(t('sessionGroup.creatingAgent'));
 
-        await createSession({ group: id, pinned: isPinned });
+          await createSession({ group: id, pinned: isPinned });
 
-        creatingToast.close();
-        toast.success(t('sessionGroup.createAgentSuccess'));
-      },
-    };
+          creatingToast.close();
+          toast.success(t('sessionGroup.createAgentSuccess'));
+        },
+      }),
+      [t, createSession, id, isPinned],
+    );
 
-    const newGroupChatItem: MenuItemType = {
-      icon: <Icon icon={UsersRound} />,
-      key: 'newGroupChat',
-      label: t('newGroupChat'),
-      onClick: ({ domEvent }) => {
-        domEvent.stopPropagation();
-        setIsGroupModalOpen(true);
-      },
-    };
+    const newGroupChatItem: MenuItemType = useMemo(
+      () => ({
+        icon: <Icon icon={UsersRound} />,
+        key: 'newGroupChat',
+        label: t('newGroupChat'),
+        onClick: ({ domEvent }) => {
+          domEvent.stopPropagation();
+          setIsGroupModalOpen(true);
+        },
+      }),
+      [t, setIsGroupModalOpen],
+    );
 
     const handleCreateGroupWithMembers = async (
       selectedAgents: string[],
@@ -152,10 +155,13 @@ const Actions = memo<ActionsProps>(
           },
         },
       ],
-      [],
+      [t, openRenameModal, sessionGroupConfigPublicItem, id, removeSessionGroup],
     );
 
-    const defaultItems: MenuProps['items'] = useMemo(() => [sessionGroupConfigPublicItem], []);
+    const defaultItems: MenuProps['items'] = useMemo(
+      () => [sessionGroupConfigPublicItem],
+      [sessionGroupConfigPublicItem],
+    );
 
     const tailItems = useMemo(
       () => (isCustomGroup ? customGroupItems : defaultItems),

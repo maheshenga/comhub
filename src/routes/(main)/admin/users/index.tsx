@@ -333,6 +333,9 @@ const AdminUsersPage = memo(() => {
     try {
       await adminCommercialService.impersonateUser(row.id, command);
       toast.success(t('admin.impersonate.success', '已切换用户身份'));
+      // 切换用户身份后必须整页硬跳转：客户端 store/session 缓存的仍是原管理员的
+      // 身份与数据，SPA 内跳转（navigate/useRouter.push）不会重置这些状态。
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full reload to rebuild auth/session state
       window.location.assign('/');
     } catch {
       toast.error(t('admin.impersonate.failed', '切换用户身份失败'));

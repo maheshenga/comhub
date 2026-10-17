@@ -56,6 +56,9 @@ const AgentDocumentReader = memo<AgentDocumentReaderProps>(({ agentId, documentI
     { revalidateOnFocus: false },
   );
 
+  // 消费者是 apps/workbench（独立 react-router SPA，见 workbenchRoutes 的
+  // AGENT_DOCUMENT_ROUTE），/agent/<id> 属主应用，跨应用只能整页跳转。
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- cross-app navigation from workbench SPA to the main app
   const backToAgent = () => window.location.assign(`/agent/${agentId}`);
   const title = data?.title || data?.filename || '';
 

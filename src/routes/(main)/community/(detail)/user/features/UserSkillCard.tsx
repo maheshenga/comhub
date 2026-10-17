@@ -57,10 +57,10 @@ const UserSkillCard = memo<UserSkillCardProps>(
     identifier,
     category,
     updatedAt,
-    installCount,
+    installCount: _installCount,
     github,
     ratingAvg,
-    commentCount,
+    commentCount: _commentCount,
     resourcesCount = 0,
   }) => {
     const { t } = useTranslation('discover');

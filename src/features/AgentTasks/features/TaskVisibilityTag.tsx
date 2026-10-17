@@ -126,17 +126,17 @@ const TaskVisibilityTag = memo<TaskVisibilityTagProps>(
     // a meaningless choice.
     if (!activeWorkspaceId && !taskIdentifier) return null;
 
-    const triggerNode = children ? (
-      children
-    ) : loading ? (
-      <Spin size={size} style={{ color: cssVar.colorTextDescription }} />
-    ) : (
-      <Tooltip title={label}>
-        <span className={styles.trigger} onClick={(e) => e.stopPropagation()}>
-          <IconComp size={size} />
-        </span>
-      </Tooltip>
-    );
+    const triggerNode =
+      children ??
+      (loading ? (
+        <Spin size={size} style={{ color: cssVar.colorTextDescription }} />
+      ) : (
+        <Tooltip title={label}>
+          <span className={styles.trigger} onClick={(e) => e.stopPropagation()}>
+            <IconComp size={size} />
+          </span>
+        </Tooltip>
+      ));
 
     if (disableDropdown) return <>{triggerNode}</>;
     if (lockedReason)

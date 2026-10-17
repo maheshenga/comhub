@@ -42,7 +42,15 @@ const NotFound = memo<{
         <div style={{ marginTop: '0.5em' }}>{t('notFound.check')}</div>
       </div>
       {extra || (
-        <Button type={'primary'} onClick={() => (window.location.href = '/')}>
+        <Button
+          type={'primary'}
+          onClick={() => {
+            // 404 组件被主应用 / workbench / share 等多宿主共享，本组件拿不到
+            // 统一 router 实例；回首页走整页跳转同时重置所有 store 状态。
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- multi-host shared component without a single router; hard nav resets app state
+            window.location.href = '/';
+          }}
+        >
           {t('notFound.backHome')}
         </Button>
       )}

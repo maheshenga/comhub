@@ -102,7 +102,7 @@ const CustomConnectorModal = memo<CustomConnectorModalProps>(
       return () => {
         controller.abort();
       };
-    }, [open, connectorId]);
+    }, [open, connectorId, getConnectorForEdit]);
 
     // Build the pre-fill value for edit mode once the credentials fetch completes.
     // Returns undefined while loading so DevModal defers seeding the form.

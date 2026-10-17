@@ -2,7 +2,7 @@ import { type DropdownItem, type DropdownMenuCheckboxItem } from '@lobehub/ui';
 import { DropdownMenu, Icon } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { ArrowDownWideNarrow, ChevronDown } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useQueryRoute } from '@/hooks/useQueryRoute';
@@ -179,9 +179,13 @@ const SortButton = memo(() => {
     return items[0];
   }, [items, sort]);
 
-  const handleSort = (config: string) => {
-    router.push(pathname, { query: { sort: config } });
-  };
+  // router/pathname come from the router hook and are stable, so handleSort identity is stable
+  const handleSort = useCallback(
+    (config: string) => {
+      router.push(pathname, { query: { sort: config } });
+    },
+    [router, pathname],
+  );
 
   const menuItems = useMemo<DropdownMenuCheckboxItem[]>(
     () =>

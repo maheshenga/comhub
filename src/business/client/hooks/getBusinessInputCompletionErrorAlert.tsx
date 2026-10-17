@@ -13,6 +13,6 @@ export interface BusinessInputCompletionErrorAlertResult {
   extra?: ReactNode;
 }
 
-export const useBusinessInputCompletionErrorAlert = (
+export const getBusinessInputCompletionErrorAlert = (
   _params: BusinessInputCompletionErrorAlertParams,
 ): BusinessInputCompletionErrorAlertResult => ({});

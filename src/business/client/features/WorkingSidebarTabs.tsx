@@ -11,7 +11,7 @@ export interface BusinessWorkingSidebarTabsContext {
   topicId?: string;
 }
 
-export function useBusinessWorkingSidebarTabs(
+export function getBusinessWorkingSidebarTabs(
   _context: BusinessWorkingSidebarTabsContext,
 ): BusinessWorkingSidebarTab[] {
   return [];

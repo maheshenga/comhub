@@ -13,7 +13,10 @@ const Editor = memo<PropsWithChildren>(({ children }) => {
     i18n: { language, getResourceBundle },
   } = useTranslation('editor');
 
-  const localization = useMemo(() => getResourceBundle(language, 'editor'), [language]);
+  const localization = useMemo(
+    () => getResourceBundle(language, 'editor'),
+    [getResourceBundle, language],
+  );
 
   return (
     <EditorProvider

@@ -1,5 +1,5 @@
 import { appendFileSync, existsSync, mkdirSync, openSync } from 'node:fs';
-import { resolve } from 'node:path';
+import path from 'node:path';
 import { format } from 'node:util';
 
 import debug from 'debug';
@@ -20,7 +20,7 @@ import debug from 'debug';
 const shouldEnable = process.env.DEBUG_LOG_FILE === '1' && process.env.NODE_ENV !== 'production';
 
 if (shouldEnable) {
-  const LOG_DIR = resolve(process.cwd(), 'logs');
+  const LOG_DIR = path.resolve(process.cwd(), 'logs');
 
   if (!existsSync(LOG_DIR)) {
     mkdirSync(LOG_DIR, { recursive: true });
@@ -34,7 +34,7 @@ if (shouldEnable) {
     const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     if (date !== currentDate) {
       currentDate = date;
-      fd = openSync(resolve(LOG_DIR, `${date}.log`), 'a');
+      fd = openSync(path.resolve(LOG_DIR, `${date}.log`), 'a');
     }
     return fd!;
   };

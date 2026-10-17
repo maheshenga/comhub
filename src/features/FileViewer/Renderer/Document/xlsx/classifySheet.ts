@@ -196,7 +196,7 @@ export const classifySheet = (sheet: SheetModel): SheetOutline => {
     bodyFontSize,
     confidence,
     mode: confidence >= CONFIDENCE_FLOOR ? 'reflow' : 'fidelity',
-    sections: sections.map(({ rows, ...section }) => section),
+    sections: sections.map(({ rows: _rows, ...section }) => section),
     stats,
     subtitle,
     title,

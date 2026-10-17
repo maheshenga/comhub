@@ -113,7 +113,7 @@ AdminOperationsPage / AdminPlanFaqCard` 等含 Form.List 的豁免页 —— 属
 | 36  | `src/app/[variants]/(auth)/signin/SignInPasswordStep.tsx`                 | Form 系；InputPassword 已迁 base-ui，InputRef→HTMLInputElement                                      | 中   |
 | 37  | `src/app/[variants]/(auth)/signin/useSignIn.ts`                           | Form 系（含 errorFields 判断，`useSignIn.ts:119`）                                                  | 中   |
 | 38  | `src/app/[variants]/(auth)/signup/[[...signup]]/useSignUp.ts`             | Form 系                                                                                             | 中   |
-| 39  | `src/app/[variants]/(auth)/signup/[[...signup]]/BetterAuthSignUpForm.tsx` | Form.useForm/setFieldsValue /dependencies 跨字段校验；Input.Password 已换 InputPassword             | 中   |
+| 39  | `src/app/[variants]/(auth)/signup/[[...signup]]/BetterAuthSignUpForm.tsx` | Form.useForm/setFieldsValue/dependencies 跨字段校验；Input.Password 已换 InputPassword              | 中   |
 | 40  | `src/app/[variants]/(auth)/reset-password/useResetPassword.ts`            | Form 系                                                                                             | 中   |
 | 41  | `src/app/[variants]/(auth)/reset-password/ResetPasswordContent.tsx`       | Form 系（跨字段校验）；InputPassword 已迁                                                           | 中   |
 
@@ -140,11 +140,14 @@ base-ui 实际**导出** `FormGroup`（本会话复测 `node_modules/@lobehub/ui
 硬迁成功（本会话复测 `src/features/Settings/about/features/About.tsx:4` 现为
 `import { Divider, Form } from '@lobehub/ui/base-ui'`，无豁免行）。三个文件均为纯静态分组用法：
 
-| #   | 文件                                                                        | 用法（本会话实读行号）                                                                                                                                                           |
-| --- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 45  | `src/business/client/BusinessSettingPages/mobile/BusinessMobileSection.tsx` | `:4` 导入、`:169` `<FormGroup collapsible={false} extra={desktopExtra} gap={16} title={title} variant="filled">`                                                                 |
-| 46  | `src/routes/(main)/agent/cron/[cronId]/features/CronJobContentEditor.tsx`   | `:14` 导入、`:70,96` `<FormGroup title variant="filled">`                                                                                                                        |
-| 47  | `src/routes/(main)/agent/cron/[cronId]/features/CronJobScheduleConfig.tsx`  | `:5` 导入、`:65,127` `<FormGroup title variant="filled">`；同文件 TimePicker 不在禁令名单、base-ui 无对应导出，保留 antd 合法且**无需**豁免（该文件豁免仅对应 FormGroup 导入行） |
+| #   | 文件                                                                        | 用法（本会话实读行号）                                                                                                                                                           | 状态                                                               |
+| --- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 45  | `src/business/client/BusinessSettingPages/mobile/BusinessMobileSection.tsx` | `:4` 导入、`:169` `<FormGroup collapsible={false} extra={desktopExtra} gap={16} title={title} variant="filled">`                                                                 | ✅ 已硬迁（第十一轮 P0）                                           |
+| 46  | `src/routes/(main)/agent/cron/[cronId]/features/CronJobContentEditor.tsx`   | `:14` 导入、`:70,96` `<FormGroup title variant="filled">`                                                                                                                        | ✅ 已硬迁（第十一轮 P0）                                           |
+| 47  | `src/routes/(main)/agent/cron/[cronId]/features/CronJobScheduleConfig.tsx`  | `:5` 导入、`:65,127` `<FormGroup title variant="filled">`；同文件 TimePicker 不在禁令名单、base-ui 无对应导出，保留 antd 合法且**无需**豁免（该文件豁免仅对应 FormGroup 导入行） | ✅ 已硬迁（第十一轮 P0，Flexbox 留根桶 ——base-ui 无 Flexbox 导出） |
+
+> 第十一轮 P0 实测补充：#45 的 `gap={16}` 在 base-ui `FormGroupProps` 上**不存在**（根桶版有），已按
+> About.tsx 先例改为外层 `Flexbox gap={16}` 包装，配对测试的 gap 断言随组件搬家（断言语义不变）。
 
 第八轮报告明确修正：三文件留豁免属**执行缺口而非技术不可行**（组报 "base-ui/form 无行内等价项" 与导出面不符）。
 硬迁后 53 → 50，半天工作量、零行为风险。
@@ -214,6 +217,83 @@ FormDivider / useFormContext`；**无 `useForm`、无 `FormInstance`**。
 - **J5 分组与提交脚手架**：`FormGroupItemType`/`Form.SubmitFooter` 直接换 base-ui `FormGroup` /
   `FormSubmitFooter`（均已在导出面，见 3.2）—— 这一项是**唯一可先行机械处理**的判据，B 类 3 文件即据此硬迁。
 
+### 3.3.1 P0 试点实测结论（第十一轮，wt-round11 @ 5f60d4a97f + FormKit P0 批次）
+
+> 实测对象：B 类硬迁 #45/46/47 + 试点 A（#2 AdminDefaultSettingsPage + #8 SectionFields，连带 #6
+> RuntimeModelFieldPair、#7 ProfileDefaultsCard、测试 #33）+ 试点 B（#14 判据结论）。以下全部为
+> `node_modules/@lobehub/ui@5.57.1` 源码实读 + 真渲染测试跑通的实测结论，非设计推断。
+
+**导入形态（实测确认）**：FormKit 只能从 `@lobehub/ui/base-ui/form` 子路径导入（package.json exports
+`./base-ui/form` → `es/base-ui/FormKit/`）；**base-ui 根桶不重导出 FormKit**。可用形态：
+`import { Form, useForm, useWatch, type FormInstance, type FormListRenderProps } from '@lobehub/ui/base-ui/form'`，
+其中 `Form` 是聚合对象（`Form.Field` / `Form.List` / `Form.Group` / `Form.SubmitFooter` 等，
+`FormKit/index.mjs:17-28`）。仓内既有先例 `src/components/FeedbackModal/FeedbackContent.tsx:6`。
+
+**J1 取值 / 设值（实测通过，一个坑）**：`setFieldsValue`→`setValues`、`getFieldsValue`→`getValues`、
+`setFieldValue`→`setValue`、`getFieldValue(path)`→`getValue('a.b.c')`（点路径字符串，数字下标也是点）。
+坑：**FormInstance 方法对 `FieldPath<T>` 逆变**，`FormInstance<FormValues>` 不能直接赋给
+`FormInstance<Record<string, any>>` 形参 —— 动态字段名字符串的消费组件（如 RuntimeModelFieldPair）
+props 用宽类型 `FormInstance<Record<string, any>>`，调用点用一次显式断言收口（同实例对象，无包装）。
+`useForm<T>({ initialValues })` 的 initialValues 类型是**完整 T**（非 DeepPartial），首页只灌部分字段时
+直接不传（加载后 setValues 灌值即可，且 api 源 setValues 会同步 dirty 基线，`instance.mjs:setValues` +
+`tanstack.mjs setValue: source==="api" 时 baseline=setBy`）。
+
+**J2 校验（实测通过）**：`await form.validateFields()`（拒绝抛 errorFields）→
+`const { valid } = await form.validate(); if (!valid) return;`（错误落 `errors: Record<path,message>` 并由
+Form.Field 渲染在字段下方；`Form.validate()` **不抛异常**，提交分支写法见
+AdminDefaultSettingsPage.handleSave）。`rules:[{required,message}]` → `required="message"` +
+`validate(value)=>string|undefined`（两者都在 FieldControl 内合并执行，`Field.mjs:validatorRef`）。
+errorFields 语义降级说明：不需要逐字段 errorFields 结构的文件（本试点全部）直接用 `{errors,valid}`，
+`{valid:false}` 即提交中断；需要 errorFields 分支的文件（useSignIn.ts 等）留待 P1 逐文件判。
+
+**J3 动态字段（实测通过，两个坑）**：antd `Form.List` → FormKit `Form.List`。坑 1：render 签名是
+**单参对象** `{ fields, add, remove, move }`（`FormListRenderProps`），不是 antd 的
+`(fields, {add,remove})` 双参；fields 元素是 `{index,key,name:"parent.N"}`，子字段 name 拼点路径
+`` `${field.name}.label` ``。坑 2：`newItem` prop 承担 antd `add(初值)` 的角色（List 内部
+`structuredClone`），外层 `Form.Field`（无 name）只做布局。嵌套取值
+`form.getValue(\`avatarPresets.${field.index}.value\`)`需`as any`收口 FieldPath 字面量类型。 **行为差异（如实记录）**：Form.List 渲染错误行不带 antd 的红框语义，错误文案由`required`在裸`Form.Field` 下方渲染；`bare\` 字段校验错误同样内联渲染（ProfileDefaultsCard 3 个 required 字段）。
+
+**J4 联动（实测通过）**：`Form.useWatch(name, form)` → `useWatch(form, name)`（参数序对调）。api 源
+`setValues` 同样触发 useWatch 重渲染（`useStoreSelector` 订阅 engine store，setValues→setValue→notify
+全链通知，`tanstack.mjs`），SWR 灌值 → 供应商联动显示的时序与 antd 一致（六对模型对的联动显示测试
+原断言全过）。
+
+**J5 / 试点 A 落地形态（实测通过）**：`<Form form layout="vertical">` + 子组件持 `FormInstance` 类型 +
+`Form.Field(name,label,extra,valueProp,validate,render,hidden,bare,style)`。**坑（antd 有而 FormKit 无）**：
+① `valuePropName="checked"` → `valueProp="checked"`（Switch 接受 `checked`+`onCheckedChange→onChange`
+转发，`Switch.mjs`）；② **FormProps 无 `disabled`**（HTMLFormAttributes 无此属性，antd 的字段级禁用
+经 Form context 下发，FormKit 无等价面）—— 现有代码以 rest 透传给原生 `<form>` 收口（Firefox 降级语义 +
+注释说明），跨浏览器字段禁用是**已知残留差异**，后续批次遇到 loading 禁用场景需逐字段 `disabled` 传递或
+容器层 opacity/pointer-events 方案，立项层面记为 FormKit 待补能力；③ 子元素绑定探测依赖
+`child.type.formBinding`（`binding.mjs`），Input/TextArea/InputPassword/InputNumber/Checkbox 已内建
+（emptyValue/checked），**Select/AutoComplete/Switch 未声明**（走默认 onChange+value 绑定，本次实测可用）；
+④ FieldControl 的 onChange 先转发 child onChange 再 `engine.setValue(name, defaultGetValue(args))`——
+需要 "选中的是映射值而非原始串" 的场景（AutoComplete 选中项写入 model 短名）用 **`getValue` 覆写**
+（FieldRenderProps 之外的 FieldBinding 面，`FormFieldProps.getValue`）实现映射，不要用 render prop
+（render 会丢 label-for 关联，Form.Field 在 render 模式不给 child 注入 id/aria）。
+
+**试点 B 判据结论（#14 useDesktopSettingsFormSync.ts，未落地、豁免保留）**：
+该 hook（55 行）全部命令式面 = `form.setFieldsValue(synchronizedValues)`（`useDesktopSettingsFormSync.ts:25`），
+FormKit 等价 = `form.setValues`（DeepPartial 入参、api 源可选项，语义覆盖）。**单文件类型迁移可行但无意义**：
+三个消费者 BrandPage.tsx:34 / DistributionPage.tsx:40 / UpdateSettingsPage.tsx:47 各自
+`Form.useForm<DesktopSettingsValues>()` 并把实例传给 hook 与 `<Form onValuesChange={markEdited}>`
+（BrandPage:106 等）+ `form.validateFields()`（BrandPage:47 等）+ `isDesktopFormValidationError`
+（检查 `errorFields` in error，`desktopSettingsForm.ts:9-10`，**按 ask 硬约束未改动**）。
+FormKit 侧 `onValuesChange` 挂在 `useForm({...})` options 而非 `<Form>` prop、`validate()` 不抛
+errorFields—— 三页必须同步换 `useForm` + Field 面（合计 31 个 Form.Item，全在 A 类 P2b 清单），
+否则该 helper 的调用契约（antd FormInstance）断裂。**最小迁移切片建议（P2b DesktopControlCenter 批次）**：
+① 三页 + hook 同批（hook 是共享类型枢纽）；② `isDesktopFormValidationError` 的 errorFields 检查改为
+`validate()` 返回的 `errors` 非空判断或错误对象形态约定（需先定 FormKit 侧提交错误契约 —— 属 J2 全局
+判据落点，建议在该批次先给 helper 出迁移说明再动手）；③ `onValuesChange` 的
+`(changed, allValues)` 双参语义与 `useForm({ onValuesChange })` 一致，`markEdited` 可原样接入。
+预测工作量：4 文件一批、半天。
+
+**P0 批次门禁自证（实测数字）**：豁免 74 → 66（`git grep -l "eslint-disable-next-line no-restricted-imports" -- src tests | wc -l`，
+差集恰好为本批 8 文件：#45/46/47 + #2/6/7/8 + 测试 #33，零新增）；Admin 套件
+`node node_modules/vitest/vitest.mjs run --project app src/features/Admin` = 109 文件 / 597 测试全绿；
+tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 4 生产文件 + 测试 #33 随迁 -1+... 见 §2
+状态列更新）。
+
 ### 3.4 同文件混合导入约定（迁移时沿用第八轮规范）
 
 普通组件 base-ui、Form 系留 antd 的混合文件在迁移时遵循第八轮已固化的拆行规范（报告 ②共性替换模式第 6 条）：
@@ -236,8 +316,13 @@ FormDivider / useFormContext`；**无 `useForm`、无 `FormInstance`**。
 2. **FormKit 试点先行**：选 **#14 `useDesktopSettingsFormSync.ts`（全文件仅 FormInstance 类型）+ #2
    `AdminDefaultSettingsPage.tsx`（全文件仅 Form 系）** 做首个受控语义重写试点 —— 零 UI 面，能最快暴露
    J1/J2 判据在真实代码里的坑（同步逻辑读值、settings 分区保存链路）。试点结论回写本文档 §3.3。
-3. P0 完成态：53 → 47（B 类 -3 + 试点 2 个 -2…… 试点若先完成语义设计，可先只交付 B 类与试点结论，
-   两个 Form-only 文件也可推迟到 P2 Admin 批次，二选一由开工会话定）。
+   ✅ **第十一轮 P0 已执行**：#2 连同其类型闭链 #8（SectionFields）+#6（RuntimeModelFieldPair）+#7
+   （ProfileDefaultsCard）+ 测试 #33 一起换 FormKit（4 生产 + 1 测试，比原计划多 3 个 ——SectionFields
+   把 form 下传给 #6/#7，不连带则 FormInstance 类型跨文件断链，实测无法只迁两文件）。Admin 套件
+   109 文件 / 597 测试全绿。实测结论见 §3.3.1。#14 只交付判据结论（§3.3.1 试点 B 段），豁免保留待
+   P2b DesktopControlCenter 批次三页联动迁移。
+3. P0 完成态：53 → **45**（B 类 -3 + 试点 A 生产 4 个 -4 + 随迁测试 #33 -1；#14 未落地不计）。
+   原文 "53 → 47" 基于两文件试点估算，实测因 #2 的类型闭链扩大到 5 文件（含 1 测试豁免），净减更多。
 
 ### P1：auth 域 7+1 文件（表单小、测试面窄）
 
@@ -253,11 +338,13 @@ FormDivider / useFormContext`；**无 `useForm`、无 `FormInstance`**。
 ### P2：Admin 稠密表单域按页分批（32 个非测试 + 2 个测试）
 
 - 按 "先低难度（全文件仅 Form 系，整行删豁免）、再中难度（单条 Form 导入行混合文件）、后高难度（Form.List/ 联动）"：
-  - **P2a 低 6 个**：#2（若未在 P0 完成）/13/14（同前）/22/23/24。
+  - **P2a 低 6 个**：~~#2/14~~（**#2 已在 P0 完成**；#14 结论已出、随 P2b DesktopControlCenter 批次
+    三页联动迁）/13/22/23/24。
   - **P2b 中 24 个**：按目录分 5 批 ——DesktopControlCenter（#3/9/10/11/12）、ExpertPlaza（#4 除外 #6/15/16）、
     moduleApps 编辑器族（#17/19/20/21 + editors.test #34 + ProductManager 若在 P2a 未完成）、DefaultSettings/
     components / 杂项（#1/5/6/8）、设置卡族（#25-#32 的 8 个卡 /tab 文件）。
-  - **P2c 高 4 个**：#4 CardListFields（Form.List + FormInstance）、#7 ProfileDefaultsCard（Form.List）、
+  - **P2c 高 4 个**：#4 CardListFields（Form.List + FormInstance）、~~#7 ProfileDefaultsCard（Form.List）~~
+    （**已在 P0 随试点 A 完成**，FormKit FormList 单参 render + newItem 实测形态见 §3.3.1）、
     \#18 PageEditor（Form.List 受控）、#43 AgentChat（items=\[FormGroupItemType] + valuePropName +
     SubmitFooter，P3 级复杂度但属本立项最后主菜）、#44 RecordForm（Rule \[] 动态 rules）。
     （#43/44 建议独立小批次并先出迁移说明再动手。）

@@ -1,8 +1,7 @@
 'use client';
 
 import { AutoComplete, Input } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form, type FormInstance } from 'antd';
+import { Form, type FormInstance, useWatch } from '@lobehub/ui/base-ui/form';
 import { memo, type ReactNode } from 'react';
 
 import {
@@ -14,7 +13,9 @@ import { AdminFormGrid } from '../layout';
 
 export interface RuntimeModelFieldPairProps {
   extra?: ReactNode;
-  form: FormInstance;
+  // Consumed with dynamic field-name strings only (setValue/useWatch), so the
+  // untyped FormInstance keeps every caller's FormValues binding assignable.
+  form: FormInstance<Record<string, any>>;
   modelField: string;
   modelLabel: string;
   options: DefaultModelOption[];
@@ -34,41 +35,47 @@ const RuntimeModelFieldPair = memo<RuntimeModelFieldPairProps>(
     providerField,
     providerLabel = '供应商',
   }) => {
-    const model = Form.useWatch(modelField, form) as string | undefined;
-    const provider = Form.useWatch(providerField, form) as string | undefined;
+    const model = useWatch(form, modelField) as string | undefined;
+    const provider = useWatch(form, providerField) as string | undefined;
     const displayProvider = resolveModelProviderLabel({ model, provider }, options);
 
     return (
       <AdminFormGrid label={`${modelLabel}与${providerLabel}`}>
-        <Form.Item extra={extra} label={modelLabel} name={modelField}>
+        <Form.Field
+          extra={extra}
+          getValue={(raw: string) => options.find((option) => option.value === raw)?.model ?? raw}
+          label={modelLabel}
+          name={modelField}
+          // Map the picked option value to its bare model name exactly like the
+          // previous antd Form.Item + setFieldsValue net effect; free-typed text
+          // falls through unchanged.
+        >
           <AutoComplete
             allowClear
             options={options}
             placeholder={placeholder}
             onChange={(value) => {
               const selected = options.find((option) => option.value === value);
-              if (!selected) return form.setFieldValue(providerField, '');
+              if (!selected) return form.setValue(providerField, '');
 
               // base-ui AutoComplete has no separate onSelect: onChange already
               // fires with the picked option value, so selection syncs here.
-              form.setFieldsValue({
-                [modelField]: selected.model,
-                [providerField]: selected.provider,
-              });
+              // The model field itself is mapped through getValue above.
+              form.setValue(providerField, selected.provider);
             }}
           />
-        </Form.Item>
-        <Form.Item hidden name={providerField}>
+        </Form.Field>
+        <Form.Field hidden name={providerField}>
           <Input />
-        </Form.Item>
-        <Form.Item label={providerLabel}>
+        </Form.Field>
+        <Form.Field label={providerLabel}>
           <Input
             readOnly
             aria-label={providerLabel}
             placeholder="选择模型后自动显示"
             value={displayProvider}
           />
-        </Form.Item>
+        </Form.Field>
       </AdminFormGrid>
     );
   },

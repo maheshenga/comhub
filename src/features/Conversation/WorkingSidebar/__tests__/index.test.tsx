@@ -269,7 +269,7 @@ vi.mock('@/business/client/hooks/useActiveWorkspaceId', () => ({
 }));
 
 vi.mock('@/business/client/features/WorkingSidebarTabs', () => ({
-  useBusinessWorkingSidebarTabs: () => businessTabs.current,
+  getBusinessWorkingSidebarTabs: () => businessTabs.current,
 }));
 
 vi.mock('@/features/ChatInput/ControlBar/useRepoType', async () => {

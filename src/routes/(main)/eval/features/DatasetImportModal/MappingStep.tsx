@@ -3,7 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Checkbox, Input, Select, Table, type TableColumn, Text } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
-import { memo, type ReactNode, useMemo, useState } from 'react';
+import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { type DatasetPreset } from '../../config/datasetPresets';
@@ -157,39 +157,46 @@ const MappingStep = memo<MappingStepProps>(
 
     const roleDescColor = (role: MappingTarget) => ROLE_COLORS[role] || cssVar.colorTextTertiary;
 
-    const targetOptions: { label: ReactNode; value: MappingTarget }[] = [
-      { desc: 'inputDesc', label: 'input', value: 'input' },
-      { desc: 'expectedDesc', label: 'expected', value: 'expected' },
-      { desc: 'choicesDesc', label: 'choices', value: 'choices' },
-      { desc: 'categoryDesc', label: 'category', value: 'category' },
-      { desc: 'sortOrderDesc', label: 'sortOrder', value: 'sortOrder' },
-      { desc: 'metadataDesc', label: 'metadata', value: 'metadata' },
-      { desc: 'ignoreDesc', label: 'ignore', value: 'ignore' },
-    ].map(({ desc, label, value }) => ({
-      label: (
-        <Flexbox gap={2}>
-          <Text fontSize={12}>{t(`dataset.import.${label}` as any)}</Text>
-          <Text color={roleDescColor(value as MappingTarget)} fontSize={12}>
-            {t(`dataset.import.${desc}` as any)}
-          </Text>
-        </Flexbox>
-      ),
-      value: value as MappingTarget,
-    }));
+    const targetOptions = useMemo(
+      (): { label: ReactNode; value: MappingTarget }[] =>
+        [
+          { desc: 'inputDesc', label: 'input', value: 'input' },
+          { desc: 'expectedDesc', label: 'expected', value: 'expected' },
+          { desc: 'choicesDesc', label: 'choices', value: 'choices' },
+          { desc: 'categoryDesc', label: 'category', value: 'category' },
+          { desc: 'sortOrderDesc', label: 'sortOrder', value: 'sortOrder' },
+          { desc: 'metadataDesc', label: 'metadata', value: 'metadata' },
+          { desc: 'ignoreDesc', label: 'ignore', value: 'ignore' },
+        ].map(({ desc, label, value }) => ({
+          label: (
+            <Flexbox gap={2}>
+              <Text fontSize={12}>{t(`dataset.import.${label}` as any)}</Text>
+              <Text color={roleDescColor(value as MappingTarget)} fontSize={12}>
+                {t(`dataset.import.${desc}` as any)}
+              </Text>
+            </Flexbox>
+          ),
+          value: value as MappingTarget,
+        })),
+      [t],
+    );
 
-    const handleRoleChange = (h: string, val: MappingTarget) => {
-      const newMapping = { ...mapping };
+    const handleRoleChange = useCallback(
+      (h: string, val: MappingTarget) => {
+        const newMapping = { ...mapping };
 
-      // Ensure single assignment for input/expected/context/sortOrder
-      if (val !== 'metadata' && val !== 'ignore') {
-        for (const [k, v] of Object.entries(newMapping)) {
-          if (v === val) newMapping[k] = 'ignore';
+        // Ensure single assignment for input/expected/context/sortOrder
+        if (val !== 'metadata' && val !== 'ignore') {
+          for (const [k, v] of Object.entries(newMapping)) {
+            if (v === val) newMapping[k] = 'ignore';
+          }
         }
-      }
 
-      newMapping[h] = val;
-      onMappingChange(newMapping);
-    };
+        newMapping[h] = val;
+        onMappingChange(newMapping);
+      },
+      [mapping, onMappingChange],
+    );
 
     const columns = useMemo<TableColumn<Record<string, any>>[]>(
       () =>
@@ -235,7 +242,7 @@ const MappingStep = memo<MappingStepProps>(
             width: COL_WIDTHS[role],
           };
         }),
-      [visibleHeaders, mapping],
+      [handleRoleChange, targetOptions, visibleHeaders, mapping],
     );
 
     const scrollX = useMemo(

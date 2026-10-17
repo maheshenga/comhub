@@ -76,6 +76,7 @@ const CaseDetail = memo(() => {
     } else {
       setActiveThreadId(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- threads/hasMultipleThreads derive from caseResult; running on caseResult.testCaseId alone avoids resetting the tab mid-render of the same case
   }, [caseResult?.testCaseId]);
 
   const currentThread = useMemo(

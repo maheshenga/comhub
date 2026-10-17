@@ -99,7 +99,7 @@ const AdminAuditPage = memo(() => {
     }),
   );
 
-  const items = (data?.items ?? []) as AuditRow[];
+  const items = useMemo(() => (data?.items ?? []) as AuditRow[], [data]);
   const groups = useMemo(() => groupAuditRowsByBatch(items), [items]);
 
   const handleFilterChange = (key: AuditFilterKey, value: string) => {
@@ -213,9 +213,9 @@ const AdminAuditPage = memo(() => {
         ) : items.length === 0 && !isLoading ? (
           <AdminPageState
             isEmpty
+            emptyDescription={t('admin.audit.emptyDescription', '调整筛选条件或时间范围后重试。')}
             emptyKind="initial"
             emptyTitle={t('admin.audit.empty', '暂无审计日志')}
-            emptyDescription={t('admin.audit.emptyDescription', '调整筛选条件或时间范围后重试。')}
           >
             {null}
           </AdminPageState>

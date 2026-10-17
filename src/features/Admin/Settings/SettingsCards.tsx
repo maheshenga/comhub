@@ -15,9 +15,9 @@ export const BrandSettingsCard = () => {
   return (
     <Card>
       <Form.Item
+        extra={t('admin.settings.brandName.help', '用于页面标题、导航、关于页面和站内品牌展示。')}
         label={t('admin.settings.brandName', '品牌名称')}
         name="brandName"
-        extra={t('admin.settings.brandName.help', '用于页面标题、导航、关于页面和站内品牌展示。')}
       >
         <Input placeholder="玄果 AI" />
       </Form.Item>

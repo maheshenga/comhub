@@ -645,6 +645,10 @@ function ExplorerTreeInner<TData>(
   );
 }
 
+// forwardRef 在此用于保住内层组件的 <TData> 泛型（直接把 ref 当 prop 传递会
+// 使 TypeScript 无法在自定义 ref 类型上保留泛型推断），内层经 useImperativeHandle
+// 消费 ref 暴露 ExplorerTreeHandle（:496）。
+// eslint-disable-next-line @eslint-react/no-forward-ref -- generic <TData> preservation for the imperative handle contract; ref-as-prop loses the generic on the wrapper type
 const ExplorerTreeInnerWithRef = forwardRef(ExplorerTreeInner) as <TData>(
   props: ExplorerTreeInnerProps<TData> & { ref?: ForwardedRef<ExplorerTreeHandle> },
 ) => ReturnType<typeof ExplorerTreeInner>;

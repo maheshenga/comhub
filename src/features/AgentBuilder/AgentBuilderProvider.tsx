@@ -52,10 +52,7 @@ const AgentBuilderProvider = memo<AgentBuilderProviderProps>(
     );
 
     // Get messages from ChatStore based on context
-    const chatKey = useMemo(
-      () => (context ? messageMapKey(context) : null),
-      [context?.agentId, context?.topicId],
-    );
+    const chatKey = useMemo(() => (context ? messageMapKey(context) : null), [context]);
 
     const replaceMessages = useChatStore((s) => s.replaceMessages);
     const messages = useChatStore((s) => (chatKey ? s.dbMessagesMap[chatKey] : undefined));

@@ -44,7 +44,7 @@ const IdentitiesArea = memo(() => {
   useEffect(() => {
     const types = typeFilter === 'all' ? undefined : [typeFilter as TypesEnum];
     resetIdentitiesList({ q: searchValue || undefined, types });
-  }, [searchValue, typeFilter]);
+  }, [resetIdentitiesList, searchValue, typeFilter]);
 
   // Call SWR hook to fetch data
   const { data, error, isLoading, mutate } = useFetchIdentities({

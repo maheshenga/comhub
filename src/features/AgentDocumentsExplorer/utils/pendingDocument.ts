@@ -16,7 +16,7 @@ interface MakePendingArgs {
 }
 
 export const makePendingDocument = ({
-  agentId,
+  agentId: _agentId,
   isFolder,
   parentId,
   title,

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import * as fs from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 
 import { CodeLoader } from '../index';
 
@@ -23,7 +23,7 @@ helloWorld();`;
   });
 
   it('split long', async () => {
-    const code = fs.readFileSync(join(__dirname, `./long.txt`), 'utf8');
+    const code = fs.readFileSync(path.join(__dirname, `./long.txt`), 'utf8');
 
     const result = await CodeLoader(code, 'js');
 

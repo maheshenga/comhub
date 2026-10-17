@@ -26,7 +26,7 @@ const SearchResult = memo((props: { onProviderSelect?: (key: string) => void }) 
         provider.name?.toLowerCase().includes(keyword) ||
         provider.description?.toLowerCase().includes(keyword),
     );
-  }, [searchKeyword]);
+  }, [aiProviderList, searchKeyword]);
 
   return (
     <Flexbox gap={4} padding={'0 12px'}>

@@ -115,11 +115,7 @@ const Breadcrumb = memo<BreadcrumbProps>(({ category, fileName }) => {
         style={{ cursor: isRootClickable ? 'pointer' : 'default' }}
         onClick={() => isRootClickable && handleNavigate(null)}
       >
-        {knowledgeBaseName ? (
-          knowledgeBaseName
-        ) : (
-          <Skeleton style={{ height: 14, minWidth: 80, width: 80 }} />
-        )}
+        {knowledgeBaseName ?? <Skeleton style={{ height: 14, minWidth: 80, width: 80 }} />}
       </span>
 
       {folderChain.map((folder: FolderCrumb, index: number) => {

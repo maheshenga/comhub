@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -64,7 +64,7 @@ describe('document tree and code tree are styled independently', () => {
 // would still pass if a code tree started importing the document bundle.
 describe('code tree call sites', () => {
   const read = (relativePath: string) =>
-    readFileSync(join(__dirname, '..', '..', '..', 'src', relativePath), 'utf8');
+    readFileSync(path.join(__dirname, '..', '..', '..', 'src', relativePath), 'utf8');
 
   // A tree may keep its pierre CSS bundle in a sibling module; read those together.
   const CODE_TREE_FILES: Record<string, string[]> = {

@@ -37,7 +37,7 @@ const WideScreenContainer = memo<WideScreenContainerProps>(
 
     useEffect(() => {
       onChange?.();
-    }, [wideScreen]);
+    }, [onChange, wideScreen]);
 
     return (
       <Flexbox style={wrapperStyle} width={'100%'} onClick={onClick}>

@@ -135,5 +135,5 @@ export const useSlashItems = (): SlashOptions['items'] => {
         },
       };
     });
-  }, [t]);
+  }, [editorState, t]);
 };

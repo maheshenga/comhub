@@ -2,7 +2,7 @@
 
 import { Flexbox, Grid, SearchBar } from '@lobehub/ui';
 import { Pagination, Tag, Text } from '@lobehub/ui/base-ui';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import AssistantEmpty from '../../../features/AssistantEmpty';
@@ -58,7 +58,7 @@ const UserAgentList = memo<UserAgentListProps>(({ rows = 4, pageSize = 8 }) => {
     }
 
     return allAgents;
-  }, [agents, forkedAgents, statusFilter, searchQuery]);
+  }, [agents, favoriteAgents, forkedAgents, statusFilter, searchQuery]);
 
   const paginatedAgents = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
@@ -66,7 +66,7 @@ const UserAgentList = memo<UserAgentListProps>(({ rows = 4, pageSize = 8 }) => {
   }, [filteredAgents, currentPage, pageSize]);
 
   // Reset to page 1 when filter or search changes
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [statusFilter, searchQuery]);
 

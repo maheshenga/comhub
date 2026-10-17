@@ -17,7 +17,7 @@ type MetadataEnv = Record<string, string | undefined>;
 
 const clean = (value: string | undefined) => {
   const normalized = value?.trim();
-  return normalized ? normalized : null;
+  return normalized || null;
 };
 
 export const getVersionMetadata = (env: MetadataEnv = process.env) => {

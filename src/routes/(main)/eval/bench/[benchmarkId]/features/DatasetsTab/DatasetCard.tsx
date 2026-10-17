@@ -157,7 +157,7 @@ const DatasetCard = memo<DatasetCardProps>(
     pagination,
     onExpand,
     onEdit,
-    onDeleteCase,
+    onDeleteCase: _onDeleteCase,
     onRefresh,
     onSearchChange,
     onDiffFilterChange,

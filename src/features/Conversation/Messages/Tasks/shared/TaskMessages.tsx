@@ -40,7 +40,7 @@ const InstructionAccordion = memo<{ childrenCount: number; instruction: string }
       if (childrenCount > 1) {
         setExpandedKeys([]);
       }
-    }, [childrenCount > 1]);
+    }, [childrenCount]);
 
     return (
       <Accordion

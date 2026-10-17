@@ -34,7 +34,15 @@ const Forbidden = memo(() => {
       <div style={{ lineHeight: '1.8', marginBottom: '2em', textAlign: 'center' }}>
         {t('forbidden.desc')}
       </div>
-      <Button type={'primary'} onClick={() => (window.location.href = '/')}>
+      <Button
+        type={'primary'}
+        onClick={() => {
+          // 403 组件在 workspace 工作台内被多宿主（主应用/electron）复用，无统一
+          // router 实例可拿；回首页整页跳转同时清掉受限会话的残留状态。
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- multi-host shared component; hard nav resets restricted session state
+          window.location.href = '/';
+        }}
+      >
         {t('forbidden.backHome')}
       </Button>
     </Flexbox>

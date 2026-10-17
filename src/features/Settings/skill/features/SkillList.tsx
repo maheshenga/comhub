@@ -14,7 +14,7 @@ import { createStaticStyles } from 'antd-style';
 import isEqual from 'fast-deep-equal';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import type React from 'react';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import AsyncError from '@/components/AsyncError';
@@ -91,7 +91,7 @@ const SkillList = memo<SkillListProps>(
   ({ onSelect, onDeleteSelected, selectedIdentifier, viewMode = 'connector' }) => {
     const { t } = useTranslation('setting');
     const brandName = useBrandName();
-    const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+    const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
     const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
     const isComposioEnabled = useServerConfigStore(serverConfigSelectors.enableComposio);
@@ -155,21 +155,26 @@ const SkillList = memo<SkillListProps>(
       if (isConnectorView && !isAgentBoundInit) fetchAgentBoundConnectors();
     }, [isConnectorView, isAgentBoundInit, fetchAgentBoundConnectors]);
 
-    const getLobehubSkillServerByProvider = (providerId: string) => {
-      return allLobehubSkillServers.find((server) => server.identifier === providerId);
-    };
+    const getLobehubSkillServerByProvider = useCallback(
+      (providerId: string) =>
+        allLobehubSkillServers.find((server) => server.identifier === providerId),
+      [allLobehubSkillServers],
+    );
 
-    const getComposioServerByIdentifier = (identifier: string) => {
-      return allComposioServers.find((server) => server.identifier === identifier);
-    };
+    const getComposioServerByIdentifier = useCallback(
+      (identifier: string) => allComposioServers.find((server) => server.identifier === identifier),
+      [allComposioServers],
+    );
 
-    const getBuiltinToolByIdentifier = (identifier: string) => {
-      return allBuiltinTools.find((tool) => tool.identifier === identifier);
-    };
+    const getBuiltinToolByIdentifier = useCallback(
+      (identifier: string) => allBuiltinTools.find((tool) => tool.identifier === identifier),
+      [allBuiltinTools],
+    );
 
-    const isBuiltinToolInstalled = (identifier: string) => {
-      return !uninstalledBuiltinTools.includes(identifier);
-    };
+    const isBuiltinToolInstalled = useCallback(
+      (identifier: string) => !uninstalledBuiltinTools.includes(identifier),
+      [uninstalledBuiltinTools],
+    );
 
     // Separate skills into three categories:
     // 1. Integrations (Builtin, LobeHub and Composio skills)
@@ -303,11 +308,12 @@ const SkillList = memo<SkillListProps>(
       installedPluginList,
       isLobehubSkillEnabled,
       isComposioEnabled,
-      allLobehubSkillServers,
-      allComposioServers,
       allBuiltinTools,
-      uninstalledBuiltinTools,
       builtinSkills,
+      getBuiltinToolByIdentifier,
+      getComposioServerByIdentifier,
+      getLobehubSkillServerByProvider,
+      isBuiltinToolInstalled,
     ]);
 
     const hasAnySkills =

@@ -30,10 +30,10 @@ export const GroupFieldsRow = () => {
         <Input placeholder="基础分组 / 专业分组" />
       </Form.Item>
       <Form.Item
+        extra={t('admin.providers.field.groupMultiplierHint', '可选，用于记录上游分组成本倍率。')}
         label={t('admin.providers.field.groupMultiplier', '分组倍率')}
         name="groupMultiplier"
         style={{ flex: 1 }}
-        extra={t('admin.providers.field.groupMultiplierHint', '可选，用于记录上游分组成本倍率。')}
       >
         <InputNumber min={0} precision={4} step={0.1} style={{ width: '100%' }} />
       </Form.Item>

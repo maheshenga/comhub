@@ -9,7 +9,7 @@ describe('AbortableRequestManager', () => {
 
   describe('execute', () => {
     it('should execute request successfully', async () => {
-      const mockFetcher = vi.fn(async (signal: AbortSignal) => {
+      const mockFetcher = vi.fn(async (_signal: AbortSignal) => {
         return 'result';
       });
 

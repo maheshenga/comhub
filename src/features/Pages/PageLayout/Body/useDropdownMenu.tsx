@@ -8,12 +8,9 @@ import { useTranslation } from 'react-i18next';
 
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
-import { usePageStore } from '@/store/page';
 
 export const useDropdownMenu = (): MenuProps['items'] => {
   const { t } = useTranslation();
-  const showOnlyPagesNotInLibrary = usePageStore((s) => s.showOnlyPagesNotInLibrary);
-  const setShowOnlyPagesNotInLibrary = usePageStore((s) => s.setShowOnlyPagesNotInLibrary);
 
   const [pagePageSize, updateSystemStatus] = useGlobalStore((s) => [
     systemStatusSelectors.pagePageSize(s),
@@ -40,11 +37,5 @@ export const useDropdownMenu = (): MenuProps['items'] => {
         label: t('common:navPanel.displayItems'),
       },
     ];
-  }, [
-    t,
-    setShowOnlyPagesNotInLibrary,
-    showOnlyPagesNotInLibrary,
-    pagePageSize,
-    updateSystemStatus,
-  ]);
+  }, [t, pagePageSize, updateSystemStatus]);
 };

@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -52,7 +51,12 @@ export type { AdminDefaultSettingsScope };
 
 const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ scope }) => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<FormValues>();
+  // TanStack defaultValues is a partial-records contract at runtime (unset
+  // fields stay undefined until set); the cast bridges FormKit's stricter
+  // `initialValues?: T` signature so load-time display keeps antd-era defaults.
+  const form = useForm<FormValues>({
+    initialValues: DEFAULTS_INITIAL_VALUES as unknown as FormValues,
+  });
   const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -98,16 +102,16 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
     if (!settings) return;
 
     if (scope === 'ai-runtime-defaults') {
-      form.setFieldsValue(applyRuntimeToForm(settings));
+      form.setValues(applyRuntimeToForm(settings));
       return;
     }
 
     if (scope === 'integrations') {
-      form.setFieldsValue(applyIntegrationsToForm(settings));
+      form.setValues(applyIntegrationsToForm(settings));
       return;
     }
 
-    form.setFieldsValue(applyUserDefaultsToForm(settings, modelOptions));
+    form.setValues(applyUserDefaultsToForm(settings, modelOptions));
   }, [form, modelOptions, scope, settings]);
 
   const handleSave = async (syncMode?: 'runtime-memory' | 'user-defaults') => {
@@ -118,7 +122,13 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
     setSaveError(undefined);
 
     try {
-      const values = await form.validateFields();
+      const { valid } = await form.validate();
+      if (!valid) {
+        // Validation failures render inline through Form.Field error nodes;
+        // keep the submit path silent here so the form stays editable.
+        return;
+      }
+      const values = form.getValues();
       const updates =
         scope === 'ai-runtime-defaults'
           ? buildRuntimeUpdates(values, {
@@ -229,12 +239,10 @@ const AdminDefaultSettingsPage = memo<{ scope: AdminDefaultSettingsScope }>(({ s
           setSaveError(undefined);
         }}
       />
-      <Form
-        disabled={isLoading || !data}
-        form={form}
-        initialValues={DEFAULTS_INITIAL_VALUES}
-        layout="vertical"
-      >
+      {/* FormKit FormProps has no cross-browser `disabled` (antd Form owned that
+          via its field context); the attribute falls through to the native
+          <form> element, matching FormKit's rest-prop surface. */}
+      <Form {...({ disabled: isLoading || !data } as object)} form={form} layout="vertical">
         <Flexbox gap={24}>
           {scope === 'ai-runtime-defaults' ? (
             <RuntimeFields

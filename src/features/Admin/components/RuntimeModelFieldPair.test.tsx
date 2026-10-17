@@ -1,6 +1,5 @@
+import { Form, type FormInstance, useForm } from '@lobehub/ui/base-ui/form';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form, type FormInstance } from 'antd';
 import type { ComponentProps, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -64,13 +63,14 @@ const renderField = (initialValues: Fields) => {
   let form: FormInstance<Fields> | undefined;
 
   const Harness = () => {
-    const [instance] = Form.useForm<Fields>();
+    const instance = useForm<Fields>({ initialValues });
     form = instance;
 
     return (
-      <Form form={instance} initialValues={initialValues}>
+      <Form form={instance}>
+        {/* The component consumes the widened Record<string, any> instance. */}
         <RuntimeModelFieldPair
-          form={instance}
+          form={instance as unknown as FormInstance<Record<string, any>>}
           modelField="memoryGatekeeperModel"
           modelLabel="记忆判定模型"
           options={options}
@@ -110,7 +110,7 @@ describe('RuntimeModelFieldPair', () => {
     fireEvent.change(model, { target: { value: 'provider-1:deepseek-v4-pro' } });
 
     await waitFor(() => {
-      expect(getForm().getFieldsValue()).toMatchObject({
+      expect(getForm().getValues()).toMatchObject({
         memoryGatekeeperModel: 'deepseek-v4-pro',
         memoryGatekeeperProvider: 'provider-1',
       });
@@ -126,7 +126,7 @@ describe('RuntimeModelFieldPair', () => {
     fireEvent.change(model, { target: { value: '' } });
 
     await waitFor(() => {
-      expect(getForm().getFieldsValue()).toMatchObject({
+      expect(getForm().getValues()).toMatchObject({
         memoryGatekeeperModel: '',
         memoryGatekeeperProvider: '',
       });

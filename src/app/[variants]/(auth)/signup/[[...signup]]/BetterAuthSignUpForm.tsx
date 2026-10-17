@@ -43,6 +43,9 @@ const BetterAuthSignUpForm = () => {
         onClick={(event) => {
           event.preventDefault();
           void trackLoginOrSignupClicked({ spm: 'signup.go_to_signin.click' }).finally(() => {
+            // auth 域是独立 SPA 入口（entry.auth.html），与主应用不共享路由实例；
+            // 整页跳转保证 auth 会话状态从干净状态重建（与 useSignIn onSuccess 先例一致）。
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- cross-entry auth SPA navigation requires a full page load
             window.location.href = `/signin?${searchParams.toString()}`;
           });
         }}

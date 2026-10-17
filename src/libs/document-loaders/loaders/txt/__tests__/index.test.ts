@@ -1,6 +1,6 @@
 // @vitest-environment node
 import * as fs from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 
 import { TextLoader } from '../index';
 
@@ -42,7 +42,7 @@ describe('TextLoader', () => {
   });
 
   it('split long', async () => {
-    const content = fs.readFileSync(join(__dirname, `./pg24022.txt`), 'utf8');
+    const content = fs.readFileSync(path.join(__dirname, `./pg24022.txt`), 'utf8');
 
     const result = await TextLoader(content);
 

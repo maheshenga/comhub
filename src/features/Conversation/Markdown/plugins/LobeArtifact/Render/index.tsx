@@ -1,7 +1,7 @@
 import { Center, Flexbox } from '@lobehub/ui';
 import { Spin } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
-import { memo, useEffect } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useIsDark } from '@/hooks/useIsDark';
@@ -72,15 +72,15 @@ const Render = memo<ArtifactProps>(({ identifier, title, type, language, childre
     ];
   });
 
-  const openArtifactUI = () => {
+  const openArtifactUI = useCallback(() => {
     openArtifact({ id, identifier, language, title, type });
-  };
+  }, [openArtifact, id, identifier, language, title, type]);
 
   useEffect(() => {
     if (!hasChildren || !isGenerating) return;
 
     openArtifactUI();
-  }, [isGenerating, hasChildren, str, identifier, title, type, id, language]);
+  }, [isGenerating, hasChildren, str, identifier, title, type, id, language, openArtifactUI]);
 
   return (
     <Flexbox

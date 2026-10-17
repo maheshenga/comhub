@@ -5,22 +5,18 @@ import { createStaticStyles, cssVar, cx } from 'antd-style';
 import { kebabCase } from 'es-toolkit/compat';
 import { Heading2, Heading3, Heading4, Heading5 } from 'lucide-react';
 import { type ComponentProps, type FC, type ReactNode } from 'react';
-import { Children, isValidElement, useEffect, useMemo } from 'react';
+import { isValidElement, useEffect, useMemo } from 'react';
 
 import { useToc } from './useToc';
 
-const extractTextChildren = (children: ReactNode) => {
-  let text = '';
-
-  Children.forEach(children, (child) => {
-    if (typeof child === 'string' || typeof child === 'number') {
-      text += child;
-    } else if (isValidElement(child) && (child as any).props.children) {
-      text += extractTextChildren((child as any).props.children);
-    }
-  });
-
-  return text;
+const extractTextChildren = (children: ReactNode): string => {
+  // 与 Children.forEach 等价的纯递归展开（项目禁用 Children 迭代 API）。
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  if (Array.isArray(children)) return children.map(extractTextChildren).join('');
+  if (isValidElement(children)) {
+    return extractTextChildren((children.props as { children?: ReactNode }).children);
+  }
+  return '';
 };
 
 const HeadingIcon: any = {
@@ -67,6 +63,10 @@ const createHeading = (Tag: `h${1 | 2 | 3 | 4 | 5 | 6}`) => {
         ]);
       }
       setFinished();
+      // setToc/setFinished 来自 TocContext，每次 Provider 渲染都是新引用；且 effect 内
+      // setToc 是追加语义（...prev），text 变化时重跑会重复注册同一标题。
+      // 注册只随 id（kebab 后的锚点）变化执行一次。
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- context callbacks are unstable per render and re-running would append duplicate TOC entries
     }, [id]);
 
     if (Tag === 'h1')
