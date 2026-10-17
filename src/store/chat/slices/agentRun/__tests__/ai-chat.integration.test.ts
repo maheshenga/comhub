@@ -559,7 +559,6 @@ describe('AI Chat Operation Integration Tests', () => {
 
       // Create and immediately cancel executeToolCall operation
       let executeToolOpId = '';
-      let abortController: AbortController | undefined;
 
       act(() => {
         const res = result.current.startOperation({
@@ -567,7 +566,6 @@ describe('AI Chat Operation Integration Tests', () => {
           context: { agentId: 'session-1', messageId },
         });
         executeToolOpId = res.operationId;
-        abortController = res.abortController;
       });
 
       // Associate message

@@ -75,7 +75,7 @@ const ScrollShadowWithButton = memo<FlexboxProps>(({ children, ...rest }) => {
 
   useEffect(() => {
     checkScrollability();
-  }, []);
+  }, [checkScrollability]);
 
   return (
     <Flexbox horizontal className={styles.container} width={'100%'} {...rest}>

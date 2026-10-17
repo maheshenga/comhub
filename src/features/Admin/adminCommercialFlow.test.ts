@@ -658,7 +658,6 @@ describe('admin commercial flow pages', () => {
       readRepoFile('src/features/Admin/Users/userColumns.tsx') +
       readRepoFile('src/features/Admin/Users/userDangerousParts.tsx');
     const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
-    const contentPages = readRepoFile('src/features/Admin/Content/ContentPage.tsx');
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const maintenancePage = readRepoFile('src/features/Admin/AdminSystemMaintenancePage.tsx');
 

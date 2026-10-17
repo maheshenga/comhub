@@ -40,11 +40,6 @@ interface RenderFooterOptions {
 let mockServerConfigState: Record<string, unknown>;
 let mockUserState: Record<string, unknown>;
 
-interface MockStoreHook {
-  (selector: (state: Record<string, unknown>) => unknown): unknown;
-  getState: () => Record<string, unknown>;
-}
-
 const createGlobalState = (readSlugs: string[] = []) => ({
   status: {
     readNotificationSlugs: readSlugs,
@@ -181,15 +176,19 @@ const renderFooter = async ({
     default: () => null,
   }));
   vi.doMock('@/features/Billboard/MenuItems', () => ({
+    // eslint-disable-next-line @eslint-react/no-unnecessary-use-prefix -- mock factory key must match the real hook export name (useBrand/useActiveNavKey/useHasActiveWorkspace/useNavLayout), renaming would break vi.doMock resolution
     useBillboardMenuItems: () => billboardItems,
   }));
   vi.doMock('@/features/Brand', () => ({
+    // eslint-disable-next-line @eslint-react/no-unnecessary-use-prefix -- mock factory key must equal the real hook export name (useBrand); renaming would break vi.doMock resolution
     useBrand: () => ({ sidebarMemberLabel: 'Upgrade plan', sidebarMemberUrl: '/settings/plans' }),
   }));
   vi.doMock('@/features/NavPanel/useActiveNavKey', () => ({
+    // eslint-disable-next-line @eslint-react/no-unnecessary-use-prefix -- mock factory key must match the real hook export name (useBrand/useActiveNavKey/useHasActiveWorkspace/useNavLayout), renaming would break vi.doMock resolution
     useActiveNavKey: () => (homeSidebar ? 'home' : 'discover'),
   }));
   vi.doMock('@/business/client/hooks/useHasActiveWorkspace', () => ({
+    // eslint-disable-next-line @eslint-react/no-unnecessary-use-prefix -- mock factory key must match the real hook export name (useBrand/useActiveNavKey/useHasActiveWorkspace/useNavLayout), renaming would break vi.doMock resolution
     useHasActiveWorkspace: () => false,
   }));
   vi.doMock('@/features/User/UserPanel/ThemeButton', () => ({

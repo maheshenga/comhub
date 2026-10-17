@@ -25,10 +25,10 @@ const Image = ({
   ref,
   src,
   fill,
-  priority,
-  quality,
-  sizes,
-  unoptimized,
+  priority: _priority,
+  quality: _quality,
+  sizes: _sizes,
+  unoptimized: _unoptimized,
   style,
   ...rest
 }: ImageProps & { ref?: React.RefObject<HTMLImageElement | null> }) => {

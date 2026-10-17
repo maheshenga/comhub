@@ -54,7 +54,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
                 onClick: onDelete,
               },
             ].filter(Boolean) as ActionIconGroupProps['items'],
-          [showDownload, onDownload, showCopySeed, onCopySeed, seedTooltip, onDelete],
+          [showDownload, onDownload, showCopySeed, onCopySeed, seedTooltip, onDelete, t],
         )}
       />
     );

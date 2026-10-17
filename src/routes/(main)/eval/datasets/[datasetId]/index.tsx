@@ -128,7 +128,9 @@ const DatasetDetail = memo(() => {
     offset: (pagination.current - 1) * pagination.pageSize,
   });
 
-  const testCases = testCaseData?.data || [];
+  // testCases 是从 SWR data 派生的数组（`|| []` 兜底），不包 useMemo 时每次渲染都是
+  // 新引用，会让下游 difficulty useMemo 的 deps 每渲染都变化。
+  const testCases = useMemo(() => testCaseData?.data || [], [testCaseData]);
   const total = testCaseData?.total || 0;
 
   const filteredCases = testCases.filter((c: any) => {

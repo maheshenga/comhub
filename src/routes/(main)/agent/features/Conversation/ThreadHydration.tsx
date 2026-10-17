@@ -20,7 +20,7 @@ const ThreadHydration = memo(() => {
     const unsubscribe = useChatStore.subscribe(
       (s) => s.portalThreadId,
       (state) => {
-        setThread(!state ? null : state);
+        setThread(state ?? null);
       },
     );
 

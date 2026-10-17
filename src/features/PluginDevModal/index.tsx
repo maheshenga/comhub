@@ -73,7 +73,7 @@ const DevModal = memo<DevModalProps>(
         form.setValues(value);
         seededRef.current = true;
       }
-    }, [open, value]);
+    }, [open, value, form]);
 
     const doSave = async (values: LobeToolCustomPlugin, ctx?: { oauthPopup?: Window | null }) => {
       if (!onSave) {
@@ -129,7 +129,7 @@ const DevModal = memo<DevModalProps>(
 
     useEffect(() => {
       if (mode === 'create' && !open) form.reset(INITIAL_VALUES);
-    }, [open]);
+    }, [mode, open, form]);
 
     const buttonStyle = mobile ? { flex: 1 } : { margin: 0 };
 

@@ -21,6 +21,12 @@ const FormPassword = memo<FormPasswordProps>(
     return (
       <InputPassword
         ref={ref}
+        {...compositionProps}
+        // Secret field (API keys, tokens): suppress autofill of the saved login
+        // password. Overridable by callers via {...props}.
+        autoComplete="new-password"
+        {...props}
+        value={value ?? ''}
         onBlur={(e) => {
           onChange?.(value);
           onBlur?.(e);
@@ -28,16 +34,10 @@ const FormPassword = memo<FormPasswordProps>(
         onChange={(e) => {
           setValue(e.target.value);
         }}
-        {...compositionProps}
         onPressEnter={() => {
           if (isComposingRef.current) return;
           onChange?.(value);
         }}
-        // Secret field (API keys, tokens): suppress autofill of the saved login
-        // password. Overridable by callers via {...props}.
-        autoComplete="new-password"
-        {...props}
-        value={value ?? ''}
       />
     );
   },

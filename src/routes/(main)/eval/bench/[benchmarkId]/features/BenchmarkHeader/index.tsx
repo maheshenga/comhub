@@ -104,7 +104,7 @@ const BenchmarkHeader = memo<BenchmarkHeaderProps>(
     completedRuns,
     datasets,
     onBenchmarkUpdate,
-    runCount,
+    runCount: _runCount,
     systemIcon = Server,
     totalCases,
   }) => {

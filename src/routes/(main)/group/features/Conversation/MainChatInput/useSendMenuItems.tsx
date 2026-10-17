@@ -111,6 +111,6 @@ export const useSendMenuItems = (): MenuProps['items'] => {
         onClick: handleAddUserMessage,
       },
     ],
-    [useCmdEnterToSend, updatePreference, hotkey, handleAddAIMessage, handleAddUserMessage],
+    [t, useCmdEnterToSend, updatePreference, hotkey, handleAddAIMessage, handleAddUserMessage],
   );
 };

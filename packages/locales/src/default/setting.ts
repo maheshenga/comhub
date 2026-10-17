@@ -1801,7 +1801,7 @@ When I am ___, I need ___
   'tab.integrations': 'Integrations',
   'tab.memory': 'Memory',
   'tab.messenger': 'Messenger',
-  'tab.notification': '通知',
+  'tab.notification': 'Notifications',
   'tab.profile': 'My Account',
   'tab.provider': 'Provider',
   'tab.proxy': 'Proxy',

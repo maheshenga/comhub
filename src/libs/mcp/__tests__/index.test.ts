@@ -1,14 +1,14 @@
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { MCPClient } from '../index';
 
 const require = createRequire(import.meta.url);
-const mcpHelloWorldRoot = dirname(require.resolve('mcp-hello-world/package.json'));
+const mcpHelloWorldRoot = path.dirname(require.resolve('mcp-hello-world/package.json'));
 /** Local stdio entry (see mcp-hello-world `bin`); avoids `npx` so npm never reads this repo's overrides. */
-const mcpHelloWorldStdio = join(mcpHelloWorldRoot, 'build', 'stdio.js');
+const mcpHelloWorldStdio = path.join(mcpHelloWorldRoot, 'build', 'stdio.js');
 
 describe('MCPClient', () => {
   // --- Updated Stdio Transport tests ---

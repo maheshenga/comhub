@@ -10,7 +10,7 @@ const countLines = (str: string): number => {
   return matches ? matches.length : 1;
 };
 
-const useCode = (raw: any) => {
+const getCode = (raw: any) => {
   if (!raw) return;
 
   const { children, className } = raw.props;
@@ -31,7 +31,7 @@ const useCode = (raw: any) => {
 };
 
 const CodeBlock: FC<PropsWithChildren> = ({ children }) => {
-  const code = useCode(children);
+  const code = getCode(children);
 
   if (!code) return;
 

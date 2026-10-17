@@ -17,17 +17,6 @@ const remarkPlugins = markdownElements
   .filter(Boolean);
 
 export const useMarkdown = (id: string): Partial<MarkdownProps> => {
-  const components = useMemo(
-    () =>
-      Object.fromEntries(
-        markdownElements.map((element) => {
-          const Component = element.Component;
-          return [element.tag, (props: any) => <Component {...props} id={id} />];
-        }),
-      ),
-    [id],
-  );
-
   return useMemo(
     () =>
       ({
@@ -45,6 +34,6 @@ export const useMarkdown = (id: string): Partial<MarkdownProps> => {
         rehypePlugins,
         remarkPlugins,
       }) satisfies Partial<MarkdownProps>,
-    [components],
+    [id],
   );
 };

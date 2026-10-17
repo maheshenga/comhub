@@ -32,7 +32,6 @@ export class PluginPublicApiActionImpl {
         return await this.#get().invokeMCPTypePlugin(id, payload);
       }
 
-      case 'builtin':
       default: {
         // Pass stepContext to builtin tools for dynamic state access
         return await this.#get().invokeBuiltinTool(id, payload, stepContext);

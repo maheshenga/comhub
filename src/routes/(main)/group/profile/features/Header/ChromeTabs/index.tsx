@@ -159,11 +159,7 @@ const ChromeTabs = memo<ChromeTabsProps>(
               onClick={() => onChange(item.id)}
             >
               <Flexbox horizontal align="center" gap={6}>
-                {item.icon ? (
-                  item.icon
-                ) : item.avatar ? (
-                  <Avatar avatar={item.avatar} size={18} />
-                ) : null}
+                {item.icon ?? (item.avatar ? <Avatar avatar={item.avatar} size={18} /> : null)}
                 <span className={styles.tabTitle}>{item.title}</span>
                 {item.isExternal && (
                   <span className={styles.externalTag}>{t('group.profile.external')}</span>

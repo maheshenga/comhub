@@ -60,9 +60,9 @@ const motionStub = new Proxy(
   { get: (_target, prop) => (typeof prop === 'string' ? stubFor(prop) : undefined) },
 );
 
-export const MotionComponent = createContext<unknown>(motionStub);
+const MotionContext = createContext<unknown>(motionStub);
 
 export const MotionProvider = ({ children, motion }: { children?: ReactNode; motion?: unknown }) =>
-  createElement(MotionComponent, { value: motion ?? motionStub }, children);
+  createElement(MotionContext, { value: motion ?? motionStub }, children);
 
-export const useMotionComponent = () => use(MotionComponent) ?? motionStub;
+export const useMotionComponent = () => use(MotionContext) ?? motionStub;

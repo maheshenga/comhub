@@ -3,7 +3,7 @@ import { getBuiltinStreaming } from '@lobechat/builtin-tools/streamings';
 import { Flexbox } from '@lobehub/ui';
 import { Accordion, Divider, Skeleton } from '@lobehub/ui/base-ui';
 import isEqual from 'fast-deep-equal';
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 
 import SafeBoundary from '@/components/ErrorBoundary';
 import dynamic from '@/libs/next/dynamic';
@@ -104,23 +104,30 @@ const Tool = memo<GroupToolProps>(({ assistantMessageId, disableEditing, id }) =
   const canToggleCustomToolRender = hasCustomRender && !isPending && !isReject && !isAbort;
 
   // Handle expand state changes
-  const handleExpand = (expand?: boolean) => {
-    // Block collapse action when alwaysExpand is set
-    if (isAlwaysExpand && expand === false) {
-      return;
-    }
-    // When collapsing, also turn off debug mode so the accordion can actually collapse
-    if (expand === false) {
-      setShowDebug(false);
-    }
-    setShowToolRender(!!expand);
-  };
+  const handleExpand = useCallback(
+    (expand?: boolean) => {
+      // Block collapse action when alwaysExpand is set
+      if (isAlwaysExpand && expand === false) {
+        return;
+      }
+      // When collapsing, also turn off debug mode so the accordion can actually collapse
+      if (expand === false) {
+        setShowDebug(false);
+      }
+      setShowToolRender(!!expand);
+    },
+    [isAlwaysExpand],
+  );
 
   useEffect(() => {
-    if (needExpand) {
-      setTimeout(() => handleExpand(true), 100);
-    }
-  }, [needExpand]);
+    if (!needExpand) return;
+
+    const timer = setTimeout(() => handleExpand(true), 100);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [needExpand, handleExpand]);
 
   if (!tool) return null;
 

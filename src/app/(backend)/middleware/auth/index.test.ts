@@ -21,7 +21,7 @@ vi.mock('@lobechat/types', () => ({
   },
 }));
 
-const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+vi.spyOn(console, 'error').mockImplementation(() => undefined);
 const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
 
 vi.mock('@/utils/errorResponse', () => ({

@@ -31,7 +31,7 @@ const SuccessResult = memo<SuccessResultProps>(({ duration, dataSource, onClickF
   const { t } = useTranslation('common');
 
   const cellRender = (text: string) => {
-    return text ? text : <span className={styles.zeroCell}>0</span>;
+    return text || <span className={styles.zeroCell}>0</span>;
   };
   return (
     <Result

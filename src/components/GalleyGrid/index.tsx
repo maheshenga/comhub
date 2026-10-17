@@ -39,7 +39,7 @@ const GalleyGrid = memo<GalleyGridProps>(({ items, renderItem: Render }) => {
       gap: mobile ? 4 : 6,
       max: (mobile ? MAX_SIZE_MOBILE : MAX_SIZE_DESKTOP) * scale,
     };
-  }, [mobile, items]);
+  }, [firstRow.length, items, mobile]);
 
   return (
     <Flexbox gap={gap}>

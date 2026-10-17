@@ -28,7 +28,7 @@ const MessageDetailBody = () => {
     if (!message) {
       clearPortalStack();
     }
-  }, [message]);
+  }, [message, clearPortalStack]);
 
   return (
     <Flexbox height={'100%'} paddingBlock={'0 12px'} paddingInline={8}>

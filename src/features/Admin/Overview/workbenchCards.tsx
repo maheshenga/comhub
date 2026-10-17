@@ -58,7 +58,6 @@ export const WorkbenchTodoCard = ({
 /** 最近审计卡：当前管理员的最近操作（actorUserId 过滤）。 */
 export const WorkbenchAuditCard = ({
   items,
-  onOpenAudit,
   t,
 }: {
   items: Array<{ action: string; createdAt: string | Date }>;
@@ -79,9 +78,7 @@ export const WorkbenchAuditCard = ({
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {item.action}
             </span>
-            <small style={{ opacity: 0.6 }}>
-              {new Date(item.createdAt).toLocaleString()}
-            </small>
+            <small style={{ opacity: 0.6 }}>{new Date(item.createdAt).toLocaleString()}</small>
           </Flexbox>
         ))}
         {items.length === 0 ? <small style={{ opacity: 0.6 }}>—</small> : null}

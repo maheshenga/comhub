@@ -54,8 +54,8 @@ const StatsSetting = memo<StatsSettingProps>(
     const { t, i18n } = useTranslation('auth');
     dayjs.locale(i18n.language);
 
-    const [groupBy, setGroupBy] = useState<GroupBy>(GroupBy.Model);
-    const [dateRange, setDateRange] = useState<dayjs.Dayjs>(dayjs(new Date()));
+    const [groupBy, setGroupBy] = useState<GroupBy>(() => GroupBy.Model);
+    const [dateRange, setDateRange] = useState<dayjs.Dayjs>(() => dayjs(new Date()));
     const [dateStrings, setDateStrings] = useState<string>();
 
     const { data, isLoading, error, mutate } = useClientDataSWR(statsKeys.usageStat(), async () =>
@@ -66,7 +66,7 @@ const StatsSetting = memo<StatsSettingProps>(
       if (dateStrings) {
         mutate();
       }
-    }, [dateStrings]);
+    }, [dateStrings, mutate]);
 
     const handleDateChange = (date: Date | null) => {
       if (!date) return;

@@ -23,7 +23,7 @@ function splitTextWithSeparators(
   separators: string[],
   config: SplitterConfig,
 ): string[] {
-  const { chunkSize, chunkOverlap } = config;
+  const { chunkSize } = config;
 
   // Find the appropriate separator
   let separator = separators.at(-1)!;
@@ -113,23 +113,6 @@ function mergeSplits(splits: string[], separator: string, config: SplitterConfig
   }
 
   return chunks;
-}
-
-/**
- * Calculate line location metadata for a chunk within the original text.
- */
-function getLineLocation(fullText: string, chunk: string): { from: number; to: number } {
-  const index = fullText.indexOf(chunk);
-  if (index === -1) {
-    return { from: 1, to: 1 };
-  }
-
-  const beforeChunk = fullText.slice(0, index);
-  const from = beforeChunk.split('\n').length;
-  const chunkLines = chunk.split('\n').length;
-  const to = from + chunkLines - 1;
-
-  return { from, to };
 }
 
 /**

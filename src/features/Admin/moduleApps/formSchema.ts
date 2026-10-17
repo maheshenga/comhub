@@ -392,10 +392,10 @@ export const buildModuleAppUpsertInput = (
   moduleAppAdminUpsertSchema.parse({
     ...values,
     actions: values.actions.map(
-      ({ inputSchemaJson, outputSchemaJson, runtimeConfigJson, ...action }) => action,
+      ({ inputSchemaJson: _i, outputSchemaJson: _o, runtimeConfigJson: _r, ...action }) => action,
     ),
     pages: values.pages.map(
-      ({ actionBindingsJson, dataSourceJson, layoutSchemaJson, ...page }) => page,
+      ({ actionBindingsJson: _a, dataSourceJson: _d, layoutSchemaJson: _l, ...page }) => page,
     ),
   });
 

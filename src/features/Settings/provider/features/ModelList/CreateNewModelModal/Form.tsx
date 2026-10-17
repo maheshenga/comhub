@@ -48,6 +48,8 @@ const ModelConfigForm = memo<ModelConfigFormProps>(
 
     useEffect(() => {
       onFormInstanceReady(formInstance);
+      // mount-only: publish the stable form instance (from useForm/useState) to the parent once
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- onFormInstanceReady stores the instance into a ref; re-running on its identity change is meaningless
     }, []);
 
     return (

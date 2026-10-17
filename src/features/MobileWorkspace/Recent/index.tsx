@@ -158,7 +158,7 @@ const MobileRecentPage = memo(() => {
         setPinningKeys(new Set(pinningKeysRef.current));
       }
     },
-    [mutate, pinAgent, pinAgentGroup, t],
+    [mutate, pinAgent, pinAgentGroup, t, pinningKeysRef, togglePinRef],
   );
   togglePinRef.current = (item) => void togglePin(item);
   const refresh = useCallback(async () => {

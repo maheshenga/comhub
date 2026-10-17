@@ -66,7 +66,10 @@ const CommandItem = memo<CommandItemProps>((props) => {
   // Clone the icon element and add the icon className if it's a valid React element
   const iconWithClass =
     isValidElement(icon) && typeof icon.type !== 'string'
-      ? cloneElement(icon, { className: styles.icon } as never)
+      ? // icon 是调用方传入的任意非原生 icon 元素，类型上无法静态枚举其 props；
+        // 无法在不动公共 API 的前提下把 className 透传为普通 prop，cloneElement 是唯一注入口。
+        // eslint-disable-next-line @eslint-react/no-clone-element -- caller-supplied icon element needs className injected; no static prop alternative without changing the public API
+        cloneElement(icon, { className: styles.icon } as never)
       : icon;
 
   return (

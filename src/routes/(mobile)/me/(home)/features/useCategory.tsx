@@ -12,7 +12,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import useBusinessMeCells from '@/business/client/features/User/useBusinessMeCells';
+import getBusinessMeCells from '@/business/client/features/User/getBusinessMeCells';
 import { type CellProps } from '@/components/Cell';
 import { openChangelogModal } from '@/components/ChangelogModal';
 import { DOCUMENTS, FEEDBACK } from '@/const/index';
@@ -28,7 +28,7 @@ export const useCategory = () => {
   const { showCloudPromotion, hideDocs } = useServerConfigStore(featureFlagsSelectors);
   const [isLoginWithAuth] = useUserStore((s) => [authSelectors.isLoginWithAuth(s)]);
   const { isIOS, isAndroid } = usePlatform();
-  const businessMeCells = useBusinessMeCells();
+  const businessMeCells = getBusinessMeCells();
 
   const desktopDownload = usePublicDesktopDownload({
     fallbackLabel: t('getDesktopApp'),

@@ -28,7 +28,7 @@ interface GenerationPromptInputProps {
   value?: string;
 }
 
-const styles = createStaticStyles(({ css, cssVar }) => ({
+const styles = createStaticStyles(({ css }) => ({
   textarea: css`
     padding: 0;
     border-radius: 0;
@@ -43,7 +43,6 @@ const GenerationPromptInput = memo<GenerationPromptInputProps>(
     inlineContent,
     leftActions,
     rightActions,
-    isDarkMode,
     isCreating,
     value,
     onValueChange,

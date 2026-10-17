@@ -113,7 +113,7 @@ const Content = memo<ContentProps>(({ open, searchKeyword }) => {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [open, count, hasMore, loadMoreTopics, isLoadingMore]);
+  }, [isSearching, open, count, hasMore, loadMoreTopics, isLoadingMore]);
 
   // Reset initialized flag when drawer closes
   useEffect(() => {

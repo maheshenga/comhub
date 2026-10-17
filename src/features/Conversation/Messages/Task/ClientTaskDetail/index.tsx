@@ -50,7 +50,7 @@ const ClientTaskDetail = memo<ClientTaskDetailProps>(
 
     const threadMessageKey = useMemo(
       () => (threadId ? messageMapKey(threadContext) : null),
-      [threadId],
+      [threadId, threadContext],
     );
 
     // Fetch thread messages (skip when executing - messages come from real-time updates)

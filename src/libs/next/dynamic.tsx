@@ -7,7 +7,7 @@
 
 import { type ComponentType, lazy, type ReactNode, Suspense } from 'react';
 
-export interface DynamicOptions<P = NonNullable<unknown>> {
+export interface DynamicOptions {
   loading?: ((...args: any[]) => ReactNode) | undefined;
   ssr?: boolean;
 }
@@ -20,7 +20,7 @@ export type LoaderComponent<P = NonNullable<unknown>> = ComponentType<P>;
 
 function dynamic<P = NonNullable<unknown>>(
   loader: Loader<P>,
-  options?: DynamicOptions<P>,
+  options?: DynamicOptions,
 ): ComponentType<P> {
   const LazyComponent = lazy(async () => {
     const mod = await loader();

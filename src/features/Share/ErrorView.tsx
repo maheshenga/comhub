@@ -37,6 +37,9 @@ const ShareErrorView = memo<ShareErrorViewProps>(({ error }) => {
                 void trackLoginOrSignupClicked({
                   spm: 'share.unauthorized.signin.click',
                 }).finally(() => {
+                  // share 页可经公开链接直接进入，callbackUrl 需带当前路径回 signin；
+                  // signin 是独立 auth 入口（entry.auth.html），不与本页共享路由实例。
+                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- cross-entry auth SPA navigation requires a full page load
                   window.location.href = target;
                 });
               }}

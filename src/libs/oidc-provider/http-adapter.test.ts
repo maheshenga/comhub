@@ -116,7 +116,7 @@ describe('OIDC HTTP adapter', () => {
       const { urlencoded } = await import('oidc-provider/lib/shared/selective_body.js');
       const nodeRequest = await createNodeRequest(request);
       const ctx: SelectiveBodyContext = {
-        charset: 'utf-8',
+        charset: 'utf8',
         is: (contentType: string) => contentType === 'application/x-www-form-urlencoded',
         /** oidc-provider only parses URL-encoded bodies for POST requests. */
         method: nodeRequest.method,

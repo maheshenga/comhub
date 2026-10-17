@@ -16,7 +16,7 @@ import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
-import { useBusinessResourceCategories } from '@/business/client/features/ResourceCategories';
+import { getBusinessResourceCategories } from '@/business/client/features/ResourceCategories';
 import NavItem from '@/features/NavPanel/components/NavItem';
 import { useResourceManagerStore } from '@/features/ResourceManager/store';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
@@ -35,7 +35,7 @@ const CategoryMenu = memo(() => {
   const { t } = useTranslation('file');
   const [activeKey, setMode] = useResourceManagerStore((s) => [s.category, s.setMode]);
   const navigate = useWorkspaceAwareNavigate();
-  const businessCategories = useBusinessResourceCategories();
+  const businessCategories = getBusinessResourceCategories();
   const location = useActiveLocation();
   // In Work-gallery mode (/resource/works) no file category is selected, so
   // suppress the category highlight — otherwise "Home" reads as active

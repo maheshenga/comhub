@@ -14,25 +14,22 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@lobehub/ui', () => ({
+vi.mock('@lobehub/ui/base-ui', () => ({
   FormGroup: ({
     children,
     collapsible,
     extra,
-    gap,
     title,
     variant,
   }: {
     children: ReactNode;
     collapsible: boolean;
     extra?: ReactNode;
-    gap: number;
     title: ReactNode;
     variant: string;
   }) => (
     <section
       data-collapsible={String(collapsible)}
-      data-gap={gap}
       data-testid="desktop-form-group"
       data-variant={variant}
     >
@@ -40,6 +37,14 @@ vi.mock('@lobehub/ui', () => ({
       {extra}
       {children}
     </section>
+  ),
+}));
+
+vi.mock('@lobehub/ui', () => ({
+  Flexbox: ({ children, gap }: { children: ReactNode; gap?: number }) => (
+    <div data-flex-gap={gap} data-testid="desktop-form-gap">
+      {children}
+    </div>
   ),
 }));
 
@@ -116,9 +121,12 @@ describe('BusinessMobileSection', () => {
       </BusinessSettingsSection>,
     );
 
+    // The 16px gap lives on the Flexbox wrapper since the base-ui FormGroup
+    // dropped the root-barrel `gap` prop; the group itself keeps the rest.
+    const wrapper = screen.getByTestId('desktop-form-gap');
+    expect(wrapper).toHaveAttribute('data-flex-gap', '16');
     const group = screen.getByTestId('desktop-form-group');
     expect(group).toHaveAttribute('data-collapsible', 'false');
-    expect(group).toHaveAttribute('data-gap', '16');
     expect(group).toHaveAttribute('data-variant', 'filled');
     expect(screen.getByRole('button', { name: 'desktop action' })).toBeVisible();
     expect(screen.getByText('balance')).toBeVisible();

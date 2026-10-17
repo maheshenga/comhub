@@ -37,17 +37,6 @@ const previewSlotMode: Record<
   'slot-4': 'apps',
 };
 
-const previewRecentRows = [
-  {
-    labelKey: 'admin.mobile.preview.recent.sample',
-    titleKey: 'admin.mobile.preview.recent.sampleTitleOne',
-  },
-  {
-    labelKey: 'admin.mobile.preview.recent.sample',
-    titleKey: 'admin.mobile.preview.recent.sampleTitleTwo',
-  },
-] as const;
-
 const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
   const { t } = useTranslation('subscription');
   const normalizedConfig = useMemo(() => normalizeMobileConfig(config), [config]);

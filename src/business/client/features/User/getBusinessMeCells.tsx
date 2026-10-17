@@ -1,5 +1,5 @@
 import { type CellProps } from '@/components/Cell';
 
-export default function useBusinessMeCells(): CellProps[] {
+export default function getBusinessMeCells(): CellProps[] {
   return [];
 }

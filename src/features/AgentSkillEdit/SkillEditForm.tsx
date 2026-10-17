@@ -69,17 +69,14 @@ const SkillEditForm = memo<SkillEditFormProps>(({ name, disabled, form, initialV
 
   useEffect(() => {
     if (!editor) return;
-    try {
-      setTimeout(() => {
-        if (initialValues.content) {
-          editor.setDocument('markdown', initialValues.content);
-        }
-      }, 100);
-    } catch {
-      setTimeout(() => {
+    // 编辑器实例在 ref 阶段可能还没就绪，延迟一拍再灌文档；卸载时清理避免
+    // 在已卸载组件上调用 editor API。
+    const timer = setTimeout(() => {
+      if (initialValues.content) {
         editor.setDocument('markdown', initialValues.content);
-      }, 100);
-    }
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [editor, initialValues.content]);
 
   const handleContentChange = useCallback(

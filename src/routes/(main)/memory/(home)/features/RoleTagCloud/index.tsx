@@ -61,9 +61,12 @@ const RoleTagCloud = memo<RoleTagCloudProps>(({ tags }) => {
 
   useEffect(() => {
     setFullscreenAnimation(true);
-    setTimeout(() => {
+
+    const timer = setTimeout(() => {
       setFullscreenAnimation(false);
     }, 500);
+
+    return () => clearTimeout(timer);
   }, [fullscreen]);
 
   if (!tags.length) return null;

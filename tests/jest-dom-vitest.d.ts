@@ -5,7 +5,7 @@ import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
 // matchers disappear from the type of `expect(...)`. Re-declare them on the Vitest
 // interface until the package supports Vitest 5.
 declare module 'vitest' {
-  interface Assertion<R = any, T = any> extends TestingLibraryMatchers<any, R> {}
+  interface Assertion<R = any> extends TestingLibraryMatchers<any, R> {}
 
   interface AsymmetricMatchersContaining extends TestingLibraryMatchers<any, any> {}
 }

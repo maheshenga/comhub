@@ -83,7 +83,7 @@ const SessionItem = memo<SessionItemProps>(({ id }) => {
         setOpen={setOpen}
       />
     ),
-    [group, id],
+    [group, id, sessionType, setOpen],
   );
 
   const addon = useMemo(

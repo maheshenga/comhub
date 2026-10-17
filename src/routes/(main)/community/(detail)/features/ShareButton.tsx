@@ -8,7 +8,7 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ImperativeModal from '@/components/ImperativeModal';
-import { useShare } from '@/hooks/useShare';
+import { shareUrl } from '@/hooks/useShare';
 
 import CardBanner from '../../components/CardBanner';
 
@@ -60,7 +60,7 @@ interface ShareButtonProps extends ComponentProps<typeof Button> {
 }
 
 const ShareButton = memo<ShareButtonProps>(({ meta, ...rest }) => {
-  const { x, reddit, telegram, whatsapp, mastodon, weibo } = useShare({
+  const { x, reddit, telegram, whatsapp, mastodon, weibo } = shareUrl({
     avatar: '',
     desc: '',
     hashtags: [],

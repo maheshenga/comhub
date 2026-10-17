@@ -61,6 +61,9 @@ const AuthErrorBoundary = () => {
           style={buttonStyle}
           type={'button'}
           onClick={() => {
+            // 错误边界内 AuthShell 可能未挂载完整 Provider（无 i18n/router 上下文），
+            // 用整页跳转回 signin 保证从干净状态进入 auth 流程。
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- error boundary may render without the SPA router mounted
             window.location.href = '/signin';
           }}
         >

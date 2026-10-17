@@ -104,7 +104,6 @@ export const buildSchemaSample = (schema: any, key = 'value'): any => {
           .filter(([, value]) => value !== undefined),
       );
     }
-    case 'string':
     default: {
       return buildStringSample(key, schema);
     }

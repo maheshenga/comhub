@@ -93,20 +93,23 @@ const ConnectionMode = memo<ConnectionModeProps>(({ setWaiting }) => {
   );
   const [selfHostedUrl, setSelfHostedUrl] = useState(rawRemoteServerUrl);
 
-  const validateUrl = useCallback((url: string) => {
-    if (!url) {
-      return t('remoteServer.urlRequired');
-    }
-    try {
-      new URL(url);
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        throw new Error('Invalid protocol');
+  const validateUrl = useCallback(
+    (url: string) => {
+      if (!url) {
+        return t('remoteServer.urlRequired');
       }
-      return undefined;
-    } catch {
-      return t('remoteServer.invalidUrl');
-    }
-  }, []);
+      try {
+        new URL(url);
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          throw new Error('Invalid protocol');
+        }
+        return undefined;
+      } catch {
+        return t('remoteServer.invalidUrl');
+      }
+    },
+    [t],
+  );
 
   const handleSelectOption = (option: RemoteStorageMode) => {
     setSelectedOption(option);

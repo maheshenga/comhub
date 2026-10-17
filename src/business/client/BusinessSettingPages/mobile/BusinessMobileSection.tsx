@@ -1,7 +1,7 @@
 'use client';
 
-// eslint-disable-next-line no-restricted-imports -- @lobehub/ui FormGroup 属 Form 系布局组件（settings 表单分组语义），base-ui/form 无行内等价项；迁 FormKit 属另行立项。
-import { FormGroup } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
+import { FormGroup } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
 import { ChevronDown } from 'lucide-react';
 import { type ReactNode, useId, useState } from 'react';
@@ -166,8 +166,12 @@ export const BusinessSettingsSection = ({
   }
 
   return (
-    <FormGroup collapsible={false} extra={desktopExtra} gap={16} title={title} variant="filled">
-      {children}
-    </FormGroup>
+    // base-ui FormGroupProps has no `gap` (the @lobehub/ui root barrel one did);
+    // spacing moves to the Flexbox wrapper the About.tsx precedent uses.
+    <Flexbox gap={16}>
+      <FormGroup collapsible={false} extra={desktopExtra} title={title} variant="filled">
+        {children}
+      </FormGroup>
+    </Flexbox>
   );
 };

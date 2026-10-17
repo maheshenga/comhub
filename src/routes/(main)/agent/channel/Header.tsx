@@ -274,6 +274,24 @@ const Header = memo<HeaderProps>(
         />
         <NavHeader
           style={{ position: 'relative' }}
+          // `relative` anchors the absolutely-centered switcher below.
+          left={
+            // On the platform list the Segmented already names the section, so
+            // repeating it here would print the same word twice. A platform
+            // detail still needs it: the active segment is inert, so this link
+            // is the only way back to the list.
+            <AgentBreadcrumb
+              agentId={agentId}
+              extraItems={platformDef ? [platformDef.name] : undefined}
+              title={
+                platformDef ? (
+                  <Link relative="path" to="..">
+                    {t('tab.integration', { ns: 'chat' })}
+                  </Link>
+                ) : undefined
+              }
+            />
+          }
           right={
             <Flexbox horizontal align="center" gap={8}>
               {platformDef?.comingSoon && <Tag size={'small'}>{t('channel.comingSoon')}</Tag>}
@@ -322,24 +340,6 @@ const Header = memo<HeaderProps>(
                 <ActionIcon icon={MoreHorizontal} title={t('more', { ns: 'common' })} />
               </DropdownMenu>
             </Flexbox>
-          }
-          // `relative` anchors the absolutely-centered switcher below.
-          left={
-            // On the platform list the Segmented already names the section, so
-            // repeating it here would print the same word twice. A platform
-            // detail still needs it: the active segment is inert, so this link
-            // is the only way back to the list.
-            <AgentBreadcrumb
-              agentId={agentId}
-              extraItems={platformDef ? [platformDef.name] : undefined}
-              title={
-                platformDef ? (
-                  <Link relative="path" to="..">
-                    {t('tab.integration', { ns: 'chat' })}
-                  </Link>
-                ) : undefined
-              }
-            />
           }
           styles={{
             // Center on the header midpoint (equal gaps), not the leftover track.

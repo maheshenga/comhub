@@ -56,22 +56,6 @@ const AcceptanceFocusWorkspace = () => {
       canReview={
         canReviewAcceptance(data) && (turn === null || turn === data.rounds.at(-1)?.run.roundIndex)
       }
-      // A phone opens this page by pushing onto the list, so the back arrow
-      // pops that entry — replacing it would leave a duplicate overview behind
-      // and make the system back button look broken.
-      onBack={() =>
-        (location.state as { fromCheckList?: boolean } | null)?.fromCheckList
-          ? navigate(-1)
-          : navigate(acceptanceOverviewPath(acceptanceId) + query, { replace: true })
-      }
-      // Stepping between checks replaces the entry in place, carrying the
-      // "came from the list" flag so the back arrow still knows where to land.
-      onSelectCheck={(id) =>
-        navigate(acceptanceCheckPath(acceptanceId, id) + query, {
-          replace: true,
-          state: location.state,
-        })
-      }
       // Checklist authoring writes through the subject — creator-only until that
       // path is reviewer-aware. Reviewing the checks themselves is not.
       onAddChecks={
@@ -83,6 +67,14 @@ const AcceptanceFocusWorkspace = () => {
                   saveStanding([...(data.acceptance.config?.checklist ?? []), ...items]),
               })
           : undefined
+      }
+      // A phone opens this page by pushing onto the list, so the back arrow
+      // pops that entry — replacing it would leave a duplicate overview behind
+      // and make the system back button look broken.
+      onBack={() =>
+        (location.state as { fromCheckList?: boolean } | null)?.fromCheckList
+          ? navigate(-1)
+          : navigate(acceptanceOverviewPath(acceptanceId) + query, { replace: true })
       }
       onEditStandingCheck={
         data.isOwner
@@ -118,6 +110,14 @@ const AcceptanceFocusWorkspace = () => {
           return false;
         }
       }}
+      // Stepping between checks replaces the entry in place, carrying the
+      // "came from the list" flag so the back arrow still knows where to land.
+      onSelectCheck={(id) =>
+        navigate(acceptanceCheckPath(acceptanceId, id) + query, {
+          replace: true,
+          state: location.state,
+        })
+      }
     />
   );
 };

@@ -131,7 +131,7 @@ const ComposioServerItem = memo<ComposioServerItemProps>(
           setIsWaitingAuth(false);
         }, POLL_TIMEOUT_MS);
       },
-      [refreshComposioConnectionStatus, t],
+      [refreshComposioConnectionStatus],
     );
 
     /**
@@ -165,7 +165,7 @@ const ComposioServerItem = memo<ComposioServerItemProps>(
           }
         }, 500);
       },
-      [refreshComposioConnectionStatus, startFallbackPolling],
+      [startFallbackPolling],
     );
 
     /**
@@ -187,14 +187,13 @@ const ComposioServerItem = memo<ComposioServerItemProps>(
           startFallbackPolling(serverName);
         }
       },
-      [cleanup, startWindowMonitor, startFallbackPolling, t],
+      [cleanup, startWindowMonitor, startFallbackPolling],
     );
 
     // Get plugin ID for this server (use identifier as pluginId)
     const pluginId = server ? server.identifier : '';
-    const plugins =
-      useAgentStore(agentSelectors.getAgentConfigById(effectiveAgentId))?.plugins || [];
-    const checked = plugins.includes(pluginId);
+    const plugins = useAgentStore(agentSelectors.getAgentConfigById(effectiveAgentId))?.plugins;
+    const checked = plugins?.includes(pluginId) ?? false;
     const updateAgentConfigById = useAgentStore((s) => s.updateAgentConfigById);
 
     // Toggle plugin for the effective agent

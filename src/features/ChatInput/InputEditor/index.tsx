@@ -530,7 +530,7 @@ const InputEditor = memo<{
     return !enableRichRender
       ? { enablePasteMarkdown: false, markdownOption: false, plugins }
       : { plugins };
-  }, [enableRichRender, autoCompletePlugin, expand]);
+  }, [enableRichRender, autoCompletePlugin, expand, slashMenuRef]);
 
   const handleEditorInit = useCallback(
     (editor: IEditor) => {

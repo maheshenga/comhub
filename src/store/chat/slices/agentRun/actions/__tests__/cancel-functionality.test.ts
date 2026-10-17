@@ -85,13 +85,13 @@ describe('Cancel send message functionality tests', () => {
       });
 
       // Create operation with editor state
-      let operationId: string;
+      let _operationId: string;
       act(() => {
         const res = result.current.startOperation({
           type: 'sendMessage',
           context: { agentId, topicId },
         });
-        operationId = res.operationId;
+        _operationId = res.operationId;
 
         result.current.updateOperationMetadata(res.operationId, {
           inputEditorTempState: mockEditorState,

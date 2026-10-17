@@ -620,6 +620,8 @@
   "tab.skill": "Skills",
   "tab.user": "User",
   "tab.workspace": "Workspace",
+  "time.formatOtherYear": "MMM D, YYYY",
+  "time.formatThisYear": "MMM D",
   "user.accountType.organization": "Organization",
   "user.agents": "Agents",
   "user.cancel": "Cancel",

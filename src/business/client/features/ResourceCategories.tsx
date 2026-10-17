@@ -7,6 +7,6 @@ export interface BusinessResourceCategory {
   url: string;
 }
 
-export function useBusinessResourceCategories(): BusinessResourceCategory[] {
+export function getBusinessResourceCategories(): BusinessResourceCategory[] {
   return [];
 }

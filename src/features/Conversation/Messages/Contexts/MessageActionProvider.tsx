@@ -107,13 +107,7 @@ const SingletonMessageActionsBar = memo(() => {
     if (hostEl.querySelector('[data-popup-open]')) return;
     setCommittedPortalElement(livePortalElement);
     setCommittedActionType(liveActionType);
-  }, [
-    livePortalElement,
-    liveActionType?.id,
-    liveActionType?.index,
-    liveActionType?.type,
-    popupCloseTick,
-  ]);
+  }, [livePortalElement, liveActionType, popupCloseTick]);
 
   // Keep the React tree mounted in a stable host element, and only move the host via DOM.
   useEffect(() => {
@@ -155,12 +149,7 @@ const SingletonMessageActionsBar = memo(() => {
     // No valid placeholder: attach to body to keep DOM owned, but hidden.
     if (document.body && hostEl.parentElement !== document.body) document.body.append(hostEl);
     hostEl.style.display = 'none';
-  }, [
-    committedPortalElement,
-    committedActionType?.id,
-    committedActionType?.index,
-    committedActionType?.type,
-  ]);
+  }, [committedPortalElement, committedActionType]);
 
   useEffect(() => {
     const hostEl = hostRef.current;

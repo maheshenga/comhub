@@ -121,6 +121,14 @@ export const useFileUploadDockTasks = (): DockTask[] => {
           title: file.name,
         };
       }),
-    [cancelActiveUploads, cancelUpload, describe, dispatchDockFileList, fileList, retryDockUpload],
+    [
+      cancelActiveUploads,
+      cancelUpload,
+      describe,
+      dispatchDockFileList,
+      fileList,
+      retryDockUpload,
+      t,
+    ],
   );
 };

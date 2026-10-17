@@ -69,7 +69,7 @@ const NavBar = memo(() => {
           title: t('tab.me'),
         },
       ].filter(Boolean) as TabBarProps['items'],
-    [t],
+    [navigate, showMarket, t],
   );
 
   return (

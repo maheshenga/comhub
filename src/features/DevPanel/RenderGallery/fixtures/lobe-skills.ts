@@ -23,7 +23,7 @@ export default defineFixtures({
       content:
         'export const listBuiltinRenderEntries = () => [{ identifier: "codex", apiName: "todo_list" }];\n',
       pluginState: {
-        encoding: 'utf-8',
+        encoding: 'utf8',
         fullPath: '/workspace/packages/builtin-tools/src/renders.ts',
         path: 'packages/builtin-tools/src/renders.ts',
         size: 2048,
