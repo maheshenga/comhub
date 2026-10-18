@@ -7,10 +7,14 @@ import { getServerGlobalConfig } from '@/server/globalConfig';
 import { aiModelRouter } from '../aiModel';
 
 const mockGetHiddenBuiltinModelsForUser = vi.hoisted(() => vi.fn());
+const mockLoadAdminModelDefaults = vi.hoisted(() => vi.fn());
 
 vi.mock('@/business/server/aiProvider', () => ({
   getHiddenBuiltinModelsForUser: mockGetHiddenBuiltinModelsForUser,
   getModelRedirects: vi.fn(async () => ({})),
+}));
+vi.mock('@/business/server/modelDefaults', () => ({
+  loadAdminModelDefaults: mockLoadAdminModelDefaults,
 }));
 vi.mock('@/database/models/aiModel');
 vi.mock('@/database/models/user');
@@ -38,6 +42,12 @@ describe('aiModelRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetHiddenBuiltinModelsForUser.mockResolvedValue([]);
+    mockLoadAdminModelDefaults.mockResolvedValue({
+      contextWindow: new Map(),
+      raw: { contextWindow: [], reasoning: [] },
+      reasoning: new Map(),
+      reasoningRecord: {},
+    });
   });
 
   it('should create ai model', async () => {
@@ -162,6 +172,28 @@ describe('aiModelRouter', () => {
     });
   });
 
+  it('passes admin context-window defaults to AiInfraRepos', async () => {
+    const contextWindow = new Map([['provider-1/model-1', 200_000]]);
+    mockLoadAdminModelDefaults.mockResolvedValue({
+      contextWindow,
+      raw: { contextWindow: [], reasoning: [] },
+      reasoning: new Map(),
+      reasoningRecord: {},
+    });
+    vi.mocked(getServerGlobalConfig).mockResolvedValue({ aiProvider: {} } as any);
+    vi.mocked(AiInfraRepos).mockImplementation(function () {
+      return { getAiProviderModelList: vi.fn().mockResolvedValue([]) } as any;
+    });
+
+    const caller = aiModelRouter.createCaller(mockCtx);
+    await caller.getAiProviderModelList({ id: 'provider-1' });
+
+    const resolvedDb = vi.mocked(getServerGlobalConfig).mock.calls.at(-1)?.[0];
+    expect(AiInfraRepos).toHaveBeenCalledWith(resolvedDb, mockCtx.userId, {}, undefined, {
+      contextWindowDefaults: contextWindow,
+    });
+  });
+
   it('should resolve server provider config with request database for DB-managed model lists', async () => {
     const mockModelList = [{ id: 'newapi-chat', name: 'NewAPI Chat' }];
     const mockGetList = vi.fn().mockResolvedValue(mockModelList);
@@ -173,12 +205,11 @@ describe('aiModelRouter', () => {
         },
       },
     } as any);
-    vi.mocked(AiInfraRepos).mockImplementation(
-      () =>
-        ({
-          getAiProviderModelList: mockGetList,
-        }) as any,
-    );
+    vi.mocked(AiInfraRepos).mockImplementation(function () {
+      return {
+        getAiProviderModelList: mockGetList,
+      } as any;
+    });
 
     const caller = aiModelRouter.createCaller(mockCtx);
     const result = await caller.getAiProviderModelList({ id: 'newapi' });
@@ -194,6 +225,8 @@ describe('aiModelRouter', () => {
           serverModelLists: [expect.objectContaining({ id: 'newapi-chat' })],
         }),
       }),
+      undefined,
+      expect.objectContaining({ contextWindowDefaults: expect.any(Map) }),
     );
   });
 

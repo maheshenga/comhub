@@ -706,6 +706,7 @@ export const ADMIN_SETTINGS_NON_FORM_SETTING_KEYS = [
   SETTING_KEYS.paymentZpayWechatEnabled,
   SETTING_KEYS.profileAvatarPresets,
   SETTING_KEYS.profileInterestAreas,
+  SETTING_KEYS.modelDefaults,
   SETTING_KEYS.modelPolicyAllowlist,
   SETTING_KEYS.modelPolicyApplyToEmbeddings,
   SETTING_KEYS.modelPolicyApplyToGenerateObject,

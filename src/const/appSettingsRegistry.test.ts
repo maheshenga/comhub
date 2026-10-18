@@ -35,6 +35,11 @@ describe('app settings section ownership', () => {
     expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.mobileConfig)).toBe('mobile');
   });
 
+  it('assigns model defaults to the dedicated model-defaults section', () => {
+    expect(APP_SETTINGS_SECTIONS).toContain('model-defaults');
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.modelDefaults)).toBe('model-defaults');
+  });
+
   it('assigns every runtime control exclusively to the module runtime section', () => {
     expect(APP_SETTINGS_SECTIONS).toContain('module-runtime');
     for (const key of [

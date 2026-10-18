@@ -2,10 +2,8 @@ import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { loadModels } from '@lobechat/business-model-bank/model-config';
 import type {
   AiProviderDetailItem,
-  AiProviderListItem,
   AiProviderRuntimeState,
   EnabledProvider,
-  ProviderConfig,
 } from '@lobechat/types';
 import { isEmpty } from 'es-toolkit/compat';
 import type { AIChatModelCard, AiProviderModelListItem, EnabledAiModel } from 'model-bank';
@@ -23,14 +21,26 @@ import { merge, mergeArrayById } from '@/utils/merge';
 import { AiModelModel } from '../../models/aiModel';
 import { AiProviderModel } from '../../models/aiProvider';
 import type { LobeChatDatabase } from '../../type';
-import { type ServerManagedProviderConfig, resolveManagedProviderList } from './managedProviders';
+import { type ServerManagedProviderConfig } from './managedProviders';
+import { resolveManagedProviderList } from './managedProviders';
 
 type RuntimeAiModel = EnabledAiModel & Partial<AiProviderModelListItem>;
 type ServerProviderConfig = ServerManagedProviderConfig;
 
 type DecryptUserKeyVaults = (encryptKeyVaultsStr: string | null) => Promise<any>;
 
+export interface AiInfraReposOptions {
+  /**
+   * Platform (admin) context-window defaults keyed by `${providerId}/${modelId}`,
+   * matching the model-defaults setting key space. Undefined keeps the legacy
+   * behavior (user row value, otherwise the model card value).
+   */
+  contextWindowDefaults?: ReadonlyMap<string, number>;
+}
+
 const normalizeProvider = (provider: string) => provider.toLowerCase();
+
+const contextWindowDefaultKey = (providerId: string, modelId: string) => `${providerId}/${modelId}`;
 
 // Only inject settings during read; add or remove search-related fields in settings based on abilities.search
 const injectSearchSettings = (providerId: string, item: any) => {
@@ -79,6 +89,7 @@ export class AiInfraRepos {
   private db: LobeChatDatabase;
   aiProviderModel: AiProviderModel;
   private readonly providerConfigs: Record<string, ServerProviderConfig>;
+  private readonly contextWindowDefaults?: ReadonlyMap<string, number>;
   aiModelModel: AiModelModel;
   private modelBankModelsPromise?: ReturnType<typeof loadModels>;
 
@@ -87,13 +98,23 @@ export class AiInfraRepos {
     userId: string,
     providerConfigs: Record<string, ServerProviderConfig>,
     workspaceId?: string,
+    options?: AiInfraReposOptions,
   ) {
     this.userId = userId;
     this.db = db;
     this.aiProviderModel = new AiProviderModel(db, userId, workspaceId);
     this.aiModelModel = new AiModelModel(db, userId, workspaceId);
     this.providerConfigs = providerConfigs;
+    this.contextWindowDefaults = options?.contextWindowDefaults;
   }
+
+  /**
+   * Resolve the platform default context window for a model, if the caller
+   * supplied defaults. `0` means unlimited and must be preserved, so callers
+   * compare against `undefined` rather than truthiness.
+   */
+  private getContextWindowDefault = (providerId: string, modelId: string) =>
+    this.contextWindowDefaults?.get(contextWindowDefaultKey(providerId, modelId));
 
   /**
    * Calculate the final providerList based on the known providerConfig
@@ -161,6 +182,11 @@ export class AiInfraRepos {
               return injectSearchSettings(provider.id, {
                 ...item,
                 abilities: item.abilities || {},
+                // Platform default still applies on this path: an untouched
+                // model must surface the admin context window the same way
+                // getAiProviderModelList does (user row > default > card).
+                contextWindowTokens:
+                  this.getContextWindowDefault(provider.id, item.id) ?? item.contextWindowTokens,
                 providerId: provider.id,
               });
 
@@ -175,7 +201,8 @@ export class AiInfraRepos {
               contextWindowTokens:
                 typeof user.contextWindowTokens === 'number'
                   ? user.contextWindowTokens
-                  : item.contextWindowTokens,
+                  : (this.getContextWindowDefault(provider.id, item.id) ??
+                    item.contextWindowTokens),
               displayName: user?.displayName || item.displayName,
               enabled: typeof user.enabled === 'boolean' ? user.enabled : item.enabled,
               id: item.id,
@@ -207,9 +234,18 @@ export class AiInfraRepos {
         if (builtinModelKeys.has(`${item.providerId}:${item.id}`)) return false;
         return filterEnabled ? enabledProviderIds.has(item.providerId) && item.enabled : true;
       })
-      .map((item) =>
-        injectSearchSettings(item.providerId, { ...item, type: normalizeAiModelType(item.type) }),
-      );
+      .map((item) => {
+        const contextWindowTokens =
+          typeof item.contextWindowTokens === 'number'
+            ? item.contextWindowTokens
+            : (this.getContextWindowDefault(item.providerId, item.id) ?? item.contextWindowTokens);
+
+        return injectSearchSettings(item.providerId, {
+          ...item,
+          ...(typeof contextWindowTokens === 'number' ? { contextWindowTokens } : {}),
+          type: normalizeAiModelType(item.type),
+        });
+      });
 
     return [...builtinModels, ...appendedUserModels].sort(
       (a, b) => (a?.sort ?? Infinity) - (b?.sort ?? Infinity),
@@ -362,6 +398,15 @@ export class AiInfraRepos {
   ) => {
     const aiModels = await this.aiModelModel.getModelListByProviderId(providerId);
 
+    // Keep explicit user values before merging: mergeArrayById drops nullish
+    // user fields, so the merged row alone cannot tell "unset" from "inherited
+    // from the builtin card".
+    const userContextWindowTokens = new Map(
+      aiModels
+        .filter((item) => typeof item.contextWindowTokens === 'number')
+        .map((item) => [item.id, item.contextWindowTokens as number]),
+    );
+
     const defaultModels: AiProviderModelListItem[] =
       (await this.fetchBuiltinModels(providerId)) || [];
     // Not modifying search settings here doesn't affect usage, but done for data consistency on get
@@ -378,6 +423,13 @@ export class AiInfraRepos {
       // Read-time map for the legacy `stt` → `asr` rename (custom models that
       // aren't in the builtin list and still carry the old value in the DB).
       m.type = normalizeAiModelType(m.type);
+
+      // Context window precedence: explicit user row > platform default > merged
+      // (builtin card) value. A stored `0` is an explicit "unlimited" choice.
+      const userValue = userContextWindowTokens.get(m.id);
+      const adminDefault = this.getContextWindowDefault(providerId, m.id);
+      if (typeof userValue === 'number') m.contextWindowTokens = userValue;
+      else if (typeof adminDefault === 'number') m.contextWindowTokens = adminDefault;
     }
 
     const builtinIds = new Set(defaultModels.map((m) => m.id));

@@ -1177,5 +1177,99 @@ describe('AiInfraRepos', () => {
         units: [{ name: 'textInput', rate: 0.15, strategy: 'fixed', unit: 'millionTokens' }],
       });
     });
+
+    describe('admin context window defaults', () => {
+      const createDefaultsRepo = (contextWindowDefaults: Map<string, number>) =>
+        new AiInfraRepos(serverDB, userId, mockProviderConfigs, undefined, {
+          contextWindowDefaults,
+        });
+
+      const mockModels = (repo: AiInfraRepos, users: EnabledAiModel[], builtins: any[]) => {
+        vi.spyOn(repo, 'getAiProviderList').mockResolvedValue([
+          { enabled: true, id: 'openai', name: 'OpenAI', source: 'builtin' as const },
+        ]);
+        vi.spyOn(repo.aiModelModel, 'getAllModels').mockResolvedValue(users);
+        vi.spyOn(repo as any, 'fetchBuiltinModels').mockResolvedValue(builtins);
+      };
+
+      it('resolves user row value > admin default > builtin card value', async () => {
+        const defaultsRepo = createDefaultsRepo(new Map([['openai/gpt-5-no-user-value', 200_000]]));
+        mockModels(
+          defaultsRepo,
+          [
+            { contextWindowTokens: 8_000, enabled: true, id: 'gpt-5', providerId: 'openai' },
+            { enabled: true, id: 'gpt-5-no-user-value', providerId: 'openai' },
+          ] as EnabledAiModel[],
+          [
+            { contextWindowTokens: 128_000, enabled: true, id: 'gpt-5', type: 'chat' },
+            {
+              contextWindowTokens: 128_000,
+              enabled: true,
+              id: 'gpt-5-no-user-value',
+              type: 'chat',
+            },
+            { contextWindowTokens: 128_000, enabled: true, id: 'gpt-8-builtin-only', type: 'chat' },
+          ],
+        );
+
+        const result = await defaultsRepo.getEnabledModels();
+
+        expect(result.find((m) => m.id === 'gpt-5')?.contextWindowTokens).toBe(8_000);
+        expect(result.find((m) => m.id === 'gpt-5-no-user-value')?.contextWindowTokens).toBe(
+          200_000,
+        );
+        expect(result.find((m) => m.id === 'gpt-8-builtin-only')?.contextWindowTokens).toBe(
+          128_000,
+        );
+      });
+
+      it('applies the admin default to a builtin-only model with no user row', async () => {
+        const defaultsRepo = createDefaultsRepo(new Map([['openai/gpt-9-untouched', 200_000]]));
+        mockModels(defaultsRepo, [] as EnabledAiModel[], [
+          { contextWindowTokens: 128_000, enabled: true, id: 'gpt-9-untouched', type: 'chat' },
+        ]);
+
+        const result = await defaultsRepo.getEnabledModels();
+
+        expect(result.find((m) => m.id === 'gpt-9-untouched')?.contextWindowTokens).toBe(200_000);
+      });
+
+      it('keeps an explicit admin default of 0 (unlimited) instead of the builtin value', async () => {
+        const defaultsRepo = createDefaultsRepo(new Map([['openai/gpt-6', 0]]));
+        mockModels(
+          defaultsRepo,
+          [{ enabled: true, id: 'gpt-6', providerId: 'openai' }] as EnabledAiModel[],
+          [{ contextWindowTokens: 128_000, enabled: true, id: 'gpt-6', type: 'chat' }],
+        );
+
+        const result = await defaultsRepo.getEnabledModels();
+
+        expect(result.find((m) => m.id === 'gpt-6')?.contextWindowTokens).toBe(0);
+      });
+
+      it('applies the admin default to appended user-only models, preserving explicit user values', async () => {
+        const defaultsRepo = createDefaultsRepo(new Map([['openai/custom-model', 64_000]]));
+        mockModels(
+          defaultsRepo,
+          [
+            { enabled: true, id: 'custom-model', providerId: 'openai' },
+            {
+              contextWindowTokens: 4_000,
+              enabled: true,
+              id: 'custom-model-with-value',
+              providerId: 'openai',
+            },
+          ] as EnabledAiModel[],
+          [],
+        );
+
+        const result = await defaultsRepo.getEnabledModels();
+
+        expect(result.find((m) => m.id === 'custom-model')?.contextWindowTokens).toBe(64_000);
+        expect(result.find((m) => m.id === 'custom-model-with-value')?.contextWindowTokens).toBe(
+          4_000,
+        );
+      });
+    });
   });
 });

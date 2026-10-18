@@ -6,6 +6,7 @@ import { useReasoningEffortControl } from './useReasoningEffortControl';
 
 const testState = vi.hoisted(() => ({
   ai: {
+    adminConfig: undefined as AiModelReasoningConfig | undefined,
     config: undefined as AiModelReasoningConfig | undefined,
     reasoningParams: [] as string[],
     updateModelReasoningConfig: vi.fn(() => Promise.resolve()),
@@ -36,6 +37,8 @@ vi.mock('@/store/aiInfra', () => ({
     isModelHasReasoningExtendParams: () => (state: typeof testState.ai) =>
       state.reasoningParams.length > 0,
     isModelReasoningConfigUpdating: () => (state: typeof testState.ai) => state.updating,
+    modelEffectiveReasoningConfig: () => (state: typeof testState.ai) =>
+      state.config ?? state.adminConfig,
     modelReasoningConfig: () => (state: typeof testState.ai) => state.config,
     modelReasoningExtendParams: () => (state: typeof testState.ai) => state.reasoningParams,
   },
@@ -43,6 +46,7 @@ vi.mock('@/store/aiInfra', () => ({
 }));
 
 beforeEach(() => {
+  testState.ai.adminConfig = undefined;
   testState.ai.config = undefined;
   testState.ai.reasoningParams = [];
   testState.ai.updating = false;
@@ -70,6 +74,33 @@ describe('useReasoningEffortControl', () => {
 
     expect(result.current.effortKey).toBe('gpt5ReasoningEffort');
     expect(result.current.effortLevels).toEqual(['minimal', 'low', 'medium', 'high']);
+    expect(result.current.effortValue).toBe('high');
+  });
+
+  it('uses the platform default when the user has not saved one', () => {
+    testState.ai.reasoningParams = ['gpt5ReasoningEffort'];
+    testState.ai.adminConfig = { gpt5ReasoningEffort: 'low' };
+
+    const { result } = renderHook(() => useReasoningEffortControl('gpt-5', 'openai'));
+
+    expect(result.current.effortValue).toBe('low');
+  });
+
+  it('keeps the builtin default when neither the user nor the platform set one', () => {
+    testState.ai.reasoningParams = ['gpt5ReasoningEffort'];
+
+    const { result } = renderHook(() => useReasoningEffortControl('gpt-5', 'openai'));
+
+    expect(result.current.effortValue).toBe('medium');
+  });
+
+  it('prefers the user value over the platform default', () => {
+    testState.ai.reasoningParams = ['gpt5ReasoningEffort'];
+    testState.ai.config = { gpt5ReasoningEffort: 'high' };
+    testState.ai.adminConfig = { gpt5ReasoningEffort: 'low' };
+
+    const { result } = renderHook(() => useReasoningEffortControl('gpt-5', 'openai'));
+
     expect(result.current.effortValue).toBe('high');
   });
 
@@ -164,6 +195,30 @@ describe('useReasoningEffortControl', () => {
       expect(result.current.effortValue).toBe('low');
     });
 
+    it('prefers the topic pin over both the user and platform configs', () => {
+      testState.ai.reasoningParams = ['effort'];
+      testState.ai.config = { effort: 'low' };
+      testState.ai.adminConfig = { effort: 'medium' };
+      testState.chat.topicConfigs['topic-1/anthropic/claude'] = { effort: 'max' };
+
+      const { result } = renderHook(() =>
+        useReasoningEffortControl('claude', 'anthropic', 'topic-1'),
+      );
+
+      expect(result.current.effortValue).toBe('max');
+    });
+
+    it('falls back to the platform default when the topic has no pin and the user saved none', () => {
+      testState.ai.reasoningParams = ['effort'];
+      testState.ai.adminConfig = { effort: 'medium' };
+
+      const { result } = renderHook(() =>
+        useReasoningEffortControl('claude', 'anthropic', 'topic-1'),
+      );
+
+      expect(result.current.effortValue).toBe('medium');
+    });
+
     it('writes the topic pin (seeded from the user-level config) instead of the user config', () => {
       testState.ai.reasoningParams = ['effort', 'reasoningMode'];
       testState.ai.config = { effort: 'low', reasoningMode: 'pro' };
@@ -179,6 +234,22 @@ describe('useReasoningEffortControl', () => {
         { effort: 'low', reasoningMode: 'pro' },
       );
       expect(testState.ai.updateModelReasoningConfig).not.toHaveBeenCalled();
+    });
+
+    it('seeds a first pin from the platform default when the user saved none', () => {
+      testState.ai.reasoningParams = ['effort', 'reasoningMode'];
+      testState.ai.adminConfig = { effort: 'medium', reasoningMode: 'pro' };
+
+      const { result } = renderHook(() =>
+        useReasoningEffortControl('claude', 'anthropic', 'topic-1'),
+      );
+      result.current.select({ effort: 'max' });
+
+      expect(testState.chat.updateTopicReasoningConfig).toHaveBeenCalledWith(
+        'topic-1',
+        { effort: 'max' },
+        { effort: 'medium', reasoningMode: 'pro' },
+      );
     });
   });
 });

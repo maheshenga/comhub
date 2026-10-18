@@ -543,6 +543,8 @@
   "admin.navigation.items.mobile.label": "Mobile control center",
   "admin.navigation.items.model-billing-matrix.description": "Manage model catalog, multipliers, and plan billing",
   "admin.navigation.items.model-billing-matrix.label": "Model catalog and billing",
+  "admin.navigation.items.model-defaults.description": "Set the platform default context window and reasoning effort per model",
+  "admin.navigation.items.model-defaults.label": "Model defaults",
   "admin.navigation.items.model-policy.description": "Configure platform model allow and deny policies",
   "admin.navigation.items.model-policy.label": "Model access policy",
   "admin.navigation.items.module-apps.description": "Module apps catalog and management",

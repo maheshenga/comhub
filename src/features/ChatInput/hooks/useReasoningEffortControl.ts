@@ -62,17 +62,19 @@ export const resolveReasoningEffortValue = (
  * - With `topicId` (chat input while a topic is active): reads and writes the
  *   topic's own pin (`ChatTopicMetadata.reasoningConfig`), so one session can
  *   run at a higher effort without retuning anything else. The pin only
- *   applies when it was taken for this very model; otherwise the user-level
- *   value shows and the first pick seeds a pin from it.
+ *   applies when it was taken for this very model; otherwise the effective
+ *   model value shows and the first pick seeds a pin from it.
  * - Without `topicId` (new conversation, agent profile): the user-level
  *   model-instance setting (userId + providerId + modelId, personal scope) —
  *   not part of the agent's chatConfig, so it follows the user across agents
- *   and stays writable for chat-only members. It is also what a new topic
+ *   and stays writable for chat-only members. When the user has not saved one,
+ *   the platform (admin) default applies. It is also what a new topic
  *   snapshots.
  *
  * The saved user-level defaults are fetched by ReasoningConfigLoader (mounted
- * in ChatInputProvider), so every control built on this hook and the send
- * pipeline (modelParamsResolver) read the same store value.
+ * in ChatInputProvider) and the platform defaults arrive with the runtime
+ * state, so every control built on this hook and the send pipeline
+ * (modelParamsResolver) read the same store value.
  */
 export const useReasoningEffortControl = (
   model: string,
@@ -86,8 +88,9 @@ export const useReasoningEffortControl = (
     aiModelSelectors.modelReasoningExtendParams(model, provider),
     isEqual,
   );
-  const userConfig = useAiInfraStore(
-    aiModelSelectors.modelReasoningConfig(model, provider),
+  // User-level config first, then the platform default it may follow.
+  const modelConfig = useAiInfraStore(
+    aiModelSelectors.modelEffectiveReasoningConfig(model, provider),
     isEqual,
   );
   const topicConfig = useChatStore(
@@ -97,7 +100,7 @@ export const useReasoningEffortControl = (
         : undefined,
     isEqual,
   );
-  const config = topicConfig ?? userConfig;
+  const config = topicConfig ?? modelConfig;
   const modelUpdating = useAiInfraStore(
     aiModelSelectors.isModelReasoningConfigUpdating(model, provider),
   );
@@ -112,9 +115,10 @@ export const useReasoningEffortControl = (
     (patch: AiModelReasoningConfig) => {
       if (updating) return;
       if (topicId) {
-        // Seed a first-time pin from the user-level config so the topic keeps
-        // e.g. the user's reasoning mode when only the effort was changed.
-        void updateTopicReasoningConfig(topicId, patch, userConfig).catch(() => {});
+        // Seed a first-time pin from the effective model config (user-level,
+        // else platform default) so the topic keeps e.g. the user's reasoning
+        // mode when only the effort was changed.
+        void updateTopicReasoningConfig(topicId, patch, modelConfig).catch(() => {});
         return;
       }
       // failure already rolls back and toasts inside the store action
@@ -127,7 +131,7 @@ export const useReasoningEffortControl = (
       updateModelReasoningConfig,
       updateTopicReasoningConfig,
       updating,
-      userConfig,
+      modelConfig,
     ],
   );
 

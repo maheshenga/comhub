@@ -19,7 +19,9 @@ import {
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import debug from 'debug';
+import { hasModelReasoningValues } from 'model-bank';
 
+import { loadAdminModelDefaults, modelDefaultsKey } from '@/business/server/modelDefaults';
 import { AiModelModel } from '@/database/models/aiModel';
 import type { MessageModel } from '@/database/models/message';
 import type { TopicModel } from '@/database/models/topic';
@@ -67,7 +69,8 @@ export interface RunAttachments {
  * `ChatTopicMetadata.reasoningConfig` / `heteroEffort`. Returns undefined when
  * there is nothing to pin (non-reasoning model, hetero agent without an effort)
  * so the caller leaves metadata untouched. Never throws: a failed lookup just
- * means the topic follows the user-level config until the user pins one.
+ * means the topic follows the user-level (else platform) config until the user
+ * pins one.
  */
 const resolveTopicReasoningSnapshot = async ({
   deps,
@@ -96,7 +99,11 @@ const resolveTopicReasoningSnapshot = async ({
     });
     if (!modelHasReasoningExtendParams) return undefined;
 
-    const reasoningConfig = await aiModelModel.getModelReasoningConfig(model, provider);
+    const userConfig = await aiModelModel.getModelReasoningConfig(model, provider);
+    // The user's explicit config wins; only then snapshot the platform default.
+    const reasoningConfig = hasModelReasoningValues(userConfig)
+      ? userConfig
+      : (await loadAdminModelDefaults(deps.db)).reasoning.get(modelDefaultsKey(provider, model));
     return { reasoningConfig: reasoningConfig ?? {} };
   } catch (error) {
     log('execAgent: failed to snapshot topic reasoning config for %s: %O', model, error);

@@ -6,13 +6,89 @@ import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import { PAYMENT_ENVIRONMENT_VARIABLES } from '@/server/services/payments/environmentFallbacks';
 
 import {
+  buildAdminSettingsSectionReadModel,
   buildDesktopSettings,
   buildMobileSettings,
+  buildModelDefaultsSettings,
   buildModuleRuntimeSettings,
   buildPaymentSettings,
   buildSystemDefaultsSettings,
 } from './adminReadModel';
 import { AppSettingsSnapshot } from './loader';
+
+describe('model defaults admin read model', () => {
+  const rows = [
+    {
+      key: APP_SETTING_KEYS.modelDefaults,
+      value: {
+        contextWindow: [
+          { modelId: 'gpt-5', providerId: 'instance-1', tokens: 128_000 },
+          { modelId: 'gpt-5', providerId: 'instance-1', tokens: 256_000 },
+          { modelId: '', providerId: 'instance-1', tokens: 100 },
+        ],
+        reasoning: [
+          {
+            config: { gpt5ReasoningEffort: 'high', thinkingLevel: 'bogus' },
+            modelId: 'gpt-5',
+            providerId: 'instance-1',
+          },
+          { config: {}, modelId: 'empty', providerId: 'instance-1' },
+        ],
+      },
+    },
+  ] satisfies Array<{ key: AppSettingKey; value: unknown }>;
+
+  it('normalizes persisted defaults before exposing them to the admin UI', () => {
+    const snapshot = new AppSettingsSnapshot(
+      rows.map((row) => row.key),
+      rows,
+    );
+
+    expect(buildModelDefaultsSettings(snapshot)).toEqual({
+      contextWindow: [{ modelId: 'gpt-5', providerId: 'instance-1', tokens: 256_000 }],
+      reasoning: [
+        { config: { gpt5ReasoningEffort: 'high' }, modelId: 'gpt-5', providerId: 'instance-1' },
+      ],
+    });
+  });
+
+  it('returns the section payload together with enabled model options', async () => {
+    const snapshot = new AppSettingsSnapshot(
+      rows.map((row) => row.key),
+      rows,
+    );
+
+    const result = await buildAdminSettingsSectionReadModel('model-defaults', snapshot, {
+      enabledModels: [
+        {
+          displayName: 'GPT-5',
+          extendParams: ['gpt5ReasoningEffort'],
+          id: 'gpt-5',
+          providerId: 'instance-1',
+          type: 'chat',
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      modelDefaults: {
+        contextWindow: [{ modelId: 'gpt-5', providerId: 'instance-1', tokens: 256_000 }],
+      },
+      section: 'model-defaults',
+      sharedHealth: {
+        enabledNewapiModels: [
+          {
+            displayName: 'GPT-5',
+            extendParams: ['gpt5ReasoningEffort'],
+            modelId: 'gpt-5',
+            modelType: 'chat',
+            provider: 'instance-1',
+          },
+        ],
+      },
+    });
+  });
+});
 
 describe('system defaults admin read model', () => {
   it('preserves persisted user global defaults instead of returning an empty baseline', async () => {

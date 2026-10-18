@@ -3771,6 +3771,9 @@ describe('topic action', () => {
         vi.spyOn(aiModelSelectors, 'modelReasoningConfig').mockReturnValue(() => ({
           reasoningEffort: 'high',
         }));
+        vi.spyOn(aiModelSelectors, 'modelEffectiveReasoningConfig').mockReturnValue(() => ({
+          reasoningEffort: 'high',
+        }));
         const ensure = vi
           .spyOn(useAiInfraStore.getState(), 'ensureModelReasoningConfig')
           .mockImplementation(

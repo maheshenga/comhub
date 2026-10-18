@@ -25,6 +25,7 @@ beforeEach(() => {
     ],
     enabledAiModels: [reasoningCard],
     modelReasoningConfigMap: { 'openai/gpt-4': { reasoningEffort: 'low' } },
+    modelReasoningDefaultMap: { 'openai/gpt-4': { reasoningEffort: 'medium' } },
   } as any);
   useChatStore.setState({ topicDataMap: {}, topicDetailMap: {} } as any);
 });
@@ -69,6 +70,32 @@ describe('createBrowserModelParamsProviders', () => {
     await expect(
       createBrowserModelParamsProviders().getModelReasoningConfig!('gpt-4', 'openai'),
     ).resolves.toEqual({ reasoningEffort: 'low' });
+  });
+
+  it('falls back to the platform default when the user saved no config', async () => {
+    useAiInfraStore.setState({
+      modelReasoningConfigMap: {},
+      modelReasoningDefaultMap: { 'openai/gpt-4': { reasoningEffort: 'medium' } },
+    } as any);
+
+    await expect(
+      createBrowserModelParamsProviders().getModelReasoningConfig!('gpt-4', 'openai'),
+    ).resolves.toEqual({ reasoningEffort: 'medium' });
+  });
+
+  it('sends the platform default when the user saved no config', async () => {
+    useAiInfraStore.setState({
+      modelReasoningConfigMap: {},
+      modelReasoningDefaultMap: { 'openai/gpt-4': { reasoningEffort: 'medium' } },
+    } as any);
+
+    const resolved = await resolveBrowserModelParams({
+      chatConfig: {},
+      model: 'gpt-4',
+      provider: 'openai',
+    });
+
+    expect(resolved.resolvedExtendParams).toMatchObject({ reasoning_effort: 'medium' });
   });
 
   it('returns the topic pin with its ownership so a group pin is scoped to its agent', async () => {

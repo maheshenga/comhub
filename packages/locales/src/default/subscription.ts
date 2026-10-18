@@ -1779,6 +1779,9 @@ export default {
   'admin.navigation.items.model-policy.label': 'Model access policy',
   'admin.navigation.items.model-policy.description':
     'Configure platform model allow and deny policies',
+  'admin.navigation.items.model-defaults.label': 'Model defaults',
+  'admin.navigation.items.model-defaults.description':
+    'Set the platform default context window and reasoning effort per model',
   'admin.navigation.items.ppt.label': 'PPT generation service',
   'admin.navigation.items.ppt.description': 'Configure presentation generation and plan quotas',
   'admin.navigation.items.ai-runtime-defaults.label': 'AI runtime defaults',

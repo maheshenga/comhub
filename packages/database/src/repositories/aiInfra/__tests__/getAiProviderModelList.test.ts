@@ -56,22 +56,18 @@ describe('AiInfraRepos', () => {
 
     it('exposes admin AI service groups and preserves duplicate model ids across them', async () => {
       const groupedRepo = new AiInfraRepos(serverDB, userId, {
-        newapi: { enabled: false },
+        'newapi': { enabled: false },
         'siliconflow-id': {
           enabled: true,
           name: 'SiliconFlow',
           parentProviderId: 'newapi',
-          serverModelLists: [
-            { displayName: 'GPT-4o', enabled: true, id: 'gpt-4o', type: 'chat' },
-          ],
+          serverModelLists: [{ displayName: 'GPT-4o', enabled: true, id: 'gpt-4o', type: 'chat' }],
         } as any,
         'toapi-id': {
           enabled: true,
           name: 'ToAPI',
           parentProviderId: 'newapi',
-          serverModelLists: [
-            { displayName: 'GPT-4o', enabled: true, id: 'gpt-4o', type: 'chat' },
-          ],
+          serverModelLists: [{ displayName: 'GPT-4o', enabled: true, id: 'gpt-4o', type: 'chat' }],
         } as any,
       });
 
@@ -938,6 +934,75 @@ describe('AiInfraRepos', () => {
       const result = await repo.getAiProviderModelList(providerId);
 
       expect(result.find((m) => m.id === 'my-custom-transcribe')!.type).toBe('asr');
+    });
+
+    describe('admin context window defaults', () => {
+      it('resolves user row value > admin default > merged builtin value', async () => {
+        const defaultsRepo = new AiInfraRepos(serverDB, userId, mockProviderConfigs, undefined, {
+          contextWindowDefaults: new Map([
+            ['openai/gpt-5', 200_000],
+            ['openai/gpt-6', 200_000],
+            ['openai/gpt-7', 0],
+          ]),
+        });
+
+        const userModels = [
+          { contextWindowTokens: 8_000, enabled: true, id: 'gpt-5', type: 'chat' },
+          { enabled: true, id: 'gpt-6', type: 'chat' },
+          { enabled: true, id: 'gpt-7', type: 'chat' },
+        ] as AiProviderModelListItem[];
+
+        const builtinModels = [
+          { contextWindowTokens: 128_000, enabled: true, id: 'gpt-5', type: 'chat' },
+          { contextWindowTokens: 128_000, enabled: true, id: 'gpt-6', type: 'chat' },
+          { contextWindowTokens: 128_000, enabled: true, id: 'gpt-7', type: 'chat' },
+          { contextWindowTokens: 128_000, enabled: true, id: 'gpt-8', type: 'chat' },
+        ] as AiProviderModelListItem[];
+
+        vi.spyOn(defaultsRepo.aiModelModel, 'getModelListByProviderId').mockResolvedValue(
+          userModels,
+        );
+        vi.spyOn(defaultsRepo as any, 'fetchBuiltinModels').mockResolvedValue(builtinModels);
+
+        const result = await defaultsRepo.getAiProviderModelList('openai');
+
+        // explicit user value wins over the admin default
+        expect(result.find((m) => m.id === 'gpt-5')!.contextWindowTokens).toBe(8_000);
+        // no user value: admin default wins over the merged builtin card
+        expect(result.find((m) => m.id === 'gpt-6')!.contextWindowTokens).toBe(200_000);
+        // 0 is an explicit admin default ("unlimited")
+        expect(result.find((m) => m.id === 'gpt-7')!.contextWindowTokens).toBe(0);
+        // no admin default: merged builtin value is kept
+        expect(result.find((m) => m.id === 'gpt-8')!.contextWindowTokens).toBe(128_000);
+      });
+
+      it('applies the admin default to custom user models and preserves explicit user values', async () => {
+        const defaultsRepo = new AiInfraRepos(serverDB, userId, mockProviderConfigs, undefined, {
+          contextWindowDefaults: new Map([['openai/custom-model', 64_000]]),
+        });
+
+        const userModels = [
+          { enabled: true, id: 'custom-model', type: 'chat' },
+          {
+            contextWindowTokens: 4_000,
+            enabled: true,
+            id: 'custom-model-with-value',
+            type: 'chat',
+          },
+        ] as AiProviderModelListItem[];
+
+        vi.spyOn(defaultsRepo.aiModelModel, 'getModelListByProviderId').mockResolvedValue(
+          userModels,
+        );
+        vi.spyOn(defaultsRepo as any, 'fetchBuiltinModels').mockResolvedValue([]);
+
+        const result = await defaultsRepo.getAiProviderModelList('openai');
+
+        expect(result.find((m) => m.id === 'custom-model')!.contextWindowTokens).toBe(64_000);
+        expect(result.find((m) => m.id === 'custom-model-with-value')!.contextWindowTokens).toBe(
+          4_000,
+        );
+      });
     });
   });
 });

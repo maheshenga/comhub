@@ -33,8 +33,8 @@ const toModelCard = (item: EnabledAiModel | LobeDefaultAiModelListItem) => ({
  * How the browser answers the model-parameter rules: the enabled model list
  * (which already merges the user's own settings over the bundled card, so no
  * separate user row exists here), the bundled bank as a fallback, the cached
- * model-instance reasoning config and the topic's reasoning pin — all read
- * from the stores, never the network.
+ * model-instance reasoning config (user, else platform default) and the
+ * topic's reasoning pin — all read from the stores, never the network.
  */
 export interface BrowserModelParamsSource {
   /** The group the run belongs to; a topic listed under a group is a group topic. */
@@ -70,7 +70,7 @@ export const createBrowserModelParamsProviders = ({
     };
   },
   getModelReasoningConfig: async (model, provider) =>
-    aiModelSelectors.modelReasoningConfig(model, provider)(getAiInfraStoreState()),
+    aiModelSelectors.modelEffectiveReasoningConfig(model, provider)(getAiInfraStoreState()),
   // The enabled list already merges the user's settings over the card, so it
   // doubles as the user row: an explicitly emptied extend-param list is an
   // opt-out the shared rule must keep, not a miss to fall back from.

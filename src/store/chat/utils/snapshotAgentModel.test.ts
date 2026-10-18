@@ -12,6 +12,7 @@ const aiInfra = vi.hoisted(() => ({
   state: {
     loaded: false,
     reasoningConfig: undefined as Record<string, string> | undefined,
+    reasoningDefault: undefined as Record<string, string> | undefined,
     reasoningParams: false,
   },
 }));
@@ -23,6 +24,8 @@ vi.mock('@/store/aiInfra/slices/aiModel/selectors', () => ({
   aiModelSelectors: {
     isModelHasReasoningExtendParams: () => (s: typeof aiInfra.state) => s.reasoningParams,
     isModelReasoningConfigLoaded: () => (s: typeof aiInfra.state) => s.loaded,
+    modelEffectiveReasoningConfig: () => (s: typeof aiInfra.state) =>
+      s.reasoningConfig ?? s.reasoningDefault,
     modelReasoningConfig: () => (s: typeof aiInfra.state) => s.reasoningConfig,
   },
 }));
@@ -129,7 +132,12 @@ describe('snapshotAgentReasoning', () => {
   const modelSnapshot = { model: 'gpt-5.5', provider: 'openai' };
 
   beforeEach(() => {
-    aiInfra.state = { loaded: false, reasoningConfig: undefined, reasoningParams: false };
+    aiInfra.state = {
+      loaded: false,
+      reasoningConfig: undefined,
+      reasoningDefault: undefined,
+      reasoningParams: false,
+    };
   });
 
   it('returns nothing without an agent', async () => {
@@ -154,18 +162,37 @@ describe('snapshotAgentReasoning', () => {
     expect(await snapshotAgentReasoning(id, modelSnapshot)).toBeUndefined();
   });
 
-  it('pins the loaded user-level config, an empty object when nothing is saved', async () => {
+  it('pins the effective config: saved user config wins, else the platform default', async () => {
     const id = seedAgent('reasoning', { model: 'gpt-5.5', provider: 'openai' });
     aiInfra.state = {
       loaded: true,
       reasoningConfig: { gpt5_2ReasoningEffort: 'high' },
+      reasoningDefault: undefined,
       reasoningParams: true,
     };
     expect(await snapshotAgentReasoning(id, modelSnapshot)).toEqual({
       reasoningConfig: { gpt5_2ReasoningEffort: 'high' },
     });
 
-    aiInfra.state = { loaded: true, reasoningConfig: undefined, reasoningParams: true };
+    // No user config: the admin default must be pinned instead of an empty object
+    // (an empty pin is truthy and would shadow the platform default at runtime).
+    aiInfra.state = {
+      loaded: true,
+      reasoningConfig: undefined,
+      reasoningDefault: { gpt5_2ReasoningEffort: 'medium' },
+      reasoningParams: true,
+    };
+    expect(await snapshotAgentReasoning(id, modelSnapshot)).toEqual({
+      reasoningConfig: { gpt5_2ReasoningEffort: 'medium' },
+    });
+
+    // No user config and no platform default: pin the model's own defaults.
+    aiInfra.state = {
+      loaded: true,
+      reasoningConfig: undefined,
+      reasoningDefault: undefined,
+      reasoningParams: true,
+    };
     expect(await snapshotAgentReasoning(id, modelSnapshot)).toEqual({ reasoningConfig: {} });
   });
 

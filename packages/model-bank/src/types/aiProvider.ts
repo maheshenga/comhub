@@ -448,6 +448,12 @@ export interface AiProviderRuntimeState {
    */
   modelReasoningConfigs?: Record<string, AiModelReasoningConfig>;
   /**
+   * Platform (admin) per-model reasoning defaults, keyed by
+   * `${providerId}/${modelId}`. Only models with an explicitly configured
+   * default appear. A user-level saved config takes precedence over these.
+   */
+  modelReasoningDefaults?: Record<string, AiModelReasoningConfig>;
+  /**
    * Retired `${providerId}/${modelId}` → successor model id (same provider).
    * Requests for a key are transparently served by its successor, so clients can
    * render "superseded by X" instead of "removed". Keys are provider-scoped so a
