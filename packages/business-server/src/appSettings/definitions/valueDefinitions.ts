@@ -16,6 +16,10 @@ import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeMobileConfigPublication } from '@/const/mobileConfigPublication';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 
+import {
+  modelDefaultsConfigSchema,
+  normalizeModelDefaultsConfig,
+} from '../../modelDefaults/normalize';
 import type { AppSettingNormalizer, AppSettingValueDefinition } from '../types';
 
 const stringSchema = z.string();
@@ -632,6 +636,13 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
   if (key.startsWith('storage.')) return stringValue('storage-string');
 
   if (MODEL_POLICY_BOOLEAN_KEYS.has(key)) return booleanValue('model-policy-boolean');
+  if (key === APP_SETTING_KEYS.modelDefaults) {
+    return defineValue(
+      'model-defaults-config',
+      modelDefaultsConfigSchema,
+      normalizeModelDefaultsConfig,
+    );
+  }
   if (MODEL_POLICY_LIST_KEYS.has(key)) {
     return defineValue('model-policy-string-list', stringListSchema, toStringList);
   }

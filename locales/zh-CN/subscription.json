@@ -543,6 +543,8 @@
   "admin.navigation.items.mobile.label": "移动端控制中心",
   "admin.navigation.items.model-billing-matrix.description": "统一管理模型目录、倍率和套餐计费",
   "admin.navigation.items.model-billing-matrix.label": "模型目录与计费",
+  "admin.navigation.items.model-defaults.description": "为每个模型设置平台默认的上下文窗口与思考强度",
+  "admin.navigation.items.model-defaults.label": "模型默认参数",
   "admin.navigation.items.model-policy.description": "配置平台模型访问允许和禁用策略",
   "admin.navigation.items.model-policy.label": "模型访问策略",
   "admin.navigation.items.module-apps.description": "模块应用目录与管理",

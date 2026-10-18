@@ -842,6 +842,28 @@ describe('NewAPI instance resolver', () => {
     ]);
   });
 
+  it('returns model-card extend params for the admin model-defaults editor', async () => {
+    const db = createDb([
+      {
+        displayName: 'GPT-5',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        modelId: 'gpt-5',
+        modelType: 'chat',
+        providerType: 'openai',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({
+        extendParams: ['gpt5ReasoningEffort', 'textVerbosity'],
+        id: 'gpt-5',
+      }),
+    ]);
+  });
+
   it('returns admin manual abilities and media pricing for frontend model cards', async () => {
     const db = createDb([
       {

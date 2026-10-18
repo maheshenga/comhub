@@ -1,3 +1,4 @@
+import { loadModels } from '@lobechat/business-model-bank/model-config';
 import debug from 'debug';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { AiModelType, ModelAbilities, Pricing } from 'model-bank/aiModel';
@@ -389,6 +390,8 @@ export const resolveNewapiRouteMetadataForModel = async (
 export interface EnabledModelEntry {
   abilities?: ModelAbilities;
   displayName: string | null;
+  /** Model-card extend params, consumed by the admin model-defaults editor. */
+  extendParams?: string[];
   groupKey?: string | null;
   groupName?: string | null;
   id: string;
@@ -535,6 +538,36 @@ const resolveStoredAbilities = (
   if (!syncedAbilities && !manualAbilities) return undefined;
 
   return { ...syncedAbilities, ...manualAbilities };
+};
+
+/**
+ * Build a lookup for model-card `settings.extendParams`. Gateway models often
+ * reuse upstream model ids (`gpt-5`, `claude-...`), so an exact provider match
+ * wins and a same-id match from the model bank is the fallback; models with no
+ * card simply expose no extend params (the admin editor then hides the
+ * reasoning controls for them).
+ */
+const buildExtendParamsLookup = async () => {
+  const models = await loadModels();
+  const exact = new Map<string, string[]>();
+  const byModelId = new Map<string, string[]>();
+
+  for (const card of models) {
+    const extendParams = card.settings?.extendParams;
+    if (!extendParams || extendParams.length === 0) continue;
+
+    const value = [...extendParams];
+    exact.set(`${card.providerId}/${card.id}`, value);
+    if (!byModelId.has(card.id)) byModelId.set(card.id, value);
+  }
+
+  return (modelId: string, providerType?: AdminModelApiProviderType | null) => {
+    const providerId = resolveModelBankProviderForAdminType(providerType);
+
+    return (
+      (providerId ? exact.get(`${providerId}/${modelId}`) : undefined) ?? byModelId.get(modelId)
+    );
+  };
 };
 
 export const resolveNewapiModelPricingFromMetadata = (
@@ -695,9 +728,13 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
       return true;
     });
 
+    // A missing/broken model bank must not hide the enabled model list.
+    const resolveExtendParams = await buildExtendParamsLookup().catch(() => undefined);
+
     return await Promise.all(
       uniqueRows.map(async (row): Promise<EnabledModelEntry> => {
         const modelType = row.modelType as NewapiModelType;
+        const extendParams = resolveExtendParams?.(row.modelId, row.providerType);
         const pricingPolicy = resolveAdminProviderPricingPolicy(
           row.instanceMetadata as Record<string, unknown> | null | undefined,
           row.providerType,
@@ -720,6 +757,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
             row.metadata as Record<string, unknown> | null | undefined,
           ),
           displayName: row.displayName,
+          ...(extendParams ? { extendParams } : {}),
           groupKey: row.groupKey,
           groupName: row.groupName,
           id: row.modelId,

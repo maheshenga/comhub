@@ -75,6 +75,7 @@ describe('aiModelSelectors', () => {
     isInitAiProviderRuntimeState: false,
     modelReasoningConfigMap: {},
     modelReasoningConfigUpdatingKeys: [],
+    modelReasoningDefaultMap: {},
     providerBindingAgentTypes: {},
   };
 
@@ -267,6 +268,63 @@ describe('aiModelSelectors', () => {
     it('should return undefined for an unknown model', () => {
       expect(
         aiModelSelectors.modelDisabledParams('missing', 'provider1')(mockState),
+      ).toBeUndefined();
+    });
+  });
+
+  describe('modelReasoningDefault', () => {
+    it('returns the platform default for the model instance', () => {
+      const state: AIProviderStoreState = {
+        ...mockState,
+        modelReasoningDefaultMap: { 'provider1/model1': { reasoningEffort: 'low' } },
+      };
+
+      expect(aiModelSelectors.modelReasoningDefault('model1', 'provider1')(state)).toEqual({
+        reasoningEffort: 'low',
+      });
+      expect(aiModelSelectors.modelReasoningDefault('model4', 'provider2')(state)).toBeUndefined();
+    });
+  });
+
+  describe('modelEffectiveReasoningConfig', () => {
+    it('prefers the user config over the platform default', () => {
+      const state: AIProviderStoreState = {
+        ...mockState,
+        modelReasoningConfigMap: { 'provider1/model1': { reasoningEffort: 'high' } },
+        modelReasoningDefaultMap: { 'provider1/model1': { reasoningEffort: 'low' } },
+      };
+
+      expect(aiModelSelectors.modelEffectiveReasoningConfig('model1', 'provider1')(state)).toEqual({
+        reasoningEffort: 'high',
+      });
+    });
+
+    it('falls back to the platform default when the user saved none', () => {
+      const state: AIProviderStoreState = {
+        ...mockState,
+        modelReasoningDefaultMap: { 'provider1/model1': { reasoningEffort: 'low' } },
+      };
+
+      expect(aiModelSelectors.modelEffectiveReasoningConfig('model1', 'provider1')(state)).toEqual({
+        reasoningEffort: 'low',
+      });
+    });
+
+    it('treats an empty user config as no override', () => {
+      const state: AIProviderStoreState = {
+        ...mockState,
+        modelReasoningConfigMap: { 'provider1/model1': {} },
+        modelReasoningDefaultMap: { 'provider1/model1': { reasoningEffort: 'low' } },
+      };
+
+      expect(aiModelSelectors.modelEffectiveReasoningConfig('model1', 'provider1')(state)).toEqual({
+        reasoningEffort: 'low',
+      });
+    });
+
+    it('returns undefined when neither source has a config', () => {
+      expect(
+        aiModelSelectors.modelEffectiveReasoningConfig('model1', 'provider1')(mockState),
       ).toBeUndefined();
     });
   });

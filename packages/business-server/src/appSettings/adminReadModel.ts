@@ -34,6 +34,7 @@ import {
   hasStoredPaymentSettingValue,
 } from '@/server/services/payments/environmentFallbacks';
 
+import { normalizeModelDefaultsConfig } from '../modelDefaults/normalize';
 import {
   readModuleAppRuntimeEnvironment,
   resolveModuleAppRuntimeConfig,
@@ -50,6 +51,8 @@ type DefaultAgentConfig = {
 
 export type AdminEnabledModelSource = {
   displayName?: null | string;
+  /** Model-card extend params, used by the admin model-defaults editor. */
+  extendParams?: string[];
   groupName?: null | string;
   id: string;
   instanceId?: null | string;
@@ -151,6 +154,7 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 export const mapEnabledAdminModels = (items: AdminEnabledModelSource[] = []) =>
   items.map((item) => ({
     displayName: item.displayName,
+    ...(item.extendParams ? { extendParams: item.extendParams } : {}),
     instanceName: item.instanceName ?? item.groupName ?? null,
     modelId: item.id,
     modelType: item.type,
@@ -393,6 +397,9 @@ export const buildModelBillingSettings = (
     pricingModelRules: Array.isArray(pricingModelRules) ? pricingModelRules : [],
   };
 };
+
+export const buildModelDefaultsSettings = (snapshot: AppSettingsSnapshot) =>
+  normalizeModelDefaultsConfig(snapshot.get(APP_SETTING_KEYS.modelDefaults));
 
 export const buildModelPolicySettings = (snapshot: AppSettingsSnapshot) => {
   const allowlist = normalizeModelIdList(snapshot.get(APP_SETTING_KEYS.modelPolicyAllowlist));
@@ -1027,6 +1034,7 @@ const buildSharedHealth = (
 ): AdminSettingsSharedHealth => {
   if (
     section === 'ai-runtime-defaults' ||
+    section === 'model-defaults' ||
     section === 'model-policy' ||
     section === 'system-defaults' ||
     section === 'user-defaults'
@@ -1095,6 +1103,13 @@ export const buildAdminSettingsSectionReadModel = async (
     }
     case 'model-billing-matrix': {
       return { ...buildModelBillingSettings(snapshot, context), section, sharedHealth };
+    }
+    case 'model-defaults': {
+      return {
+        modelDefaults: buildModelDefaultsSettings(snapshot),
+        section,
+        sharedHealth,
+      };
     }
     case 'model-policy': {
       return {

@@ -60,6 +60,7 @@ export const adminSettingsReadProcedures = {
 
       const needsEnabledModels =
         input.section === 'ai-runtime-defaults' ||
+        input.section === 'model-defaults' ||
         input.section === 'model-policy' ||
         input.section === 'system-defaults' ||
         input.section === 'user-defaults';

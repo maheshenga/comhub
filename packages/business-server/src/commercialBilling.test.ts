@@ -3,6 +3,8 @@ import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { ChatErrorType } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AiInfraRepos } from '@/database/repositories/aiInfra';
+
 import {
   assertCommercialChatBudget,
   assertCommercialMinimumBudget,
@@ -54,6 +56,8 @@ const mocks = vi.hoisted(() => ({
   getCreditAccountSummary: vi.fn(),
   getServerGlobalConfig: vi.fn(),
   getServerModelPricingSnapshot: vi.fn(),
+  getUserModelRows: vi.fn(),
+  loadAdminModelDefaults: vi.fn(),
   quoteCreditsForAiUsage: vi.fn(),
   recordSettlementFailure: vi.fn(),
   releaseCredits: vi.fn(),
@@ -72,6 +76,14 @@ vi.mock('@/database/models/aiProvider', () => ({
   AiProviderModel: vi.fn().mockImplementation(function AiProviderModel() {
     return {
       getAiProviderById: mocks.getAiProviderById,
+    };
+  }),
+}));
+
+vi.mock('@/database/models/aiModel', () => ({
+  AiModelModel: vi.fn().mockImplementation(function AiModelModel() {
+    return {
+      getModelListByProviderId: mocks.getUserModelRows,
     };
   }),
 }));
@@ -112,12 +124,25 @@ vi.mock('@/server/globalConfig', () => ({
   getServerGlobalConfig: mocks.getServerGlobalConfig,
 }));
 
+vi.mock('./modelDefaults', () => ({
+  loadAdminModelDefaults: mocks.loadAdminModelDefaults,
+}));
+
 vi.mock('./serverModelPricing', () => ({
   getServerModelPricingSnapshot: mocks.getServerModelPricingSnapshot,
 }));
 
+const emptyModelDefaults = () => ({
+  contextWindow: new Map<string, number>(),
+  raw: { contextWindow: [], reasoning: [] },
+  reasoning: new Map(),
+  reasoningRecord: {},
+});
+
 beforeEach(() => {
   mocks.getAdminNewapiModelCard.mockResolvedValue(undefined);
+  mocks.getUserModelRows.mockResolvedValue([]);
+  mocks.loadAdminModelDefaults.mockResolvedValue(emptyModelDefaults());
   mocks.resolveAdminNewapiModelPricing.mockImplementation(async ({ adminModelCard }) =>
     adminModelCard.modelCard.pricing
       ? { pricing: adminModelCard.modelCard.pricing, source: 'database' }
@@ -298,6 +323,111 @@ describe('estimateCommercialChatCredits', () => {
       model: 'gpt-test',
     });
     expect(mocks.getAiProviderModelList).not.toHaveBeenCalled();
+  });
+
+  it('overlays the admin context-window default on admin NewAPI model cards', async () => {
+    const pricing = {
+      units: [
+        {
+          name: 'textInput',
+          rate: 0.5,
+          strategy: 'fixed' as const,
+          unit: 'millionTokens' as const,
+        },
+        { name: 'textOutput', rate: 1, strategy: 'fixed' as const, unit: 'millionTokens' as const },
+      ],
+    };
+    mocks.loadAdminModelDefaults.mockResolvedValue({
+      ...emptyModelDefaults(),
+      contextWindow: new Map([['instance-id/gpt-test', 1_000]]),
+    });
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelBankFallbackEnabled: false,
+      modelCard: { enabled: true, id: 'gpt-test', type: 'chat' },
+    });
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({ pricing, source: 'database' });
+
+    // The output estimate is capped by the model card's context window: with
+    // the admin default (1000) it is 1000 tokens, without it the 100_000
+    // requested max_tokens would be used.
+    await expect(
+      estimateCommercialChatCredits({
+        db: {} as any,
+        payload: {
+          max_tokens: 100_000,
+          messages: [{ content: 'Hello world', role: 'user' }],
+          model: 'gpt-test',
+        },
+        provider: 'instance-id',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(1_002);
+  });
+
+  it('prefers the user context-window override over the admin default on admin NewAPI cards', async () => {
+    const pricing = {
+      units: [
+        {
+          name: 'textInput',
+          rate: 0.5,
+          strategy: 'fixed' as const,
+          unit: 'millionTokens' as const,
+        },
+        { name: 'textOutput', rate: 1, strategy: 'fixed' as const, unit: 'millionTokens' as const },
+      ],
+    };
+    mocks.loadAdminModelDefaults.mockResolvedValue({
+      ...emptyModelDefaults(),
+      contextWindow: new Map([['instance-id/gpt-test', 1_000]]),
+    });
+    mocks.getAdminNewapiModelCard.mockResolvedValue({
+      modelBankFallbackEnabled: false,
+      modelCard: { enabled: true, id: 'gpt-test', type: 'chat' },
+    });
+    mocks.resolveAdminNewapiModelPricing.mockResolvedValue({ pricing, source: 'database' });
+    // The user's explicit model row (same precedence as the model lists) wins
+    // over the admin default, so the estimate is capped at 500_000, not 1_000.
+    mocks.getUserModelRows.mockResolvedValue([{ contextWindowTokens: 500_000, id: 'gpt-test' }]);
+
+    await expect(
+      estimateCommercialChatCredits({
+        db: {} as any,
+        payload: {
+          max_tokens: 500_000,
+          messages: [{ content: 'Hello world', role: 'user' }],
+          model: 'gpt-test',
+        },
+        provider: 'instance-id',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(500_002);
+  });
+
+  it('passes admin context-window defaults to AiInfraRepos for user-managed providers', async () => {
+    const contextWindow = new Map([['openai/gpt-test', 64_000]]);
+    mocks.loadAdminModelDefaults.mockResolvedValue({
+      ...emptyModelDefaults(),
+      contextWindow,
+    });
+    mocks.getAiProviderModelList.mockResolvedValue([{ id: 'gpt-test' }]);
+
+    await estimateCommercialChatCredits({
+      db: {} as any,
+      payload: {
+        messages: [{ content: 'Hello world', role: 'user' }],
+        model: 'gpt-test',
+      },
+      provider: 'openai',
+      userId: 'user-1',
+    });
+
+    expect(vi.mocked(AiInfraRepos)).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      { openai: { enabled: true } },
+      undefined,
+      { contextWindowDefaults: contextWindow },
+    );
   });
 
   it('should return undefined when model pricing is unavailable', async () => {

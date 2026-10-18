@@ -399,6 +399,16 @@ export const AiModelReasoningConfigSchema = z.object({
 });
 
 /**
+ * Whether the config pins at least one reasoning value. An empty object means
+ * "nothing was saved", so callers must not let it shadow a lower-precedence
+ * default (platform default or model card).
+ */
+export const hasModelReasoningValues = (
+  config: AiModelReasoningConfig | null | undefined,
+): boolean =>
+  Boolean(config) && Object.values(config!).some((value) => typeof value === 'string' && value);
+
+/**
  * The extend params covered by AiModelReasoningConfig. Each entry is both an
  * ExtendParamsType value and the AiModelReasoningConfig key it reads from —
  * used to filter which model-instance defaults a given model actually supports.

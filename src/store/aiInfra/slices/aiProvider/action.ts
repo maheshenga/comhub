@@ -758,6 +758,7 @@ export class AiProviderActionImpl {
               /** Preserve "not loaded" so a later business-config refresh can still fail closed. */
               hiddenBuiltinModels: data.hiddenBuiltinModels,
               isInitAiProviderRuntimeState: true,
+              modelReasoningDefaultMap: data.modelReasoningDefaults ?? {},
               modelRedirects: data.modelRedirects,
               ...(data.modelReasoningConfigs && {
                 modelReasoningConfigMap: seedModelReasoningConfigMap(

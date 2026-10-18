@@ -86,6 +86,7 @@ describe('admin route manifest ↔ catalog bidirectional assertions', () => {
       'maintenance',
       'mobile',
       'model-billing-matrix',
+      'model-defaults',
       'model-policy',
       'modules',
       'orders',

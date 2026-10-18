@@ -82,6 +82,9 @@ export const snapshotAgentReasoning = async (
   if (!aiModelSelectors.isModelReasoningConfigLoaded(model, provider)(aiInfraState)) return;
 
   return {
-    reasoningConfig: aiModelSelectors.modelReasoningConfig(model, provider)(aiInfraState) ?? {},
+    // Effective config (user ?? platform default), matching the server snapshot
+    // in turnSetup: a plain `{}` pin would shadow the admin default.
+    reasoningConfig:
+      aiModelSelectors.modelEffectiveReasoningConfig(model, provider)(aiInfraState) ?? {},
   };
 };

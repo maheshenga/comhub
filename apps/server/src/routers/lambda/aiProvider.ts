@@ -9,6 +9,7 @@ import { RequestTrigger } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { loadAdminModelDefaults } from '@/business/server/modelDefaults';
 import { resolvePlanModelRules } from '@/business/server/planModelRules';
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import {
@@ -37,16 +38,23 @@ import { type ProviderConfig } from '@/types/user/settings';
 const aiProviderProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
 
-  const { aiProvider } = await getServerGlobalConfig(ctx.serverDB);
+  // Loaded alongside the provider config so the repositories see the same
+  // platform defaults the runtime-state response hands to the client.
+  const [{ aiProvider }, adminModelDefaults] = await Promise.all([
+    getServerGlobalConfig(ctx.serverDB),
+    loadAdminModelDefaults(ctx.serverDB),
+  ]);
 
   const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey();
   return opts.next({
     ctx: {
+      adminModelDefaults,
       aiInfraRepos: new AiInfraRepos(
         ctx.serverDB,
         ctx.userId,
         aiProvider as Record<string, ProviderConfig>,
         ctx.workspaceId ?? undefined,
+        { contextWindowDefaults: adminModelDefaults.contextWindow },
       ),
       aiModelModel: new AiModelModel(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined),
       aiProviderModel: new AiProviderModel(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined),
@@ -190,6 +198,7 @@ export const aiProviderRouter = router({
           state: scopedRuntimeState,
         }),
         modelReasoningConfigs,
+        modelReasoningDefaults: ctx.adminModelDefaults.reasoningRecord,
       };
       const providerBindingAgentTypes = resolveProviderBindingAgentTypes(state);
 

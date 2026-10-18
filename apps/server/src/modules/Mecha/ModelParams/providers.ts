@@ -1,7 +1,8 @@
 import type { LobeChatDatabase } from '@lobechat/database';
 import type { ModelCardFacts, ModelParamsProviders } from '@lobechat/mecha';
-import type { LobeDefaultAiModelListItem } from 'model-bank';
+import { hasModelReasoningValues, type LobeDefaultAiModelListItem } from 'model-bank';
 
+import { loadAdminModelDefaults, modelDefaultsKey } from '@/business/server/modelDefaults';
 import { AiModelModel } from '@/database/models/aiModel';
 import { TopicModel } from '@/database/models/topic';
 
@@ -29,7 +30,8 @@ const toModelCard = (item: LobeDefaultAiModelListItem): ModelCardFacts => ({
 /**
  * How the server answers the model-parameter rules: the bundled bank plus,
  * when the run has a user scope, that user's own model row, model-instance
- * reasoning config and the topic's reasoning pin.
+ * reasoning config (falling back to the platform default) and the topic's
+ * reasoning pin.
  */
 export const createServerModelParamsProviders = ({
   builtinModels,
@@ -42,6 +44,15 @@ export const createServerModelParamsProviders = ({
   if (!serverDB || !userId) return providers;
 
   const aiModelModel = new AiModelModel(serverDB, userId, workspaceId);
+  // Lazy + single-flight: most provider lookups never ask for a reasoning
+  // config, and the loader itself caches across calls.
+  let adminDefaultsPromise: ReturnType<typeof loadAdminModelDefaults> | undefined;
+  const getAdminReasoningConfig = async (model: string, provider: string) => {
+    adminDefaultsPromise ??= loadAdminModelDefaults(serverDB);
+    const defaults = await adminDefaultsPromise;
+    return defaults.reasoning.get(modelDefaultsKey(provider, model));
+  };
+
   return {
     ...providers,
     // Share-visitor runs execute in the owner's context against topics that
@@ -60,8 +71,13 @@ export const createServerModelParamsProviders = ({
         reasoningConfig: topic.metadata?.reasoningConfig,
       };
     },
-    getModelReasoningConfig: (model, provider) =>
-      aiModelModel.getModelReasoningConfig(model, provider),
+    getModelReasoningConfig: async (model, provider) => {
+      const userConfig = await aiModelModel.getModelReasoningConfig(model, provider);
+      // The user's explicit config wins; only then follow the platform default.
+      return hasModelReasoningValues(userConfig)
+        ? userConfig
+        : await getAdminReasoningConfig(model, provider);
+    },
     // The user's own AI model row: custom/remote models miss both bundled
     // cards entirely, and builtin models may carry user-edited settings.
     getUserModelRow: async (model, provider) => {

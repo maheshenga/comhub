@@ -302,6 +302,32 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     ]);
   });
 
+  it('carries model-card extend params into settings so clients keep the effort control', async () => {
+    mocks.getAllEnabledModels.mockResolvedValue([
+      {
+        displayName: 'GPT-5.5',
+        extendParams: ['gpt5_2ReasoningEffort'],
+        id: 'gpt-5.5',
+        instanceId: 'inst-1',
+        instanceName: 'Pro Gateway',
+        providerId: 'inst-1',
+        providerType: 'newapi',
+        type: 'chat',
+      },
+    ]);
+
+    const result = await getServerGlobalConfig({} as any);
+
+    const card = result.aiProvider.newapi!.serverModelLists!.find((m) => m.id === 'gpt-5.5');
+    expect(card?.settings?.extendParams).toEqual(['gpt5_2ReasoningEffort']);
+    // The same lists back the virtual per-instance provider, so its card keeps
+    // the control too.
+    expect(
+      result.aiProvider['inst-1']!.serverModelLists!.find((m) => m.id === 'gpt-5.5')?.settings
+        ?.extendParams,
+    ).toEqual(['gpt5_2ReasoningEffort']);
+  });
+
   it('exposes admin AI services as separate user-facing provider groups', async () => {
     mocks.getAllEnabledModels.mockResolvedValue([
       {

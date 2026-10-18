@@ -669,9 +669,10 @@ export class ChatTopicActionImpl {
   };
 
   /**
-   * Resolve the user-level reasoning config to pin for `model`, fetching it when
-   * not cached yet. Returns `undefined` for models without reasoning extend
-   * params (nothing to pin).
+   * Resolve the reasoning config to pin for `model`, fetching it when not cached
+   * yet. The pin is the effective config (user ?? platform default), matching
+   * the server snapshot in turnSetup. Returns `undefined` for models without
+   * reasoning extend params (nothing to pin).
    */
   internal_resolveTopicReasoningSnapshot = async ({
     model,
@@ -684,7 +685,11 @@ export class ChatTopicActionImpl {
     if (!aiModelSelectors.isModelHasReasoningExtendParams(model, provider)(aiInfraStore)) return;
 
     await aiInfraStore.ensureModelReasoningConfig(model, provider);
-    return aiModelSelectors.modelReasoningConfig(model, provider)(getAiInfraStoreState()) ?? {};
+    // Effective config (user ?? platform default), matching turnSetup: re-pinning
+    // a plain `{}` would shadow the admin default on the switched-to model.
+    return (
+      aiModelSelectors.modelEffectiveReasoningConfig(model, provider)(getAiInfraStoreState()) ?? {}
+    );
   };
 
   /**

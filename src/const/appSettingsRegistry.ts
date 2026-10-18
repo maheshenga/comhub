@@ -119,6 +119,7 @@ export const APP_SETTING_KEYS = {
   notificationSystemType: 'notification.system.type',
   profileAvatarPresets: 'profile.avatarPresets',
   profileInterestAreas: 'profile.interestAreas',
+  modelDefaults: 'model.defaults',
   modelPolicyAllowlist: 'model.policy.allowlist',
   modelPolicyApplyToEmbeddings: 'model.policy.applyToEmbeddings',
   modelPolicyApplyToGenerateObject: 'model.policy.applyToGenerateObject',
@@ -218,6 +219,7 @@ export const APP_SETTINGS_SECTIONS = [
   'maintenance',
   'mobile',
   'model-billing-matrix',
+  'model-defaults',
   'model-policy',
   'module-runtime',
   'notifications',
@@ -322,6 +324,9 @@ export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSect
     return 'model-billing-matrix';
   }
   if (key.startsWith('payment.')) return 'payments';
+  // `model.defaults` shares the `model.` prefix with `model.policy.` but is a
+  // separate admin page, so it needs an explicit mapping.
+  if (key === APP_SETTING_KEYS.modelDefaults) return 'model-defaults';
   if (key.startsWith('model.policy.')) return 'model-policy';
   if (key.startsWith('notification.')) return 'notifications';
   if (key.startsWith('community.')) return 'operations';
