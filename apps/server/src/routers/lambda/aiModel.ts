@@ -9,6 +9,7 @@ import {
 } from 'model-bank';
 import { z } from 'zod';
 
+import { loadAdminModelDefaults } from '@/business/server/modelDefaults';
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import {
   requireWorkspaceRoleWhenScoped,
@@ -53,7 +54,10 @@ const aiModelProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) 
   const wsId = ctx.workspaceId ?? undefined;
 
   const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey();
-  const { aiProvider } = await getServerGlobalConfig(ctx.serverDB);
+  const [{ aiProvider }, modelDefaults] = await Promise.all([
+    getServerGlobalConfig(ctx.serverDB),
+    loadAdminModelDefaults(ctx.serverDB),
+  ]);
 
   return opts.next({
     ctx: {
@@ -62,6 +66,7 @@ const aiModelProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) 
         ctx.userId,
         aiProvider as Record<string, ProviderConfig>,
         wsId,
+        { contextWindowDefaults: modelDefaults.contextWindow },
       ),
       aiModelModel: new AiModelModel(ctx.serverDB, ctx.userId, wsId),
       gateKeeper,

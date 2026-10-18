@@ -7,12 +7,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiModelModel } from '@/database/models/aiModel';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
+import { createCallerFactory, router } from '@/libs/trpc/lambda';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
-import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { type AiProviderDetailItem, type AiProviderRuntimeState } from '@/types/aiProvider';
 
 import { aiProviderRouter } from '../aiProvider';
+
+// A root-router caller drops the namespace from the tRPC path, which the
+// API-key scope guard uses to look up the scope rule. Mount the router under
+// its production namespace for the restricted-key test.
+const createNamespacedCaller = createCallerFactory(router({ aiProvider: aiProviderRouter }));
 
 const planRuleMocks = vi.hoisted(() => ({
   isModelAllowedByPlanRules: vi.fn<
@@ -31,6 +36,15 @@ const runtimeMocks = vi.hoisted(() => ({
 }));
 
 const mockGetHiddenBuiltinModelsForUser = vi.hoisted(() => vi.fn());
+
+const modelDefaultsMocks = vi.hoisted(() => ({
+  loadAdminModelDefaults: vi.fn(),
+}));
+
+vi.mock('@/business/server/modelDefaults', () => ({
+  loadAdminModelDefaults: modelDefaultsMocks.loadAdminModelDefaults,
+  modelDefaultsKey: (providerId: string, modelId: string) => `${providerId}/${modelId}`,
+}));
 
 vi.mock('@/business/server/planModelRules', () => ({
   isModelAllowedByPlanRules: planRuleMocks.isModelAllowedByPlanRules,
@@ -94,6 +108,12 @@ describe('aiProviderRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetHiddenBuiltinModelsForUser.mockResolvedValue([]);
+    modelDefaultsMocks.loadAdminModelDefaults.mockResolvedValue({
+      contextWindow: new Map(),
+      raw: { contextWindow: [], reasoning: [] },
+      reasoning: new Map(),
+      reasoningRecord: {},
+    });
     planRuleMocks.isModelAllowedByPlanRules.mockReturnValue(true);
     planRuleMocks.resolvePlanModelRules.mockResolvedValue(null);
     // Keep the automock default (no configs) so a per-test override doesn't leak
@@ -228,6 +248,8 @@ describe('aiProviderRouter', () => {
             serverModelLists: [expect.objectContaining({ id: 'deepseek-chat' })],
           }),
         }),
+        undefined,
+        { contextWindowDefaults: expect.any(Map) },
       );
     });
 
@@ -242,6 +264,7 @@ describe('aiProviderRouter', () => {
         ...mockRuntimeState,
         hiddenBuiltinModels: [],
         modelRedirects: {},
+        modelReasoningDefaults: {},
         providerBindingAgentTypes: {},
       });
       expect(mockGetState).toHaveBeenCalledWith(KeyVaultsGateKeeper.getUserKeyVaults);
@@ -355,6 +378,58 @@ describe('aiProviderRouter', () => {
       expect(result.modelReasoningConfigs).toEqual(modelReasoningConfigs);
     });
 
+    it('returns the platform reasoning defaults alongside the personal configs', async () => {
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi
+        .fn()
+        .mockResolvedValue(mockRuntimeState);
+      const modelReasoningDefaults = {
+        'openai/gpt-5.6-sol': { gpt5_6ReasoningEffort: 'low' },
+      };
+      modelDefaultsMocks.loadAdminModelDefaults.mockResolvedValue({
+        contextWindow: new Map(),
+        raw: { contextWindow: [], reasoning: [] },
+        reasoning: new Map(),
+        reasoningRecord: modelReasoningDefaults,
+      });
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.getAiProviderRuntimeState({});
+
+      expect(result.modelReasoningDefaults).toEqual(modelReasoningDefaults);
+    });
+
+    it('keeps the platform reasoning defaults for restricted API keys', async () => {
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi.fn().mockResolvedValue({
+        ...mockRuntimeState,
+        enabledAiProviders: [{ id: mockProviderId, source: 'custom' }],
+        runtimeConfig: {
+          [mockProviderId]: {
+            config: {},
+            keyVaults: { apiKey: 'secret' },
+            settings: {},
+          },
+        },
+      });
+      const modelReasoningDefaults = {
+        'openai/gpt-5.6-sol': { gpt5_6ReasoningEffort: 'low' },
+      };
+      modelDefaultsMocks.loadAdminModelDefaults.mockResolvedValue({
+        contextWindow: new Map(),
+        raw: { contextWindow: [], reasoning: [] },
+        reasoning: new Map(),
+        reasoningRecord: modelReasoningDefaults,
+      });
+
+      const caller = createNamespacedCaller({
+        ...createMockContext(),
+        apiKeyScopes: ['model:read'],
+      });
+      const result = await caller.aiProvider.getAiProviderRuntimeState({});
+
+      expect(result.modelReasoningDefaults).toEqual(modelReasoningDefaults);
+      expect(result.runtimeConfig[mockProviderId].keyVaults).toEqual({});
+    });
+
     it('should append user-scoped hidden builtin models without changing runtime state loading', async () => {
       const mockGetState = vi.fn().mockResolvedValue(mockRuntimeState);
       const hiddenBuiltinModels = [{ id: 'hidden-model', providerId: 'lobehub' }];
@@ -368,6 +443,7 @@ describe('aiProviderRouter', () => {
         ...mockRuntimeState,
         hiddenBuiltinModels,
         modelRedirects: {},
+        modelReasoningDefaults: {},
         providerBindingAgentTypes: {},
       });
       expect(mockGetHiddenBuiltinModelsForUser).toHaveBeenCalledWith(mockUserId);
@@ -379,6 +455,16 @@ describe('aiProviderRouter', () => {
       const openaiProvider = { id: 'openai', source: 'builtin' as const };
       vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi.fn().mockResolvedValue({
         ...mockRuntimeState,
+        enabledAiModels: [
+          {
+            abilities: {},
+            enabled: true,
+            id: 'claude-test',
+            providerId: 'anthropic-custom',
+            type: 'chat',
+          },
+          { abilities: {}, enabled: true, id: 'gpt-test', providerId: 'openai', type: 'chat' },
+        ],
         enabledAiProviders: [anthropicProvider, openaiProvider],
         runtimeConfig: {
           'anthropic-custom': {
@@ -470,6 +556,15 @@ describe('aiProviderRouter', () => {
       };
       vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi.fn().mockResolvedValue({
         ...mockRuntimeState,
+        enabledAiModels: [
+          {
+            abilities: {},
+            enabled: true,
+            id: 'selected-chat',
+            providerId: mockProviderId,
+            type: 'chat',
+          },
+        ],
         enabledAiProviders: [{ id: mockProviderId, source: 'custom' }],
         runtimeConfig: {
           [mockProviderId]: selectedRuntime,
@@ -480,7 +575,21 @@ describe('aiProviderRouter', () => {
       const caller = aiProviderRouter.createCaller(createMockContext());
       const result = await caller.getProviderBindingRuntime({ id: mockProviderId });
 
-      expect(result).toEqual({ enabled: true, enabledModels: [], runtimeConfig: selectedRuntime });
+      expect(result).toEqual({
+        enabled: true,
+        enabledModels: [
+          {
+            abilities: { reasoning: undefined, vision: undefined },
+            contextWindowTokens: undefined,
+            displayName: undefined,
+            id: 'selected-chat',
+            maxOutput: undefined,
+            providerId: mockProviderId,
+            type: 'chat',
+          },
+        ],
+        runtimeConfig: selectedRuntime,
+      });
       expect(JSON.stringify(result)).not.toContain('other-secret');
     });
 

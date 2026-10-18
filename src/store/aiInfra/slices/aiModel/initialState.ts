@@ -19,6 +19,12 @@ export interface AIModelsState {
    * `${providerId}/${modelId}` keys with an in-flight reasoning-config save.
    */
   modelReasoningConfigUpdatingKeys: string[];
+  /**
+   * The platform (admin) reasoning defaults from the runtime-state response,
+   * keyed by `${providerId}/${modelId}`. Only models with an explicit default
+   * are present; a user-level saved config wins over any entry here.
+   */
+  modelReasoningDefaultMap: Record<string, AiModelReasoningConfig | undefined>;
   modelSearchKeyword: string;
 }
 
@@ -28,6 +34,7 @@ export const initialAIModelState: AIModelsState = {
   builtinAiModelList: [],
   modelReasoningConfigMap: {},
   modelReasoningConfigUpdatingKeys: [],
+  modelReasoningDefaultMap: {},
   modelSearchKeyword: '',
 };
 

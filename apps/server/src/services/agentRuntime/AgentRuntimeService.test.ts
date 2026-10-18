@@ -35,6 +35,16 @@ vi.mock('@lobechat/model-runtime', () => ({
 const { ssrfSafeFetch: mockSsrfSafeFetch } = vi.hoisted(() => ({ ssrfSafeFetch: vi.fn() }));
 vi.mock('@lobechat/ssrf-safe-fetch', () => ({ ssrfSafeFetch: mockSsrfSafeFetch }));
 
+// Admin model defaults: empty unless a test overrides it. The service layers
+// the platform context-window default into compressionConfig.
+const { loadAdminModelDefaults: mockLoadAdminModelDefaults } = vi.hoisted(() => ({
+  loadAdminModelDefaults: vi.fn(),
+}));
+vi.mock('@/business/server/modelDefaults', () => ({
+  loadAdminModelDefaults: mockLoadAdminModelDefaults,
+  modelDefaultsKey: (providerId: string, modelId: string) => `${providerId}/${modelId}`,
+}));
+
 // Mock trusted client to avoid server-side env access
 vi.mock('@/libs/trusted-client', () => ({
   generateTrustedClientToken: vi.fn().mockReturnValue(undefined),
@@ -240,6 +250,12 @@ describe('AgentRuntimeService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.AGENT_RUNTIME_BASE_URL = 'http://localhost:3010';
+    mockLoadAdminModelDefaults.mockResolvedValue({
+      contextWindow: new Map<string, number>(),
+      reasoning: new Map(),
+      reasoningRecord: {},
+      raw: { contextWindow: [], reasoning: [] },
+    });
 
     // Mock database
     mockDb = {
@@ -1148,6 +1164,95 @@ describe('AgentRuntimeService', () => {
           }),
         }),
       );
+    });
+
+    it('uses the platform context-window default when the model bank misses', async () => {
+      vi.mocked(getModelPropertyWithFallback).mockResolvedValueOnce(undefined);
+      mockLoadAdminModelDefaults.mockResolvedValue({
+        contextWindow: new Map([['openai/unknown-model', 256_000]]),
+        reasoning: new Map(),
+        reasoningRecord: {},
+        raw: { contextWindow: [], reasoning: [] },
+      });
+
+      let capturedConfig: any;
+      const serviceWithFactory = new AgentRuntimeService(mockDb, mockUserId, {
+        agentFactory: (config) => {
+          capturedConfig = config;
+          return { runner: vi.fn() } as any;
+        },
+      });
+
+      await (serviceWithFactory as any).createAgentRuntime({
+        agentState: {
+          world: { agent: { chatConfig: { enableContextCompression: true } } as any },
+          modelRuntimeConfig: { model: 'unknown-model', provider: 'openai' },
+        },
+        operationId: 'test-operation-1',
+        stepIndex: 1,
+      });
+
+      expect(capturedConfig).toEqual(
+        expect.objectContaining({
+          compressionConfig: expect.objectContaining({
+            enabled: true,
+            maxWindowToken: 256_000,
+          }),
+        }),
+      );
+    });
+
+    it('keeps the model-bank context window when it is already resolved', async () => {
+      vi.mocked(getModelPropertyWithFallback).mockResolvedValueOnce(200_000);
+      mockLoadAdminModelDefaults.mockResolvedValue({
+        contextWindow: new Map([['openai/gpt-4o-mini', 256_000]]),
+        reasoning: new Map(),
+        reasoningRecord: {},
+        raw: { contextWindow: [], reasoning: [] },
+      });
+
+      let capturedConfig: any;
+      const serviceWithFactory = new AgentRuntimeService(mockDb, mockUserId, {
+        agentFactory: (config) => {
+          capturedConfig = config;
+          return { runner: vi.fn() } as any;
+        },
+      });
+
+      await (serviceWithFactory as any).createAgentRuntime({
+        agentState: {
+          world: { agent: { chatConfig: { enableContextCompression: true } } as any },
+          modelRuntimeConfig: { model: 'gpt-4o-mini', provider: 'openai' },
+        },
+        operationId: 'test-operation-1',
+        stepIndex: 1,
+      });
+
+      expect(capturedConfig.compressionConfig.maxWindowToken).toBe(200_000);
+    });
+
+    it('keeps compression at the bank window when loading admin defaults fails', async () => {
+      vi.mocked(getModelPropertyWithFallback).mockResolvedValueOnce(200_000);
+      mockLoadAdminModelDefaults.mockRejectedValue(new Error('db down'));
+
+      let capturedConfig: any;
+      const serviceWithFactory = new AgentRuntimeService(mockDb, mockUserId, {
+        agentFactory: (config) => {
+          capturedConfig = config;
+          return { runner: vi.fn() } as any;
+        },
+      });
+
+      await (serviceWithFactory as any).createAgentRuntime({
+        agentState: {
+          world: { agent: { chatConfig: { enableContextCompression: true } } as any },
+          modelRuntimeConfig: { model: 'gpt-4o-mini', provider: 'openai' },
+        },
+        operationId: 'test-operation-1',
+        stepIndex: 1,
+      });
+
+      expect(capturedConfig.compressionConfig.maxWindowToken).toBe(200_000);
     });
 
     it.each([false, true])(

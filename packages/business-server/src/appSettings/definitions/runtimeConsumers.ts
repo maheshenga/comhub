@@ -16,6 +16,7 @@ const keysWithout = (keys: AppSettingKey[], excluded: AppSettingKey[]) => {
 
 const appSettingsService = 'src/server/services/appSettings/index.ts';
 const adminSettingsReadModel = 'packages/business-server/src/appSettings/adminReadModel.ts';
+const adminModelDefaults = 'packages/business-server/src/modelDefaults/index.ts';
 const adminSettingsPublicProcedures =
   'packages/business-server/src/appSettings/readers/publicProcedures.ts';
 const adminSettingsRuntimeProcedures =
@@ -266,6 +267,18 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     keys: [APP_SETTING_KEYS.userGlobalSettingsDefaults],
     sourcePath: appSettingsService,
     symbol: 'getServerUserGlobalSettingsDefaults',
+  },
+  {
+    id: 'admin-model-defaults-runtime',
+    keyEvidence: {
+      kind: 'registry',
+      namespace: 'APP_SETTING_KEYS',
+      sourcePath: adminModelDefaults,
+      sourceSymbol: 'ADMIN_MODEL_DEFAULTS_SETTING_KEY',
+    },
+    keys: [APP_SETTING_KEYS.modelDefaults],
+    sourcePath: adminModelDefaults,
+    symbol: 'loadAdminModelDefaults',
   },
   {
     id: 'model-policy-runtime',

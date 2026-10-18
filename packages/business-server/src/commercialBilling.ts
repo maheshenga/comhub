@@ -23,6 +23,7 @@ import {
 import { type AiProviderModelListItem, type Pricing } from 'model-bank';
 import { z } from 'zod';
 
+import { AiModelModel } from '@/database/models/aiModel';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import {
   type AiUsageCreditQuote,
@@ -37,6 +38,7 @@ import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { type ProviderConfig } from '@/types/user/settings';
 
 import { getAdminNewapiModelCard, resolveAdminNewapiModelPricing } from './adminNewapiPricing';
+import { loadAdminModelDefaults } from './modelDefaults';
 import { getServerModelPricingSnapshot, type ServerModelPricingSource } from './serverModelPricing';
 
 const USER_MANAGED_CREDENTIAL_FIELDS = [
@@ -305,26 +307,52 @@ const getProviderModelCard = async ({
   routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }) => {
-  const adminModelCard = await getAdminNewapiModelCard({
-    db,
-    model,
-    provider,
-    routeMetadata,
-    type: modelType,
-  });
+  const [adminModelCard, modelDefaults] = await Promise.all([
+    getAdminNewapiModelCard({
+      db,
+      model,
+      provider,
+      routeMetadata,
+      type: modelType,
+    }),
+    loadAdminModelDefaults(db),
+  ]);
+  const adminContextWindowDefault = modelDefaults.contextWindow.get(`${provider}/${model}`);
   if (adminModelCard) {
     const resolution = await resolveAdminNewapiModelPricing({ adminModelCard, model });
+    // Same precedence as the model lists (explicit user row > platform default
+    // > card value), so credit estimates agree with the context window the
+    // user is shown in getEnabledModels/getAiProviderModelList.
+    const userModelRows = await new AiModelModel(db, userId).getModelListByProviderId(provider);
+    const userContextWindowTokens = userModelRows.find(
+      (item) => item.id === model,
+    )?.contextWindowTokens;
+    const baseModelCard =
+      adminContextWindowDefault === undefined
+        ? adminModelCard.modelCard
+        : { ...adminModelCard.modelCard, contextWindowTokens: adminContextWindowDefault };
+    const modelCard =
+      typeof userContextWindowTokens === 'number'
+        ? { ...baseModelCard, contextWindowTokens: userContextWindowTokens }
+        : baseModelCard;
+
     return resolution.pricing
       ? {
-          ...adminModelCard.modelCard,
+          ...modelCard,
           pricing: resolution.pricing,
           pricingSource: resolution.source,
         }
-      : { ...adminModelCard.modelCard, pricingSource: resolution.source };
+      : { ...modelCard, pricingSource: resolution.source };
   }
 
   const { aiProvider } = await getServerGlobalConfig(db);
-  const aiInfraRepos = new AiInfraRepos(db, userId, aiProvider as Record<string, ProviderConfig>);
+  const aiInfraRepos = new AiInfraRepos(
+    db,
+    userId,
+    aiProvider as Record<string, ProviderConfig>,
+    undefined,
+    { contextWindowDefaults: modelDefaults.contextWindow },
+  );
   const models = await aiInfraRepos.getAiProviderModelList(provider, { type: modelType });
 
   return models.find((item) => item.id === model);

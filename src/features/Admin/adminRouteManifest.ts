@@ -41,6 +41,7 @@ const ADMIN_PAGE_IMPORTS: Record<Exclude<AdminCatalogId, 'modules'>, ImportPage>
   'maintenance': () => import('@/routes/(main)/admin/maintenance'),
   'mobile': () => import('@/routes/(main)/admin/mobile'),
   'model-billing-matrix': () => import('@/routes/(main)/admin/model-billing-matrix'),
+  'model-defaults': () => import('@/routes/(main)/admin/model-defaults'),
   'model-policy': () => import('@/routes/(main)/admin/model-policy'),
   'orders': () => import('@/routes/(main)/admin/orders'),
   'payments': () => import('@/routes/(main)/admin/payments'),

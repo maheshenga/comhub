@@ -10,9 +10,10 @@ import { aiModelSelectors, useAiInfraStore } from '@/store/aiInfra';
 
 /**
  * The reasoning effort a model would run at if picked now: the user's saved
- * per-model default, else the model's fallback level. Returns `undefined` for
- * models without an effort param and while the saved value is still loading,
- * so a row never flashes the fallback before the real value arrives.
+ * per-model default, else the platform (admin) default, else the model's
+ * fallback level. Returns `undefined` for models without an effort param and
+ * while the saved value is still loading, so a row never flashes the fallback
+ * before the real value arrives.
  *
  * Values come from the runtime-state response, which seeds every enabled
  * model's entry in one read. `ensureModelReasoningConfig` is only a fallback
@@ -36,7 +37,10 @@ export const useModelEffortLabel = (model: string, provider: string): string | u
   }, [effortKey, ensureModelReasoningConfig, model, provider]);
 
   const loaded = useAiInfraStore(aiModelSelectors.isModelReasoningConfigLoaded(model, provider));
-  const config = useAiInfraStore(aiModelSelectors.modelReasoningConfig(model, provider), isEqual);
+  const config = useAiInfraStore(
+    aiModelSelectors.modelEffectiveReasoningConfig(model, provider),
+    isEqual,
+  );
 
   if (!effortKey || !loaded) return undefined;
 

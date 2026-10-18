@@ -47,6 +47,7 @@ export type AppSettingNormalizer =
   | 'model-policy-mode-enum'
   | 'model-policy-string'
   | 'model-policy-string-list'
+  | 'model-defaults-config'
   | 'module-app-runtime-boolean'
   | 'module-app-runtime-internal-url'
   | 'module-app-runtime-public-origin'

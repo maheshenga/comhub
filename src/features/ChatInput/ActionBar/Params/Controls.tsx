@@ -612,7 +612,7 @@ const Controls = ({ variant = 'popover' }: ControlsProps) => {
     ),
   );
   const subAgentModelReasoningConfig = useAiInfraStore(
-    aiModelSelectors.modelReasoningConfig(
+    aiModelSelectors.modelEffectiveReasoningConfig(
       subAgentModelValue?.model || '',
       subAgentModelValue?.provider || '',
     ),
@@ -627,10 +627,10 @@ const Controls = ({ variant = 'popover' }: ControlsProps) => {
   );
   // Effective sub-agent chatConfig, built the same way the run does
   // (resolveModelExtendParams / serverCallLlmContextHints): merged parent
-  // config with the migrated reasoning fields stripped ← model-instance
-  // defaults ← explicit sub-agent overrides. Without the same sanitizing, a
-  // legacy parent `chatConfig.reasoningEffort` would show a value the run
-  // ignores, so the controls below stay WYSIWYG.
+  // config with the migrated reasoning fields stripped ← effective model
+  // defaults (user, else platform) ← explicit sub-agent overrides. Without the
+  // same sanitizing, a legacy parent `chatConfig.reasoningEffort` would show a
+  // value the run ignores, so the controls below stay WYSIWYG.
   const subAgentChatConfig = useMemo(
     () =>
       resolveEffectiveReasoningChatConfig({

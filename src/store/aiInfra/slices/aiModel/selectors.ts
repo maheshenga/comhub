@@ -1,6 +1,7 @@
 import {
   AiModelSourceEnum,
   type ExtendParamsType,
+  hasModelReasoningValues,
   MODEL_REASONING_EXTEND_PARAMS,
 } from 'model-bank/aiModel';
 
@@ -148,6 +149,25 @@ const modelReasoningConfig = (id: string, provider: string) => (s: AIProviderSto
   s.modelReasoningConfigMap?.[modelReasoningConfigKey(provider, id)];
 
 /**
+ * The platform (admin) reasoning default for the model, from runtime state.
+ */
+const modelReasoningDefault = (id: string, provider: string) => (s: AIProviderStoreState) =>
+  s.modelReasoningDefaultMap?.[modelReasoningConfigKey(provider, id)];
+
+/**
+ * The reasoning config a run would use: the user's saved value, else the
+ * platform default. Topic pins sit above both and are applied by the caller.
+ */
+const modelEffectiveReasoningConfig =
+  (id: string, provider: string) => (s: AIProviderStoreState) => {
+    const userConfig = modelReasoningConfig(id, provider)(s);
+
+    return hasModelReasoningValues(userConfig)
+      ? userConfig
+      : modelReasoningDefault(id, provider)(s);
+  };
+
+/**
  * Whether `ensureModelReasoningConfig` / the SWR loader has settled the saved
  * config for this model (the key is kept even when nothing is saved). Topic
  * snapshots must not pin "model defaults" while the real value is still in
@@ -235,8 +255,10 @@ export const aiModelSelectors = {
   modelBuiltinSearchImpl,
   modelContextWindowTokens,
   modelDisabledParams,
+  modelEffectiveReasoningConfig,
   modelExtendParams,
   modelReasoningConfig,
+  modelReasoningDefault,
   modelReasoningExtendParams,
   totalAiProviderModelList,
 };

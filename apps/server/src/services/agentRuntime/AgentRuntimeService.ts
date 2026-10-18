@@ -57,6 +57,7 @@ import {
   deriveAgentInterventionQueueDeduplicationId,
   matchesAgentInterventionContinuationProvenance,
 } from '@/business/server/agent-run/agentInterventionIdentity';
+import { loadAdminModelDefaults, modelDefaultsKey } from '@/business/server/modelDefaults';
 import { AgentOperationModel } from '@/database/models/agentOperation';
 import { MessageModel } from '@/database/models/message';
 import { type LobeChatDatabase } from '@/database/type';
@@ -4961,7 +4962,7 @@ export class AgentRuntimeService {
   }) {
     const state = agentState as AgentState | undefined;
     const modelRuntimeConfig = state?.modelRuntimeConfig;
-    const contextWindowTokens =
+    const bankContextWindowTokens =
       modelRuntimeConfig?.model && modelRuntimeConfig?.provider
         ? await getModelPropertyWithFallback<number | undefined>(
             modelRuntimeConfig.model,
@@ -4969,6 +4970,30 @@ export class AgentRuntimeService {
             modelRuntimeConfig.provider,
           )
         : undefined;
+    // The model bank alone misses the platform context-window default, so
+    // gateway models absent from the bank silently compressed against the
+    // 128k agent fallback instead of the configured window. Fill that gap
+    // with the admin default when the bank has no value; overriding an
+    // existing bank card is deliberately out of scope here. A default of 0
+    // means "unlimited" for display/billing, but would zero the compression
+    // threshold, so it is ignored on this path.
+    let contextWindowTokens = bankContextWindowTokens;
+    if (
+      contextWindowTokens === undefined &&
+      modelRuntimeConfig?.model &&
+      modelRuntimeConfig?.provider
+    ) {
+      try {
+        const adminDefault = (await loadAdminModelDefaults(this.serverDB)).contextWindow.get(
+          modelDefaultsKey(modelRuntimeConfig.provider, modelRuntimeConfig.model),
+        );
+        if (typeof adminDefault === 'number' && adminDefault > 0) {
+          contextWindowTokens = adminDefault;
+        }
+      } catch (error) {
+        log('createAgentRuntime: failed to load admin model defaults: %O', error);
+      }
+    }
 
     const world = state?.world;
     const origin = state?.origin;
