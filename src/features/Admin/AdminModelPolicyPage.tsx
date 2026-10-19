@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -15,11 +14,21 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 import { type FormValues, normalizeListText, SETTING_KEYS } from './ModelPolicy/keys';
 import PolicySections from './ModelPolicy/PolicySections';
-import { isFormValidationError } from './shared/adminFormErrors';
 
 const AdminModelPolicyPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<FormValues>();
+  const form = useForm<FormValues>({
+    initialValues: {
+      allowlistText: '',
+      applyToEmbeddings: true,
+      applyToGenerateObject: true,
+      blocklistText: '',
+      defaultModelFallback: '',
+      deniedMessage: GLOBAL_MODEL_POLICY_DENIED_MESSAGE,
+      enabled: false,
+      mode: 'blocklist',
+    },
+  });
   const [submitting, setSubmitting] = useState(false);
   const {
     data,
@@ -43,7 +52,7 @@ const AdminModelPolicyPage = memo(() => {
     const config = data?.modelPolicyConfig;
     if (!config) return;
 
-    form.setFieldsValue({
+    form.setValues({
       allowlistText: config.allowlistText || '',
       applyToEmbeddings: config.applyToEmbeddings,
       applyToGenerateObject: config.applyToGenerateObject,
@@ -58,10 +67,14 @@ const AdminModelPolicyPage = memo(() => {
   const handleSave = async () => {
     if (!data) return;
 
+    const { valid } = await form.validate();
+    if (!valid) return;
+
+    const values = form.getValues();
+
     setSubmitting(true);
 
     try {
-      const values = await form.validateFields();
       await adminCommercialService.setAppSettingsBatch({
         updates: [
           { key: SETTING_KEYS.enabled, value: values.enabled },
@@ -94,8 +107,8 @@ const AdminModelPolicyPage = memo(() => {
       });
 
       toast.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
-    } catch (error) {
-      if (!isFormValidationError(error)) toast.error(t('admin.modelPolicy.saveFailed', '保存失败'));
+    } catch {
+      toast.error(t('admin.modelPolicy.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -116,39 +129,30 @@ const AdminModelPolicyPage = memo(() => {
           onRetry={refresh}
         />
       ) : null}
-      <Form
-        disabled={isLoading || !data}
-        form={form}
-        layout="vertical"
-        initialValues={{
-          allowlistText: '',
-          applyToEmbeddings: true,
-          applyToGenerateObject: true,
-          blocklistText: '',
-          defaultModelFallback: '',
-          deniedMessage: GLOBAL_MODEL_POLICY_DENIED_MESSAGE,
-          enabled: false,
-          mode: 'blocklist',
-        }}
-      >
-        <Flexbox gap={24}>
-          <PolicySections
-            defaultModelOptions={defaultModelOptions}
-            form={form}
-            isLoading={isLoading}
-          />
+      <Form form={form} layout="vertical">
+        <fieldset
+          disabled={isLoading || !data}
+          style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
+        >
+          <Flexbox gap={24}>
+            <PolicySections
+              defaultModelOptions={defaultModelOptions}
+              form={form}
+              isLoading={isLoading}
+            />
 
-          <AdminFormActions label={t('admin.modelPolicy.actions', '模型策略操作')}>
-            <Button
-              disabled={isLoading || !data}
-              loading={submitting}
-              type="primary"
-              onClick={handleSave}
-            >
-              {t('admin.settings.save', '保存')}
-            </Button>
-          </AdminFormActions>
-        </Flexbox>
+            <AdminFormActions label={t('admin.modelPolicy.actions', '模型策略操作')}>
+              <Button
+                disabled={isLoading || !data}
+                loading={submitting}
+                type="primary"
+                onClick={handleSave}
+              >
+                {t('admin.settings.save', '保存')}
+              </Button>
+            </AdminFormActions>
+          </Flexbox>
+        </fieldset>
       </Form>
     </AdminPageShell>
   );

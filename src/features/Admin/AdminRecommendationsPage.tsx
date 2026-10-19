@@ -1,9 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
-import { Form, Input, Switch } from 'antd';
+import { Alert, Button, Switch, TextArea, toast } from '@lobehub/ui/base-ui';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,11 +20,30 @@ import {
 } from './layout';
 import SectionCards from './Recommendations/SectionCards';
 import { type FormValues, joinList, SETTING_KEYS, splitList } from './Recommendations/shared';
-import { isFormValidationError } from './shared/adminFormErrors';
 
 const AdminRecommendationsPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<FormValues>();
+  const form = useForm<FormValues>({
+    initialValues: {
+      assistantTags: '',
+      assistantTitle: '为你推荐的助理',
+      assistantsEnabled: true,
+      enabled: false,
+      generalSkillCategories: '',
+      generalSkillsEnabled: true,
+      generalSkillTitle: '通用推荐技能',
+      hotSkillSort: SkillSorts.InstallCount,
+      hotSkillsEnabled: true,
+      hotSkillTitle: '热门技能',
+      mcpCategories: '',
+      mcpsEnabled: true,
+      mcpTitle: '推荐 MCP / 工具',
+      selectedTags: '',
+      skillCategories: '',
+      skillsEnabled: true,
+      skillTitle: '推荐技能',
+    },
+  });
   const [submitting, setSubmitting] = useState(false);
   const {
     data,
@@ -38,7 +56,7 @@ const AdminRecommendationsPage = memo(() => {
 
   useEffect(() => {
     if (!data?.recommendationConfig) return;
-    form.setFieldsValue({
+    form.setValues({
       assistantsEnabled: data.recommendationConfig.assistantsEnabled,
       assistantTags: joinList(data.recommendationConfig.assistantTags),
       assistantTitle: data.recommendationConfig.assistantTitle,
@@ -62,9 +80,12 @@ const AdminRecommendationsPage = memo(() => {
   const handleSave = async () => {
     if (!data) return;
 
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     setSubmitting(true);
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       await adminCommercialService.setAppSettingsBatch({
         updates: [
           {
@@ -138,9 +159,8 @@ const AdminRecommendationsPage = memo(() => {
         ],
       });
       toast.success(t('admin.recommendations.saveSuccess', '推荐配置已保存'));
-    } catch (error) {
-      if (!isFormValidationError(error))
-        toast.error(t('admin.recommendations.saveFailed', '保存失败'));
+    } catch {
+      toast.error(t('admin.recommendations.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -169,72 +189,56 @@ const AdminRecommendationsPage = memo(() => {
           onRetry={refresh}
         />
       ) : null}
-      <Form
-        disabled={isLoading}
-        form={form}
-        layout="vertical"
-        initialValues={{
-          assistantsEnabled: true,
-          enabled: false,
-          generalSkillsEnabled: true,
-          hotSkillSort: SkillSorts.InstallCount,
-          hotSkillsEnabled: true,
-          mcpsEnabled: true,
-          skillsEnabled: true,
-          assistantTitle: '为你推荐的助理',
-          generalSkillTitle: '通用推荐技能',
-          hotSkillTitle: '热门技能',
-          mcpTitle: '推荐 MCP / 工具',
-          skillTitle: '推荐技能',
-        }}
-      >
-        <Flexbox gap={24}>
-          <AdminSection
-            carded
-            title={t('admin.recommendations.criteria', '推荐条件')}
-            description={t(
-              'admin.recommendations.criteriaDescription',
-              '总开关决定推荐模块是否展示；主题标签用于限定推荐范围。',
-            )}
-          >
-            <AdminFormGrid>
-              <Form.Item
-                label={t('admin.recommendations.enabled', '启用推荐模块')}
-                name="enabled"
-                valuePropName="checked"
-                extra={t(
-                  'admin.recommendations.enabled.help',
-                  '启用后，社区首页会显示由后台控制的推荐模块。',
-                )}
-              >
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.recommendations.selectedTags', '用户选择标签')}
-                name="selectedTags"
-                extra={t(
-                  'admin.recommendations.selectedTags.help',
-                  '作为当前推荐主题展示的标签，每行填写一个。',
-                )}
-              >
-                <Input.TextArea placeholder={'productivity\ncoding\nwriting'} rows={4} />
-              </Form.Item>
-            </AdminFormGrid>
-          </AdminSection>
-
-          <SectionCards isLoading={isLoading} />
-
-          <AdminFormActions label={t('admin.recommendations.actions', '推荐配置操作')}>
-            <Button
-              disabled={isLoading || !data}
-              loading={submitting}
-              type="primary"
-              onClick={handleSave}
+      <Form form={form} layout="vertical">
+        <fieldset disabled={isLoading} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+          <Flexbox gap={24}>
+            <AdminSection
+              carded
+              title={t('admin.recommendations.criteria', '推荐条件')}
+              description={t(
+                'admin.recommendations.criteriaDescription',
+                '总开关决定推荐模块是否展示；主题标签用于限定推荐范围。',
+              )}
             >
-              {t('admin.settings.save', '保存')}
-            </Button>
-          </AdminFormActions>
-        </Flexbox>
+              <AdminFormGrid>
+                <Form.Field
+                  label={t('admin.recommendations.enabled', '启用推荐模块')}
+                  name="enabled"
+                  valueProp="checked"
+                  extra={t(
+                    'admin.recommendations.enabled.help',
+                    '启用后，社区首页会显示由后台控制的推荐模块。',
+                  )}
+                >
+                  <Switch />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.recommendations.selectedTags', '用户选择标签')}
+                  name="selectedTags"
+                  extra={t(
+                    'admin.recommendations.selectedTags.help',
+                    '作为当前推荐主题展示的标签，每行填写一个。',
+                  )}
+                >
+                  <TextArea placeholder={'productivity\ncoding\nwriting'} rows={4} />
+                </Form.Field>
+              </AdminFormGrid>
+            </AdminSection>
+
+            <SectionCards isLoading={isLoading} />
+
+            <AdminFormActions label={t('admin.recommendations.actions', '推荐配置操作')}>
+              <Button
+                disabled={isLoading || !data}
+                loading={submitting}
+                type="primary"
+                onClick={handleSave}
+              >
+                {t('admin.settings.save', '保存')}
+              </Button>
+            </AdminFormActions>
+          </Flexbox>
+        </fieldset>
       </Form>
     </AdminPageShell>
   );

@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
-import { Form, type FormInstance } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,7 +18,6 @@ import CardListFields from './ExpertPlaza/CardListFields';
 import EntryMetaFields from './ExpertPlaza/EntryMetaFields';
 import type { CardFormValue, FormValues } from './ExpertPlaza/shared';
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
-import { isFormValidationError } from './shared/adminFormErrors';
 
 const SETTING_KEYS = {
   cards: 'expertPlaza.cards',
@@ -72,7 +70,9 @@ const toCards = (cards: CardFormValue[]) =>
 
 const AdminExpertPlazaPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<FormValues>();
+  const form = useForm<FormValues>({
+    initialValues: toFormValues({ expertPlazaConfig: DEFAULT_EXPERT_PLAZA_CONFIG }),
+  });
   const [submitting, setSubmitting] = useState(false);
   const {
     data,
@@ -85,15 +85,18 @@ const AdminExpertPlazaPage = memo(() => {
 
   useEffect(() => {
     if (!data) return;
-    form.setFieldsValue(toFormValues(data));
+    form.setValues(toFormValues(data));
   }, [data, form]);
 
   const handleSave = async () => {
     if (!data) return;
 
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     setSubmitting(true);
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       const cards = toCards(values.cards).filter(
         (item) => item.id && item.title && item.description,
       );
@@ -116,9 +119,8 @@ const AdminExpertPlazaPage = memo(() => {
 
       await mutate(PUBLIC_EXPERT_PLAZA_SWR_KEY);
       toast.success(t('admin.expertPlaza.saveSuccess', '专家广场配置已保存'));
-    } catch (error) {
-      if (!isFormValidationError(error))
-        toast.error(t('admin.expertPlaza.saveFailed', '保存失败，请检查卡片必填字段'));
+    } catch {
+      toast.error(t('admin.expertPlaza.saveFailed', '保存失败，请检查卡片必填字段'));
     } finally {
       setSubmitting(false);
     }
@@ -145,28 +147,25 @@ const AdminExpertPlazaPage = memo(() => {
         />
       ) : null}
 
-      <Form
-        disabled={isLoading}
-        form={form}
-        initialValues={toFormValues({ expertPlazaConfig: DEFAULT_EXPERT_PLAZA_CONFIG })}
-        layout="vertical"
-      >
-        <Flexbox gap={24}>
-          <EntryMetaFields />
+      <Form form={form} layout="vertical">
+        <fieldset disabled={isLoading} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+          <Flexbox gap={24}>
+            <EntryMetaFields />
 
-          <CardListFields form={form as FormInstance<any>} />
+            <CardListFields form={form} />
 
-          <AdminFormActions label={t('admin.expertPlaza.actions', '专家广场配置操作')}>
-            <Button
-              disabled={isLoading || !data}
-              loading={submitting}
-              type="primary"
-              onClick={handleSave}
-            >
-              {t('admin.expertPlaza.save', '保存专家广场')}
-            </Button>
-          </AdminFormActions>
-        </Flexbox>
+            <AdminFormActions label={t('admin.expertPlaza.actions', '专家广场配置操作')}>
+              <Button
+                disabled={isLoading || !data}
+                loading={submitting}
+                type="primary"
+                onClick={handleSave}
+              >
+                {t('admin.expertPlaza.save', '保存专家广场')}
+              </Button>
+            </AdminFormActions>
+          </Flexbox>
+        </fieldset>
       </Form>
     </AdminPageShell>
   );

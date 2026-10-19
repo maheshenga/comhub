@@ -1,8 +1,7 @@
 'use client';
 
 import { Input, InputNumber, Select, Switch } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -24,70 +23,70 @@ const FeaturedSection = ({ isLoading }: { isLoading: boolean }) => {
     >
       <AdminFormGrid columns={3} label={t('admin.operations.featuredSection', '精选模块')}>
         <Card title={t('admin.operations.featuredAssistantsGroup', '精选助手')}>
-          <Form.Item
+          <Form.Field
             label={t('admin.operations.featuredAssistantsEnabled', '显示精选助手')}
             name="featuredAssistantsEnabled"
-            valuePropName="checked"
+            valueProp="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredAssistantTitle', '助手模块标题')}
             name="featuredAssistantTitle"
           >
             <Input placeholder={t('home.featuredAssistants', { ns: 'discover' })} />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredAssistantPageSize', '助手数量')}
             name="featuredAssistantPageSize"
           >
             <InputNumber max={24} min={1} style={{ width: '100%' }} />
-          </Form.Item>
+          </Form.Field>
         </Card>
 
         <Card title={t('admin.operations.featuredMcpsGroup', '精选 MCP / 工具')}>
-          <Form.Item
+          <Form.Field
             label={t('admin.operations.featuredMcpsEnabled', '显示精选 MCP/工具')}
             name="featuredMcpsEnabled"
-            valuePropName="checked"
+            valueProp="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredMcpTitle', 'MCP 模块标题')}
             name="featuredMcpTitle"
           >
             <Input placeholder={t('home.featuredTools', { ns: 'discover' })} />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredMcpPageSize', 'MCP 数量')}
             name="featuredMcpPageSize"
           >
             <InputNumber max={24} min={1} style={{ width: '100%' }} />
-          </Form.Item>
+          </Form.Field>
         </Card>
 
         <Card title={t('admin.operations.featuredSkillsGroup', '精选技能')}>
-          <Form.Item
+          <Form.Field
             label={t('admin.operations.featuredSkillsEnabled', '显示精选技能')}
             name="featuredSkillsEnabled"
-            valuePropName="checked"
+            valueProp="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredSkillTitle', '技能模块标题')}
             name="featuredSkillTitle"
           >
             <Input placeholder={t('admin.operations.defaultSkillTitle', '精选技能')} />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredSkillCategory', '技能分类')}
             name="featuredSkillCategory"
           >
             <Input placeholder="productivity-tasks" />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredSkillSort', '技能排序')}
             name="featuredSkillSort"
           >
@@ -100,13 +99,13 @@ const FeaturedSection = ({ isLoading }: { isLoading: boolean }) => {
                 { label: '创建时间（Created At）', value: SkillSorts.CreatedAt },
               ]}
             />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.operations.featuredSkillPageSize', '技能数量')}
             name="featuredSkillPageSize"
           >
             <InputNumber max={24} min={1} style={{ width: '100%' }} />
-          </Form.Item>
+          </Form.Field>
         </Card>
       </AdminFormGrid>
     </AdminSection>

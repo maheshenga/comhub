@@ -2,8 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { Button, confirmModal, Modal, Tag, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields/setFieldsValue）与 PackageFormFields 受控字段绑定，无 base-ui 等价物（FormKit 迁移另行立项）。
-import { Form } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,9 +17,8 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import { AdminPageError, AdminPageShell, AdminSection, AdminToolbar } from './layout';
 import { AdminDataTable } from './shared';
-import { isFormValidationError } from './shared/adminFormErrors';
 import PackageFormFields from './TopUpPackages/PackageFormFields';
-import { type PackageRow, SWR_KEY } from './TopUpPackages/shared';
+import { type PackageFormValues, type PackageRow, SWR_KEY } from './TopUpPackages/shared';
 
 type AdminTopUpPackagesPageProps = {
   embedded?: boolean;
@@ -36,7 +34,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
   } = useClientDataSWR(SWR_KEY, () => adminCommercialService.listPackages());
   const [editing, setEditing] = useState<Partial<PackageRow> | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [form] = Form.useForm();
+  const form = useForm<PackageFormValues>();
 
   const items = (data?.items ?? []) as PackageRow[];
 
@@ -54,7 +52,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
     };
     const promotion = normalizeTopUpPackagePromotion(init.metadata);
     setEditing(init);
-    form.setFieldsValue({
+    form.setValues({
       ...init,
       credits: toAdminDisplayCredits(init.credits),
       originalAmount: promotion.originalAmount,
@@ -65,15 +63,18 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
   };
 
   const handleSave = async () => {
+    const { valid } = await form.validate();
+    if (!valid) return;
+
+    setSubmitting(true);
     try {
-      const values = await form.validateFields();
-      setSubmitting(true);
+      const values = form.getValues();
       await adminCommercialService.upsertPackage({
         amount: Number(values.amount || 0),
         credits: toAdminAtomicCredits(values.credits),
         currency: values.currency || 'USD',
-        displayName: values.displayName,
-        id: values.id,
+        displayName: values.displayName ?? '',
+        id: values.id ?? '',
         isActive: !!values.isActive,
         originalAmount:
           values.originalAmount === null || values.originalAmount === undefined
@@ -89,8 +90,8 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       toast.success(t('admin.topup.saveSuccess', '充值套餐已保存'));
       setEditing(null);
       await mutate(SWR_KEY);
-    } catch (error) {
-      if (!isFormValidationError(error)) toast.error(t('admin.topup.saveFailed', '保存失败'));
+    } catch {
+      toast.error(t('admin.topup.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -232,7 +233,9 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
         onCancel={() => setEditing(null)}
         onOk={handleSave}
       >
-        <PackageFormFields editing={editing} />
+        <Form form={form} layout="vertical">
+          <PackageFormFields editing={editing} />
+        </Form>
       </Modal>
     </Flexbox>
   );

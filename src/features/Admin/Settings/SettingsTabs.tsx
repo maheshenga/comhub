@@ -3,18 +3,15 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Flexbox } from '@lobehub/ui';
 import { Button, Input, Select, Tabs, Text } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { cssVar } from 'antd-style';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
 import { HELP_MENU_ACTIONS, HELP_MENU_ICONS } from '@/const/helpMenu';
-import { type AdminSettingsFormValues } from '@/features/Admin/adminSettingsForm';
 
 import { AssistantSettingsCard, BrandSettingsCard, EntryCopySettingsCard } from './SettingsCards';
-
 
 const helpMenuActionOptions = HELP_MENU_ACTIONS.map((value) => ({ label: value, value }));
 const helpMenuIconOptions = HELP_MENU_ICONS.map((value) => ({ label: value, value }));
@@ -26,53 +23,37 @@ const aboutLinkGroups = [
 ] as const;
 
 interface SettingsTabsProps {
-  form: ReturnType<typeof Form.useForm<AdminSettingsFormValues>>[0];
   uploadPublicUrlPrefix?: string;
-  watchedValues?: Partial<AdminSettingsFormValues>;
 }
 
 const SettingsTabs = memo<SettingsTabsProps>(({ uploadPublicUrlPrefix }) => {
   const { t } = useTranslation('subscription');
 
   const renderAboutLinkGroup = (group: (typeof aboutLinkGroups)[number]) => (
-    <Form.List key={group.key} name={['aboutLinks', group.key]}>
-      {(fields) => (
+    <Form.List key={group.key} name={`aboutLinks.${group.key}`}>
+      {(list) => (
         <Flexbox gap={8}>
           <Text strong>{t(group.titleKey, group.title)}</Text>
-          {fields.map(({ key, name, ...restField }) => (
-            <Flexbox horizontal align="center" gap={8} key={key}>
-              <Form.Item {...restField} hidden name={[name, 'id']}>
-                <Input />
-              </Form.Item>
-              <Form.Item
-                {...restField}
-                noStyle
-                name={[name, 'label']}
-                rules={[
-                  {
-                    message: t('admin.settings.aboutLinks.labelRequired', '请填写名称'),
-                    required: true,
-                  },
-                ]}
+          {list.fields.map((field) => (
+            <Flexbox horizontal align="center" gap={8} key={field.key}>
+              <Form.Field hidden name={`${field.name}.id`} />
+              <Form.Field
+                bare
+                name={`${field.name}.label`}
+                required={t('admin.settings.aboutLinks.labelRequired', '请填写名称')}
               >
                 <Input
                   placeholder={t('admin.settings.aboutLinks.label', '名称')}
                   style={{ flex: 1 }}
                 />
-              </Form.Item>
-              <Form.Item
-                {...restField}
-                noStyle
-                name={[name, 'url']}
-                rules={[
-                  {
-                    message: t('admin.settings.aboutLinks.urlRequired', '请填写链接'),
-                    required: true,
-                  },
-                ]}
+              </Form.Field>
+              <Form.Field
+                bare
+                name={`${field.name}.url`}
+                required={t('admin.settings.aboutLinks.urlRequired', '请填写链接')}
               >
                 <Input placeholder="https://..." style={{ flex: 1.6 }} />
-              </Form.Item>
+              </Form.Field>
             </Flexbox>
           ))}
         </Flexbox>
@@ -112,33 +93,33 @@ const SettingsTabs = memo<SettingsTabsProps>(({ uploadPublicUrlPrefix }) => {
                 <Text strong>
                   {t('admin.settings.aboutPageVersion', 'About page version area')}
                 </Text>
-                <Form.Item
+                <Form.Field
                   label={t('admin.settings.aboutPageLogoLinkUrl', 'Logo link URL')}
-                  name={['aboutPage', 'logoLinkUrl']}
+                  name="aboutPage.logoLinkUrl"
                   extra={t(
                     'admin.settings.aboutPageLogoLinkUrl.help',
                     'Controls the settings/about version logo link. Blank values use the official site.',
                   )}
                 >
                   <Input placeholder="https://example.com" />
-                </Form.Item>
-                <Form.Item
+                </Form.Field>
+                <Form.Field
                   label={t('admin.settings.aboutPageChangelogLabel', 'Changelog button label')}
-                  name={['aboutPage', 'changelogLabel']}
+                  name="aboutPage.changelogLabel"
                   extra={t(
                     'admin.settings.aboutPageChangelogLabel.help',
                     'Blank values use the default changelog translation.',
                   )}
                 >
                   <Input placeholder={t('changelog', 'Changelog')} />
-                </Form.Item>
-                <Form.Item
+                </Form.Field>
+                <Form.Field
                   label={t('admin.settings.aboutPageChangelogUrl', 'Changelog URL')}
-                  name={['aboutPage', 'changelogUrl']}
+                  name="aboutPage.changelogUrl"
                 >
                   <Input placeholder="https://example.com/changelog" />
-                </Form.Item>
-                <Form.Item
+                </Form.Field>
+                <Form.Field
                   label={t('admin.settings.helpMenuItems', '帮助菜单')}
                   extra={t(
                     'admin.settings.helpMenuItems.help',
@@ -146,47 +127,44 @@ const SettingsTabs = memo<SettingsTabsProps>(({ uploadPublicUrlPrefix }) => {
                   )}
                 >
                   <Form.List name="helpMenuItems">
-                    {(fields, { add, remove }) => (
+                    {(list) => (
                       <Flexbox gap={8}>
-                        {fields.map(({ key, name, ...restField }) => (
+                        {list.fields.map((field) => (
                           <Flexbox
                             horizontal
                             align="center"
                             gap={8}
-                            key={key}
+                            key={field.key}
                             style={{ flexWrap: 'wrap' }}
                           >
-                            <Form.Item {...restField} hidden name={[name, 'key']}>
-                              <Input />
-                            </Form.Item>
-                            <Form.Item
-                              {...restField}
-                              noStyle
-                              name={[name, 'label']}
-                              rules={[{ message: 'Please enter a display name', required: true }]}
+                            <Form.Field hidden name={`${field.name}.key`} />
+                            <Form.Field
+                              bare
+                              name={`${field.name}.label`}
+                              required={'Please enter a display name'}
                             >
                               <Input placeholder="Display name" style={{ flex: 1 }} />
-                            </Form.Item>
-                            <Form.Item {...restField} noStyle name={[name, 'icon']}>
+                            </Form.Field>
+                            <Form.Field bare name={`${field.name}.icon`}>
                               <Select
                                 options={helpMenuIconOptions}
                                 placeholder="icon"
                                 style={{ minWidth: 132 }}
                               />
-                            </Form.Item>
-                            <Form.Item {...restField} noStyle name={[name, 'action']}>
+                            </Form.Field>
+                            <Form.Field bare name={`${field.name}.action`}>
                               <Select
                                 options={helpMenuActionOptions}
                                 placeholder="action"
                                 style={{ minWidth: 144 }}
                               />
-                            </Form.Item>
-                            <Form.Item {...restField} noStyle name={[name, 'url']}>
+                            </Form.Field>
+                            <Form.Field bare name={`${field.name}.url`}>
                               <Input placeholder="https://..." style={{ flex: 1.5 }} />
-                            </Form.Item>
+                            </Form.Field>
                             <MinusCircleOutlined
                               style={{ color: cssVar.colorError }}
-                              onClick={() => remove(name)}
+                              onClick={() => list.remove(field.index)}
                             />
                           </Flexbox>
                         ))}
@@ -195,7 +173,7 @@ const SettingsTabs = memo<SettingsTabsProps>(({ uploadPublicUrlPrefix }) => {
                           icon={<PlusOutlined />}
                           type="dashed"
                           onClick={() =>
-                            add({
+                            list.add({
                               action: 'url',
                               enabled: true,
                               icon: 'help',
@@ -209,7 +187,7 @@ const SettingsTabs = memo<SettingsTabsProps>(({ uploadPublicUrlPrefix }) => {
                       </Flexbox>
                     )}
                   </Form.List>
-                </Form.Item>
+                </Form.Field>
               </Flexbox>
             </Card>
           ),
