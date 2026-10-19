@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { isDesktopFormValidationError } from '../DesktopControlCenter/desktopSettingsForm';
 import { countFormValidationErrors, isFormValidationError } from './adminFormErrors';
 
 /** The exact shape rc-field-form rejects `validateFields()` with. */
@@ -44,23 +43,5 @@ describe('adminFormErrors', () => {
       expect(countFormValidationErrors({ errorFields: 'oops' })).toBe(0);
       expect(countFormValidationErrors({})).toBe(0);
     });
-  });
-
-  it('stays behaviour-compatible with the Desktop-prefixed detector it replaces', () => {
-    const samples: unknown[] = [
-      validationError(1),
-      validationError(4),
-      new Error('x'),
-      undefined,
-      null,
-      'str',
-      42,
-      {},
-      { errorFields: [] },
-    ];
-
-    for (const sample of samples) {
-      expect(isFormValidationError(sample)).toBe(isDesktopFormValidationError(sample));
-    }
   });
 });

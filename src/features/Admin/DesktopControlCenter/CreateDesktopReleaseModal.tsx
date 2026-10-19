@@ -2,8 +2,7 @@
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
 import { Descriptions, Input, Modal, Segmented, TextArea, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, useForm, useWatch } from '@lobehub/ui/base-ui/form';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -28,14 +27,14 @@ interface CreateDesktopReleaseModalProps {
 const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
   ({ formValues, onClose, onReleaseChanged, open, profile }) => {
     const { t } = useTranslation('subscription');
-    const [form] = Form.useForm<{
+    const form = useForm<{
       channel: 'canary' | 'stable';
       releaseNotes: string;
       version: string;
-    }>();
+    }>({ initialValues: { channel: 'canary', releaseNotes: '', version: '2.4.0-canary.1' } });
     const [submitting, setSubmitting] = useState(false);
     const payload = useMemo(() => buildProfilePayloadFromForm(formValues), [formValues]);
-    const version = Form.useWatch('version', form) || '0.0.0';
+    const version = useWatch(form, 'version') || '0.0.0';
     const artifactName = renderInstallerArtifactName(payload.installerArtifactName, {
       arch: 'x64',
       ext: 'exe',
@@ -46,7 +45,10 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
     const handleCreate = async (
       envelope: ReturnType<typeof buildAdminDangerousActionEnvelope<'desktop.release.create'>>,
     ) => {
-      const values = await form.validateFields();
+      const { valid } = await form.validate();
+      if (!valid) return;
+
+      const values = form.getValues();
       setSubmitting(true);
       try {
         await adminCommercialService.createDesktopRelease({
@@ -87,29 +89,21 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
           )
         }
       >
-        <Form
-          form={form}
-          initialValues={{ channel: 'canary', releaseNotes: '', version: '2.4.0-canary.1' }}
-          layout="vertical"
-        >
-          <Form.Item label={t('admin.desktopBuild.release.channel')} name="channel">
+        <Form form={form} layout="vertical">
+          <Form.Field label={t('admin.desktopBuild.release.channel')} name="channel">
             <Segmented
               options={[
                 { label: t('admin.desktopControl.status.canary'), value: 'canary' },
                 { label: t('admin.desktopControl.status.stable'), value: 'stable' },
               ]}
             />
-          </Form.Item>
-          <Form.Item
-            label={t('admin.desktopBuild.release.version')}
-            name="version"
-            rules={[{ required: true }]}
-          >
+          </Form.Field>
+          <Form.Field required label={t('admin.desktopBuild.release.version')} name="version">
             <Input placeholder="2.4.0" />
-          </Form.Item>
-          <Form.Item label={t('admin.desktopBuild.release.notes')} name="releaseNotes">
+          </Form.Field>
+          <Form.Field label={t('admin.desktopBuild.release.notes')} name="releaseNotes">
             <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
-          </Form.Item>
+          </Form.Field>
         </Form>
         <Descriptions
           bordered

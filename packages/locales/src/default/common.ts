@@ -907,6 +907,7 @@ export default {
   'moduleApps.runtime.records.create': 'Create record',
   'moduleApps.runtime.records.edit': 'Edit record',
   'moduleApps.runtime.records.empty': 'No records yet',
+  'moduleApps.runtime.records.invalid': 'Invalid format',
   'moduleApps.runtime.records.loadError': 'Records could not be loaded. Try again.',
   'moduleApps.runtime.records.required': 'This field is required',
   'moduleApps.runtime.records.saveError':

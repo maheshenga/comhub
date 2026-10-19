@@ -63,7 +63,9 @@ describe('RecordForm', () => {
 
     renderForm(undefined, onSaved);
 
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Candidate A' } });
+    fireEvent.change(screen.getByLabelText('Title', { exact: false }), {
+      target: { value: 'Candidate A' },
+    });
     fireEvent.change(screen.getByLabelText(/Notes/), { target: { value: 'Strong fit' } });
     fireEvent.change(screen.getByLabelText(/Estimate/), { target: { value: '8' } });
     fireEvent.change(screen.getByLabelText(/Due date/), { target: { value: '2026-08-01' } });
@@ -135,7 +137,7 @@ describe('RecordForm', () => {
 
     renderForm();
 
-    const title = screen.getByLabelText('Title');
+    const title = screen.getByLabelText('Title', { exact: false });
     fireEvent.change(title, { target: { value: 'Unsaved candidate' } });
     fireEvent.click(screen.getByRole('button', { name: 'moduleApps.runtime.records.create' }));
 

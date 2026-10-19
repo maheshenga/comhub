@@ -1,23 +1,26 @@
 'use client';
 
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form, type FormGroupItemType } from '@lobehub/ui';
 import { SliderWithInput, Switch, TextArea } from '@lobehub/ui/base-ui';
+import { Form, type FormGroupItem, useForm } from '@lobehub/ui/base-ui/form';
 import isEqual from 'fast-deep-equal';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { FORM_STYLE } from '@/const/layoutTokens';
+import { type LobeAgentChatConfig } from '@/types/agent';
 
 import { selectors, useStore } from '../store';
 
 const AgentChat = memo(() => {
   const { t } = useTranslation('setting');
-  const [form] = Form.useForm();
   const updateConfig = useStore((s) => s.setChatConfig);
   const config = useStore(selectors.currentChatConfig, isEqual);
+  const form = useForm<LobeAgentChatConfig>({
+    initialValues: config,
+    onSubmit: updateConfig,
+  });
 
-  const chat: FormGroupItemType = {
+  const chat: FormGroupItem<LobeAgentChatConfig> = {
     children: [
       {
         children: <TextArea placeholder={t('settingChat.inputTemplate.placeholder')} />,
@@ -32,7 +35,7 @@ const AgentChat = memo(() => {
         layout: 'horizontal',
         minWidth: undefined,
         name: 'enableAutoCreateTopic',
-        valuePropName: 'checked',
+        valueProp: 'checked',
       },
       {
         children: <SliderWithInput max={8} min={0} unlimitedInput={true} />,
@@ -48,7 +51,7 @@ const AgentChat = memo(() => {
         layout: 'horizontal',
         minWidth: undefined,
         name: 'enableHistoryCount',
-        valuePropName: 'checked',
+        valueProp: 'checked',
       },
       {
         children: <SliderWithInput max={20} min={0} unlimitedInput={true} />,
@@ -65,7 +68,7 @@ const AgentChat = memo(() => {
         layout: 'horizontal',
         minWidth: undefined,
         name: 'enableCompressHistory',
-        valuePropName: 'checked',
+        valueProp: 'checked',
       },
       {
         children: <Switch />,
@@ -74,7 +77,7 @@ const AgentChat = memo(() => {
         layout: 'horizontal',
         minWidth: undefined,
         name: 'enableAutoScrollOnStreaming',
-        valuePropName: 'checked',
+        valueProp: 'checked',
       },
     ],
     title: t('settingChat.title'),
@@ -84,11 +87,9 @@ const AgentChat = memo(() => {
     <Form
       footer={<Form.SubmitFooter />}
       form={form}
-      initialValues={config}
       items={[chat]}
       itemsType={'group'}
       variant={'borderless'}
-      onFinish={updateConfig}
       {...FORM_STYLE}
     />
   );

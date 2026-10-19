@@ -1,35 +1,28 @@
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import type { FormInstance } from 'antd';
+import { useForm } from '@lobehub/ui/base-ui/form';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { DesktopSettingsValues } from './desktopSettingsForm';
 
-export const useDesktopSettingsFormSync = (
-  form: FormInstance<DesktopSettingsValues>,
-  hasData: boolean,
-  initialValues: DesktopSettingsValues,
-  onDirtyChange?: (dirty: boolean) => void,
-) => {
+interface DesktopSettingsFormSyncOptions {
+  hasData: boolean;
+  initialValues: DesktopSettingsValues;
+  onDirtyChange?: (dirty: boolean) => void;
+}
+
+/**
+ * Owns the FormKit instance for the desktop settings tabs. FormKit reads
+ * `onValuesChange` from `useForm` options rather than a `<Form>` prop, so the
+ * hook has to create the instance instead of receiving it.
+ */
+export const useDesktopSettingsFormSync = ({
+  hasData,
+  initialValues,
+  onDirtyChange,
+}: DesktopSettingsFormSyncOptions) => {
   const [dirtyFields, setDirtyFields] = useState<ReadonlySet<keyof DesktopSettingsValues>>(
     () => new Set(),
   );
 
-  useEffect(() => {
-    if (!hasData) return;
-
-    const synchronizedValues = Object.fromEntries(
-      Object.entries(initialValues).filter(
-        ([field]) => !dirtyFields.has(field as keyof DesktopSettingsValues),
-      ),
-    ) as Partial<DesktopSettingsValues>;
-    form.setFieldsValue(synchronizedValues);
-  }, [dirtyFields, form, hasData, initialValues]);
-
-  useEffect(() => {
-    onDirtyChange?.(dirtyFields.size > 0);
-  }, [dirtyFields, onDirtyChange]);
-
-  const markSaved = useCallback(() => setDirtyFields(new Set()), []);
   const markEdited = useCallback(
     (changedValues: Partial<DesktopSettingsValues>, allValues: DesktopSettingsValues) => {
       setDirtyFields((current) => {
@@ -51,5 +44,24 @@ export const useDesktopSettingsFormSync = (
     [initialValues],
   );
 
-  return { dirtyFields, markEdited, markSaved };
+  const form = useForm<DesktopSettingsValues>({ onValuesChange: markEdited });
+
+  useEffect(() => {
+    if (!hasData) return;
+
+    const synchronizedValues = Object.fromEntries(
+      Object.entries(initialValues).filter(
+        ([field]) => !dirtyFields.has(field as keyof DesktopSettingsValues),
+      ),
+    ) as Partial<DesktopSettingsValues>;
+    form.setValues(synchronizedValues);
+  }, [dirtyFields, form, hasData, initialValues]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirtyFields.size > 0);
+  }, [dirtyFields, onDirtyChange]);
+
+  const markSaved = useCallback(() => setDirtyFields(new Set()), []);
+
+  return { dirtyFields, form, markEdited, markSaved };
 };

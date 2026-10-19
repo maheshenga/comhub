@@ -8,22 +8,14 @@ import {
   InputNumber,
   Select,
   Switch,
-  Text,
   TextArea,
   toast,
 } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Card } from '@/components/antd-compat/Card';
 import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
-import {
-  NOTIFICATION_CHANNEL_EVENTS,
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_EVENT_TITLES,
-} from '@/const/notificationPreferences';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -34,6 +26,7 @@ import {
   AdminPageShell,
   AdminSection,
 } from './layout';
+import ChannelSettingsSection from './Notifications/ChannelSettingsSection';
 import {
   buildInitialValues,
   buildNotificationMaterializationUpdates,
@@ -58,20 +51,23 @@ const AdminNotificationsPage = memo(() => {
   } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('notifications'), () =>
     adminCommercialService.getSettingsSection('notifications'),
   );
-  const [form] = Form.useForm<NotificationSettingsForm>();
+  const form = useForm<NotificationSettingsForm>();
   const [materializing, setMaterializing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const initialValues = useMemo(() => buildInitialValues(data), [data]);
 
   useEffect(() => {
     if (!data) return;
-    form.setFieldsValue(buildInitialValues(data));
+    form.setValues(buildInitialValues(data));
   }, [data, form]);
 
   const handleSave = async () => {
     if (!data) return;
 
-    const values = await form.validateFields();
+    const { valid } = await form.validate();
+    if (!valid) return;
+
+    const values = form.getValues();
     const updates = buildUpdates(values, initialValues);
 
     if (updates.length === 0) {
@@ -94,7 +90,10 @@ const AdminNotificationsPage = memo(() => {
   const handleMaterializeDefaults = async () => {
     if (!data) return;
 
-    const values = await form.validateFields();
+    const { valid } = await form.validate();
+    if (!valid) return;
+
+    const values = form.getValues();
     const updates = buildNotificationMaterializationUpdates(values);
 
     setMaterializing(true);
@@ -133,163 +132,112 @@ const AdminNotificationsPage = memo(() => {
         />
       ) : null}
 
-      <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
-        <Flexbox gap={24}>
-          <AdminSection
-            carded
-            title={t('admin.notifications.channels', '通知渠道')}
-            description={t(
-              'admin.notifications.channelsDescription',
-              '为每个投递渠道设置默认启用状态和事件范围。',
-            )}
-          >
-            <AdminFormGrid columns={3} label={t('admin.notifications.channels', '通知渠道')}>
-              {NOTIFICATION_CHANNELS.map((channel) => {
-                const enabledField =
-                  channel.key === 'email'
-                    ? 'emailEnabled'
-                    : channel.key === 'inbox'
-                      ? 'inboxEnabled'
-                      : 'pushEnabled';
+      <Form form={form} layout="vertical">
+        <fieldset disabled={isLoading} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+          <Flexbox gap={24}>
+            <ChannelSettingsSection />
 
-                return (
-                  <Card key={channel.key} title={channel.title}>
-                    <Form.Item
-                      extra={channel.description}
-                      name={enabledField}
-                      valuePropName="checked"
-                      label={t(
-                        `admin.notifications.${channel.key}.enabled`,
-                        `启用${channel.title}`,
-                      )}
-                    >
-                      <Switch />
-                    </Form.Item>
-                    <Flexbox gap={8}>
-                      <Text strong>{t('admin.notifications.events', '默认事件开关')}</Text>
-                      {NOTIFICATION_CHANNEL_EVENTS[channel.key].map((eventKey) => (
-                        <Flexbox
-                          horizontal
-                          align="center"
-                          justify="space-between"
-                          key={`${channel.key}-${eventKey}`}
-                        >
-                          <Text>{NOTIFICATION_EVENT_TITLES[eventKey]}</Text>
-                          <Form.Item
-                            noStyle
-                            name={['eventDefaults', channel.key, eventKey]}
-                            valuePropName="checked"
-                          >
-                            <Switch
-                              aria-label={`${channel.title}: ${NOTIFICATION_EVENT_TITLES[eventKey]}`}
-                            />
-                          </Form.Item>
-                        </Flexbox>
-                      ))}
-                    </Flexbox>
-                  </Card>
-                );
-              })}
-            </AdminFormGrid>
-          </AdminSection>
-
-          <AdminSection
-            carded
-            title={t('admin.notifications.compatibility', '兼容与保留策略')}
-            description={t(
-              'admin.notifications.compatibilityDescription',
-              '保留旧桌面端读取兼容项，并设置归档通知的清理周期。',
-            )}
-          >
-            <AdminFormGrid>
-              <Form.Item
-                label={t('admin.notifications.desktopEnabled', '旧桌面通知默认值')}
-                name="desktopEnabled"
-                valuePropName="checked"
-                extra={t(
-                  'admin.notifications.desktopEnabled.help',
-                  '仅供旧桌面端通知读取器使用；新版本由移动推送渠道控制。',
-                )}
-              >
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.notifications.retentionDays', '归档通知保留天数')}
-                name="retentionDays"
-                extra={t(
-                  'admin.notifications.retentionDays.help',
-                  '维护任务会删除超过该天数的已归档通知。',
-                )}
-              >
-                <InputNumber max={3650} min={1} style={{ width: '100%' }} />
-              </Form.Item>
-            </AdminFormGrid>
-          </AdminSection>
-
-          <AdminSection
-            carded
-            title={t('admin.notifications.system', '系统公告')}
-            description={t(
-              'admin.notifications.systemDescription',
-              '配置向所有用户展示的系统级公告及可选操作入口。',
-            )}
-          >
-            <AdminFormGrid>
-              <Form.Item
-                label={t('admin.notifications.systemEnabled', '启用系统公告')}
-                name="systemEnabled"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
-              <Form.Item label={t('admin.notifications.systemType', '公告类型')} name="systemType">
-                <Select disabled={isLoading} options={SYSTEM_TYPE_OPTIONS} />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.notifications.systemTitle', '公告标题')}
-                name="systemTitle"
-              >
-                <Input placeholder="服务升级通知" />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.notifications.systemActionLabel', '操作按钮名称')}
-                name="systemActionLabel"
-              >
-                <Input placeholder="查看详情" />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.notifications.systemActionUrl', '操作跳转地址')}
-                name="systemActionUrl"
-              >
-                <Input placeholder="https://..." />
-              </Form.Item>
-            </AdminFormGrid>
-            <Form.Item
-              label={t('admin.notifications.systemContent', '公告内容')}
-              name="systemContent"
+            <AdminSection
+              carded
+              title={t('admin.notifications.compatibility', '兼容与保留策略')}
+              description={t(
+                'admin.notifications.compatibilityDescription',
+                '保留旧桌面端读取兼容项，并设置归档通知的清理周期。',
+              )}
             >
-              <TextArea autoSize={{ minRows: 3 }} placeholder="向用户展示的公告内容" />
-            </Form.Item>
-          </AdminSection>
+              <AdminFormGrid>
+                <Form.Field
+                  label={t('admin.notifications.desktopEnabled', '旧桌面通知默认值')}
+                  name="desktopEnabled"
+                  valueProp="checked"
+                  extra={t(
+                    'admin.notifications.desktopEnabled.help',
+                    '仅供旧桌面端通知读取器使用；新版本由移动推送渠道控制。',
+                  )}
+                >
+                  <Switch />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.notifications.retentionDays', '归档通知保留天数')}
+                  name="retentionDays"
+                  extra={t(
+                    'admin.notifications.retentionDays.help',
+                    '维护任务会删除超过该天数的已归档通知。',
+                  )}
+                >
+                  <InputNumber max={3650} min={1} style={{ width: '100%' }} />
+                </Form.Field>
+              </AdminFormGrid>
+            </AdminSection>
 
-          <AdminFormActions label={t('admin.notifications.actions', '通知配置操作')}>
-            <Button
-              disabled={isLoading || !data || submitting}
-              loading={materializing}
-              onClick={handleMaterializeDefaults}
+            <AdminSection
+              carded
+              title={t('admin.notifications.system', '系统公告')}
+              description={t(
+                'admin.notifications.systemDescription',
+                '配置向所有用户展示的系统级公告及可选操作入口。',
+              )}
             >
-              {t('admin.notifications.materializeDefaults', '同步默认值')}
-            </Button>
-            <Button
-              disabled={isLoading || !data || materializing}
-              loading={submitting}
-              type="primary"
-              onClick={handleSave}
-            >
-              {t('admin.notifications.save', '保存通知配置')}
-            </Button>
-          </AdminFormActions>
-        </Flexbox>
+              <AdminFormGrid>
+                <Form.Field
+                  label={t('admin.notifications.systemEnabled', '启用系统公告')}
+                  name="systemEnabled"
+                  valueProp="checked"
+                >
+                  <Switch />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.notifications.systemType', '公告类型')}
+                  name="systemType"
+                >
+                  <Select disabled={isLoading} options={SYSTEM_TYPE_OPTIONS} />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.notifications.systemTitle', '公告标题')}
+                  name="systemTitle"
+                >
+                  <Input placeholder="服务升级通知" />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.notifications.systemActionLabel', '操作按钮名称')}
+                  name="systemActionLabel"
+                >
+                  <Input placeholder="查看详情" />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.notifications.systemActionUrl', '操作跳转地址')}
+                  name="systemActionUrl"
+                >
+                  <Input placeholder="https://..." />
+                </Form.Field>
+              </AdminFormGrid>
+              <Form.Field
+                label={t('admin.notifications.systemContent', '公告内容')}
+                name="systemContent"
+              >
+                <TextArea autoSize={{ minRows: 3 }} placeholder="向用户展示的公告内容" />
+              </Form.Field>
+            </AdminSection>
+
+            <AdminFormActions label={t('admin.notifications.actions', '通知配置操作')}>
+              <Button
+                disabled={isLoading || !data || submitting}
+                loading={materializing}
+                onClick={handleMaterializeDefaults}
+              >
+                {t('admin.notifications.materializeDefaults', '同步默认值')}
+              </Button>
+              <Button
+                disabled={isLoading || !data || materializing}
+                loading={submitting}
+                type="primary"
+                onClick={handleSave}
+              >
+                {t('admin.notifications.save', '保存通知配置')}
+              </Button>
+            </AdminFormActions>
+          </Flexbox>
+        </fieldset>
       </Form>
     </AdminPageShell>
   );
