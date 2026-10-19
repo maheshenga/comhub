@@ -6,9 +6,6 @@ type DesktopSettingsData = AdminSettingsSectionData<'desktop-update'>;
 type SettingUpdate = { key: string; value: unknown };
 type DesktopDirtyFields = ReadonlySet<keyof DesktopSettingsValues>;
 
-export const isDesktopFormValidationError = (error: unknown) =>
-  typeof error === 'object' && error !== null && 'errorFields' in error;
-
 export interface DesktopSettingsValues {
   autoCheck: boolean;
   channel: string;

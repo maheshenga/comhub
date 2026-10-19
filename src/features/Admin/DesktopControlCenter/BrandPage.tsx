@@ -2,8 +2,7 @@
 
 import { Icon } from '@lobehub/ui';
 import { Alert, Button, Input, Text, TextArea, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,12 +13,7 @@ import { DESKTOP_DEFAULT_BUSINESS_SERVER_URL } from '../adminDesktopUpdateSettin
 import { AdminPageError } from '../layout';
 import { AdminInlineSkeleton } from '../shared';
 import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
-import {
-  buildBrandUpdates,
-  type DesktopSettingsValues,
-  getDesktopSettingsValues,
-  isDesktopFormValidationError,
-} from './desktopSettingsForm';
+import { buildBrandUpdates, getDesktopSettingsValues } from './desktopSettingsForm';
 import { desktopControlCenterStyles } from './styles';
 import type { DesktopSettingsResource } from './types';
 import { useDesktopSettingsFormSync } from './useDesktopSettingsFormSync';
@@ -31,20 +25,21 @@ interface BrandPageProps {
 
 const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<DesktopSettingsValues>();
   const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const initialValues = useMemo(() => getDesktopSettingsValues(settings.data), [settings.data]);
-  const { dirtyFields, markEdited, markSaved } = useDesktopSettingsFormSync(
-    form,
-    Boolean(settings.data),
+  const { dirtyFields, form, markSaved } = useDesktopSettingsFormSync({
+    hasData: Boolean(settings.data),
     initialValues,
     onDirtyChange,
-  );
+  });
 
   const handleSave = async () => {
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       const updates = buildBrandUpdates(initialValues, values, dirtyFields);
       if (updates.length === 0) {
         toast.info(t('admin.desktopUpdate.noChanges'));
@@ -56,11 +51,9 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
       markSaved();
       toast.success(t('admin.desktopUpdate.saveSuccess'));
     } catch (error) {
-      if (!isDesktopFormValidationError(error)) {
-        setSaveError(error);
-        if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
-          toast.error(t('admin.desktopUpdate.saveFailed'));
-        }
+      setSaveError(error);
+      if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
+        toast.error(t('admin.desktopUpdate.saveFailed'));
       }
     } finally {
       setSubmitting(false);
@@ -97,52 +90,50 @@ const BrandPage = memo<BrandPageProps>(({ onDirtyChange, settings }) => {
         message={t('admin.desktopControl.businessServer')}
         type="info"
       />
-      <Form
+      <fieldset
         disabled={settings.isLoading || submitting}
-        form={form}
-        initialValues={initialValues}
-        layout="vertical"
-        style={{ marginTop: 16 }}
-        onValuesChange={markEdited}
+        style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
       >
-        <Form.Item label={t('admin.desktopUpdate.loginWindowTitle')} name="loginWindowTitle">
-          <Input placeholder="ComHub" />
-        </Form.Item>
-        <Form.Item
-          extra={t('admin.desktopUpdate.loginLogoUrl.help')}
-          label={t('admin.desktopUpdate.loginLogoUrl')}
-          name="loginLogoUrl"
-        >
-          <Input placeholder="/images/brand/logo.png" />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopUpdate.loginTitle')} name="loginTitle">
-          <Input />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopUpdate.loginDescription')} name="loginDescription">
-          <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.desktopUpdate.loginCloudButtonLabel')}
-          name="loginCloudButtonLabel"
-        >
-          <Input />
-        </Form.Item>
-        <Form.Item label={t('admin.desktopUpdate.loginFooterText')} name="loginFooterText">
-          <Input />
-        </Form.Item>
-
-        <div className={desktopControlCenterStyles.formActions}>
-          <Button
-            disabled={settings.isLoading}
-            icon={<Icon icon={Save} size={16} />}
-            loading={submitting}
-            type="primary"
-            onClick={() => void handleSave()}
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Field label={t('admin.desktopUpdate.loginWindowTitle')} name="loginWindowTitle">
+            <Input placeholder="ComHub" />
+          </Form.Field>
+          <Form.Field
+            extra={t('admin.desktopUpdate.loginLogoUrl.help')}
+            label={t('admin.desktopUpdate.loginLogoUrl')}
+            name="loginLogoUrl"
           >
-            {t('admin.desktopUpdate.save')}
-          </Button>
-        </div>
-      </Form>
+            <Input placeholder="/images/brand/logo.png" />
+          </Form.Field>
+          <Form.Field label={t('admin.desktopUpdate.loginTitle')} name="loginTitle">
+            <Input />
+          </Form.Field>
+          <Form.Field label={t('admin.desktopUpdate.loginDescription')} name="loginDescription">
+            <TextArea autoSize={{ maxRows: 4, minRows: 2 }} />
+          </Form.Field>
+          <Form.Field
+            label={t('admin.desktopUpdate.loginCloudButtonLabel')}
+            name="loginCloudButtonLabel"
+          >
+            <Input />
+          </Form.Field>
+          <Form.Field label={t('admin.desktopUpdate.loginFooterText')} name="loginFooterText">
+            <Input />
+          </Form.Field>
+
+          <div className={desktopControlCenterStyles.formActions}>
+            <Button
+              disabled={settings.isLoading}
+              icon={<Icon icon={Save} size={16} />}
+              loading={submitting}
+              type="primary"
+              onClick={() => void handleSave()}
+            >
+              {t('admin.desktopUpdate.save')}
+            </Button>
+          </div>
+        </Form>
+      </fieldset>
     </section>
   );
 });

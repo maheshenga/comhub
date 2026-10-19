@@ -11,8 +11,7 @@ import {
   TextArea,
   toast,
 } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,12 +22,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { AdminPageError } from '../layout';
 import { AdminInlineSkeleton } from '../shared';
 import AdminSettingsConflictAlert from '../shared/AdminSettingsConflictAlert';
-import {
-  buildUpdateSettingsUpdates,
-  type DesktopSettingsValues,
-  getDesktopSettingsValues,
-  isDesktopFormValidationError,
-} from './desktopSettingsForm';
+import { buildUpdateSettingsUpdates, getDesktopSettingsValues } from './desktopSettingsForm';
 import { desktopControlCenterStyles } from './styles';
 import type { DesktopSettingsResource } from './types';
 import { useDesktopSettingsFormSync } from './useDesktopSettingsFormSync';
@@ -44,20 +38,21 @@ interface UpdateSettingsPageProps {
 
 const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, settings }) => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<DesktopSettingsValues>();
   const [saveError, setSaveError] = useState<unknown>();
   const [submitting, setSubmitting] = useState(false);
   const initialValues = useMemo(() => getDesktopSettingsValues(settings.data), [settings.data]);
-  const { dirtyFields, markEdited, markSaved } = useDesktopSettingsFormSync(
-    form,
-    Boolean(settings.data),
+  const { dirtyFields, form, markSaved } = useDesktopSettingsFormSync({
+    hasData: Boolean(settings.data),
     initialValues,
     onDirtyChange,
-  );
+  });
 
   const handleSave = async () => {
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       const updates = buildUpdateSettingsUpdates(initialValues, values, dirtyFields);
       if (updates.length === 0) {
         toast.info(t('admin.desktopUpdate.noChanges'));
@@ -69,11 +64,9 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
       markSaved();
       toast.success(t('admin.desktopUpdate.saveSuccess'));
     } catch (error) {
-      if (!isDesktopFormValidationError(error)) {
-        setSaveError(error);
-        if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
-          toast.error(t('admin.desktopUpdate.saveFailed'));
-        }
+      setSaveError(error);
+      if (!(error instanceof Error && error.message === 'APP_SETTINGS_REVISION_CONFLICT')) {
+        toast.error(t('admin.desktopUpdate.saveFailed'));
       }
     } finally {
       setSubmitting(false);
@@ -104,84 +97,85 @@ const UpdateSettingsPage = memo<UpdateSettingsPageProps>(({ onDirtyChange, setti
           setSaveError(undefined);
         }}
       />
-      <Form
+      <fieldset
         disabled={settings.isLoading || submitting}
-        form={form}
-        initialValues={initialValues}
-        layout="vertical"
-        onValuesChange={markEdited}
+        style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
       >
-        <Form.Item
-          extra={t('admin.desktopUpdate.serverUrl.help')}
-          label={t('admin.desktopUpdate.serverUrl')}
-          name="serverUrl"
-          rules={[
-            {
-              validator: (_rule, value: string | undefined) =>
-                isAllowedUpdateServerUrl(value)
-                  ? Promise.resolve()
-                  : Promise.reject(new Error(t('admin.desktopControl.serverUrlInvalid'))),
-            },
-          ]}
-        >
-          <Input placeholder="https://releases.example.com" />
-        </Form.Item>
-
-        <Form.Item label={t('admin.desktopUpdate.channel')} name="channel">
-          <Segmented
-            block
-            options={[
-              { label: t('admin.desktopControl.status.stable'), value: 'stable' },
-              { label: t('admin.desktopControl.status.canary'), value: 'canary' },
-            ]}
-          />
-        </Form.Item>
-
-        <Form.Item
-          label={t('admin.desktopUpdate.autoCheck')}
-          name="autoCheck"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-
-        <Form.Item
-          extra={t('admin.desktopUpdate.checkInterval.help')}
-          label={t('admin.desktopUpdate.checkInterval')}
-          name="checkInterval"
-          rules={[{ max: 1440, min: 1, type: 'number' }]}
-        >
-          <InputNumber max={1440} min={1} style={{ width: '100%' }} />
-        </Form.Item>
-
-        <Form.Item
-          extra={t('admin.desktopUpdate.currentVersion.help')}
-          label={t('admin.desktopUpdate.currentVersion')}
-          name="currentVersion"
-        >
-          <Input placeholder="2.3.0" />
-        </Form.Item>
-
-        <Form.Item
-          extra={t('admin.desktopUpdate.releaseNotes.help')}
-          label={t('admin.desktopUpdate.releaseNotes')}
-          name="releaseNotes"
-        >
-          <TextArea autoSize={{ maxRows: 10, minRows: 5 }} />
-        </Form.Item>
-
-        <div className={desktopControlCenterStyles.formActions}>
-          <Button
-            disabled={settings.isLoading}
-            icon={<Icon icon={Save} size={16} />}
-            loading={submitting}
-            type="primary"
-            onClick={() => void handleSave()}
+        <Form form={form} layout="vertical">
+          <Form.Field
+            extra={t('admin.desktopUpdate.serverUrl.help')}
+            label={t('admin.desktopUpdate.serverUrl')}
+            name="serverUrl"
+            validate={(value) =>
+              isAllowedUpdateServerUrl(value as string | undefined)
+                ? undefined
+                : t('admin.desktopControl.serverUrlInvalid')
+            }
           >
-            {t('admin.desktopUpdate.save')}
-          </Button>
-        </div>
-      </Form>
+            <Input placeholder="https://releases.example.com" />
+          </Form.Field>
+
+          <Form.Field label={t('admin.desktopUpdate.channel')} name="channel">
+            <Segmented
+              block
+              options={[
+                { label: t('admin.desktopControl.status.stable'), value: 'stable' },
+                { label: t('admin.desktopControl.status.canary'), value: 'canary' },
+              ]}
+            />
+          </Form.Field>
+
+          <Form.Field
+            label={t('admin.desktopUpdate.autoCheck')}
+            name="autoCheck"
+            valueProp="checked"
+          >
+            <Switch />
+          </Form.Field>
+
+          <Form.Field
+            extra={t('admin.desktopUpdate.checkInterval.help')}
+            label={t('admin.desktopUpdate.checkInterval')}
+            name="checkInterval"
+            validate={(value) => {
+              const interval = Number(value);
+              return interval >= 1 && interval <= 1440
+                ? undefined
+                : t('admin.desktopUpdate.checkInterval.range');
+            }}
+          >
+            <InputNumber max={1440} min={1} style={{ width: '100%' }} />
+          </Form.Field>
+
+          <Form.Field
+            extra={t('admin.desktopUpdate.currentVersion.help')}
+            label={t('admin.desktopUpdate.currentVersion')}
+            name="currentVersion"
+          >
+            <Input placeholder="2.3.0" />
+          </Form.Field>
+
+          <Form.Field
+            extra={t('admin.desktopUpdate.releaseNotes.help')}
+            label={t('admin.desktopUpdate.releaseNotes')}
+            name="releaseNotes"
+          >
+            <TextArea autoSize={{ maxRows: 10, minRows: 5 }} />
+          </Form.Field>
+
+          <div className={desktopControlCenterStyles.formActions}>
+            <Button
+              disabled={settings.isLoading}
+              icon={<Icon icon={Save} size={16} />}
+              loading={submitting}
+              type="primary"
+              onClick={() => void handleSave()}
+            >
+              {t('admin.desktopUpdate.save')}
+            </Button>
+          </div>
+        </Form>
+      </fieldset>
     </section>
   );
 });

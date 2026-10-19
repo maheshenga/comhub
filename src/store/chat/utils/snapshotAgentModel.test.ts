@@ -198,7 +198,12 @@ describe('snapshotAgentReasoning', () => {
 
   it('retains fallback when the user-level config could not be loaded', async () => {
     const id = seedAgent('loading', { model: 'gpt-5.5', provider: 'openai' });
-    aiInfra.state = { loaded: false, reasoningConfig: undefined, reasoningParams: true };
+    aiInfra.state = {
+      loaded: false,
+      reasoningConfig: undefined,
+      reasoningDefault: undefined,
+      reasoningParams: true,
+    };
 
     expect(await snapshotAgentReasoning(id, modelSnapshot)).toBeUndefined();
   });
