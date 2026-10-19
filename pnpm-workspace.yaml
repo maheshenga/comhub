@@ -79,6 +79,7 @@ overrides:
   react: 19.2.7
   react-dom: 19.2.7
   's3rver>fast-xml-parser': 3.21.1
+  '@standard-community/standard-openapi': 0.2.10
   stylelint-config-clean-order: 7.0.0
   typescript: 6.0.3
   vitest: 5.0.0
