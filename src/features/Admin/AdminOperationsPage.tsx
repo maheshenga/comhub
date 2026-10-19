@@ -1,9 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
-import { Form, Input, Switch } from 'antd';
+import { Alert, Button, Input, Select, Switch, TextArea, toast } from '@lobehub/ui/base-ui';
+import { Form, useForm } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,11 +20,29 @@ import {
 } from './layout';
 import FeaturedSection from './Operations/FeaturedSection';
 import { type FormValues, SETTING_KEYS } from './Operations/shared';
-import { isFormValidationError } from './shared/adminFormErrors';
 
 const AdminOperationsPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<FormValues>();
+  const form = useForm<FormValues>({
+    initialValues: {
+      announcementContent: '',
+      announcementEnabled: false,
+      announcementTitle: '',
+      announcementType: 'info',
+      creatorRewardBannerEnabled: true,
+      featuredAssistantPageSize: 12,
+      featuredAssistantTitle: '',
+      featuredAssistantsEnabled: true,
+      featuredMcpPageSize: 12,
+      featuredMcpTitle: '',
+      featuredMcpsEnabled: true,
+      featuredSkillCategory: '',
+      featuredSkillPageSize: 8,
+      featuredSkillSort: SkillSorts.InstallCount,
+      featuredSkillTitle: '',
+      featuredSkillsEnabled: false,
+    },
+  });
   const [submitting, setSubmitting] = useState(false);
   const {
     data,
@@ -39,7 +56,7 @@ const AdminOperationsPage = memo(() => {
   useEffect(() => {
     if (!data?.operationsConfig) return;
     const config = data.operationsConfig;
-    form.setFieldsValue({
+    form.setValues({
       announcementContent: config.announcement.content,
       announcementEnabled: config.announcement.enabled,
       announcementTitle: config.announcement.title,
@@ -62,9 +79,12 @@ const AdminOperationsPage = memo(() => {
   const handleSave = async () => {
     if (!data) return;
 
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     setSubmitting(true);
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       await adminCommercialService.setAppSettingsBatch({
         updates: [
           {
@@ -134,8 +154,8 @@ const AdminOperationsPage = memo(() => {
         ],
       });
       toast.success(t('admin.operations.saveSuccess', '运营配置已保存'));
-    } catch (error) {
-      if (!isFormValidationError(error)) toast.error(t('admin.operations.saveFailed', '保存失败'));
+    } catch {
+      toast.error(t('admin.operations.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -161,89 +181,75 @@ const AdminOperationsPage = memo(() => {
           onRetry={refresh}
         />
       ) : null}
-      <Form
-        disabled={isLoading}
-        form={form}
-        layout="vertical"
-        initialValues={{
-          announcementEnabled: false,
-          announcementType: 'info',
-          creatorRewardBannerEnabled: true,
-          featuredAssistantPageSize: 12,
-          featuredAssistantsEnabled: true,
-          featuredMcpPageSize: 12,
-          featuredMcpsEnabled: true,
-          featuredSkillPageSize: 8,
-          featuredSkillSort: SkillSorts.InstallCount,
-          featuredSkillsEnabled: false,
-        }}
-      >
-        <Flexbox gap={24}>
-          <AdminSection
-            carded
-            title={t('admin.operations.bannerSection', '社区横幅')}
-            description={t(
-              'admin.operations.bannerSectionDescription',
-              '管理社区入口的奖励提示和首页公告内容。',
-            )}
-          >
-            <AdminFormGrid>
-              <Form.Item
-                label={t('admin.operations.creatorRewardBanner', '显示创作者奖励横幅')}
-                name="creatorRewardBannerEnabled"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.operations.announcementEnabled', '显示首页公告')}
-                name="announcementEnabled"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.operations.announcementType', '公告类型')}
-                name="announcementType"
-              >
-                <Select
-                  disabled={isLoading}
-                  options={[
-                    { label: '信息（Info）', value: 'info' },
-                    { label: '成功（Success）', value: 'success' },
-                    { label: '警告（Warning）', value: 'warning' },
-                    { label: '错误（Error）', value: 'error' },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item
-                label={t('admin.operations.announcementTitle', '公告标题')}
-                name="announcementTitle"
-              >
-                <Input />
-              </Form.Item>
-            </AdminFormGrid>
-            <Form.Item
-              label={t('admin.operations.announcementContent', '公告内容')}
-              name="announcementContent"
+      <Form form={form} layout="vertical">
+        <fieldset disabled={isLoading} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+          <Flexbox gap={24}>
+            <AdminSection
+              carded
+              title={t('admin.operations.bannerSection', '社区横幅')}
+              description={t(
+                'admin.operations.bannerSectionDescription',
+                '管理社区入口的奖励提示和首页公告内容。',
+              )}
             >
-              <Input.TextArea rows={4} />
-            </Form.Item>
-          </AdminSection>
+              <AdminFormGrid>
+                <Form.Field
+                  label={t('admin.operations.creatorRewardBanner', '显示创作者奖励横幅')}
+                  name="creatorRewardBannerEnabled"
+                  valueProp="checked"
+                >
+                  <Switch />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.operations.announcementEnabled', '显示首页公告')}
+                  name="announcementEnabled"
+                  valueProp="checked"
+                >
+                  <Switch />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.operations.announcementType', '公告类型')}
+                  name="announcementType"
+                >
+                  <Select
+                    disabled={isLoading}
+                    options={[
+                      { label: '信息（Info）', value: 'info' },
+                      { label: '成功（Success）', value: 'success' },
+                      { label: '警告（Warning）', value: 'warning' },
+                      { label: '错误（Error）', value: 'error' },
+                    ]}
+                  />
+                </Form.Field>
+                <Form.Field
+                  label={t('admin.operations.announcementTitle', '公告标题')}
+                  name="announcementTitle"
+                >
+                  <Input />
+                </Form.Field>
+              </AdminFormGrid>
+              <Form.Field
+                label={t('admin.operations.announcementContent', '公告内容')}
+                name="announcementContent"
+              >
+                <TextArea rows={4} />
+              </Form.Field>
+            </AdminSection>
 
-          <FeaturedSection isLoading={isLoading} />
+            <FeaturedSection isLoading={isLoading} />
 
-          <AdminFormActions label={t('admin.operations.actions', '运营配置操作')}>
-            <Button
-              disabled={isLoading || !data}
-              loading={submitting}
-              type="primary"
-              onClick={handleSave}
-            >
-              {t('admin.settings.save', '保存')}
-            </Button>
-          </AdminFormActions>
-        </Flexbox>
+            <AdminFormActions label={t('admin.operations.actions', '运营配置操作')}>
+              <Button
+                disabled={isLoading || !data}
+                loading={submitting}
+                type="primary"
+                onClick={handleSave}
+              >
+                {t('admin.settings.save', '保存')}
+              </Button>
+            </AdminFormActions>
+          </Flexbox>
+        </fieldset>
       </Form>
     </AdminPageShell>
   );

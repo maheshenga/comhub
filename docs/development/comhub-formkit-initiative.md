@@ -40,7 +40,8 @@ useFormContext`，**没有 `useForm` / `FormInstance`**。也就是说 base-ui F
 ### 1.3 目标与量化终点
 
 - **目标**：把 53 个新增豁免文件收敛到只剩 C 类 6 个（各需独立专项，与 FormKit 无关），
-  全仓 `no-restricted-imports` 豁免从 74 文件收敛到约 **27 文件**（21 历史基线 + C 类 6）。
+  全仓 `no-restricted-imports` 豁免从 74 文件收敛到 **20 文件**（14 个非 Form keep-antd 基线 + C 类 6；
+  原估 27 是按 “不动 Form 基线父页” 计的，第十五轮显式扩围后少了 7 个父页）。
 - **里程碑锚点**：第八轮 ask 曾给 "本轮新增豁免 ≤40" 的预期上限，53 已突破约 +33% 并成为当时合入裁决的唯一
   high 项（报告 ⑤/⑥/⑦）。本立项的隐含承诺是：**后续轮次不得再净增豁免**，存量只减不增（验收门禁见 §5）。
 - **非目标**：不做 antd 全量下线；不动 21 个历史基线豁免文件（AdminDataTable、ContentPage 等，属更早批次，
@@ -54,6 +55,12 @@ useFormContext`，**没有 `useForm` / `FormInstance`**。也就是说 base-ui F
   `AdminSettingsPage / AdminOperationsPage / AdminRecommendationsPage / AdminTopUpPackagesPage /
 ChannelSettings / AdminModelPolicyPage / AdminExpertPlazaPage` 七个父页同批推进 —— 这已超出本立项
   “不动 21 文件基线” 的非目标，需另立 P2b-2 批次（先父页、再子组件）。
+- **第十五轮完成态（2026-10-19）**：P2b-2 父页批次完成 ——7 个基线父页连同上条列出的 10 个子字段组件
+  一次性迁移，`SpacePreview` 的 antd `shouldUpdate` 渲染器一并改为 `useWatch` selector。全仓
+  `no-restricted-imports` 实测 **37 文件 / 37 处 → 20 文件 / 20 处**（净 -17）。这是对 §1.3 非目标的
+  一次**显式扩围**：只动 “因持有 antd Form 实例而阻塞子组件” 的 7 个基线文件；其余 14 个 keep-antd
+  基线（AdminDataTable、ContentPage、InlineTable、UsageTable 等非 Form 语义文件）保持不动。
+  剩余 20 = C 类 6 + 非 Form 基线 14。
 
 ---
 
@@ -393,6 +400,28 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
   `adminProviderInstanceForm.ts` 后 292 行。AdminNotificationsPage 300 行整 → 渠道区抽成
   `Notifications/ChannelSettingsSection.tsx` 后 248 行。**迁移前先看 wc -l，别等门禁拦。**
 
+### 3.3.4 P2b-2 基线父页批次实测结论（第十五轮，2026-10-19）
+
+> 实测对象：7 个基线父页 + 10 个子字段组件（共 17 文件）。结论补充 §3.3.3。
+
+- **`Form.List`**：render prop 参数是 `{fields, add, remove, move}`，`fields[i]` 形如
+  `{index, key, name: 'cards.0'}` —— `name` 已是完整点路径，子字段直接
+  `name={`${field.name}.title`}`；antd 的 `{...restField}` 不需要。嵌套列表（`aboutLinks.contact`）
+  直接写 `name="aboutLinks.contact"`。`newItem` 支持对象或工厂函数。
+- **`hidden` 字段**：FormKit `hidden` 直接返回 null，不注册控件；列表项的 `id/key` 仍随
+  `initialValues` / `add(item)` 保留在值对象里，因此 `<Form.Field hidden name=... />` 无需子控件。
+- **整表 watch**：`Form.useWatch([], form)` → `useWatch(form, (values) => values)`；
+  单字段 `Form.useWatch('x', form)` → `useWatch(form, 'x')`，配合 `?? initialValues.x` 保留首屏回退。
+- **`shouldUpdate` 渲染器**：antd `Form.Item noStyle shouldUpdate` + `getFieldValue` → 独立组件内
+  `useWatch(form, (values) => values.cards?.[index])`，实时预览语义不变。
+- **rules / validator**：`rules={[{required,message}]}` → `required="message"`；
+  antd async validator（URL 白名单）→ `validate(value)` 返回错误串，函数可跨子组件以 prop 传递。
+- **既有 bug 修复**：`AdminTopUpPackagesPage` 迁前只有 `Form.useForm`，Modal 内没有任何 `<Form>` 包裹，
+  字段实际未绑定；本轮迁移补上 `<Form form={form}>`，新增渲染测试断言 `upsertPackage` 收到
+  `{id, displayName}`（该测试在旧实现上会失败）。这是本轮唯一的行为修正，其余均为等价迁移。
+- **测试**：新增 `AdminFormKitMigrations.render.test.tsx` 7 例（设置页、运营、推荐、模型策略 blur 规范化、
+  充值弹窗绑定、支付 watch/secret 过滤、专家广场 Form.List 增卡）；全 Admin 套件 **113 文件 / 621 tests** 全绿。
+
 ### 3.4 同文件混合导入约定（迁移时沿用第八轮规范）
 
 普通组件 base-ui、Form 系留 antd 的混合文件在迁移时遵循第八轮已固化的拆行规范（报告 ②共性替换模式第 6 条）：
@@ -443,15 +472,14 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
 
 - 按 "先低难度（全文件仅 Form 系，整行删豁免）、再中难度（单条 Form 导入行混合文件）、后高难度（Form.List/ 联动）"：
   - **P2a 低 6 个** ✅ 全部完成：#2（P0）、#13/22/23/24（第十二轮）、#14（第十四轮随 DesktopControlCenter 三页联动）。
-  - **P2b 中 24 个**：✅ 本轮完成自包含 8 个 ——DesktopControlCenter #3/9/10/11/12 + #14、Providers #27/28、
-    AdminNotifications #1；连同 P0/P2a 已完成的 #6/8/17/19/20/21/22/23/24。**剩余 9 个全部父页阻塞**：
-    \#5 PolicySections（AdminModelPolicyPage）、#15 SpacePreview / #16 EntryMetaFields / #4 CardListFields
-    （AdminExpertPlazaPage）、#25 FeaturedSection（AdminOperationsPage）、#26 ChannelCards（ChannelSettings）、
-    \#29 SectionCards（AdminRecommendationsPage）、#30/#31 SettingsCards/SettingsTabs（AdminSettingsPage）、
-    \#32 PackageFormFields（AdminTopUpPackagesPage）—— 子组件不创建实例、依赖 antd 隐式上下文，必须与父页同批。
+  - **P2b 中 24 个**：✅ 全部完成。第十四轮完成自包含 8 个 ——DesktopControlCenter #3/9/10/11/12 + #14、
+    Providers #27/28、AdminNotifications #1（连同 P0/P2a 已完成的 #6/8/17/19/20/21/22/23/24）。**第十五轮完成
+    剩余 9 个父页阻塞项**：#5 PolicySections、#15 SpacePreview / #16 EntryMetaFields / #4 CardListFields、
+    \#25 FeaturedSection、#26 ChannelCards、#29 SectionCards、#30/#31 SettingsCards/SettingsTabs、
+    \#32 PackageFormFields —— 与 7 个基线父页同批迁移（见 §1.3 第十五轮说明）。
   - **P2c 高 4 个**：~~#7 ProfileDefaultsCard~~（P0）、~~#18 PageEditor~~（P2a）、~~#43 AgentChat~~ / ~~#44 RecordForm~~
     （**第十四轮完成**：AgentChat 改用 FormKit `itemsType="group"` + `useForm({onSubmit})`；RecordForm 用
-    `required` + `validate` + `submitRef` 承接原生 submit）。#4 CardListFields 仍父页阻塞（见 P2b 剩余项）。
+    `required` + `validate` + `submitRef` 承接原生 submit；#4 CardListFields 已于第十五轮随父页完成）。
 - Admin 域硬约束（沿用现有规则）：非测试 .tsx ≤300 行 ——`AdminNotificationsPage.tsx` 迁移前 300 行整，
   第十四轮已把渠道区抽成 `Notifications/ChannelSettingsSection.tsx`（页面降到 248 行）；`DetailSections.tsx`
   290 行同理（报告 ⑦）。`AdminNotificationsPage` 同时是 I18N 六条共享线之一涉及文件的近邻，但 FormKit
@@ -474,7 +502,7 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
   - 三个测试豁免文件（#33/34/42）随被测组件消失豁免时，测试断言零改动（仅 import 来源变）。
 - **豁免数只减不增**：每阶段结束时
   `git grep -l "eslint-disable-next-line no-restricted-imports" -- src tests | wc -l` 的数字必须 **≤** 阶段开始值，
-  且每批次 `git status` 中被删豁免行的文件清单与本表一一对应。终态目标 74 → **27**（21 历史基线 + C 类 6）。
+  且每批次 `git status` 中被删豁免行的文件清单与本表一一对应。终态目标 74 → **20**（14 非 Form 基线 + C 类 6）。
 - **CI 同 scope 门禁全绿**（子代理只跑单文件 / 单目录，全量由脚本代跑）：
   - lint：`pnpm exec eslint src tests --concurrency=auto` 0 error，**warning 基线 168 不得净增**；
   - tsgo：`node node_modules/@typescript/native-preview/bin/tsgo --noEmit` 0 error；
