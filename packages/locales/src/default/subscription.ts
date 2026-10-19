@@ -1238,7 +1238,9 @@ export default {
   'admin.providers.field.apiKey': 'API key (API Key)',
   'admin.providers.field.apiKeyEditHint':
     'Leave blank to keep the current key; entering a new key replaces the current one.',
+  'admin.providers.field.apiKeyRequired': 'API key is required',
   'admin.providers.field.baseUrl': 'Base URL',
+  'admin.providers.field.baseUrlInvalid': 'Enter a valid URL',
   'admin.providers.field.baseUrlRequired': 'Base URL is required',
   'admin.providers.field.description': 'Description',
   'admin.providers.field.enabled': 'Enabled',
@@ -2014,6 +2016,7 @@ export default {
   'admin.desktopUpdate.checkInterval': 'Check interval (minutes)',
   'admin.desktopUpdate.checkInterval.help':
     'How often the desktop client checks for updates. Range: 1-1440 minutes.',
+  'admin.desktopUpdate.checkInterval.range': 'Check interval must be between 1 and 1440 minutes.',
   'admin.desktopUpdate.versionSection': 'Current Release Version',
   'admin.desktopUpdate.currentVersion': 'Current version',
   'admin.desktopUpdate.currentVersion.help':

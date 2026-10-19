@@ -9,9 +9,8 @@
  * sent. The offending fields are already marked in red underneath the input, so
  * the toast adds noise and hides the real reason.
  *
- * BrandPage / DistributionPage / UpdateSettingsPage already special-case this
- * with the Desktop-prefixed `isDesktopFormValidationError`; this is that same
- * check lifted out of the desktop-only module so every Admin form can share it.
+ * FormKit pages do not need this: `form.validate()` resolves `{ valid }`
+ * instead of rejecting, so validation returns before the save `try` block.
  */
 
 /** True when `error` is rc-field-form's validation rejection, not a save failure. */

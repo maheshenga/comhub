@@ -45,6 +45,15 @@ useFormContext`，**没有 `useForm` / `FormInstance`**。也就是说 base-ui F
   high 项（报告 ⑤/⑥/⑦）。本立项的隐含承诺是：**后续轮次不得再净增豁免**，存量只减不增（验收门禁见 §5）。
 - **非目标**：不做 antd 全量下线；不动 21 个历史基线豁免文件（AdminDataTable、ContentPage 等，属更早批次，
   另有 keep-antd 判据）；C 类 6 个不在本立项的 P0-P2 范围内（§4 P3 仅做逐个判据评审）。
+- **第十四轮完成态（2026-10-19）**：再迁 **10 个自包含文件**（DesktopControlCenter 5、Providers 2、
+  AdminNotificationsPage、AgentChat、RecordForm），R14 实测 `no-restricted-imports` 全仓 **39 文件 / 40 处**
+  （第十三轮结束为 47 文件 / 48 处；再往前 74/75）。剩余 10 个 FormKit 目标文件
+  （SettingsCards/SettingsTabs、FeaturedSection、SectionCards、PackageFormFields、ChannelCards、
+  PolicySections、SpacePreview/EntryMetaFields/CardListFields）**全部是 antd 基线父页持有的子字段组件**：
+  它们不创建 Form 实例，只渲染 `Form.Item` 并依赖隐式上下文，单独迁移会断链。必须与
+  `AdminSettingsPage / AdminOperationsPage / AdminRecommendationsPage / AdminTopUpPackagesPage /
+ChannelSettings / AdminModelPolicyPage / AdminExpertPlazaPage` 七个父页同批推进 —— 这已超出本立项
+  “不动 21 文件基线” 的非目标，需另立 P2b-2 批次（先父页、再子组件）。
 
 ---
 
@@ -299,7 +308,7 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
 > 实测对象：#35-#41 七个生产文件 + #42 AuthAgreement.test（随迁）+ 为保持行为等价而触达的
 > `src/app/[variants]/(auth)/signin/page.tsx` 接线文件。结论全部来自 `@lobehub/ui@5.57.1` FormKit 源码实读
 > （`Field.mjs` / `engine/tanstack.mjs` / `instance.mjs`）+ 迁移后真跑测试，非设计推断。实现形态与 upstream
-> 已迁移版本（`src/features/Auth/**`）逐点对齐，仅保留 fork 的 next/navigation/brand /props 契约。
+> 已迁移版本（`src/features/Auth/**`）逐点对齐，仅保留 fork 的 next/navigation/brand/props 契约。
 
 **J2 errorFields 判据（本域主考场，结论：`errorFields` 结构可完全退场）**：
 
@@ -358,6 +367,32 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
 本批 8 个文件的 `no-restricted-imports` 豁免行全部删除（工作区共享，当前全仓豁免计数 47 含其他施工线并发改动，
 不单独归因）。
 
+### 3.3.3 P2b/P2c 自包含批次实测结论（第十四轮，wt @ 1b1cdb5ba0e7 之后）
+
+> 实测对象：DesktopControlCenter（useDesktopSettingsFormSync + BrandPage / DistributionPage /
+> UpdateSettingsPage / CreateDesktopReleaseModal）、Providers（InstanceFormModal + GroupFieldsRow）、
+> AdminNotificationsPage、AgentChat、RecordForm，共 10 个文件。结论来自 `@lobehub/ui@5.57.1` 实跑。
+
+- **J2 动态校验**：`rules={[{required,message}]}` → `required="message"`；`rules=[{pattern}]` /
+  `{type:'url'}` / `{min,max,type:'number'}` 没有 FormKit 等价 rule，改为 `validate(value)` 返回错误串。
+  **pattern 对空值的语义**：antd 的 pattern 不校验空串，FormKit 的 `validate` 会执行，需显式
+  `if (value == null || value === '') return undefined`，否则可选字段会被误报。
+- **`disabled`**：FormKit `FormProps` 没有 `disabled`，`Form` 也没有字段上下文禁用面。本轮用
+  `<fieldset disabled={...}>` 包住字段区（重置 border/margin/padding/minWidth），跨浏览器语义与 antd 一致。
+- **`onValuesChange`**：它是 `useForm` 的 option，不是 `<Form>` prop。共享 hook 必须自己创建实例：
+  `useDesktopSettingsFormSync({hasData, initialValues, onDirtyChange})` 返回 `{form, dirtyFields, markSaved}`；
+  `useForm` 内部用 latest-options ref，回调每次渲染更新即可。
+- **J1 类型收口**：`useForm<T>()` 的泛型必须写全，否则 `getValues()` 返回 `FormValues`，传给
+  `buildProviderInstancePayload` 等强类型函数直接 TS2739。编辑回填不要 `...initial`（行里含
+  `null`、`apiKeyStatus`、`id`），值类型要求 `string | undefined` —— 逐字段 `?? ''` 映射，既过类型也不污染表单值。
+- **提交语义**：原生 submit（`htmlType="submit"`）由 FormKit `Form` 接管：`form.submit()` 校验后调用
+  `useForm({onSubmit})`。需要闭包内 state 时用 ref 转发（RecordForm 的 `submitRef`）。
+- **必填标记与测试**：FormKit 在 label 内渲染真实 `*` 文本节点（antd 是 CSS 伪元素），
+  `getByLabelText('Title')` 精确匹配会失败 → 沿用第十二轮结论，改 `{exact:false}`。
+- **行数红线**：InstanceFormModal 迁移后 303 行 → 把 `isAbsoluteUrl` 移到
+  `adminProviderInstanceForm.ts` 后 292 行。AdminNotificationsPage 300 行整 → 渠道区抽成
+  `Notifications/ChannelSettingsSection.tsx` 后 248 行。**迁移前先看 wc -l，别等门禁拦。**
+
 ### 3.4 同文件混合导入约定（迁移时沿用第八轮规范）
 
 普通组件 base-ui、Form 系留 antd 的混合文件在迁移时遵循第八轮已固化的拆行规范（报告 ②共性替换模式第 6 条）：
@@ -407,20 +442,20 @@ tsgo 全仓 0 新增（本批触点 0 错误）；53→45（B 类 -3 + 试点 A 
 ### P2：Admin 稠密表单域按页分批（32 个非测试 + 2 个测试）
 
 - 按 "先低难度（全文件仅 Form 系，整行删豁免）、再中难度（单条 Form 导入行混合文件）、后高难度（Form.List/ 联动）"：
-  - **P2a 低 6 个**：~~#2/14~~（**#2 已在 P0 完成**；#14 结论已出、随 P2b DesktopControlCenter 批次
-    三页联动迁）/13/22/23/24。
-  - **P2b 中 24 个**：按目录分 5 批 ——DesktopControlCenter（#3/9/10/11/12）、ExpertPlaza（#4 除外 #6/15/16）、
-    moduleApps 编辑器族（#17/19/20/21 + editors.test #34 + ProductManager 若在 P2a 未完成）、DefaultSettings/
-    components / 杂项（#1/5/6/8）、设置卡族（#25-#32 的 8 个卡 /tab 文件）。
-  - **P2c 高 4 个**：#4 CardListFields（Form.List + FormInstance）、~~#7 ProfileDefaultsCard（Form.List）~~
-    （**已在 P0 随试点 A 完成**，FormKit FormList 单参 render + newItem 实测形态见 §3.3.1）、
-    \#18 PageEditor（Form.List 受控）、#43 AgentChat（items=\[FormGroupItemType] + valuePropName +
-    SubmitFooter，P3 级复杂度但属本立项最后主菜）、#44 RecordForm（Rule \[] 动态 rules）。
-    （#43/44 建议独立小批次并先出迁移说明再动手。）
-- Admin 域硬约束（沿用现有规则）：非测试 .tsx ≤300 行 ——**`AdminNotificationsPage.tsx` 现 300 行整**
-  （本会话复测 `wc -l`），迁移任何改动前先拆子组件腾余量；`DetailSections.tsx` 290 行同理（报告 ⑦）。
-  `AdminNotificationsPage` 同时是 I18N 六条共享线之一涉及文件的近邻，但 FormKit 迁移**不改任何 t key**
-  （i18n key 与中英文值全部原样保留）。
+  - **P2a 低 6 个** ✅ 全部完成：#2（P0）、#13/22/23/24（第十二轮）、#14（第十四轮随 DesktopControlCenter 三页联动）。
+  - **P2b 中 24 个**：✅ 本轮完成自包含 8 个 ——DesktopControlCenter #3/9/10/11/12 + #14、Providers #27/28、
+    AdminNotifications #1；连同 P0/P2a 已完成的 #6/8/17/19/20/21/22/23/24。**剩余 9 个全部父页阻塞**：
+    \#5 PolicySections（AdminModelPolicyPage）、#15 SpacePreview / #16 EntryMetaFields / #4 CardListFields
+    （AdminExpertPlazaPage）、#25 FeaturedSection（AdminOperationsPage）、#26 ChannelCards（ChannelSettings）、
+    \#29 SectionCards（AdminRecommendationsPage）、#30/#31 SettingsCards/SettingsTabs（AdminSettingsPage）、
+    \#32 PackageFormFields（AdminTopUpPackagesPage）—— 子组件不创建实例、依赖 antd 隐式上下文，必须与父页同批。
+  - **P2c 高 4 个**：~~#7 ProfileDefaultsCard~~（P0）、~~#18 PageEditor~~（P2a）、~~#43 AgentChat~~ / ~~#44 RecordForm~~
+    （**第十四轮完成**：AgentChat 改用 FormKit `itemsType="group"` + `useForm({onSubmit})`；RecordForm 用
+    `required` + `validate` + `submitRef` 承接原生 submit）。#4 CardListFields 仍父页阻塞（见 P2b 剩余项）。
+- Admin 域硬约束（沿用现有规则）：非测试 .tsx ≤300 行 ——`AdminNotificationsPage.tsx` 迁移前 300 行整，
+  第十四轮已把渠道区抽成 `Notifications/ChannelSettingsSection.tsx`（页面降到 248 行）；`DetailSections.tsx`
+  290 行同理（报告 ⑦）。`AdminNotificationsPage` 同时是 I18N 六条共享线之一涉及文件的近邻，但 FormKit
+  迁移**不改任何既有 t key**（i18n key 与中英文值全部原样保留；本轮只新增校验文案 key）。
 
 ### P3：C 类 6 个逐个判据评审（本立项只评审、不实施）
 

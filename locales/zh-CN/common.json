@@ -1346,6 +1346,7 @@
   "moduleApps.runtime.records.create": "创建记录",
   "moduleApps.runtime.records.edit": "编辑记录",
   "moduleApps.runtime.records.empty": "暂无记录",
+  "moduleApps.runtime.records.invalid": "格式不正确",
   "moduleApps.runtime.records.loadError": "记录加载失败，请重试。",
   "moduleApps.runtime.records.required": "此字段为必填项",
   "moduleApps.runtime.records.saveError": "记录保存失败，请检查表单后重试。",

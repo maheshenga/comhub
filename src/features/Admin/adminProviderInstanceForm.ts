@@ -101,6 +101,19 @@ const cleanText = (value?: string) => {
   return trimmed || undefined;
 };
 
+/** FormKit has no `type: 'url'` rule, so the provider form validates with this. */
+export const isAbsoluteUrl = (value: unknown) => {
+  if (typeof value !== 'string' || !value) return false;
+
+  try {
+    const url = new URL(value);
+
+    return Boolean(url.protocol && url.host);
+  } catch {
+    return false;
+  }
+};
+
 export const buildProviderInstancePayload = (
   values: ProviderInstanceFormValues,
   options: { isEdit?: boolean } = {},
