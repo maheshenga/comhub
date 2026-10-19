@@ -1,8 +1,7 @@
 'use client';
 
 import { Alert, Button, Input, RadioGroup, Switch, TextArea } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form, type FormInstance } from 'antd';
+import { Form, type FormInstance } from '@lobehub/ui/base-ui/form';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
@@ -12,11 +11,11 @@ import {
 } from '@/features/Admin/adminModelPolicySettings';
 
 import { AdminFormGrid, AdminSection } from '../layout';
-import { normalizeListText } from './keys';
+import { type FormValues, normalizeListText } from './keys';
 
 interface PolicySectionsProps {
   defaultModelOptions: { label: string; value: string }[];
-  form: FormInstance;
+  form: FormInstance<FormValues>;
   isLoading: boolean;
 }
 
@@ -25,11 +24,11 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
   const navigate = useNavigate();
 
   const handleNormalizeAllowlist = () => {
-    form.setFieldValue('allowlistText', normalizeListText(form.getFieldValue('allowlistText')));
+    form.setValue('allowlistText', normalizeListText(form.getValue('allowlistText')));
   };
 
   const handleNormalizeBlocklist = () => {
-    form.setFieldValue('blocklistText', normalizeListText(form.getFieldValue('blocklistText')));
+    form.setValue('blocklistText', normalizeListText(form.getValue('blocklistText')));
   };
 
   return (
@@ -54,14 +53,14 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
         )}
       >
         <AdminFormGrid>
-          <Form.Item
+          <Form.Field
             label={t('admin.modelPolicy.enabled', '启用全局模型策略')}
             name="enabled"
-            valuePropName="checked"
+            valueProp="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item label={t('admin.modelPolicy.mode', '策略模式')} name="mode">
+          </Form.Field>
+          <Form.Field label={t('admin.modelPolicy.mode', '策略模式')} name="mode">
             <RadioGroup
               options={[
                 {
@@ -74,7 +73,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
                 },
               ]}
             />
-          </Form.Item>
+          </Form.Field>
         </AdminFormGrid>
       </AdminSection>
 
@@ -87,7 +86,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
         )}
       >
         <AdminFormGrid>
-          <Form.Item
+          <Form.Field
             label={t('admin.modelPolicy.allowlist', '允许列表')}
             name="allowlistText"
             extra={t(
@@ -100,8 +99,8 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
               rows={6}
               onBlur={handleNormalizeAllowlist}
             />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.modelPolicy.blocklist', '禁用列表')}
             name="blocklistText"
             extra={t(
@@ -114,7 +113,7 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
               rows={6}
               onBlur={handleNormalizeBlocklist}
             />
-          </Form.Item>
+          </Form.Field>
         </AdminFormGrid>
       </AdminSection>
 
@@ -127,21 +126,21 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
         )}
       >
         <AdminFormGrid>
-          <Form.Item
+          <Form.Field
             label={t('admin.modelPolicy.applyToEmbeddings', '应用到向量模型')}
             name="applyToEmbeddings"
-            valuePropName="checked"
+            valueProp="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.modelPolicy.applyToGenerateObject', '应用到结构化输出')}
             name="applyToGenerateObject"
-            valuePropName="checked"
+            valueProp="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item
+          </Form.Field>
+          <Form.Field
             label={t('admin.modelPolicy.fallback', '默认兜底模型')}
             name="defaultModelFallback"
             extra={t(
@@ -150,16 +149,16 @@ const PolicySections = ({ defaultModelOptions, form }: PolicySectionsProps) => {
             )}
           >
             <Input list="admin-model-policy-fallback-options" placeholder="gpt-4o-mini" />
-          </Form.Item>
+          </Form.Field>
         </AdminFormGrid>
         <datalist id="admin-model-policy-fallback-options">
           {defaultModelOptions.map((item) => (
             <option key={item.value} value={item.value} />
           ))}
         </datalist>
-        <Form.Item label={t('admin.modelPolicy.deniedMessage', '拒绝提示')} name="deniedMessage">
+        <Form.Field label={t('admin.modelPolicy.deniedMessage', '拒绝提示')} name="deniedMessage">
           <TextArea rows={3} />
-        </Form.Item>
+        </Form.Field>
       </AdminSection>
     </>
   );

@@ -1,8 +1,7 @@
 'use client';
 
-import { Alert, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form + Form.List/字段级校验（rc-field-form 的 errorFields 契约是本 PR 判据的基础）；Input/InputNumber/Switch/Typography 为受控表单字段控件，属 #135 keep-antd 豁免清单，迁 FormKit 属另行立项。
-import { Button, Form, Typography } from 'antd';
+import { Alert, Button, Text, toast } from '@lobehub/ui/base-ui';
+import { Form, useForm, useWatch } from '@lobehub/ui/base-ui/form';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,9 +20,6 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import AdminSettingsGovernanceCard from './AdminSettingsGovernanceCard';
 import { AdminFormActions, AdminPageError, AdminPageShell } from './layout';
 import SettingsTabs from './Settings/SettingsTabs';
-import { isFormValidationError } from './shared/adminFormErrors';
-
-const { Text } = Typography;
 
 const AdminSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
@@ -39,11 +35,11 @@ const AdminSettingsPage = memo(() => {
     ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage'),
     () => adminCommercialService.getSettingsSection('file-storage'),
   );
-  const [form] = Form.useForm<AdminSettingsFormValues>();
+  const form = useForm<AdminSettingsFormValues>({ initialValues: buildFormValues() });
   const [materializing, setMaterializing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const watchedValues = Form.useWatch([], form) as Partial<AdminSettingsFormValues> | undefined;
+  const watchedValues = useWatch(form, (values) => values);
   const initialValues = useMemo(() => buildFormValues(data), [data]);
   const pendingUpdates = buildSettingUpdates(watchedValues ?? initialValues, initialValues);
   const hasPendingChanges = pendingUpdates.length > 0;
@@ -51,14 +47,17 @@ const AdminSettingsPage = memo(() => {
 
   useEffect(() => {
     if (!data) return;
-    form.setFieldsValue(buildFormValues(data));
+    form.setValues(buildFormValues(data));
   }, [data, form]);
 
   const handleSave = async () => {
     if (!data) return;
 
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       const updates = buildSettingUpdates(values, initialValues);
 
       if (updates.length === 0) {
@@ -75,9 +74,8 @@ const AdminSettingsPage = memo(() => {
       }
 
       toast.success(t('admin.settings.saveSuccess', '设置已保存'));
-    } catch (error) {
-      if (!isFormValidationError(error))
-        toast.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
+    } catch {
+      toast.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
     } finally {
       setSubmitting(false);
     }
@@ -86,8 +84,11 @@ const AdminSettingsPage = memo(() => {
   const handleMaterializeDefaults = async () => {
     if (!data) return;
 
+    const { valid } = await form.validate();
+    if (!valid) return;
+
     try {
-      const values = await form.validateFields();
+      const values = form.getValues();
       const updates = buildSettingMaterializationUpdates(values);
 
       setMaterializing(true);
@@ -129,29 +130,34 @@ const AdminSettingsPage = memo(() => {
 
       <AdminSettingsGovernanceCard />
 
-      <Form disabled={isLoading || !data} form={form} layout="vertical">
-        <SettingsTabs form={form} uploadPublicUrlPrefix={uploadPublicUrlPrefix} />
+      <Form form={form} layout="vertical">
+        <fieldset
+          disabled={isLoading || !data}
+          style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
+        >
+          <SettingsTabs uploadPublicUrlPrefix={uploadPublicUrlPrefix} />
 
-        <AdminFormActions label={t('admin.settings.actions', '站点设置操作')}>
-          {hasPendingChanges ? (
-            <Text type="secondary">有 {pendingUpdates.length} 项待保存</Text>
-          ) : null}
-          <Button
-            disabled={isLoading || !data || submitting}
-            loading={materializing}
-            onClick={handleMaterializeDefaults}
-          >
-            {t('admin.settings.materializeDefaults', '同步推荐默认配置')}
-          </Button>
-          <Button
-            disabled={isLoading || !data || !hasPendingChanges || materializing}
-            loading={submitting}
-            type="primary"
-            onClick={handleSave}
-          >
-            {t('admin.settings.save', '保存设置')}
-          </Button>
-        </AdminFormActions>
+          <AdminFormActions label={t('admin.settings.actions', '站点设置操作')}>
+            {hasPendingChanges ? (
+              <Text type="secondary">有 {pendingUpdates.length} 项待保存</Text>
+            ) : null}
+            <Button
+              disabled={isLoading || !data || submitting}
+              loading={materializing}
+              onClick={handleMaterializeDefaults}
+            >
+              {t('admin.settings.materializeDefaults', '同步推荐默认配置')}
+            </Button>
+            <Button
+              disabled={isLoading || !data || !hasPendingChanges || materializing}
+              loading={submitting}
+              type="primary"
+              onClick={handleSave}
+            >
+              {t('admin.settings.save', '保存设置')}
+            </Button>
+          </AdminFormActions>
+        </fieldset>
       </Form>
     </AdminPageShell>
   );

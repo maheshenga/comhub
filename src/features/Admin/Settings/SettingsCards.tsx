@@ -1,8 +1,7 @@
 'use client';
 
 import { Input, Switch } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与受控字段绑定，无 base-ui 行为不变等价物；迁 FormKit 属另行立项。
-import { Form } from 'antd';
+import { Form } from '@lobehub/ui/base-ui/form';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -14,14 +13,14 @@ export const BrandSettingsCard = () => {
 
   return (
     <Card>
-      <Form.Item
+      <Form.Field
         extra={t('admin.settings.brandName.help', '用于页面标题、导航、关于页面和站内品牌展示。')}
         label={t('admin.settings.brandName', '品牌名称')}
         name="brandName"
       >
         <Input placeholder="玄果 AI" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.brandLoadingText', '加载页文案')}
         name="brandLoadingText"
         extra={t(
@@ -30,8 +29,8 @@ export const BrandSettingsCard = () => {
         )}
       >
         <Input placeholder="与 Agent 团队一起无限进步" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.brandLoadingSvgUrl', 'Loading SVG URL')}
         name="brandLoadingSvgUrl"
         extra={t(
@@ -40,8 +39,8 @@ export const BrandSettingsCard = () => {
         )}
       >
         <Input placeholder="/images/brand/loading.svg" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.brandAuthTitle', '登录页主文案')}
         name="brandAuthTitle"
         extra={t(
@@ -50,7 +49,7 @@ export const BrandSettingsCard = () => {
         )}
       >
         <Input placeholder="Agent teammates that grow with you" />
-      </Form.Item>
+      </Form.Field>
     </Card>
   );
 };
@@ -64,7 +63,7 @@ export const AssistantSettingsCard = ({
 
   return (
     <Card>
-      <Form.Item
+      <Form.Field
         label={t('admin.settings.defaultAgentName', '助手名称')}
         name="defaultAgentName"
         extra={t(
@@ -73,8 +72,8 @@ export const AssistantSettingsCard = ({
         )}
       >
         <Input placeholder="玄果助手" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.defaultAgentAvatar', '助手头像代码')}
         name="defaultAgentAvatar"
         extra={t(
@@ -86,8 +85,8 @@ export const AssistantSettingsCard = ({
           placeholder={DEFAULT_COMHUB_AGENT_AVATAR}
           publicUrlPrefix={uploadPublicUrlPrefix}
         />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.defaultSkillName', '默认技能名称')}
         name="defaultSkillName"
         extra={t(
@@ -96,7 +95,7 @@ export const AssistantSettingsCard = ({
         )}
       >
         <Input placeholder={t('admin.settings.defaultSkillName.placeholder', '玄果技能')} />
-      </Form.Item>
+      </Form.Field>
     </Card>
   );
 };
@@ -106,18 +105,18 @@ export const EntryCopySettingsCard = () => {
 
   return (
     <Card>
-      <Form.Item
+      <Form.Field
         label={t('admin.settings.homeMessengerEnabled', '启用首页聊天平台入口')}
         name="homeMessengerEnabled"
-        valuePropName="checked"
+        valueProp="checked"
         extra={t(
           'admin.settings.homeMessengerEnabled.help',
           '关闭后首页聊天框下方不会再随机显示聊天平台入口；/settings/messenger 功能页仍保留。',
         )}
       >
         <Switch />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.homeMessengerBannerTitle', '首页聊天平台文案')}
         name="homeMessengerBannerTitle"
         extra={t(
@@ -126,8 +125,8 @@ export const EntryCopySettingsCard = () => {
         )}
       >
         <Input placeholder="在你喜爱的聊天应用中，与 {{brandName}} 畅聊" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.communityForkAndChatLabel', '社区派生按钮文字')}
         name="communityForkAndChatLabel"
         extra={t(
@@ -136,8 +135,8 @@ export const EntryCopySettingsCard = () => {
         )}
       >
         <Input placeholder="派生并聊天" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.communitySkillUseButtonLabel', 'Skill 使用按钮文字')}
         name="communitySkillUseButtonLabel"
         extra={t(
@@ -146,8 +145,8 @@ export const EntryCopySettingsCard = () => {
         )}
       >
         <Input placeholder="在 QingyouAI 上使用" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.sidebarMemberLabel', '侧栏会员按钮名称')}
         name="sidebarMemberLabel"
         extra={t(
@@ -156,8 +155,8 @@ export const EntryCopySettingsCard = () => {
         )}
       >
         <Input placeholder="会员" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.sidebarMemberUrl', '侧栏会员按钮链接')}
         name="sidebarMemberUrl"
         extra={t(
@@ -166,8 +165,8 @@ export const EntryCopySettingsCard = () => {
         )}
       >
         <Input placeholder="/settings/plans" />
-      </Form.Item>
-      <Form.Item
+      </Form.Field>
+      <Form.Field
         label={t('admin.settings.sidebarGenerationLabel', '侧栏生成按钮名称')}
         name="sidebarGenerationLabel"
         extra={t(
@@ -176,7 +175,7 @@ export const EntryCopySettingsCard = () => {
         )}
       >
         <Input placeholder="生成" />
-      </Form.Item>
+      </Form.Field>
     </Card>
   );
 };
