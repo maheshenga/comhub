@@ -493,9 +493,9 @@
 - **Situation**: `init-dev-env.sh setup-db` needs Docker (paradedb + redis images), but
   Docker Desktop's VM can wedge indefinitely (`no route to host` to 192.168.65.x, empty
   vm/console.log). Verified working substitute:
-  - **Postgres**: local brew Postgres 17 (pgvector available). The only paradedb-specific
-    migrations are `0090_enable_pg_search` / `0093_add_bm25_indexes_with_icu` — no-op them
-    in the worktree (`SELECT 1;`), everything else applies clean.
+  - **Postgres**: local brew Postgres 17 (pgvector available). Migrations apply clean: the
+    `pg_search` / BM25 migrations skip themselves without the extension. Set
+    `FTS_SEARCH_PROVIDER=pg_like` so product search works.
   - **Redis is a hard dependency of Better Auth sign-in** — with a dead REDIS_URL the seed
     login 500s (`[Better Auth]: Error: Connection is closed`). `brew install redis`,
     `redis-server --port 6380 --daemonize yes`.
@@ -1183,8 +1183,8 @@ the prewarm warning mentions `redirect count exceeded`.
   the cause; clearing `node_modules/.vite` does NOT fix it.
 - **Doesn't work:** clearing the Vite deps cache, restarting the dev server,
   `pnpm dedupe @lobehub/ui` (peer sets differ, instances survive).
-- **Works:** temporarily add `resolve: { dedupe: ['@lobehub/ui', 'antd-style',
-  'motion', 'react', 'react-dom'] }` to the cloud root `vite.config.ts` +
+- **Works:** temporarily add `resolve: { dedupe: ['@lobehub/ui',
+'motion', 'react', 'react-dom'] }` to the cloud root `vite.config.ts` +
   `rm -rf node_modules/.vite`, and REVERT the config after capturing evidence
   (snapshot the file first — it may carry uncommitted edits).
 

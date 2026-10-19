@@ -1,9 +1,8 @@
 'use client';
 
 import { SOCIAL_URL } from '@lobechat/business-const';
-import { type MenuProps } from '@lobehub/ui';
-import { DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
-import { ActionIcon } from '@lobehub/ui/base-ui';
+import { type DropdownItem } from '@lobehub/ui';
+import { ActionIcon, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
 import { DiscordIcon, GithubIcon } from '@lobehub/ui/icons';
 import { createStaticStyles } from 'antd-style';
 import {
@@ -100,7 +99,13 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
-type FooterMenuItems = NonNullable<MenuProps['items']>;
+type FooterMenuItems = NonNullable<DropdownItem[]>;
+
+/**
+ * Wrap each clickable menu item with a unified click tracker, preserving any
+ * existing onClick. Skips dividers and items without a key. Used to measure
+ * which footer menu entries get clicked (breakdown by `key`).
+ */
 const injectMenuTracking = (
   items: FooterMenuItems,
   track: (key: string) => void,

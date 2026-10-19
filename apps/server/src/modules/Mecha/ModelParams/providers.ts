@@ -1,6 +1,10 @@
 import type { LobeChatDatabase } from '@lobechat/database';
 import type { ModelCardFacts, ModelParamsProviders } from '@lobechat/mecha';
-import { hasModelReasoningValues, type LobeDefaultAiModelListItem } from 'model-bank';
+import {
+  hasModelReasoningValues,
+  type AiModelConfig,
+  type LobeDefaultAiModelListItem,
+} from 'model-bank';
 
 import { loadAdminModelDefaults, modelDefaultsKey } from '@/business/server/modelDefaults';
 import { AiModelModel } from '@/database/models/aiModel';
@@ -85,6 +89,10 @@ export const createServerModelParamsProviders = ({
       if (!row) return null;
       return {
         abilities: row.abilities,
+        // Deployment-catalog providers resolve the request model by this alias
+        // (merged over the bundled card when the facts freeze); without it the
+        // transport injects the catalog default instead of the user's endpoint.
+        deploymentName: (row.config as AiModelConfig | null)?.deploymentName ?? null,
         displayName: row.displayName,
         extendParams: row.settings?.extendParams ?? undefined,
       };

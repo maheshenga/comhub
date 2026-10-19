@@ -10,6 +10,7 @@ import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { createCallerFactory, router } from '@/libs/trpc/lambda';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
+import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { type AiProviderDetailItem, type AiProviderRuntimeState } from '@/types/aiProvider';
 
 import { aiProviderRouter } from '../aiProvider';
@@ -64,6 +65,18 @@ vi.mock('@/database/repositories/aiInfra');
 vi.mock('@/database/models/aiModel');
 vi.mock('@/database/models/aiProvider');
 vi.mock('@/database/models/user');
+
+const resolveProviderRelay = vi.hoisted(() => vi.fn());
+vi.mock('@/server/modules/AgentRuntime/llmRelay/resolveLlmExecutionSite', () => ({
+  resolveProviderRelay,
+}));
+// A deployment that can relay (Agent Gateway + Redis); one that cannot keeps
+// calling the provider from the server.
+vi.mock('@/server/modules/AgentRuntime/redis', () => ({ getAgentRuntimeRedisClient: () => ({}) }));
+vi.mock('@/server/modules/AgentRuntime/factory', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createStreamEventManager: () => ({ openLlmRelayChannel: vi.fn(), sendLlmExecute: vi.fn() }),
+}));
 vi.mock('@lobechat/business-const', async () => {
   const actual = await vi.importActual<typeof BusinessConst>('@lobechat/business-const');
 
@@ -138,6 +151,7 @@ describe('aiProviderRouter', () => {
         ...mockProviderDetail,
         checkModel: 'gpt-4o-mini',
       });
+
       vi.mocked(AiInfraRepos).prototype.getAiProviderDetail = mockGetDetail;
       runtimeMocks.initModelRuntimeFromDB.mockResolvedValue({ chat: mockChat });
 
@@ -166,6 +180,44 @@ describe('aiProviderRouter', () => {
         },
         { metadata: { trigger: RequestTrigger.Api } },
       );
+    });
+
+    // A relayed check streams even with `stream: false`: the device's provider
+    // failure is an `error` event in a 200 body, not an error status.
+    it('reports a provider error carried in the response stream as a failed check', async () => {
+      const body = 'event: error\ndata: {"errorType":"OllamaServiceUnavailable"}\n\n';
+      vi.mocked(AiInfraRepos).prototype.getAiProviderDetail = vi
+        .fn()
+        .mockResolvedValue({ ...mockProviderDetail, checkModel: 'gpt-4' });
+      vi.mocked(initModelRuntimeFromDB).mockResolvedValue({
+        chat: vi.fn().mockResolvedValue(new Response(body)),
+      } as any);
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.checkProviderConnectivity({ id: mockProviderId });
+
+      expect(result).toEqual({
+        error: '{"errorType":"OllamaServiceUnavailable"}',
+        model: 'gpt-4',
+        ok: false,
+      });
+    });
+
+    it('reports a device-only provider checked with no browser tab attached (CLI)', async () => {
+      resolveProviderRelay.mockResolvedValueOnce({ runtimeProvider: 'ollama' });
+      vi.mocked(AiInfraRepos).prototype.getAiProviderDetail = vi
+        .fn()
+        .mockResolvedValue({ ...mockProviderDetail, checkModel: 'qwen3:1.7b' });
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.checkProviderConnectivity({ id: 'ollama' });
+
+      expect(result).toEqual({
+        error: 'ClientLlmExecutorUnavailable',
+        model: 'qwen3:1.7b',
+        ok: false,
+      });
+      expect(initModelRuntimeFromDB).not.toHaveBeenCalled();
     });
   });
 

@@ -1624,6 +1624,48 @@
       "when": 1791828457022,
       "tag": "0188_module_app_publisher_suspension_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1792164852927,
+      "tag": "0189_trash_project_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1792164852928,
+      "tag": "0190_agent_accounts_live_unique_and_goal_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1792164852929,
+      "tag": "0191_workspace_teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1792164852930,
+      "tag": "0192_distinct_intervention_callbacks",
+      "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1792164852931,
+      "tag": "0193_task_archived_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1792164852932,
+      "tag": "0194_linear_integration",
+      "breakpoints": true
     }
   ],
   "version": "6"

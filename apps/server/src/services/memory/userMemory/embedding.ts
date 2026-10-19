@@ -3,8 +3,8 @@ import type { ModelRuntime } from '@lobechat/model-runtime';
 import { RequestTrigger, type SpendOrigin } from '@lobechat/types';
 
 import { getResolvedMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
-import { trimBasedOnBatchProbe } from '@/utils/chunkers';
 import { encodeAsync } from '@/utils/tokenizer';
+import { resolveEmbeddingTokenLimit, trimEmbeddingInput } from '@/utils/tokenizer/embedding';
 
 export interface UserMemoryEmbeddingRuntime {
   /**
@@ -76,8 +76,11 @@ export const embedUserMemoryTexts = async (
   params: EmbedUserMemoryTextsParams,
 ): Promise<Array<number[] | undefined>> => {
   // TODO: Prefer model-bank capability metadata for the embedding input window when available.
-  const tokenLimit =
-    params.embeddingContextLimit ?? (await getResolvedMemoryExtractionConfig()).embedding.contextLimit;
+  const tokenLimit = resolveEmbeddingTokenLimit(
+    params.model,
+    params.embeddingContextLimit ??
+      (await getResolvedMemoryExtractionConfig()).embedding.contextLimit,
+  );
   const requests: Array<{ index: number; text: string }> = [];
 
   for (const [index, value] of params.input.entries()) {
@@ -86,7 +89,7 @@ export const embedUserMemoryTexts = async (
     const trimmedValue = value.trim();
     if (!trimmedValue) continue;
 
-    const text = tokenLimit ? await trimBasedOnBatchProbe(trimmedValue, tokenLimit) : trimmedValue;
+    const text = await trimEmbeddingInput(trimmedValue, params.model, tokenLimit);
     const normalizedText = text.trim();
     if (!normalizedText) continue;
 

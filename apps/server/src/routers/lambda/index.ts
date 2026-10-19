@@ -20,6 +20,7 @@ import { workspaceCreditsRouter } from '@/business/server/lambda-routers/workspa
 import { workspaceCredsRouter } from '@/business/server/lambda-routers/workspaceCreds';
 import { workspaceDataRouter } from '@/business/server/lambda-routers/workspaceData';
 import { workspaceMemberRouter } from '@/business/server/lambda-routers/workspaceMember';
+import { workspaceTeamRouter } from '@/business/server/lambda-routers/workspaceTeam';
 import { workspaceUsageRouter } from '@/business/server/lambda-routers/workspaceUsage';
 import { publicProcedure, router } from '@/libs/trpc/lambda';
 
@@ -87,6 +88,7 @@ import { oauthAppRouter } from './oauthApp';
 import { oauthDeviceFlowRouter } from './oauthDeviceFlow';
 import { pluginRouter } from './plugin';
 import { projectRouter } from './project';
+import { projectWorkingDirectoryRouter } from './projectWorkingDirectory';
 import { pushTokenRouter } from './pushToken';
 import { ragEvalRouter } from './ragEval';
 import { recentRouter } from './recent';
@@ -109,6 +111,7 @@ import { usageRouter } from './usage';
 import { userRouter } from './user';
 import { userMemoriesRouter } from './userMemories';
 import { userMemoryRouter } from './userMemory';
+import { userSkillRouter } from './userSkill';
 import { verifyRouter } from './verify';
 import { videoRouter } from './video';
 import { webBrowsingRouter } from './webBrowsing';
@@ -184,6 +187,7 @@ export const lambdaRouter = router({
   oauthDeviceFlow: oauthDeviceFlowRouter,
   plugin: pluginRouter,
   project: projectRouter,
+  projectWorkingDirectory: projectWorkingDirectoryRouter,
   pushToken: pushTokenRouter,
   ragEval: ragEvalRouter,
   recent: recentRouter,
@@ -205,6 +209,7 @@ export const lambdaRouter = router({
   user: userRouter,
   userMemories: userMemoriesRouter,
   userMemory: userMemoryRouter,
+  userSkill: userSkillRouter,
   verify: verifyRouter,
   video: videoRouter,
   webBrowsing: webBrowsingRouter,
@@ -216,6 +221,7 @@ export const lambdaRouter = router({
   workspaceCredits: workspaceCreditsRouter,
   workspaceData: workspaceDataRouter,
   workspaceMember: workspaceMemberRouter,
+  workspaceTeam: workspaceTeamRouter,
   workspaceUsage: workspaceUsageRouter,
   workspaceUserSettings: workspaceUserSettingsRouter,
   accountDeletion: accountDeletionRouter,

@@ -1,7 +1,6 @@
-import { Flexbox, type FlexboxProps } from '@lobehub/ui';
+import { Avatar, Flexbox, Text, type FlexboxProps } from '@lobehub/ui';
 import { type TypewriterEffectProps } from '@lobehub/ui/awesome';
 import { TypewriterEffect } from '@lobehub/ui/awesome';
-import { Avatar, Text } from '@lobehub/ui/base-ui';
 import { LoadingDots } from '@lobehub/ui/chat';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

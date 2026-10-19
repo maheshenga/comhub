@@ -100,6 +100,15 @@ describe('systemStatusSelectors', () => {
       expect(systemStatusSelectors.portalWidth(noPortalWidth)).toBe(400);
     });
 
+    it('should show the working overview by default only while the right panel is closed', () => {
+      const at = (status: { showRightPanel?: boolean; showWorkingOverview?: boolean }) =>
+        systemStatusSelectors.showWorkingOverview(merge(initialState, { status }));
+
+      expect(at({ showRightPanel: false, showWorkingOverview: undefined })).toBe(true);
+      expect(at({ showRightPanel: true, showWorkingOverview: undefined })).toBe(false);
+      expect(at({ showRightPanel: true, showWorkingOverview: true })).toBe(true);
+    });
+
     it('should return workingSidebarWidth from status, defaulting to 360', () => {
       expect(
         systemStatusSelectors.workingSidebarWidth(
@@ -142,6 +151,19 @@ describe('systemStatusSelectors', () => {
           }),
         ),
       ).toBe(360);
+    });
+  });
+
+  describe('topicPageSize', () => {
+    it('defaults to 20', () => {
+      expect(systemStatusSelectors.topicPageSize(initialState)).toBe(20);
+    });
+
+    // A value above the server's `getTopics` cap failed every topic list
+    // request; earlier builds could persist one from the project sidebar.
+    it('clamps a persisted value above the server cap', () => {
+      const s: GlobalState = merge(initialState, { status: { topicPageSize: 140 } });
+      expect(systemStatusSelectors.topicPageSize(s)).toBe(100);
     });
   });
 
@@ -270,6 +292,8 @@ describe('systemStatusSelectors', () => {
         status: { sidebarItems: stored },
       });
       expect(systemStatusSelectors.sidebarItems(null)(s)).toEqual([
+        // Defaults missing from a saved layout (here the newer `dashboard`) are backfilled.
+        'dashboard',
         'private',
         'agent',
         'recents',
@@ -289,6 +313,7 @@ describe('systemStatusSelectors', () => {
     it('should preserve a canonically-positioned spacer', () => {
       const stored = [
         'pages',
+        'dashboard',
         'project',
         'recents',
         'private',
@@ -327,6 +352,7 @@ describe('systemStatusSelectors', () => {
       expect(systemStatusSelectors.sidebarItems(null)(s)).toEqual([
         'tasks',
         'pages',
+        'dashboard',
         'recents',
         'project',
         'private',
@@ -376,6 +402,7 @@ describe('systemStatusSelectors', () => {
       // the legacy state was saved) is backfilled at the head of the block.
       expect(items).toEqual([
         'tasks',
+        'dashboard',
         'resource',
         'private',
         'agent',
@@ -400,6 +427,7 @@ describe('systemStatusSelectors', () => {
       // backfilled at the head of the block; recents/agent keep legacy order.
       expect(items).toEqual([
         'tasks',
+        'dashboard',
         'resource',
         'private',
         'recents',

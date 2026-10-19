@@ -1,6 +1,6 @@
 'use client';
 
-import { type MenuProps } from '@lobehub/ui';
+import { type DropdownItem } from '@lobehub/ui';
 import { Icon } from '@lobehub/ui';
 import { Hash, LucideCheck } from 'lucide-react';
 import { useMemo } from 'react';
@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 
-export const useDropdownMenu = (): MenuProps['items'] => {
+export const useDropdownMenu = (): DropdownItem[] => {
   const { t } = useTranslation();
 
   const [pagePageSize, updateSystemStatus] = useGlobalStore((s) => [

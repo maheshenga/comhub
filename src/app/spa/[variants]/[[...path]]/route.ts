@@ -57,6 +57,7 @@ async function buildClientEnv(): Promise<SPAClientEnv> {
 
   return {
     marketBaseUrl: appEnv.MARKET_BASE_URL,
+    marketSkillInstallBaseUrl: appEnv.MARKET_SKILL_INSTALL_BASE_URL,
     pyodideIndexUrl: pythonEnv.NEXT_PUBLIC_PYODIDE_INDEX_URL,
     pyodidePipIndexUrl: pythonEnv.NEXT_PUBLIC_PYODIDE_PIP_INDEX_URL,
     s3FilePath: s3Config.filePath || fileEnv.NEXT_PUBLIC_S3_FILE_PATH,

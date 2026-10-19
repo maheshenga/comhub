@@ -1,5 +1,4 @@
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, Input, Select, Text, Tooltip } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Icon, Input, Select, Text, Tooltip } from '@lobehub/ui';
 // eslint-disable-next-line no-restricted-imports -- antd DatePicker.RangePicker 的 value/onChange 是 Dayjs 对象契约（dateRange 过滤链 dayjs.isBefore/isAfter 全链耦合），base-ui DateRangePicker 是 Date 契约，行为不变迁移需重写过滤逻辑；TableColumnType 类型随 InlineTable 的 antd 列契约保留。
 import { DatePicker, type TableColumnType } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';

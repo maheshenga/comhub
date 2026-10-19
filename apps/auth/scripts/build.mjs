@@ -130,11 +130,6 @@ const main = async () => {
 
   buildPass(DEFAULT_PRERENDER_LOCALE, 'build');
 
-  // Emitted before the locale passes so their documents can be checked against
-  // the complete asset set they reference.
-  console.log('\n=== Static CSS ===');
-  runNodeBin(path.join(appRoot, 'scripts/emit-static-css.mjs'), []);
-
   for (const route of [...PRERENDER_ROUTES, '']) {
     const document = path.join(defaultClient, prerenderOutputDir(route), 'index.html');
     await assertDocument(

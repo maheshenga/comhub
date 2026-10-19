@@ -15,18 +15,18 @@ vi.mock('@/components/LobeIcons', () => ({
   ProviderIcon: ({ provider }: { provider: string }) => <span>{provider}</span>,
 }));
 
-vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@lobehub/ui', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
 
-vi.mock('@lobehub/ui/base-ui', () => ({
-  ActionIcon: ({ 'aria-label': ariaLabel }: { 'aria-label'?: string }) => (
-    <button aria-label={ariaLabel} type="button" />
-  ),
-  Avatar: ({ avatar, title }: { avatar?: string | null; title?: string }) => (
-    <span aria-label={title} data-testid="active-user-avatar">{avatar}</span>
-  ),
-}));
+  return {
+    ...actual,
+    Avatar: ({ avatar, title }: { avatar?: string | null; title?: string }) => (
+      <span aria-label={title} data-testid="active-user-avatar">
+        {avatar}
+      </span>
+    ),
+  };
+});
 
 vi.mock('@/components/StatisticCard', () => ({
   default: ({

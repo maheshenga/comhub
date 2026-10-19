@@ -1,7 +1,6 @@
 'use client';
 
-import { Center, Flexbox, Icon } from '@lobehub/ui';
-import { createStaticStyles } from 'antd-style';
+import { Center, createStaticStyles, Flexbox, Icon } from '@lobehub/ui';
 import { MessageSquareHeart } from 'lucide-react';
 import { type PropsWithChildren } from 'react';
 import { memo } from 'react';

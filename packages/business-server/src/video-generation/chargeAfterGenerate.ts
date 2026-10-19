@@ -17,7 +17,7 @@ import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
 
 interface ChargeParams {
-  computePriceParams?: { generateAudio?: boolean; resolution?: string };
+  computePriceParams?: { duration?: number; generateAudio?: boolean; resolution?: string };
   db?: LobeChatDatabase;
   isError?: boolean;
   /** Total time from task submission to webhook callback (ms) */
