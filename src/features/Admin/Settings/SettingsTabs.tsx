@@ -1,10 +1,8 @@
 'use client';
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input, Select, Tabs, Text } from '@lobehub/ui/base-ui';
-import { Form } from '@lobehub/ui/base-ui/form';
-import { cssVar } from 'antd-style';
+import { Button, cssVar,Flexbox, Input, Select, Tabs, Text } from '@lobehub/ui';
+import { Form } from '@lobehub/ui/form';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

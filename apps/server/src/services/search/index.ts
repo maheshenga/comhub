@@ -196,7 +196,9 @@ export class SearchService {
           getMemorySnapshot(),
         );
       }
-    } catch {}
+    } catch {
+      // Diagnostics must never fail the crawl.
+    }
 
     const { Crawler } = await import('@lobechat/web-crawler');
     const crawler = new Crawler(this.crawlerOptions);
@@ -228,7 +230,9 @@ export class SearchService {
           if (log.enabled) {
             log('crawlWithRetry:result crawler=%s mem=%s', result.crawler, getMemorySnapshot());
           }
-        } catch {}
+        } catch {
+          // Diagnostics must never fail the crawl.
+        }
         lastResult = result;
 
         if (!this.isFailedCrawlResult(result)) {
@@ -329,7 +333,9 @@ export class SearchService {
           getMemorySnapshot(),
         );
       }
-    } catch {}
+    } catch {
+      // Diagnostics must never fail the search.
+    }
 
     let lastSuccessfulEmpty: UniformSearchResponse | undefined;
 
@@ -342,9 +348,11 @@ export class SearchService {
             getMemorySnapshot(),
           );
         }
-      } catch {}
+        } catch {
+          // Diagnostics must never fail the search.
+        }
 
-      let currentParams = buildSearchParams({
+        let currentParams = buildSearchParams({
         searchCategories,
         searchEngines: impl.useAutoSearchEngineSelection ? undefined : searchEngines,
         searchTimeRange,

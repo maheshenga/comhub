@@ -10,8 +10,6 @@ import { fileService } from '@/services/file';
 import { ragService } from '@/services/rag';
 import { shareChatService } from '@/services/shareChat';
 import { UPLOAD_NETWORK_ERROR } from '@/services/upload';
-import { getAgentStoreState } from '@/store/agent';
-import { agentByIdSelectors } from '@/store/agent/selectors';
 import { type UploadFileListDispatch } from '@/store/file/reducers/uploadFileList';
 import { uploadFileListReducer } from '@/store/file/reducers/uploadFileList';
 import { type StoreSetter } from '@/store/types';
@@ -299,6 +297,14 @@ export class FileActionImpl {
     // the selectors below would always say "plain chat" by accident. Make it
     // explicit: share uploads are parsed on the creator's account, so only the
     // parseable whitelist is ever accepted there.
+    // Dynamic imports: the file slice is created while `@/store/file` itself is
+    // initializing, and the agent store reaches back here through the chat
+    // store. Resolving the agent bindings at call time keeps the module graph
+    // acyclic so `createFileSlice` is defined when the file store builds.
+    const [{ getAgentStoreState }, { agentByIdSelectors }] = await Promise.all([
+      import('@/store/agent'),
+      import('@/store/agent/selectors'),
+    ]);
     const agentState = getAgentStoreState();
     const enforceFileTypeWhitelist =
       !!shareId ||

@@ -1,8 +1,7 @@
 'use client';
 
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, InputNumber, Switch, Tag, Text } from '@lobehub/ui/base-ui';
+import { Alert, Button, Flexbox, InputNumber, Switch, Tag, Text } from '@lobehub/ui';
 import { Space } from 'antd';
 
 import { MATRIX_DISCARD_LABEL } from '@/features/Admin/adminMatrixCopy';

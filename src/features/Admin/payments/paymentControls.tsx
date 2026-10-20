@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Input, Modal, Select, TextArea  } from '@lobehub/ui/base-ui';
+import { Alert, Button, Input, Modal, Select, TextArea  } from '@lobehub/ui';
 import { Space } from 'antd';
 import { Search } from 'lucide-react';
 import type * as React from 'react';

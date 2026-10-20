@@ -83,13 +83,6 @@ import {
 } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { S3 } from '@/server/modules/S3';
-import {
-  type MemoryRuntimeModelType,
-  type MemoryRuntimeTargets,
-  getMemoryRuntimeCacheKey,
-  initMemoryRuntimeFromTarget,
-  resolveMemoryRuntimeTargets,
-} from './memoryRuntimeTargets';
 import { getUserScopedAiProviderRuntimeState } from '@/server/services/aiProviderAccess';
 import { createFtsSearchRepo } from '@/server/services/ftsSearch';
 import { recordUserMemoryLexicalSearchDecision } from '@/server/services/ftsSearch/observability';
@@ -108,6 +101,14 @@ import { LayersEnum, MemorySourceType, TypesEnum } from '@/types/userMemory';
 import { trimBasedOnBatchProbe } from '@/utils/chunkers';
 import { encodeAsync } from '@/utils/tokenizer';
 import { resolveEmbeddingTokenLimit, trimEmbeddingInput } from '@/utils/tokenizer/embedding';
+
+import {
+  getMemoryRuntimeCacheKey,
+  initMemoryRuntimeFromTarget,
+  type MemoryRuntimeModelType,
+  type MemoryRuntimeTargets,
+  resolveMemoryRuntimeTargets,
+} from './memoryRuntimeTargets';
 
 const SOURCE_ALIAS_MAP: Record<string, MemorySourceType> = {
   benchmark_locomo: MemorySourceType.BenchmarkLocomo,

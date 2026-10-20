@@ -52,7 +52,7 @@ const baseUiMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+vi.mock('@lobehub/ui', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
 
   return {

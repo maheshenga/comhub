@@ -9,8 +9,7 @@ import type {
   ModuleAppDeveloperRevenueSummary,
   ModuleAppDeveloperVersionSummary,
 } from '@lobechat/types';
-import { Icon } from '@lobehub/ui';
-import { Button, confirmModal, Input, SkeletonText, Tabs, Text, toast } from '@lobehub/ui/base-ui';
+import { Button, confirmModal, Icon, Input, SkeletonText, Tabs, Text, toast } from '@lobehub/ui';
 import { EyeOff, RefreshCw, Rocket, RotateCcw } from 'lucide-react';
 import { type FormEvent, memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

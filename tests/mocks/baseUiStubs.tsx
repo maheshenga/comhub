@@ -1,5 +1,5 @@
 /**
- * Canonical simplified-DOM stubs for `@lobehub/ui/base-ui` atoms. Prefer the
+ * Canonical simplified-DOM stubs for `@lobehub/ui` atoms. Prefer the
  * real components — the vitest config already stubs their MotionProvider so
  * they render without app-level providers. Use this only when a test wants
  * simplified DOM, composed over the real module so no export ever goes missing:

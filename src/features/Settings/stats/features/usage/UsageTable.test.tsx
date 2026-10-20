@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
+import type * as LobeUIBaseModule from '@lobehub/ui';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
@@ -25,27 +25,23 @@ vi.mock('@lobehub/icons', () => ({
   ProviderIcon: ({ provider }: { provider: string }) => <span>{provider}</span>,
 }));
 
-vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Input: (props: Record<string, unknown>) => <input {...props} />,
-  Tag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Tooltip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-}));
-
 vi.mock('@/components/SpendType', () => ({
   default: ({ children, type }: { children?: ReactNode; type: string }) => (
     <span data-testid={`spend-type-${type}`}>{children}</span>
   ),
 }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+vi.mock('@lobehub/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof LobeUIBaseModule>();
 
   return {
     ...actual,
+    DayjsDateRangePicker: () => <div data-testid="usage-date-range" />,
+    Flexbox: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Input: ({ allowClear: _allowClear, ...props }: Record<string, unknown>) => <input {...props} />,
+    Tag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    Tooltip: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     Button: ({ children, ...props }: { children: ReactNode }) => (
       <button {...props}>{children}</button>
     ),
@@ -77,9 +73,6 @@ vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
 });
 
 vi.mock('antd', () => ({
-  DatePicker: Object.assign(({ children }: { children?: ReactNode }) => <div>{children}</div>, {
-    RangePicker: () => <div data-testid="usage-date-range" />,
-  }),
   Input: (props: Record<string, unknown>) => <input {...props} />,
   Select: ({ options = [], ...props }: { options?: Array<{ label: string; value: string }> }) => (
     <select {...props}>

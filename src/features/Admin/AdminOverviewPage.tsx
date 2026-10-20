@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Button, Tag } from '@lobehub/ui';
 import { ArrowRight, GitPullRequest, Settings } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

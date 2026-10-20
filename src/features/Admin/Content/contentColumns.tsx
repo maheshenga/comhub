@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Tag, Text } from '@lobehub/ui';
 import type { TableColumnsType } from 'antd';
 import { Space } from 'antd';
 

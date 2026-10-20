@@ -8,6 +8,7 @@ const agentState = vi.hoisted(() => ({ isInbox: true, title: 'Inbox' }));
 
 vi.mock('@lobehub/ui', () => ({
   ActionIcon: () => null,
+  cssVar: { colorFillSecondary: '#eee', colorTextDescription: '#888' },
   Flexbox: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('@lobehub/ui/mobile', () => ({
@@ -18,9 +19,12 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: () => 'New topic' 
 vi.mock('@/features/MobileWorkspace/useMobileConfig', () => ({
   useMobileConfig: () => ({ config: { brand: { displayName: 'Qingyou AI' } } }),
 }));
+vi.mock('@/hooks/useFetchActiveTopicDetail', () => ({
+  useFetchActiveTopicDetail: vi.fn(),
+}));
 vi.mock('@/store/agent', () => ({ useAgentStore: (selector: () => unknown) => selector() }));
 vi.mock('@/store/agent/selectors', () => ({
-  agentSelectors: { currentAgentTitle: () => agentState.title },
+  agentSelectors: { currentAgentDisplayName: () => agentState.title },
   builtinAgentSelectors: { isInboxAgent: () => agentState.isInbox },
 }));
 vi.mock('@/store/chat', () => ({ useChatStore: (selector: () => unknown) => selector() }));

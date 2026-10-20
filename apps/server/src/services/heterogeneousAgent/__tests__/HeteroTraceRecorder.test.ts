@@ -18,7 +18,7 @@ class FakeSnapshotStore implements ISnapshotStore {
     const p = this.partials.get(operationId);
     // return a deep clone so the recorder mutating the loaded object doesn't
     // accidentally short-circuit the persist round-trip we want to exercise.
-    return p ? (JSON.parse(JSON.stringify(p)) as Partial<ExecutionSnapshot>) : null;
+    return p ? structuredClone(p) : null;
   }
   async savePartial(
     operationId: string,

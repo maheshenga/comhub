@@ -33,7 +33,11 @@ vi.mock('@/libs/swr', () => ({
     return { data: state.data, error: state.error, isLoading: false };
   },
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
+  CopyButton: ({ content }: any) => <button data-content={content} type="button" />,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
   InputNumber: ({ max, min, onChange, ...props }: any) => (
     <input

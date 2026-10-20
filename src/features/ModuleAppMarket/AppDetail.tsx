@@ -4,9 +4,16 @@ import type {
   PaymentCreateResult,
   PaymentMethodId,
 } from '@lobechat/types';
-import { A } from '@lobehub/ui';
-import { Button, buttonStyles, confirmModal, DropdownMenu, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cx } from 'antd-style';
+import {
+  A,
+  Button,
+  buttonStyles,
+  confirmModal,
+  createStaticStyles,
+  cx,
+  DropdownMenu,
+  toast,
+} from '@lobehub/ui';
 import { Archive, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

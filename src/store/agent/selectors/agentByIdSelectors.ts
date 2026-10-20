@@ -223,7 +223,12 @@ export const agentByIdSelectors = {
   getAgencyConfigById,
   getAgentBuilderContextById,
   getAgentById,
-  getAgentConfigById: agentSelectors.getAgentConfigById,
+  // Delegate at call time, not at module-eval time: this barrel can be entered
+  // while `./selectors` is still evaluating (selectors → initialState → slices →
+  // chat store → its agent selectors import), and the eager reference would
+  // capture `undefined`.
+  getAgentConfigById: (agentId: string) => (s: AgentStoreState) =>
+    agentSelectors.getAgentConfigById(agentId)(s),
   getAgentConfigErrorById,
   getAgentEnableModeById,
   getAgentFilesById,

@@ -85,7 +85,10 @@ vi.mock('../../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuar
 const antdDisabledContext = () =>
   require('antd/lib/config-provider/DisabledContext').default as React.Context<boolean>;
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Input: ({ onChange, disabled: customDisabled, ...props }: any) => {
     const DisabledContext = antdDisabledContext();
     const ctxDisabled = React.use(DisabledContext);

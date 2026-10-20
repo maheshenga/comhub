@@ -26,6 +26,10 @@ vi.mock('@/features/AgentGroupAvatar', () => ({
   ),
 }));
 vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+
   ActionIcon: ({ disabled, loading, onClick, title }: any) => (
     <button
       aria-label={title}
@@ -38,10 +42,6 @@ vi.mock('@lobehub/ui', () => ({
   Avatar: ({ avatar, background }: any) => (
     <div data-avatar={avatar} data-background={background} data-testid="agent-avatar" />
   ),
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Icon: () => null,
-}));
-vi.mock('@lobehub/ui/base-ui', () => ({
   DropdownMenu: ({ children, items }: any) => (
     <div>
       {children}
@@ -52,6 +52,8 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       ))}
     </div>
   ),
+  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  Icon: () => null,
 }));
 
 const item = (patch: Partial<MobileRecentConversation> = {}): MobileRecentConversation => ({

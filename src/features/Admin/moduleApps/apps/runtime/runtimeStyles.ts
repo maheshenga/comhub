@@ -1,6 +1,6 @@
 'use client';
 
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles } from '@lobehub/ui';
 
 /** ModuleAppRuntimePage 及其子区块共享样式（M5 拆页抽离）。 */
 export const runtimeStyles = createStaticStyles(({ css, cssVar }) => ({

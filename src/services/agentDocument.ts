@@ -3,7 +3,6 @@ import { type AgentContextDocument } from '@lobechat/context-engine';
 
 import { lambdaClient, withLlmRelay } from '@/libs/trpc/client';
 import { invalidateDocumentMutation } from '@/services/document/invalidation';
-import { oneShotRelay } from '@/services/llmRelay';
 import { useUserStore } from '@/store/user';
 import { systemAgentSelectors } from '@/store/user/selectors';
 import { toAgentContextDocuments } from '@/utils/agentDocumentContextMapping';
@@ -281,6 +280,11 @@ class AgentDocumentService {
    * reaches is relayed back to this tab (one-shot relay).
    */
   generateSkillMeta = async (params: { agentId: string; sourceAgentDocumentId: string }) => {
+    // Dynamic import: `@/services/llmRelay` reaches the chat store through the
+    // server-config/electron slices, and this service is imported by the agent
+    // store while its slices are still being created. Resolving the relay here
+    // keeps the module graph acyclic for the agent store's own init.
+    const { oneShotRelay } = await import('@/services/llmRelay');
     const { provider } = systemAgentSelectors.agentMeta(useUserStore.getState());
     return oneShotRelay.run(provider, (relay) =>
       lambdaClient.agentDocument.generateSkillMeta.mutate(params, withLlmRelay(relay)),

@@ -21,6 +21,21 @@ import { initialAIModelState } from './initialState';
 import { aiModelListResource } from './projection';
 import { aiModelSelectors } from './selectors';
 
+const aiModelServiceMock = vi.hoisted(() => ({
+  batchToggleAiModels: vi.fn(),
+  batchUpdateAiModels: vi.fn(),
+  clearModelsByProvider: vi.fn(),
+  clearRemoteModels: vi.fn(),
+  createAiModel: vi.fn(),
+  deleteAiModel: vi.fn(),
+  getAiModelReasoningConfig: vi.fn(),
+  getAiProviderModelList: vi.fn(),
+  toggleModelEnabled: vi.fn(),
+  updateAiModel: vi.fn(),
+  updateAiModelOrder: vi.fn(),
+  updateAiModelReasoningConfig: vi.fn(),
+}));
+
 vi.mock('i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof I18nextModule>();
   return {
@@ -28,6 +43,11 @@ vi.mock('i18next', async (importOriginal) => {
     t: vi.fn((key: string) => key),
   };
 });
+
+// The slice resolves the service through `import('@/services/aiModel')` at call
+// time. Pin the module to one hoisted instance so spies stay attached across
+// the `vi.resetModules()` calls the dynamic `@/services/models` cases need.
+vi.mock('@/services/aiModel', () => ({ aiModelService: aiModelServiceMock }));
 
 vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -981,9 +1001,15 @@ describe('AiModelAction', () => {
     });
 
     it('keeps each provider in its own replica entry', async () => {
-      vi.spyOn(aiModelService, 'getAiProviderModelList').mockImplementation(async (id: string) => [
-        model(`${id}-model`, id),
-      ]);
+      const implementation = async (id: string) => [model(`${id}-model`, id)];
+      vi.spyOn(aiModelService, 'getAiProviderModelList').mockImplementation(implementation);
+      // The slice resolves the service with `import('@/services/aiModel')` per
+      // fetch. The second key's revalidation lands on the actual module instance,
+      // so patch that one as well to keep both providers offline.
+      const actual = await vi.importActual<typeof import('@/services/aiModel')>(
+        '@/services/aiModel',
+      );
+      vi.spyOn(actual.aiModelService, 'getAiProviderModelList').mockImplementation(implementation);
 
       renderHook(() => useStore.getState().useFetchAiProviderModels('provider-a'), { wrapper });
       renderHook(() => useStore.getState().useFetchAiProviderModels('provider-b'), { wrapper });

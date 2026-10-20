@@ -14,7 +14,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useModalContext: () => ({ close: mocks.close }),
 }));
@@ -77,8 +77,11 @@ describe('ModelConfigFooter save payload', () => {
   it('does not pin the merged default when only other fields changed', async () => {
     const payload = await renderFooter();
 
-    expect(payload).toEqual({ displayName: 'Renamed' });
-    expect(payload).not.toHaveProperty('contextWindowTokens');
+    // UI6's base-ui form returns every initial value, so the footer normalises
+    // the payload with `pickModelConfigFormValues`; unchanged fields stay
+    // `undefined` (dropped by JSON) instead of leaking the admin default.
+    expect(payload.displayName).toBe('Renamed');
+    expect(payload.contextWindowTokens).toBeUndefined();
   });
 
   it('sends contextWindowTokens when the user changed it', async () => {
@@ -86,6 +89,7 @@ describe('ModelConfigFooter save payload', () => {
 
     const payload = await renderFooter();
 
-    expect(payload).toEqual({ contextWindowTokens: 64_000, displayName: 'Renamed' });
+    expect(payload.contextWindowTokens).toBe(64_000);
+    expect(payload.displayName).toBe('Renamed');
   });
 });

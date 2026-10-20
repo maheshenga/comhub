@@ -84,7 +84,6 @@ const mapAttachmentTypeToUploadMediaType = (
     case 'audio': {
       return WechatUploadMediaType.VOICE;
     }
-    case 'file':
     default: {
       return WechatUploadMediaType.FILE;
     }
@@ -117,7 +116,6 @@ const buildMediaItemFromUpload = (
         voice_item: { media: cdnMedia },
       };
     }
-    case WechatUploadMediaType.FILE:
     default: {
       return {
         file_item: {

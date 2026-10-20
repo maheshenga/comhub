@@ -1888,7 +1888,7 @@ describe('ConversationLifecycle actions', () => {
             loaded = true;
           },
         );
-        vi.spyOn(aiModelSelectors, 'modelReasoningConfig').mockReturnValue(() => ({
+        vi.spyOn(aiModelSelectors, 'modelEffectiveReasoningConfig').mockReturnValue(() => ({
           reasoningEffort: 'high',
         }));
         const newTopicId = TEST_IDS.NEW_TOPIC_ID;

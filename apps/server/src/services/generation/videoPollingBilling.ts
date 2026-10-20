@@ -1,8 +1,9 @@
+import type { SpendOrigin } from '@lobechat/types';
+import debug from 'debug';
+
 import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import type { LobeChatDatabase } from '@/database/type';
-import debug from 'debug';
-import type { SpendOrigin } from '@lobechat/types';
 
 const log = debug('lobe-video:billing-settle');
 

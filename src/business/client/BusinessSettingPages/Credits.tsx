@@ -1,9 +1,7 @@
 'use client';
 
-import { Empty, Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Button, createStaticStyles, cssVar,Empty, Flexbox, Tag } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
-import { createStaticStyles, cssVar } from 'antd-style';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWRInfinite from 'swr/infinite';

@@ -23,7 +23,7 @@ import { aiModelSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useChatStore } from '@/store/chat';
 import { useToolStore } from '@/store/tool';
 import { useUserStore } from '@/store/user';
-import { settingsSelectors } from '@/store/user/selectors';
+import { settingsSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
 
 import * as chatHelper from './helper';
 import { chatService } from './index';
@@ -56,9 +56,11 @@ const mockCreateHeaderWithAuth = vi.hoisted(() =>
   vi.fn(async ({ headers }: { headers: Record<string, string> }) => headers),
 );
 
-// Helper to compute expected date content from SystemDateProvider
+// Helper to compute expected date content from SystemDateProvider. The prompt
+// renders in the user's timezone (browser fallback), so the expectation must
+// use the same source instead of assuming the CI machine runs in UTC.
 const getCurrentDateContent = () => {
-  const tz = 'UTC';
+  const tz = userGeneralSettingsSelectors.currentTimezone(useUserStore.getState()) || 'UTC';
   const today = new Date();
   const year = today.toLocaleString('en-US', { timeZone: tz, year: 'numeric' });
   const month = today.toLocaleString('en-US', { month: '2-digit', timeZone: tz });
@@ -524,7 +526,7 @@ describe('ChatService', () => {
         vi.spyOn(aiModelSelectors, 'modelExtendParams').mockReturnValue(() => ['reasoningEffort']);
         // The user-level model-instance config supplies the effort; the legacy
         // agent chatConfig value below must be ignored by the resolver
-        vi.spyOn(aiModelSelectors, 'modelReasoningConfig').mockReturnValue(() => ({
+        vi.spyOn(aiModelSelectors, 'modelEffectiveReasoningConfig').mockReturnValue(() => ({
           reasoningEffort: 'high',
         }));
 
@@ -558,7 +560,7 @@ describe('ChatService', () => {
         ]);
         // Reasoning fields are user-level model-instance settings now — agent
         // chatConfig values are ignored by the resolver
-        vi.spyOn(aiModelSelectors, 'modelReasoningConfig').mockReturnValue(() => ({
+        vi.spyOn(aiModelSelectors, 'modelEffectiveReasoningConfig').mockReturnValue(() => ({
           deepseekV4ReasoningEffort: 'max',
         }));
 
@@ -592,7 +594,7 @@ describe('ChatService', () => {
         vi.spyOn(aiModelSelectors, 'modelExtendParams').mockReturnValue(() => [
           'deepseekV4ReasoningEffort',
         ]);
-        vi.spyOn(aiModelSelectors, 'modelReasoningConfig').mockReturnValue(() => ({
+        vi.spyOn(aiModelSelectors, 'modelEffectiveReasoningConfig').mockReturnValue(() => ({
           deepseekV4ReasoningEffort: 'none',
         }));
 
@@ -2265,7 +2267,7 @@ describe('ChatService private methods', () => {
       vi.spyOn(aiModelSelectors, 'modelExtendParams').mockReturnValue(() => ['reasoningEffort']);
       // The user-level model-instance config supplies the effort; the legacy
       // agent chatConfig value below must be ignored by the resolver
-      vi.spyOn(aiModelSelectors, 'modelReasoningConfig').mockReturnValue(() => ({
+      vi.spyOn(aiModelSelectors, 'modelEffectiveReasoningConfig').mockReturnValue(() => ({
         reasoningEffort: 'high',
       }));
 

@@ -4,8 +4,6 @@ import { type PartialDeep } from 'type-fest';
 import { type VersionResponseData } from '@/app/(backend)/api/version/route';
 import { BusinessGlobalService } from '@/business/client/services/BusinessGlobalService';
 import { lambdaClient } from '@/libs/trpc/client';
-import { getElectronStoreState } from '@/store/electron';
-import { electronSyncSelectors } from '@/store/electron/selectors';
 import { type LobeAgentConfig } from '@/types/agent';
 import { type GlobalRuntimeConfig } from '@/types/serverConfig';
 
@@ -29,8 +27,16 @@ class GlobalService extends BusinessGlobalService {
    * @throws Error for other failures (network errors, 500s, etc.) to allow SWR retry
    */
   getServerVersion = async (): Promise<string | null> => {
-    const origin = (() => {
+    const origin = await (async () => {
       if (isDesktop) {
+        // Dynamic imports: the electron store reaches the chat store through its
+        // sync actions, and the chat store's agent-run slices import this service
+        // chain (gateway helpers → server config → global service) while they are
+        // still being evaluated.
+        const [{ getElectronStoreState }, { electronSyncSelectors }] = await Promise.all([
+          import('@/store/electron'),
+          import('@/store/electron/selectors'),
+        ]);
         const remoteServerUrl = electronSyncSelectors.remoteServerUrl(getElectronStoreState());
         if (!remoteServerUrl) return undefined;
 

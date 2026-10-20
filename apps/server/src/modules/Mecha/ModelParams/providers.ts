@@ -1,8 +1,8 @@
 import type { LobeChatDatabase } from '@lobechat/database';
 import type { ModelCardFacts, ModelParamsProviders } from '@lobechat/mecha';
 import {
-  hasModelReasoningValues,
   type AiModelConfig,
+  hasModelReasoningValues,
   type LobeDefaultAiModelListItem,
 } from 'model-bank';
 

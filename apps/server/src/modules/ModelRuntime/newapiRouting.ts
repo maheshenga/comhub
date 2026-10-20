@@ -67,7 +67,6 @@ export const resolveAdminRuntimeProvider = (
     case 'opencode-go': {
       return ModelProvider.OpenCodeCodingPlan;
     }
-    case 'newapi':
     default: {
       return ModelProvider.NewAPI;
     }
@@ -179,7 +178,7 @@ export const initModelRuntimeFromNewapiRoute = async (params: {
   userId: string;
   workspaceId?: string;
 }): Promise<ModelRuntime | undefined> => {
-  const { db, options, provider, userId, workspaceId } = params;
+  const { db, provider, userId, workspaceId } = params;
 
   const adminManagedInstance =
     provider === ModelProvider.NewAPI

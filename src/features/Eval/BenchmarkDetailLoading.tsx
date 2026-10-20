@@ -1,6 +1,4 @@
-import { Flexbox } from '@lobehub/ui';
-import { Skeleton } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar } from 'antd-style';
+import { createStaticStyles, cssVar,Flexbox, Skeleton } from '@lobehub/ui';
 
 import { Card } from '@/components/antd-compat/Card';
 

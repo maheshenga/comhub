@@ -44,9 +44,8 @@ describe('admin operations management experience', () => {
     for (const filePath of operationPages) {
       const page = readRepoFile(filePath);
 
-      expect(page, filePath).toMatch(
-        /import \{[^}]*\bButton\b[^}]*\} from '@lobehub\/ui\/base-ui'/,
-      );
+      // UI6 merges the former `@lobehub/ui/base-ui` barrel into the root.
+      expect(page, filePath).toMatch(/import \{[^}]*\bButton\b[^}]*\} from '@lobehub\/ui'/);
       expect(page, filePath).not.toMatch(/import \{[^}]*\bButton\b[^}]*\} from 'antd'/);
       expect(page, filePath).toContain('disabled={isLoading || !data');
     }

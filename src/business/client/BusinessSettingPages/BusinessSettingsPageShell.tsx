@@ -1,6 +1,6 @@
 'use client';
 
-import { createStaticStyles, cx } from 'antd-style';
+import { createStaticStyles, cx } from '@lobehub/ui';
 import { type FC, type ReactNode } from 'react';
 
 import SettingHeader from '@/features/Settings/features/SettingHeader';

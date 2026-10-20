@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Modal, Select, TextArea } from '@lobehub/ui/base-ui';
+import { Flexbox, Modal, Select, TextArea } from '@lobehub/ui';
 import { useTranslation } from 'react-i18next';
 
 import type { AdminSubscriptionCycle } from '../adminSubscriptionCycles';

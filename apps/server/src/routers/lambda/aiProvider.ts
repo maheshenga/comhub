@@ -118,7 +118,10 @@ export const aiProviderRouter = router({
           workspaceId,
         });
         const modelRuntime = relay
-          ? await initModelRuntimeForRequest(ctx.serverDB, ctx.userId, input.id, { workspaceId })
+          ? await initModelRuntimeForRequest(ctx.serverDB, ctx.userId, input.id, {
+              relay,
+              workspaceId,
+            })
           : await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.id, {
               model,
               modelType: 'chat',

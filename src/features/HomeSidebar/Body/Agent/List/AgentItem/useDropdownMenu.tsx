@@ -594,7 +594,6 @@ export const useAgentDropdownMenu = ({
       navigate,
       pinned,
       id,
-      avatar,
       title,
       name,
       pinAgent,

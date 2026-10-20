@@ -218,10 +218,10 @@ describe('videoBackgroundPolling', () => {
     });
 
     it('bills output tokens from the downloaded video when the provider reports no usage', async () => {
-      // Resolved once to poll and once to charge
-      vi.mocked(resolveBusinessModelMapping)
-        .mockResolvedValueOnce({ resolvedModelId: 'bytedance/seedance-2.5' } as any)
-        .mockResolvedValueOnce({ resolvedModelId: 'bytedance/seedance-2.5' } as any);
+      // The polling service resolves the mapping once and reuses it for billing
+      vi.mocked(resolveBusinessModelMapping).mockResolvedValueOnce({
+        resolvedModelId: 'bytedance/seedance-2.5',
+      } as any);
       mockModelRuntime.handlePollVideoStatus.mockResolvedValue({
         status: 'success',
         videoUrl: 'https://example.com/video.mp4',

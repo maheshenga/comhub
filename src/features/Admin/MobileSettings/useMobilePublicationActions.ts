@@ -1,6 +1,6 @@
 'use client';
 
-import { confirmModal } from '@lobehub/ui/base-ui';
+import { confirmModal } from '@lobehub/ui';
 import { type Dispatch, type SetStateAction, useRef, useState } from 'react';
 
 import { type MobilePublicConfigV1, normalizeMobileConfig } from '@/const/mobileConfig';

@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from 'vitest';
 import TitleWithPercentage from './TitleWithPercentage';
 
 vi.mock('@lobehub/ui', () => ({
+  // UI6 keeps the antd-style tokens on the root barrel.
+  cssVar: { colorSuccess: 'var(--ant-color-success)', colorWarning: 'var(--ant-color-warning)' },
   Flexbox: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Tag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Text: ({

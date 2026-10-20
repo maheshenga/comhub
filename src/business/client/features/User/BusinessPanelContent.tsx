@@ -1,6 +1,4 @@
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles,Flexbox, Icon } from '@lobehub/ui';
 import { Crown, WalletCards } from 'lucide-react';
 
 import {

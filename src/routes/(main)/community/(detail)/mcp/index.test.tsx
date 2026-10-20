@@ -29,8 +29,16 @@ vi.mock('@/hooks/useQuery', () => ({
 }));
 
 vi.mock('@/store/discover', () => ({
-  useDiscoverStore: (selector: (state: { useFetchMcpDetail: typeof mocks.useFetchMcpDetail }) => unknown) =>
-    selector({ useFetchMcpDetail: mocks.useFetchMcpDetail }),
+  useDiscoverStore: (
+    selector: (state: {
+      mcpDetailMap: Record<string, { identifier: string }>;
+      useFetchMcpDetail: typeof mocks.useFetchMcpDetail;
+    }) => unknown,
+  ) =>
+    selector({
+      mcpDetailMap: { 'mcp-detail-key': { identifier: 'open/mcp' } },
+      useFetchMcpDetail: mocks.useFetchMcpDetail,
+    }),
 }));
 
 vi.mock('../features/Toc/useToc', () => ({
@@ -50,6 +58,7 @@ describe('McpDetailPage', () => {
     mocks.useFetchMcpDetail.mockReturnValue({
       data: { identifier: 'open/mcp' },
       isLoading: false,
+      queryKey: 'mcp-detail-key',
     });
 
     render(<McpDetailPage />);

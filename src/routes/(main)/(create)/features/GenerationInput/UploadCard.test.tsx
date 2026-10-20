@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
+  Spin: () => <span data-testid="spin" />,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
   ActionIcon: ({ onClick }: any) => (
     <button data-testid="remove-upload" type="button" onClick={onClick}>
       remove

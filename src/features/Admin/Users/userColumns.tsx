@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar, Button, Select, Tag } from '@lobehub/ui/base-ui';
+import { Avatar, Button, Select, Tag } from '@lobehub/ui';
 import type { TableColumnsType } from 'antd';
 import { Space } from 'antd';
 

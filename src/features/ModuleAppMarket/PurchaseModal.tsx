@@ -8,19 +8,19 @@ import type {
   PaymentMethodId,
   PaymentProvider,
 } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
 import {
   ActionIcon,
   Alert,
   Button,
+  createStaticStyles,
+  Flexbox,
   FloatingSheet,
   Modal,
   QRCode,
   Segmented,
   Tag,
   Text,
-} from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+} from '@lobehub/ui';
 import { X } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

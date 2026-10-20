@@ -56,9 +56,13 @@ describe('admin system management experience', () => {
     // base-ui Modal import moved with the RunResultModal block.
     // B4/B5 收敛：base-ui 导入并集含 Alert/toast（message→toast、Alert→base-ui）。
     // 第八轮：antd Descriptions 迁 base-ui（同 import 合并 Modal+Descriptions）。
-    expect(page).toContain("import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui'");
-    expect(readRepoFile('src/features/Admin/SystemMaintenance/RunResultModal.tsx')).toContain(
-      "import { Descriptions, Modal } from '@lobehub/ui/base-ui'",
+    // UI6 merges the former `@lobehub/ui/base-ui` barrel into the root, and the
+    // grouped import is shared with the page's other root primitives (Flexbox).
+    expect(page).toMatch(
+      /import \{[^}]*\bAlert\b[^}]*\bButton\b[^}]*\bSelect\b[^}]*\btoast\b[^}]*\} from '@lobehub\/ui'/,
+    );
+    expect(readRepoFile('src/features/Admin/SystemMaintenance/RunResultModal.tsx')).toMatch(
+      /import \{[^}]*\bDescriptions\b[^}]*\bModal\b[^}]*\} from '@lobehub\/ui'/,
     );
   });
 
@@ -68,7 +72,8 @@ describe('admin system management experience', () => {
     expect(page).toContain('AdminPageShell');
     expect(page).toContain('AdminSection');
     // B4/B5 收敛：Alert 随全域 no-restricted-imports 收敛并入 base-ui 导入。
-    expect(page).toContain("import { Alert, Button } from '@lobehub/ui/base-ui'");
+    // UI6 后 base-ui 与根桶合并，Flexbox 等根桶原语共享同一 import。
+    expect(page).toMatch(/import \{[^}]*\bAlert\b[^}]*\bButton\b[^}]*\} from '@lobehub\/ui'/);
     expect(page).not.toContain('padding={24}');
     expect(page).not.toContain('style={{ maxWidth');
   });

@@ -7,9 +7,7 @@ import {
   hasAdminCapability,
   isFullAdminRole,
 } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input, Select, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles,Flexbox, Input, Select, toast } from '@lobehub/ui';
 import { Download } from 'lucide-react';
 import type * as React from 'react';
 import { memo, useState } from 'react';

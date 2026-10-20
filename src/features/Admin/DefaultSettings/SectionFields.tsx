@@ -1,12 +1,11 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Alert, InputPassword, Select, Switch, TextArea } from '@lobehub/ui/base-ui';
+import { Alert, Flexbox, InputPassword, Select, Switch, TextArea } from '@lobehub/ui';
 import {
   Form,
   type FormInstance,
   type FormInstance as LooseFormInstance,
-} from '@lobehub/ui/base-ui/form';
+} from '@lobehub/ui/form';
 
 import { Card } from '@/components/antd-compat/Card';
 import type { DefaultModelOption } from '@/features/Admin/adminSettingsForm';

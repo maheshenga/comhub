@@ -24,8 +24,10 @@ describe('BriefCardSummary', () => {
   it('should render summary text', async () => {
     vi.mocked(useSize).mockReturnValue(undefined);
     render(<BriefCardSummary summary="Test summary content" />);
+    // UI6's Markdown chunk takes ~20s to transform on a cold module graph
+    // (measured), so the 10s budget was too tight for the first render.
     expect(
-      await screen.findByText('Test summary content', {}, { timeout: 10_000 }),
+      await screen.findByText('Test summary content', {}, { timeout: 60_000 }),
     ).toBeInTheDocument();
   });
 

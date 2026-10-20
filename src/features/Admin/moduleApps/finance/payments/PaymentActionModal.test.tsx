@@ -16,7 +16,9 @@ vi.mock('antd', () => ({
       </div>
     ) : null,
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
   Modal: (props: any) =>
     props.open ? (

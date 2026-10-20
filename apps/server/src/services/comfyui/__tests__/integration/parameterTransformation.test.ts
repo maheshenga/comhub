@@ -9,11 +9,8 @@ import { buildFluxDevWorkflow } from '@/server/services/comfyui/workflows/flux-d
 import { buildFluxKontextWorkflow } from '@/server/services/comfyui/workflows/flux-kontext';
 
 describe('Parameter Transformation Tests', () => {
-  let inputCalls: Map<string, any>;
-
   beforeEach(() => {
-    const mocks = setupAllMocks();
-    inputCalls = mocks.inputCalls;
+    setupAllMocks();
   });
 
   describe('AspectRatio Transformation', () => {
@@ -63,11 +60,11 @@ describe('Parameter Transformation Tests', () => {
 
   describe('Parameter Validation', () => {
     it('should handle valid parameter ranges', () => {
-      Object.entries(parametersFixture.models).forEach(([modelName, config]) => {
+      Object.entries(parametersFixture.models).forEach(([_modelName, config]) => {
         const { min, max } = (config as any).boundaries!;
 
         // Minimum values within range
-        Object.entries(min).forEach(([key, value]) => {
+        Object.entries(min).forEach(([_key, value]) => {
           expect(typeof value).toBe('number');
           expect(value).toBeGreaterThanOrEqual(0);
         });

@@ -23,7 +23,6 @@ import {
   AsyncTaskError,
   AsyncTaskErrorType,
   AsyncTaskStatus,
-  AsyncTaskType,
 } from '@/types/asyncTask';
 
 import {
@@ -309,11 +308,10 @@ export const imageRouter = router({
         // Fire-and-forget: trigger async tasks without awaiting
         // These calls go to the async router which handles them independently
         // Do not schedule here; the async router handles these tasks independently.
-        generationsWithTasks.forEach(({ generation, asyncTaskId }, index) => {
+        generationsWithTasks.forEach(({ generation, asyncTaskId }) => {
           log('Starting background async task %s for generation %s', asyncTaskId, generation.id);
-          const prechargeItem = prechargeItems?.[index];
 
-          void asyncCaller.image
+          asyncCaller.image
             .createImage({
               generationBatchId: createdBatch.id,
               generationId: generation.id,
@@ -324,42 +322,11 @@ export const imageRouter = router({
               taskId: asyncTaskId,
               workspaceId: wsId,
             })
-            .catch(async (error) => {
-              // Compensate: mark the task failed and release its billing
-              // handle so nothing dangles when startup broke after precharge.
-              const compensationResults = await Promise.allSettled([
-                asyncTaskModel.update(asyncTaskId, {
-                  error: new AsyncTaskError(
-                    AsyncTaskErrorType.ServerError,
-                    'start async task error: ' +
-                      (error instanceof Error ? error.message : 'Unknown error'),
-                  ),
-                  status: AsyncTaskStatus.Error,
-                }),
-                prechargeItem === undefined
-                  ? Promise.resolve()
-                  : releaseGenerationReservation(chargeAfterGenerate, {
-                      db: serverDB,
-                      asyncTaskId,
-                      generationBatchId: createdBatch.id,
-                      modelId: resolvedModelId,
-                      prechargeResult: prechargeItem as Record<string, unknown>,
-                      provider,
-                      routeMetadata,
-                      userId,
-                      workspaceId: wsId,
-                    }),
-              ]);
-              compensationResults.forEach((result, compensationIndex) => {
-                if (result.status === 'rejected') {
-                  log(
-                    'Failed image task %s compensation step %d: %O',
-                    asyncTaskId,
-                    compensationIndex,
-                    result.reason,
-                  );
-                }
-              });
+            // The async router owns the task's status and billing once the request
+            // reaches it; a failed HTTP response here (e.g. a proxy timing out a
+            // long generation) does not mean the task failed, so only log it.
+            .catch((error: unknown) => {
+              console.error('Async image task %s request failed: %O', asyncTaskId, error);
             });
         });
 

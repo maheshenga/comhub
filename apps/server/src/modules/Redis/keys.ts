@@ -29,6 +29,12 @@ export const RedisKeyNamespace = {
    */
   LOBEHUB: 'lobechat',
   /**
+   * Module App runtime coordination keys — replay guards, notification rate
+   * limits and invocation leases. All are short lived and shared across
+   * instances.
+   */
+  MODULE_APP: 'module-app',
+  /**
    * Short-lived derived answers the send path would otherwise re-fetch per
    * turn (device system info, a skill's live tool list) and the one-shot
    * claims that keep their background refreshes from piling up.
@@ -101,6 +107,27 @@ export const RedisKeys = {
     // Add lobechat scope keys here as needed
   },
   /**
+   * Module App runtime coordination — see {@link RedisKeyNamespace.MODULE_APP}.
+   */
+  moduleApp: {
+    /**
+     * One consumed replay nonce, addressed by its digest so the raw capability
+     * key is not written to Redis.
+     * Full key: module-app:replay:{digest}
+     */
+    replay: (digest: string): string => `replay:${digest}`,
+    /**
+     * One installation's notification sliding window.
+     * Full key: module-app:notification-rate:{digest}
+     */
+    notificationRate: (digest: string): string => `notification-rate:${digest}`,
+    /**
+     * The lease one worker holds on an invocation.
+     * Full key: module-app:invocation-lease:{invocationId}
+     */
+    invocationLease: (invocationId: string): string => `invocation-lease:${invocationId}`,
+  },
+  /**
    * Send-path cache scope — see {@link RedisKeyNamespace.SEND_PATH_CACHE}.
    * Every key carries the identity the answer depends on (user, pool, device,
    * connection), never a shared one.
@@ -136,6 +163,7 @@ export const RedisKeyScopeNamespace = {
   agentSignal: RedisKeyNamespace.AGENT_SIGNAL,
   aiGeneration: RedisKeyNamespace.AI_GENERATION,
   lobechat: RedisKeyNamespace.LOBEHUB,
+  moduleApp: RedisKeyNamespace.MODULE_APP,
   sendPathCache: RedisKeyNamespace.SEND_PATH_CACHE,
 } as const satisfies Record<
   keyof typeof RedisKeys,

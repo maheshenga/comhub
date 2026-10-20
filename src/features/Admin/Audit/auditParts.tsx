@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, DateRangePicker, Descriptions, Input, Modal, Tag } from '@lobehub/ui/base-ui';
+import { Button, DateRangePicker, Descriptions, Flexbox, Input, Modal, Tag } from '@lobehub/ui';
 import { type ReactNode } from 'react';
 
 import { ADMIN_EMPTY_TEXT } from '@/features/Admin/shared';

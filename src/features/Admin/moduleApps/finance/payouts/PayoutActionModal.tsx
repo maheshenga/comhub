@@ -1,7 +1,6 @@
 'use client';
 
-import { Input, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles,Input, Modal, Select, TextArea } from '@lobehub/ui';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

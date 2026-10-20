@@ -1,8 +1,7 @@
 'use client';
 
 import { type SkillListItem } from '@lobechat/types';
-import { Center, Icon } from '@lobehub/ui';
-import { Text } from '@lobehub/ui/base-ui';
+import { Center, Icon, Text } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import { ServerCrash } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef } from 'react';

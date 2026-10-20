@@ -56,7 +56,7 @@ vi.mock('swr', () => ({
   },
   mutate: swrMutate,
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
   Alert: ({ action, title }: { action?: ReactNode; title?: ReactNode }) => (
     <div role="alert">
       {title}
@@ -76,14 +76,12 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
+  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Modal: ({ children, open }: { children?: ReactNode; open?: boolean }) =>
     open ? <div role="dialog">{children}</div> : null,
   QRCode: () => null,
   Segmented: () => null,
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-}));
-vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
 describe('SubscriptionCheckoutModal', () => {

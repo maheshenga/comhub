@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import path from 'node:path';
 
 /**
  * Utility class for safely storing temporary files
@@ -11,7 +11,7 @@ export class TempFileManager {
 
   constructor(dirname: string) {
     // Create unique temporary directory (cross-platform safe)
-    this.tempDir = mkdtempSync(join(tmpdir(), dirname));
+    this.tempDir = mkdtempSync(path.join(tmpdir(), dirname));
     // Register cleanup hook for process exit
     this.registerCleanupHook();
   }
@@ -22,8 +22,8 @@ export class TempFileManager {
    */
   async writeTempFile(data: Uint8Array, name: string): Promise<string> {
     // Sanitize filename to prevent path traversal (GHSA-2g9j-v25c-4j97)
-    const safeName = basename(name);
-    const filePath = resolve(this.tempDir, safeName);
+    const safeName = path.basename(name);
+    const filePath = path.resolve(this.tempDir, safeName);
 
     try {
       writeFileSync(filePath, data);

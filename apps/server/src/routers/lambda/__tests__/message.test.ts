@@ -123,8 +123,8 @@ describe('messageRouter', () => {
   it('should handle getMessages', async () => {
     const mockQuery = vi.fn().mockResolvedValue([{ id: 'msg1' }]);
     const mockGetFullFileUrl = vi.fn().mockImplementation(function (
-      path: string | null,
-      file: { fileType: string },
+      _path: string | null,
+      _file: { fileType: string },
     ) {
       return Promise.resolve('url');
     });
@@ -271,7 +271,7 @@ describe('messageRouter', () => {
 
     it('should handle getMessages with agentId', async () => {
       const mockQuery = vi.fn().mockResolvedValue([{ id: 'msg1' }]);
-      const mockGetFullFileUrl = vi.fn().mockImplementation(function (path: string | null) {
+      const mockGetFullFileUrl = vi.fn().mockImplementation(function (_path: string | null) {
         return Promise.resolve('url');
       });
 
@@ -303,7 +303,7 @@ describe('messageRouter', () => {
 
     it('should handle getMessages with agentId only (no sessionId)', async () => {
       const mockQuery = vi.fn().mockResolvedValue([{ id: 'msg1' }]);
-      const mockGetFullFileUrl = vi.fn().mockImplementation(function (path: string | null) {
+      const mockGetFullFileUrl = vi.fn().mockImplementation(function (_path: string | null) {
         return Promise.resolve('url');
       });
 

@@ -34,7 +34,15 @@ beforeEach(async () => {
 describe('configRouter', () => {
   describe('getGlobalConfig', () => {
     it('passes the server database into global config when it is available', async () => {
-      const serverDB = { id: 'server-db' };
+      const serverDB = {
+        id: 'server-db',
+        query: {
+          appSettings: {
+            findFirst: vi.fn(async () => null),
+            findMany: vi.fn(async () => []),
+          },
+        },
+      };
       configMocks.getServerDB.mockResolvedValue(serverDB);
       const getServerGlobalConfigSpy = vi.spyOn(globalConfig, 'getServerGlobalConfig');
 

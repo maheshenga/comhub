@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button } from '@lobehub/ui/base-ui';
+import { Alert, Button } from '@lobehub/ui';
 
 import { AdminFormActions, AdminPageError } from '../layout';
 import { AdminPageState } from '../shared';

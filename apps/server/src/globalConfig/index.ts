@@ -33,16 +33,16 @@ import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
 
 import {
+  type AdminManagedProviderConfig,
+  applyAdminManagedProviders,
+} from './adminManagedProviders';
+import {
   genServerAiProvidersConfig,
   type ProviderSpecificConfig,
 } from './genServerAiProviderConfig';
 import { parseAgentConfig } from './parseDefaultAgent';
 import { parseFilesConfig } from './parseFilesConfig';
 import { getResolvedPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
-import {
-  applyAdminManagedProviders,
-  type AdminManagedProviderConfig,
-} from './adminManagedProviders';
 import { getProviderSpecificConfig } from './providerSpecificConfig';
 import { getServerFetchOnClientOverride } from './serverFetchOnClient';
 

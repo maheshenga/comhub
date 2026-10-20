@@ -1353,7 +1353,7 @@ description: A nested skill
 
       // Second user should not be able to create skill with same identifier
       // because findByIdentifier filters by userId
-      const otherResult = await otherImporter.createUserSkill({
+      const _otherResult = await otherImporter.createUserSkill({
         content: '# User 2 Skill',
         description: 'User 2 skill',
         identifier: 'isolation-test-skill', // Same identifier, different user

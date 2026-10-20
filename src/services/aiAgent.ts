@@ -13,9 +13,7 @@ import type {
   UserInterventionConfig,
 } from '@lobechat/types';
 
-import { canUseGatewayProtocolV2 } from '@/helpers/gatewayProtocol';
 import { lambdaClient } from '@/libs/trpc/client';
-import { buildLlmExecutorDeclaration } from '@/services/llmRelay';
 
 export type { ExecAgentResult, ScheduleAgentRunParams, ScheduleAgentRunResult };
 
@@ -291,6 +289,14 @@ class AiAgentService {
     // rollout. Anything else stays on the pushed snapshots, which is what an
     // older bundle needs to render the run at all. A caller may still pin it
     // (a replay harness asserting v1 delivery).
+    // Dynamic imports: these helpers read the server-config store, which fans
+    // out to the electron/chat stores and back into the agent store. The agent
+    // store imports this service while its own slices are still initializing,
+    // so the read must not happen at module-eval time.
+    const [{ canUseGatewayProtocolV2 }, { buildLlmExecutorDeclaration }] = await Promise.all([
+      import('@/helpers/gatewayProtocol'),
+      import('@/services/llmRelay'),
+    ]);
     const clientProtocol = canUseGatewayProtocolV2() ? CLIENT_PROTOCOL_VERSION : undefined;
     // Inside the `agent_llm_relay` rollout this tab offers to run the LLM calls
     // of providers only this device can reach (a local Ollama, a private

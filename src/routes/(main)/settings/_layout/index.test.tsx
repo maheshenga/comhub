@@ -10,9 +10,13 @@ vi.mock('react-router', () => ({
   useLocation: () => locationMock,
 }));
 vi.mock('@lobehub/ui', () => ({
+  Spin: () => <span data-testid="spin" />,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
   Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 }));
-vi.mock('@/routes/(main)/settings/_layout/SideBar', () => ({
+vi.mock('@/features/Settings/Layout/SideBar', () => ({
   default: () => <aside data-testid="personal-settings-sidebar" />,
 }));
 vi.mock('./ContextProvider', () => ({

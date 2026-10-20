@@ -110,7 +110,6 @@ describe('apiKeyManager', () => {
       const apiKeyManager = new ApiKeyManager();
 
       const total = apiKeys.length;
-      const rounds = total * 2;
       for (let i = 0; i < total; i++) {
         expect(apiKeyManager.pick(apiKeyStr)).toBe(apiKeys[i % total]);
       }

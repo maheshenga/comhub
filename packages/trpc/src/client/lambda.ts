@@ -15,7 +15,6 @@ import superjson from 'superjson';
 
 import { isDesktop } from '@/const/version';
 import { type LambdaRouter } from '@/server/routers/lambda';
-import { createHeaderWithAuth } from '@/services/_auth';
 
 const log = debug('lobe-image:lambda-client');
 
@@ -172,6 +171,9 @@ const linkOptions = {
       provider = imageGenerationConfigSelectors.provider(getImageStoreState()) as ModelProvider;
       log('Getting provider from store for image page: %s', provider);
     }
+
+    // dynamic import to avoid circular dependency
+    const { createHeaderWithAuth } = await import('@/services/_auth');
 
     // Only include provider in JWT for image operations
     // For other operations (like knowledge base embedding), let server use its own config

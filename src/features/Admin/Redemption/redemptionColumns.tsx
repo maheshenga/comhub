@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Button, Tag } from '@lobehub/ui';
 
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 

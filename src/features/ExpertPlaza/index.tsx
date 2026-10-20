@@ -1,8 +1,16 @@
 'use client';
 
-import { Empty, Flexbox, Icon } from '@lobehub/ui';
-import { Avatar, Segmented, Tag, Text } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar } from 'antd-style';
+import {
+  Avatar,
+  createStaticStyles,
+  cssVar,
+  Empty,
+  Flexbox,
+  Icon,
+  Segmented,
+  Tag,
+  Text,
+} from '@lobehub/ui';
 import { ArrowUpRight, Star } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';

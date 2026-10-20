@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, Select, TextArea } from '@lobehub/ui/base-ui';
+import { Button, Input, Select, TextArea } from '@lobehub/ui';
 
 import type { AdminModuleAppOutboundHostPurpose } from '../types';
 import { moduleReviewsStyles as styles } from './moduleReviewsStyles';

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'open%2Fskill' }),
+  useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 
 vi.mock('@/hooks/useQuery', () => ({
@@ -17,8 +18,21 @@ vi.mock('@/hooks/useQuery', () => ({
 }));
 
 vi.mock('@/store/discover', () => ({
-  useDiscoverStore: (selector: (state: { useFetchSkillDetail: typeof mocks.useFetchSkillDetail }) => unknown) =>
-    selector({ useFetchSkillDetail: mocks.useFetchSkillDetail }),
+  useDiscoverStore: (
+    selector: (state: {
+      skillDetailMap: Record<string, { identifier: string }>;
+      useFetchSkillDetail: typeof mocks.useFetchSkillDetail;
+    }) => unknown,
+  ) =>
+    selector({
+      skillDetailMap: { 'skill-detail-key': { identifier: 'open/skill' } },
+      useFetchSkillDetail: mocks.useFetchSkillDetail,
+    }),
+}));
+
+vi.mock('@/features/CommunitySkillDetail', () => ({
+  SkillDetailView: () => <div data-testid="skill-details" />,
+  SkillNavKey: { Install: 'install', Overview: 'overview' },
 }));
 
 vi.mock('../features/Toc/useToc', () => ({
@@ -46,6 +60,7 @@ describe('SkillDetailPage', () => {
     mocks.useFetchSkillDetail.mockReturnValue({
       data: { identifier: 'open/skill' },
       isLoading: false,
+      queryKey: 'skill-detail-key',
     });
 
     render(<SkillDetailPage />);

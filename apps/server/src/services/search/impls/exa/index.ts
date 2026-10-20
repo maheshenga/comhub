@@ -66,7 +66,7 @@ export class ExaImpl implements SearchServiceImpl {
         body: JSON.stringify(body),
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey ? this.apiKey : '',
+          'x-api-key': this.apiKey || '',
         },
         method: 'POST',
       });

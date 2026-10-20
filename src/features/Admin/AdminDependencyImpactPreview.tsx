@@ -1,8 +1,7 @@
 'use client';
 
 import { type AdminDependencyImpact, type AdminDependencyImpactItem } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Tag, Text } from '@lobehub/ui/base-ui';
+import { Alert, Flexbox, Tag, Text } from '@lobehub/ui';
 import { type TFunction } from 'i18next';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

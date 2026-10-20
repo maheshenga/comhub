@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input, Switch, Tag } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Input, Switch, Tag } from '@lobehub/ui';
 import type { TFunction } from 'i18next';
 
 import type { AdminModelAbilities } from '../adminProviderModelAbilities';

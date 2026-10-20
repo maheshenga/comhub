@@ -1,4 +1,4 @@
-import { type FormInstance, useForm } from '@lobehub/ui/base-ui/form';
+import { type FormInstance, useForm } from '@lobehub/ui/form';
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 

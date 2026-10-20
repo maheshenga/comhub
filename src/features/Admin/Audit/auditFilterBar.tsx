@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- base-ui 虽有 DatePicker，但值模型为 Date 而非 Dayjs，无 Dayjs drop-in 等价物；Input 与 RangePicker 同排构成筛选栏，迁 base-ui 属 B4 筛选器收敛批次统一处理。
+import { Button,Flexbox } from '@lobehub/ui';
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：base-ui 虽有 DatePicker，但值模型为 Date 而非 Dayjs，无 Dayjs drop-in 等价物；Input 与 RangePicker 同排构成筛选栏，迁 base-ui 属 B4 筛选器收敛批次统一处理。
 import { DatePicker, Input } from 'antd';
 import { type Dayjs } from 'dayjs';
 import { useEffect, useRef, useState } from 'react';

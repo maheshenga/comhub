@@ -2,6 +2,8 @@
 import { MarketAPIError } from '@lobehub/market-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { marketRouter } from './index';
+
 const mockDiscover = vi.hoisted(() => ({
   getAssistantDetail: vi.fn(),
   getGroupAgentDetail: vi.fn(),
@@ -14,6 +16,9 @@ const mockDiscover = vi.hoisted(() => ({
 }));
 
 vi.mock('@/libs/trpc/lambda/middleware', () => ({
+  marketPublicUserInfo: vi.fn(function (opts: any) {
+    return opts.next({ ctx: opts.ctx });
+  }),
   marketUserInfo: vi.fn(function (opts: any) {
     return opts.next({ ctx: opts.ctx });
   }),
@@ -51,10 +56,7 @@ vi.mock('@/server/services/market', () => ({
   }),
 }));
 
-const createCaller = async () => {
-  const { marketRouter } = await import('./index');
-  return marketRouter.createCaller({ userId: 'user-1' } as any);
-};
+const createCaller = () => marketRouter.createCaller({ userId: 'user-1' } as any);
 
 const detailCalls: Array<[string, (caller: any) => Promise<unknown>]> = [
   ['getAssistantDetail', (c) => c.getAssistantDetail({ identifier: 'x' })],
@@ -75,7 +77,7 @@ describe('marketRouter detail procedures keep the upstream Market status', () =>
       new MarketAPIError(404, 'Not Found'),
     );
 
-    await expect(call(await createCaller())).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(call(createCaller())).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it.each(detailCalls)('%s maps a Market 429 to TOO_MANY_REQUESTS', async (name, call) => {

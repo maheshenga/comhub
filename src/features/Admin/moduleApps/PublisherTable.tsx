@@ -1,8 +1,7 @@
 'use client';
 
 import type { ModuleAppPublisherStatus } from '@lobechat/types';
-import { CopyButton, Flexbox } from '@lobehub/ui';
-import { Tag, Text } from '@lobehub/ui/base-ui';
+import { CopyButton, Flexbox, Tag, Text } from '@lobehub/ui';
 import type { TableProps } from 'antd';
 import { memo, type ReactNode } from 'react';
 

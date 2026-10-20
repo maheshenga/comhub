@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Select } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Select } from '@lobehub/ui';
 
 import { AdminBulkActionFlow } from '@/features/Admin';
 import { adminCommercialService } from '@/services/adminCommercial';

@@ -41,7 +41,9 @@ vi.mock('@/libs/swr', () => ({
     return { data: state.data, error: state.error, isLoading: false };
   },
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Button: ({ children, ...props }: any) => (
     <button type="button" {...props}>
       {children}

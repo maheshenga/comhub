@@ -22,7 +22,6 @@ const inferQQFileType = (att: BotMessageAttachment): QQFileType => {
     case 'audio': {
       return 3;
     }
-    case 'file':
     default: {
       return 4;
     }

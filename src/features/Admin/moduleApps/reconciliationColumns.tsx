@@ -1,8 +1,7 @@
 'use client';
 
 import type { PaymentProvider } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Tag, Text } from '@lobehub/ui';
 
 import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { DesktopReleaseStatus } from '@lobechat/types';
-import { Button, Tag, Text, toast } from '@lobehub/ui/base-ui';
+import { Button, Tag, Text, toast } from '@lobehub/ui';
 import type { TableColumnsType } from 'antd';
 import { Space } from 'antd';
 import { CheckCircle2, RefreshCw, RotateCcw } from 'lucide-react';

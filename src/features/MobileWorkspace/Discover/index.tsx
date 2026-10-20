@@ -1,7 +1,6 @@
 'use client';
 
-import { Avatar } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Avatar, createStaticStyles } from '@lobehub/ui';
 import { RefreshCw } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

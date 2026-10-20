@@ -1,8 +1,7 @@
 'use client';
 
 import { type AdminRole, isAdminRole } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { SkeletonText } from '@lobehub/ui/base-ui';
+import { Flexbox, SkeletonText } from '@lobehub/ui';
 import { Navigate, useLocation } from 'react-router';
 
 import {

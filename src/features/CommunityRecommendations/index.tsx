@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, SkeletonText, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, SkeletonText, Tag, Text } from '@lobehub/ui';
 import { memo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 

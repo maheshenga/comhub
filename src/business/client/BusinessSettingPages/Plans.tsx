@@ -1,11 +1,15 @@
 'use client';
 
 import { Plans as SubscriptionPlan, type SubscriptionCycleType } from '@lobechat/types';
-import { Empty, Flexbox, Icon } from '@lobehub/ui';
 import {
   Accordion,
   Alert,
   Button,
+  createStaticStyles,
+  cx,
+  Empty,
+  Flexbox,
+  Icon,
   Input,
   Modal,
   Segmented,
@@ -14,8 +18,7 @@ import {
   Tag,
   toast,
   Tooltip,
-} from '@lobehub/ui/base-ui';
-import { createStaticStyles, cx } from 'antd-style';
+} from '@lobehub/ui';
 import {
   BookOpen,
   Check,

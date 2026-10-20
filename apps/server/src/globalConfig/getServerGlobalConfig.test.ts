@@ -1,3 +1,4 @@
+import type * as BusinessConst from '@lobechat/business-const';
 import { ModelProvider } from 'model-bank';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -33,7 +34,7 @@ const mockGlobalConfigDependencies = (
   options: MockGlobalConfigOptions = {},
 ) => {
   vi.doMock('@lobechat/business-const', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@lobechat/business-const')>()),
+    ...(await importOriginal<typeof BusinessConst>()),
     ENABLE_BUSINESS_FEATURES: enableBusinessFeatures,
   }));
 

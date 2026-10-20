@@ -1,5 +1,5 @@
+import type * as LobeUIBaseModule from '@lobehub/ui';
 import { ConfigProvider } from '@lobehub/ui';
-import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +13,7 @@ import {
 
 import AdminDefaultSettingsPage from './AdminDefaultSettingsPage';
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+vi.mock('@lobehub/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof LobeUIBaseModule>();
 
   return {

@@ -20,14 +20,14 @@ import {
 import { getToolAccessDeniedError } from '@/server/services/toolExecution/errorClassification';
 
 import {
+  listSkillToolsWithLiveFallback,
+  type SkillToolsClient,
+} from './listSkillToolsWithLiveFallback';
+import {
   getSkillDetailWithFallback,
   MARKET_BASE_URL,
   searchSkillWithFallback,
 } from './marketSkillFallback';
-import {
-  listSkillToolsWithLiveFallback,
-  type SkillToolsClient,
-} from './listSkillToolsWithLiveFallback';
 
 const log = debug('lobe-server:market-service');
 

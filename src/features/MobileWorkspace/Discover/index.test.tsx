@@ -79,7 +79,8 @@ vi.mock('@lobehub/ui/mobile', () => ({
     },
   ),
 }));
-vi.mock('@lobehub/ui', () => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ActionIcon: ({ 'aria-label': ariaLabel, onClick }: any) => (
     <button aria-label={ariaLabel} type="button" onClick={onClick} />
   ),
@@ -88,8 +89,6 @@ vi.mock('@lobehub/ui', () => ({
       {avatar || title}
     </span>
   ),
-}));
-vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, onClick }: any) => (
     <button type="button" onClick={onClick}>
       {children}

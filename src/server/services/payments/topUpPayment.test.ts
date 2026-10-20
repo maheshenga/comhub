@@ -18,7 +18,10 @@ const commercialMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/database/models/commercial', () => ({
-  CommercialModel: vi.fn(() => commercialMocks),
+  // Must be constructable: the service instantiates `new CommercialModel(db, userId)`.
+  CommercialModel: vi.fn(function () {
+    return commercialMocks;
+  }),
 }));
 
 const paymentEvent = (

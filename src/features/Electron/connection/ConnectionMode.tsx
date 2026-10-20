@@ -1,9 +1,7 @@
 import { type StorageMode } from '@lobechat/electron-client-ipc';
 import { StorageModeEnum } from '@lobechat/electron-client-ipc';
-import { Center, Flexbox, stopPropagation } from '@lobehub/ui';
-import { Button, Input } from '@lobehub/ui/base-ui';
+import { Button, Center, createStaticStyles,Flexbox, Input, stopPropagation } from '@lobehub/ui';
 import { LobeHub } from '@lobehub/ui/brand';
-import { createStaticStyles } from 'antd-style';
 import { Server } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';

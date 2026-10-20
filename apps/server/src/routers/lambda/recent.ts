@@ -12,11 +12,11 @@ import {
   toRecentItem,
 } from './recentMobileWorkspaceEndpoint';
 
-export type { RecentItem } from '@lobechat/types';
 export type {
   MobileWorkspaceRecentItem,
   MobileWorkspaceRecentResponse,
 } from './recentMobileWorkspaceEndpoint';
+export type { RecentItem } from '@lobechat/types';
 
 const recentProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;

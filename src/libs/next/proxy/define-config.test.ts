@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { auth } from '@/auth';
 import { LOBE_LOCALE_COOKIE } from '@/const/locale';
-
 import { config as proxyConfig } from '@/proxy';
 
 import { createRouteMatcher } from './createRouteMatcher';
@@ -321,8 +320,8 @@ describe('project deep links', () => {
       expect(
         createRouteMatcher(proxyConfig.matcher)(new NextRequest(`http://localhost:3010${path}`)),
       ).toBe(true);
-      const rewrite = await run(`http://localhost:3010${path}`);
-      expect(new URL(rewrite!).pathname).toMatch(new RegExp(`/spa/[^/]+${path}$`));
+      const rewrite = await getAuthenticatedRewriteUrl(path);
+      expect(rewrite.pathname).toMatch(new RegExp(`/spa/[^/]+${path}$`));
     },
   );
 });

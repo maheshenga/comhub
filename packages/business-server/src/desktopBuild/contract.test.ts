@@ -21,7 +21,7 @@ const validPayload = {
 
 const validRelease = {
   channel: 'stable' as const,
-  profileId: '00000000-0000-0000-0000-000000000001',
+  profileId: '00000000-0000-4000-8000-000000000001',
   releaseNotes: '  First stable release  ',
   version: '2.4.0',
 };

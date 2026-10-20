@@ -208,7 +208,9 @@ vi.mock('@/libs/swr', () => ({
     };
   },
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Button: ({ children, htmlType = 'button', icon: Icon, loading: _loading, ...props }: any) => (
     <button type={htmlType} {...props}>
       {Icon ? <Icon /> : null}

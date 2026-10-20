@@ -1364,6 +1364,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
       createManagedSkillItem,
       isMemoryCapabilityEnabled,
       isSearchCapabilityEnabled,
+      officialTag,
       searchCapabilityModes,
       t,
     ],

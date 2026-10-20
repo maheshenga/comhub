@@ -1,7 +1,7 @@
 'use client';
 
-import { Input, Switch, TextArea } from '@lobehub/ui/base-ui';
-import { Form } from '@lobehub/ui/base-ui/form';
+import { Input, Switch, TextArea } from '@lobehub/ui';
+import { Form } from '@lobehub/ui/form';
 
 import { AdminFormGrid, AdminSection } from '../layout';
 

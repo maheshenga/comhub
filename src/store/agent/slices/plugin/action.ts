@@ -3,7 +3,7 @@ import { produce } from 'immer';
 
 import { type StoreSetter } from '@/store/types';
 
-import { agentSelectors } from '../../selectors';
+import { agentSelectors } from '../../selectors/selectors';
 import { type AgentStore } from '../../store';
 
 /**

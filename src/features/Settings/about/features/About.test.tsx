@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import About from './About';
 
 vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+
+  Divider: () => <hr />,
   Flexbox: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock('@lobehub/ui/form', () => ({
   Form: {
     Group: ({ children, title }: { children: React.ReactNode; title: string }) => (
       <section>

@@ -4,9 +4,7 @@ import type {
   ModuleAppPackageSubmissionListResult,
   ModuleAppPackageSubmissionSummary,
 } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input, SkeletonText, Text } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles,Flexbox, Input, SkeletonText, Text } from '@lobehub/ui';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';

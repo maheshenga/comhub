@@ -6,9 +6,17 @@ import type {
   PaymentMethodId,
   TopUpPackageItem,
 } from '@lobechat/types';
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, QRCode, Segmented, Tag, Text } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import {
+  Alert,
+  Button,
+  createStaticStyles,
+  Flexbox,
+  Icon,
+  QRCode,
+  Segmented,
+  Tag,
+  Text,
+} from '@lobehub/ui';
 import { CreditCard } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -224,7 +224,7 @@ const hookExtractedLines = new Map();
 // directory would push the budget over without any fork-side edit.
 const upstreamChurnPerPath = (() => {
   const churn = new Map();
-  const latestTag = process.env.COMHUB_UPSTREAM_LATEST_TAG || 'v2.2.19';
+  const latestTag = process.env.COMHUB_UPSTREAM_LATEST_TAG || 'v2.2.20';
   try {
     const out = git(['diff', '--numstat', effectiveBaseline, latestTag]);
     for (const line of out.split('\n')) {

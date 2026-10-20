@@ -1,6 +1,6 @@
 export {
   inspectModuleAppZipEntries,
-  ModuleAppZipMetadataError,
   type ModuleAppZipEntry,
   type ModuleAppZipEntryType,
+  ModuleAppZipMetadataError,
 } from '@lobechat/module-app-build';

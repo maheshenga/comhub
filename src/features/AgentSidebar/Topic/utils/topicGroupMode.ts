@@ -33,9 +33,8 @@ export const resolveAgentTopicGroupMode = ({
   agentType?: HeterogeneousAgentType;
   globalMode: TopicGroupMode;
 }): TopicGroupMode => {
-  const resolved = agentTopicGroupMode
-    ? agentTopicGroupMode
-    : getDefaultTopicGroupModeByAgentType(globalMode, agentType);
+  const resolved =
+    agentTopicGroupMode || getDefaultTopicGroupModeByAgentType(globalMode, agentType);
 
   // "by agent" and "by device" are only offered in project-scoped lists. When
   // they leak into the global preference (set from a project sidebar), a single

@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Text } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Text } from '@lobehub/ui';
 import type { TableColumnsType } from 'antd';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -7,8 +7,7 @@ import type {
   Plans,
   SubscriptionCycleType,
 } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Modal, QRCode, Segmented, Text } from '@lobehub/ui/base-ui';
+import { Alert, Button, Flexbox, Modal, QRCode, Segmented, Text } from '@lobehub/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR, { mutate } from 'swr';

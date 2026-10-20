@@ -367,7 +367,7 @@ export class AgentEvalRunService {
         });
 
         const messageRows = preparedMessages.map(
-          ({ createdAt, id, message, updatedAt }, index) => ({
+          ({ createdAt, id, message, updatedAt }) => ({
             agentId: null,
             content: message.content,
             createdAt: new Date(createdAt),

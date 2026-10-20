@@ -9,10 +9,6 @@ const { getRedisClient } = vi.hoisted(() => ({
   getRedisClient: vi.fn(),
 }));
 
-vi.mock('@/server/modules/AgentRuntime/redis', () => ({
-  getAgentRuntimeRedisClient: getRedisClient,
-}));
-
 describe('module app distributed guards', () => {
   beforeEach(() => {
     getRedisClient.mockReset();
@@ -21,7 +17,7 @@ describe('module app distributed guards', () => {
   it('uses Redis SET NX with a hashed replay key and capability TTL', async () => {
     const set = vi.fn().mockResolvedValueOnce('OK').mockResolvedValueOnce(null);
     getRedisClient.mockReturnValue({ set });
-    const backend = createModuleAppReplayGuardBackend();
+    const backend = createModuleAppReplayGuardBackend({ getRedisClient });
 
     await expect(backend.consume('installation:nonce:request', 300)).resolves.toBe(true);
     await expect(backend.consume('installation:nonce:request', 300)).resolves.toBe(false);
@@ -38,7 +34,10 @@ describe('module app distributed guards', () => {
   it('uses one atomic Redis sliding-window operation for notification limits', async () => {
     const evalCommand = vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0);
     getRedisClient.mockReturnValue({ eval: evalCommand });
-    const backend = createModuleAppNotificationRateLimitBackend({ randomId: () => 'event-1' });
+    const backend = createModuleAppNotificationRateLimitBackend({
+      getRedisClient,
+      randomId: () => 'event-1',
+    });
 
     await expect(backend.consume('installation-1', 10, 60_000)).resolves.toBe(true);
     await expect(backend.consume('installation-1', 10, 60_000)).resolves.toBe(false);
@@ -55,8 +54,9 @@ describe('module app distributed guards', () => {
 
   it('retains process-local protection only in explicitly allowed environments', async () => {
     getRedisClient.mockReturnValue(null);
-    const replay = createModuleAppReplayGuardBackend({ mode: 'memory-allowed' });
+    const replay = createModuleAppReplayGuardBackend({ getRedisClient, mode: 'memory-allowed' });
     const rateLimit = createModuleAppNotificationRateLimitBackend({
+      getRedisClient,
       mode: 'memory-allowed',
       randomId: () => 'event',
     });
@@ -71,8 +71,12 @@ describe('module app distributed guards', () => {
 
   it('fails closed when Redis is unavailable in distributed-required mode', async () => {
     getRedisClient.mockReturnValue(null);
-    const replay = createModuleAppReplayGuardBackend({ mode: 'distributed-required' });
+    const replay = createModuleAppReplayGuardBackend({
+      getRedisClient,
+      mode: 'distributed-required',
+    });
     const rateLimit = createModuleAppNotificationRateLimitBackend({
+      getRedisClient,
       mode: 'distributed-required',
     });
 
@@ -87,7 +91,10 @@ describe('module app distributed guards', () => {
   it('propagates Redis command failures instead of using process-local state', async () => {
     const redisError = new Error('redis unavailable');
     getRedisClient.mockReturnValue({ set: vi.fn().mockRejectedValue(redisError) });
-    const replay = createModuleAppReplayGuardBackend({ mode: 'distributed-required' });
+    const replay = createModuleAppReplayGuardBackend({
+      getRedisClient,
+      mode: 'distributed-required',
+    });
 
     await expect(replay.consume('same-request', 300)).rejects.toBe(redisError);
   });

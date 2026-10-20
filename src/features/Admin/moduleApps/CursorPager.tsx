@@ -1,8 +1,6 @@
 'use client';
 
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Button, Tooltip } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
+import { Button, cssVar,Flexbox, Icon, Tooltip } from '@lobehub/ui';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const positionLabelStyle = {

@@ -1,8 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, InputNumber, Modal } from '@lobehub/ui/base-ui';
-import TextArea from '@lobehub/ui/es/base-ui/Input/TextArea';
+import { Button, Flexbox, InputNumber, Modal, TextArea } from '@lobehub/ui';
 
 import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';

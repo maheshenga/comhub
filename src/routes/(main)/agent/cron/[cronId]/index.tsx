@@ -2,8 +2,7 @@
 
 import { EDITOR_DEBOUNCE_TIME } from '@lobechat/const';
 import { buildCronPattern, parseCronPattern, type ScheduleType } from '@lobechat/utils/cron';
-import { Empty, Flexbox } from '@lobehub/ui';
-import { ActionIcon, toast } from '@lobehub/ui/base-ui';
+import { ActionIcon, Empty, Flexbox, toast } from '@lobehub/ui';
 import { useDebounceFn } from 'ahooks';
 import { App } from 'antd';
 import { type Dayjs } from 'dayjs';

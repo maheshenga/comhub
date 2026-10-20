@@ -27,7 +27,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@lobechat/builtin-tools', () => ({ builtinTools: [] }));
+// Keep the module's real id lists (alwaysOn / runtime-managed / manual-mode
+// exclusions): only `builtinTools` needs to be empty for this rendering test.
+vi.mock('@lobechat/builtin-tools', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  builtinTools: [],
+}));
 
 vi.mock('@lobehub/ui', () => ({
   Avatar: () => null,

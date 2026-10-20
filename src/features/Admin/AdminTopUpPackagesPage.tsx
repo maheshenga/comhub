@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, confirmModal, Modal, Tag, toast } from '@lobehub/ui/base-ui';
-import { Form, useForm } from '@lobehub/ui/base-ui/form';
+import { Button, confirmModal, Flexbox, Modal, Tag, toast } from '@lobehub/ui';
+import { Form, useForm } from '@lobehub/ui/form';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

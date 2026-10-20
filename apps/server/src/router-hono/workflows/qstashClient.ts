@@ -1,5 +1,6 @@
-import { OtelQstashClient } from '@/libs/qstash';
 import type { Context } from 'hono';
+
+import { OtelQstashClient } from '@/libs/qstash';
 import { parseMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 
 const { upstashWorkflowExtraHeaders } = parseMemoryExtractionConfig();

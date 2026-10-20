@@ -1,10 +1,20 @@
 'use client';
 
 import { DOWNLOAD_URL, isDesktop, USAGE_DOCUMENTS } from '@lobechat/const';
-import { Block, CopyButton, Flexbox, Icon, ThemeProvider, Tooltip } from '@lobehub/ui';
-import { Button, ScrollArea, Text } from '@lobehub/ui/base-ui';
+import {
+  Block,
+  Button,
+  CopyButton,
+  createStaticStyles,
+  cx,
+  Flexbox,
+  Icon,
+  ScrollArea,
+  Text,
+  ThemeScope,
+  Tooltip,
+} from '@lobehub/ui';
 import { Lark, Line, QQ, WeChat } from '@lobehub/ui/icons';
-import { createStaticStyles, cx } from 'antd-style';
 import {
   BadgeCheck,
   ChevronRight,
@@ -546,13 +556,7 @@ const DownloadsPage = memo(() => {
           </Block>
 
           <Block className={cx(styles.card, styles.cliCard, isDesktop && styles.desktopCliCard)}>
-            <ThemeProvider
-              appearance="dark"
-              className={styles.terminalTheme}
-              defaultAppearance="dark"
-              defaultThemeMode="dark"
-              theme={{ cssVar: { key: 'lobe-vars' } }}
-            >
+            <ThemeScope appearance="dark" className={styles.terminalTheme}>
               <div className={styles.terminalHeader}>
                 <div aria-hidden className={styles.terminalControls}>
                   <span className={cx(styles.terminalControl, styles.terminalControlError)} />
@@ -592,7 +596,7 @@ const DownloadsPage = memo(() => {
                   <pre className={styles.terminalOutput}>{CLI_HELP_OUTPUT}</pre>
                 </ScrollArea>
               </div>
-            </ThemeProvider>
+            </ThemeScope>
           </Block>
         </div>
       </main>

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mockGetServerBrand = vi.hoisted(() => vi.fn());
 
 vi.mock('@lobechat/business-const', () => ({
+  APPLE_APP_STORE_ID: '123456789',
   BRANDING_LOGO_URL: 'https://example.com/default-logo.png',
   BRANDING_NAME: 'LobeHub',
   ORG_NAME: 'lobehub',

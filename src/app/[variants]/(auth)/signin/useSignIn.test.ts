@@ -35,7 +35,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: mockSearchParamsGet }),
 }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   toast: { error: mockMessageError, success: mockMessageSuccess },
 }));
@@ -92,7 +92,7 @@ const mockValidate = vi.fn();
 const mockSetErrors = vi.fn();
 const mockResetField = vi.fn();
 const mockSubmit = vi.fn();
-vi.mock('@lobehub/ui/base-ui/form', async (importOriginal) => ({
+vi.mock('@lobehub/ui/form', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useForm: () => ({
     getValue: mockGetValue,

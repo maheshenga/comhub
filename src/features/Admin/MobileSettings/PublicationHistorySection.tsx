@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar  } from 'antd-style';
+import { Button, createStaticStyles, cssVar } from '@lobehub/ui';
 
 import type { MobileConfigPublicationState } from '@/const/mobileConfigPublication';
 

@@ -356,7 +356,9 @@ describe('CreateTaskInlineEntry', () => {
     const attachmentAction = container
       .querySelector('svg.lucide-paperclip')
       ?.closest<HTMLElement>('button');
-    expect(attachmentAction).toHaveStyle({ height: '24px', width: '24px' });
+    // UI6's ActionIcon expresses the preset size through `data-size` and CSS
+    // classes instead of inline width/height.
+    expect(attachmentAction).toHaveAttribute('data-size', 'small');
     expect(attachmentAction?.parentElement?.style.getPropertyValue('--lobe-flex-align')).toBe(
       'center',
     );

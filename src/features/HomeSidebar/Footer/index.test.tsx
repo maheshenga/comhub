@@ -133,6 +133,7 @@ const renderFooter = async ({
     </div>
   );
   vi.doMock('@lobehub/ui', () => ({
+    createStaticStyles: () => new Proxy({}, { get: () => '' }),
     ActionIcon: ({
       'aria-label': ariaLabel,
       onClick,
@@ -286,7 +287,9 @@ describe('Footer', () => {
       'href',
       '/settings/plans',
     );
-  }, 20000);
+    // The first test pays the cold `vi.resetModules()` + dynamic-import cost of
+    // the whole footer graph (UI6's barrel is heavy); later tests reuse it.
+  }, 120_000);
 
   it('does not restore default help links when the public help menu is explicitly empty', async () => {
     await renderFooter({ publicHelpMenu: [] });

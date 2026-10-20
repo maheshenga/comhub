@@ -71,10 +71,10 @@ vi.mock('swr', () => ({
   mutate: vi.fn(),
 }));
 vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  Icon: () => null,
-}));
-vi.mock('@lobehub/ui/base-ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+
   Button: ({
     children,
     disabled,
@@ -88,6 +88,15 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
+  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Icon: () => null,
+  Alert: ({ action, message }: { action?: ReactNode; message?: ReactNode }) => (
+    <div role="alert">
+      {message}
+      {action}
+    </div>
+  ),
+  Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Segmented: () => null,
 }));
 vi.mock('antd', () => ({

@@ -11,11 +11,9 @@ import { WorkflowBuilderService } from '@/server/services/comfyui/core/workflowB
 
 describe('Error Handling - SDK Integration', () => {
   let imageService: ImageService;
-  let inputCalls: Map<string, any>;
 
   beforeEach(() => {
-    const mocks = setupAllMocks();
-    inputCalls = mocks.inputCalls;
+    setupAllMocks();
 
     // Create service instances
     const clientService = new ComfyUIClientService();

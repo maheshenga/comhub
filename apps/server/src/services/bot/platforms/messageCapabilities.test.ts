@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { resolveMessageManifest } from '@lobechat/builtin-tool-message';
@@ -12,7 +12,7 @@ import {
   TELEGRAM_GUEST_UNSUPPORTED_MESSAGE_APIS,
 } from './messageCapabilities';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const GUEST_THREAD_ID = 'telegram:guest:-100123:bot:bot-1:message:10';
 const MEMBER_THREAD_ID = 'telegram:-100123';
@@ -49,7 +49,7 @@ describe('PLATFORM_UNSUPPORTED_MESSAGE_APIS', () => {
   it.each(Object.keys(SERVICE_DIR))(
     'matches the actual runtime support of the %s service',
     (platformId) => {
-      const source = readFileSync(join(HERE, SERVICE_DIR[platformId], 'service.ts'), 'utf8');
+      const source = readFileSync(path.join(HERE, SERVICE_DIR[platformId], 'service.ts'), 'utf8');
       const declared = [...(PLATFORM_UNSUPPORTED_MESSAGE_APIS[platformId] ?? [])].sort();
       expect(declared).toEqual(deriveUnsupported(source));
     },

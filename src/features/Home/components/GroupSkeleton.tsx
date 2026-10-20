@@ -1,7 +1,6 @@
 'use client';
 
-import { Skeleton } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
+import { cssVar,Skeleton } from '@lobehub/ui';
 import { memo } from 'react';
 
 export const GroupSkeleton = memo<{

@@ -271,7 +271,7 @@ describe('HeterogeneousPersistenceHandler — synthetic CC trace fixture', () =>
     // ─── Step-boundary chain shape ───
     const allAssistants = [...h.messages.values()]
       .filter((m) => m.role === 'assistant' && m.threadId == null)
-      .sort((a, b) => (a.id === 'asst-fixture' ? -1 : 1));
+      .sort((a, _b) => (a.id === 'asst-fixture' ? -1 : 1));
 
     // STEP_COUNT-1 new assistants from `stream_start { newStep }` events.
     expect(allAssistants.length).toBe(STEP_COUNT);

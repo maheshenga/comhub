@@ -1,5 +1,4 @@
-import { Block, Flexbox } from '@lobehub/ui';
-import { css, cx } from 'antd-style';
+import { Block, css, cx,Flexbox } from '@lobehub/ui';
 import { type CSSProperties, memo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 

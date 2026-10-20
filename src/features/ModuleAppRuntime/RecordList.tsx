@@ -1,8 +1,15 @@
 import type { ModuleAppScopeType } from '@lobechat/types';
-import { Empty, Flexbox } from '@lobehub/ui';
-import type { TableColumn } from '@lobehub/ui/base-ui';
-import { Alert, Button, Pagination, Table, Text } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import {
+  Alert,
+  Button,
+  createStaticStyles,
+  Empty,
+  Flexbox,
+  Pagination,
+  Table,
+  type TableColumn,
+  Text,
+} from '@lobehub/ui';
 import { Pencil, Plus, RefreshCw } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

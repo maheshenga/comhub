@@ -12,7 +12,7 @@ import { agentService } from '@/services/agent';
 import { type StoreSetter } from '@/store/types';
 
 import { type AgentStore } from '../../store';
-import { mergeAgentConfig } from '../agent/action';
+import { mergeAgentConfig } from '../agent/mergeAgentConfig';
 import { type BuiltinAgentParams, builtinAgentResource } from './projection';
 
 interface UseInitBuiltinAgentContext {

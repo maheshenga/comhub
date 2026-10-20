@@ -1,4 +1,4 @@
-import { Alert, toast } from '@lobehub/ui/base-ui';
+import { Alert, toast } from '@lobehub/ui';
 
 import type { BaseSignUpFormValues } from '@/features/Auth/SignUp/types';
 import { useClientDataSWR } from '@/libs/swr';

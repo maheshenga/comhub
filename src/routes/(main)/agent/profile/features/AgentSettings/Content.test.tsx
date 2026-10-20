@@ -16,6 +16,11 @@ const mocks = vi.hoisted(() => ({
     optimisticUpdateAgentConfig: vi.fn(),
     optimisticUpdateAgentMeta: vi.fn(),
   },
+  serverState: {
+    featureFlags: {
+      enableAgentSelfIteration: true,
+    },
+  },
   userState: {
     defaultAgentMeta: {
       avatar: '/images/configured-agent.svg',
@@ -82,6 +87,12 @@ vi.mock('@/store/agent/selectors', () => ({
   },
 }));
 
+vi.mock('@/store/serverConfig', () => ({
+  featureFlagsSelectors: (state: typeof mocks.serverState) => state.featureFlags,
+  useServerConfigStore: (selector: (state: typeof mocks.serverState) => unknown) =>
+    selector(mocks.serverState),
+}));
+
 vi.mock('@/store/user', () => ({
   useUserStore: (selector: (state: typeof mocks.userState) => unknown) => selector(mocks.userState),
 }));
@@ -106,6 +117,7 @@ describe('AgentSettings Content', () => {
   beforeEach(() => {
     mocks.agentState.isCurrentAgentHeterogeneous = false;
     mocks.agentState.isInbox = true;
+    mocks.serverState.featureFlags.enableAgentSelfIteration = true;
     mocks.userState.preference.lab.enableAgentGraphConfig = false;
     mocks.userState.defaultAgentMeta = {
       avatar: '/images/configured-agent.svg',
@@ -118,11 +130,47 @@ describe('AgentSettings Content', () => {
 
     const layout = screen.getByTestId('layout');
     expect(layout).toHaveAttribute('data-active', ChatSettingsTabs.Opening);
-    expect(layout).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
+    expect(layout).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
     expect(screen.getByTestId('agent-settings-content')).toHaveAttribute(
       'data-tab',
       ChatSettingsTabs.Opening,
     );
+  });
+
+  it('exposes both tabs when not inbox and feature is on', () => {
+    mocks.agentState.isInbox = false;
+
+    render(<Content />);
+
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-active', ChatSettingsTabs.Opening);
+    expect(layout).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
+  });
+
+  it('falls back to opening when feature flag is off (inbox)', () => {
+    mocks.serverState.featureFlags.enableAgentSelfIteration = false;
+
+    render(<Content />);
+
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-active', ChatSettingsTabs.Opening);
+    expect(layout).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
+  });
+
+  it('exposes only opening when feature flag is off', () => {
+    mocks.agentState.isInbox = false;
+    mocks.serverState.featureFlags.enableAgentSelfIteration = false;
+
+    render(<Content />);
+
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
   });
 
   it('adds the graph tab for custom agents when its Labs switch is on', () => {
@@ -133,7 +181,7 @@ describe('AgentSettings Content', () => {
 
     expect(screen.getByTestId('layout')).toHaveAttribute(
       'data-tabs',
-      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.Graph}`,
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration},${ChatSettingsTabs.Graph}`,
     );
   });
 
@@ -142,7 +190,10 @@ describe('AgentSettings Content', () => {
 
     render(<Content />);
 
-    expect(screen.getByTestId('layout')).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
   });
 
   it('shows graph only for eligible agents when the lab preference is enabled', () => {
@@ -153,13 +204,16 @@ describe('AgentSettings Content', () => {
 
     expect(screen.getByTestId('layout')).toHaveAttribute(
       'data-tabs',
-      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.Graph}`,
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration},${ChatSettingsTabs.Graph}`,
     );
 
     mocks.agentState.isCurrentAgentHeterogeneous = true;
     rerender(<Content key="heterogeneous-agent" />);
 
-    expect(screen.getByTestId('layout')).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
   });
 
   it('uses configured inbox identity and falls back to the ComHub brand', () => {

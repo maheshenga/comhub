@@ -25,7 +25,7 @@
  * - verify-only   no code to re-apply, but verify the invariant after a merge
  * - annotate-only pure documentation; never conflicts
  *
- * BASELINE: upstream tag `v2.2.19` (commit 234e0fc75). Advance via the
+ * BASELINE: upstream tag `v2.2.20` (commit 49204982c). Advance via the
  * upstream-sync flow — never by hand — or verify.mjs loses meaning.
  */
 
@@ -1193,14 +1193,14 @@ const MODULES = [
     name: 'CI / deploy workflows',
     sync: 're-apply',
     description:
-      'ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.',
+      'ComHub-owned workflows (build/deploy/pr-check/upstream-sync), fork codeql workflow (upstream added its own in v2.2.20), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.',
     ownershipRules: [
       [
         'p:.github/workflows/comhub',
         'owned',
         'build/deploy/deploy-worker/pr-check/upstream-sync + comhubDeploymentWorkflows.test.mjs (upstream has no comhub* workflows)',
       ],
-      ['p:.github/workflows/codeql.yml', 'owned', 'fork-new: codeql workflow'],
+      ['p:.github/workflows/codeql.yml', 'upstream', 'fork codeql workflow: fork-new through v2.2.19; upstream added its own codeql.yml in v2.2.20 (upstream commit e4bc131184), merge keeps the fork version — re-apply fork schedule/scope on upstream rewrites'],
       [
         'p:.github/workflows/dependency-review.yml',
         'owned',
@@ -1573,11 +1573,6 @@ const MODULES = [
     ownershipRules: [
       [
         'p:.gemini/',
-        'upstream',
-        'v2.2.19 upstream-sync: new/changed upstream files absorbed by the merge (fork untouched)',
-      ],
-      [
-        'p:apps/desktop/patches/',
         'upstream',
         'v2.2.19 upstream-sync: new/changed upstream files absorbed by the merge (fork untouched)',
       ],
@@ -2739,11 +2734,11 @@ const MODULES = [
       'packages/replica/src/',
     ],
     notes:
-      'Created during the v2.2.19 upstream merge (commit 3ec81ae726) so verify.mjs kept every changed file registered while the v2.2.18 baseline was still in place; the baseline has since advanced to v2.2.19 and these exact-file rules carry forward as upstream coverage for future fork edits under these paths. If a later fork change touches a file under one of these dirs, add an explicit owned/exact rule in its real module BEFORE this module (first-match wins: earlier modules claim first).',
+      'Created during the v2.2.19 upstream merge (commit 3ec81ae726) so verify.mjs kept every changed file registered while the v2.2.18 baseline was still in place; the baseline has since advanced to v2.2.20 and these exact-file rules carry forward as upstream coverage for future fork edits under these paths. If a later fork change touches a file under one of these dirs, add an explicit owned/exact rule in its real module BEFORE this module (first-match wins: earlier modules claim first). Baseline v2.2.20 note: upstream deleted apps/desktop/patches/electron-sparkle-updater@0.5.2.patch in v2.2.20 (upstream commit 6aa2a0dd96), so the former p:apps/desktop/patches/ rule was removed — the directory no longer exists in the tree.',
   },
 ];
 
-export const UPSTREAM_BASELINE_TAG = 'v2.2.19';
+export const UPSTREAM_BASELINE_TAG = 'v2.2.20';
 
 export const registryModules = MODULES;
 

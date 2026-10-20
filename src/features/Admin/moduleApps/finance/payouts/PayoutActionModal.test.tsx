@@ -5,7 +5,9 @@ import PayoutActionModal from './PayoutActionModal';
 
 const baseUi = vi.hoisted(() => ({ modal: vi.fn() }));
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Input: (props: any) => <input {...props} />,
   Modal: (props: any) => {
     baseUi.modal(props);

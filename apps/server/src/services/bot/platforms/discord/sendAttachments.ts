@@ -70,7 +70,6 @@ const defaultExtForType = (type: BotMessageAttachment['type']): string => {
     case 'audio': {
       return '.mp3';
     }
-    case 'file':
     default: {
       return '';
     }

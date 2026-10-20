@@ -1,9 +1,11 @@
 'use client';
 
-import { StyleProvider } from 'antd-style';
 import { useServerInsertedHTML } from 'next/navigation';
 import { type PropsWithChildren } from 'react';
 
+// @lobehub/ui v6 ships static CSS and injects it itself, so no antd-style
+// StyleProvider is needed here — this registry only carries the fork's body
+// background for the Next.js auth document.
 const StyleRegistry = ({ children }: PropsWithChildren) => {
   useServerInsertedHTML(() => {
     return (
@@ -18,7 +20,7 @@ const StyleRegistry = ({ children }: PropsWithChildren) => {
     );
   });
 
-  return <StyleProvider>{children}</StyleProvider>;
+  return <>{children}</>;
 };
 
 export default StyleRegistry;

@@ -1,10 +1,8 @@
 'use client';
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { Flexbox } from '@lobehub/ui';
-import { Avatar, Button, Input } from '@lobehub/ui/base-ui';
-import { Form, type FormInstance, type FormListRenderProps } from '@lobehub/ui/base-ui/form';
-import { cssVar } from 'antd-style';
+import { Avatar, Button, cssVar,Flexbox, Input } from '@lobehub/ui';
+import { Form, type FormInstance, type FormListRenderProps } from '@lobehub/ui/form';
 
 import { Card } from '@/components/antd-compat/Card';
 import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';

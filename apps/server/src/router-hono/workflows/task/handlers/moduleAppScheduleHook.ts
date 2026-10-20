@@ -1,3 +1,4 @@
+import type { getServerDB } from '@/database/server';
 import { dispatchDueModuleAppSchedules } from '@/server/workflows/moduleApp/scheduleDispatcher';
 
 export type ModuleAppDispatchStatus = 'completed' | 'disabled' | 'failed' | 'skipped';
@@ -30,7 +31,7 @@ const emptyModuleAppDispatchSummary = (
  * the ordinary task sweep; it is reported in the summary instead.
  */
 export const dispatchModuleAppSchedules = async (
-  db: Awaited<ReturnType<(typeof import('@/database/server'))['getServerDB']>>,
+  db: Awaited<ReturnType<typeof getServerDB>>,
   dryRun: boolean,
 ): Promise<ModuleAppDispatchSummary> => {
   if (dryRun) return emptyModuleAppDispatchSummary('skipped', { reason: 'dry-run' });

@@ -1,8 +1,7 @@
 'use client';
 
 import { type ScheduleType } from '@lobechat/utils/cron';
-import { Flexbox } from '@lobehub/ui';
-import { CheckboxGroup, FormGroup, InputNumber, Select } from '@lobehub/ui/base-ui';
+import { CheckboxGroup, Flexbox, FormGroup, InputNumber, Select } from '@lobehub/ui';
 import { TimePicker } from 'antd';
 import { type Dayjs } from 'dayjs';
 import { memo } from 'react';

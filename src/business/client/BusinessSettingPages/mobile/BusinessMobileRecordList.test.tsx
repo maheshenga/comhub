@@ -17,10 +17,8 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
-  Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
-}));
-
-vi.mock('@lobehub/ui/base-ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   ActionIcon: ({
     'aria-label': ariaLabel,
     onClick,
@@ -35,6 +33,7 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {children}
     </button>
   ),
+  Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Skeleton: () => <div data-testid="record-skeleton" />,
   FloatingSheet: ({
     children,

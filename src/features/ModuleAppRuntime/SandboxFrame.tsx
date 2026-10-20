@@ -8,7 +8,7 @@ import {
   type ModuleAppBridgeResponse,
 } from '@lobechat/module-app-sdk';
 import type { ModuleAppLaunchContext } from '@lobechat/types';
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles } from '@lobehub/ui';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';

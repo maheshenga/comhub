@@ -1,7 +1,5 @@
-import { Center, Tooltip } from '@lobehub/ui';
-import { Button, Skeleton, Tag } from '@lobehub/ui/base-ui';
+import { Button, Center, createStaticStyles, cx,Skeleton, Tag, Tooltip } from '@lobehub/ui';
 import { App } from 'antd';
-import { createStaticStyles, cx } from 'antd-style';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

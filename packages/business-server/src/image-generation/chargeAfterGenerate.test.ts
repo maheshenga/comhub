@@ -43,10 +43,14 @@ vi.mock('@/database/models/commercial', async (importOriginal) => {
   const actual = await importOriginal<typeof CommercialModelModule>();
   return {
     ...actual,
-    CommercialModel: vi.fn().mockImplementation(() => ({
-      consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
-      postCharge: mocks.postCharge,
-    })),
+    // vi.fn().mockImplementation(() => …) is not constructible under vitest 5;
+    // use a function implementation so `new CommercialModel(db, userId)` works.
+    CommercialModel: vi.fn(function () {
+      return {
+        consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
+        postCharge: mocks.postCharge,
+      };
+    }),
   };
 });
 

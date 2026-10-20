@@ -1,7 +1,7 @@
 'use client';
 
-import { Menu } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button } from '@lobehub/ui';
+import { Menu } from 'antd';
 import { ArrowLeft, Search } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

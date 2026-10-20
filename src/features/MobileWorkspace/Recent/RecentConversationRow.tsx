@@ -1,10 +1,16 @@
 'use client';
 
 import { DEFAULT_AVATAR } from '@lobechat/const';
-import { type MenuProps } from '@lobehub/ui';
-import { Flexbox, Icon } from '@lobehub/ui';
-import { ActionIcon, Avatar, DropdownMenu } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import {
+  ActionIcon,
+  Avatar,
+  createStaticStyles,
+  type DropdownItem,
+  DropdownMenu,
+  Flexbox,
+  Icon,
+  type MenuInfo,
+} from '@lobehub/ui';
 import { MoreHorizontal, Pin, PinOff } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -135,14 +141,14 @@ const RecentConversationRow = memo<RecentConversationRowProps>(
           : timeKind === 'yesterday'
             ? t('mobile.recent.yesterday', { defaultValue: 'Yesterday' })
             : item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-    const menuItems = useMemo<MenuProps['items']>(
+    const menuItems = useMemo<DropdownItem[]>(
       () => [
         {
           disabled: pending,
           icon: <Icon icon={item.pinned ? PinOff : Pin} />,
           key: 'pin',
           label: item.pinned ? t('mobile.recent.unpin') : t('mobile.recent.pin'),
-          onClick: ({ domEvent }) => {
+          onClick: ({ domEvent }: MenuInfo) => {
             domEvent.stopPropagation();
             onTogglePin();
           },

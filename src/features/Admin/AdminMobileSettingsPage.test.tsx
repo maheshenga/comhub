@@ -19,7 +19,7 @@ const routeBlocker = vi.hoisted(() => ({
 }));
 const confirmModalMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...((await importOriginal()) as object),
   confirmModal: confirmModalMock,
 }));

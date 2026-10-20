@@ -19,8 +19,7 @@
     "@lobechat/const": "workspace:*",
     "@lobechat/prompts": "workspace:*",
     "@lobechat/shared-tool-ui": "workspace:*",
-    "@lobechat/utils": "workspace:*",
-    "@lobehub/editor": "4.27.3"
+    "@lobechat/utils": "workspace:*"
   },
   "devDependencies": {
     "@lobechat/types": "workspace:*"

@@ -2,14 +2,12 @@ import { isDesktop, randomAgentName } from '@lobechat/const';
 import { type AgentContextDocument } from '@lobechat/context-engine';
 import { getHeterogeneousTypeLabel } from '@lobechat/heterogeneous-agents';
 import {
-  applyWorkingDirByDevicePatch,
   isChatGroupSessionId,
   type LobeAgentAgencyConfig,
 } from '@lobechat/types';
 import { toast } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import { t } from 'i18next';
-import { produce } from 'immer';
 import type { SWRResponse } from 'swr';
 import type { PartialDeep } from 'type-fest';
 
@@ -29,8 +27,6 @@ import type { AvailableAgentItem, CreateAgentParams, CreateAgentResult } from '@
 import { agentService, AVAILABLE_AGENTS_CONTEXT_QUERY_LIMIT } from '@/services/agent';
 import { resolveAgentDocumentsContext } from '@/services/agentDocument';
 import { aiAgentService } from '@/services/aiAgent';
-import { useGlobalStore } from '@/store/global';
-import { globalGeneralSelectors } from '@/store/global/selectors';
 // Projection module only (no store import), so this does not cycle through the home store.
 import { agentListResource } from '@/store/home/slices/agentList/projection';
 import type { StoreSetter } from '@/store/types';
@@ -49,6 +45,8 @@ import { heteroAgentDefaultName } from '../../utils/heteroAgentDefaultName';
 import { setLocalAgentWorkingDirectory } from '../../utils/localAgentWorkingDirectoryStorage';
 import type { AgentSliceState, LoadingState, SaveStatus } from './initialState';
 import { agentConfigResource } from './projection';
+export { mergeAgentConfig } from './mergeAgentConfig';
+import { mergeAgentConfig } from './mergeAgentConfig';
 
 const AGENT_META_KEYS = [
   'avatar',
@@ -79,37 +77,6 @@ interface AgentMetaUpdateOptions {
   rethrow?: boolean;
 }
 
-/**
- * Deep-merge a partial config into the current one. `profile` is replaced as a
- * whole and explicitly edited working directory selections are replaced atomically.
- * Returns `current` itself when nothing changed, so readers keep their reference.
- */
-export const mergeAgentConfig = (
-  current: PartialDeep<AgentItem> | undefined,
-  config: PartialDeep<LobeAgentConfig>,
-  options?: { replaceWorkingDirDeviceIds?: string[]; workingDirByDeviceSnapshot?: boolean },
-): PartialDeep<AgentItem> => {
-  const { value } = produce({ value: current ?? {} }, (draft) => {
-    draft.value = merge(draft.value, config);
-    // The character sheet is authored as one document — `AgentModel`
-    // replaces it rather than merging — so mirror that here, or a trait the
-    // user just cleared reappears until the next full fetch.
-    if (Object.hasOwn(config, 'profile')) draft.value.profile = config.profile;
-    const agencyConfig = draft.value.agencyConfig;
-    if (agencyConfig && options?.workingDirByDeviceSnapshot) {
-      // Complete server snapshots also remove device entries omitted by the server.
-      agencyConfig.workingDirByDevice = config.agencyConfig?.workingDirByDevice;
-    } else {
-      applyWorkingDirByDevicePatch(
-        agencyConfig,
-        config.agencyConfig,
-        options?.replaceWorkingDirDeviceIds,
-      );
-    }
-  });
-  return current && isEqual(current, value) ? current : value;
-};
-
 /** `useFetchAgentConfig` result: replica sync flags plus the SWR-era aliases. */
 export interface AgentConfigSyncResult extends ReplicaSyncResult {
   /** A request is in flight and there is nothing in `agentMap` to show yet. */
@@ -122,6 +89,7 @@ export interface AgentConfigSyncResult extends ReplicaSyncResult {
  * Agent Slice Actions
  * Handles agent CRUD operations (config/meta updates)
  */
+
 
 type Setter = StoreSetter<AgentStore>;
 export const createAgentSlice = (set: Setter, get: () => AgentStore, _api?: unknown) =>
@@ -236,6 +204,13 @@ export class AgentSliceActionImpl {
     // A heterogeneous agent never draws a random personal name. In personal or
     // workspace-private scope its name is the product title; a shared workspace
     // agent adds the creator so members can distinguish identical tools.
+    // Dynamic imports: the global store's actions pull in the electron and chat
+    // stores, and the chat store imports this agent store. Resolve it at call
+    // time so the agent slices can finish initializing first.
+    const [{ useGlobalStore }, { globalGeneralSelectors }] = await Promise.all([
+      import('@/store/global'),
+      import('@/store/global/selectors'),
+    ]);
     const heteroProvider = params.config?.agencyConfig?.heterogeneousProvider;
     const locale = globalGeneralSelectors.currentLanguage(useGlobalStore.getState());
     const config = {

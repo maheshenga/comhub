@@ -3,6 +3,8 @@ import { MarketAPIError } from '@lobehub/market-sdk';
 import { TRPCError } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { skillRouter } from './skill';
+
 const {
   mockGetSkillCategories,
   mockGetSkillComments,
@@ -20,6 +22,14 @@ const {
 }));
 
 vi.mock('@/libs/trpc/lambda/middleware', () => ({
+  marketPublicUserInfo: vi.fn(function (opts: any) {
+    return opts.next({
+      ctx: {
+        ...opts.ctx,
+        marketUserInfo: { email: 'actor@example.com', name: 'Actor', userId: 'user-1' },
+      },
+    });
+  }),
   marketUserInfo: vi.fn(function (opts: any) {
     return opts.next({
       ctx: {
@@ -46,10 +56,7 @@ vi.mock('@/server/services/market', () => ({
   }),
 }));
 
-const createCaller = async () => {
-  const { skillRouter } = await import('./skill');
-  return skillRouter.createCaller({ userId: 'user-1' } as any);
-};
+const createCaller = () => skillRouter.createCaller({ userId: 'user-1' } as any);
 
 const rawDetail = {
   category: 'productivity-tasks',

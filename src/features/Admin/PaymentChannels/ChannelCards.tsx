@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Input, InputPassword, Select, Switch, Tag, Text, TextArea } from '@lobehub/ui/base-ui';
-import { Form } from '@lobehub/ui/base-ui/form';
+import { Flexbox, Input, InputPassword, Select, Switch, Tag, Text, TextArea } from '@lobehub/ui';
+import { Form } from '@lobehub/ui/form';
 import type { TFunction } from 'i18next';
 
 import { Card } from '@/components/antd-compat/Card';

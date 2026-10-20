@@ -84,18 +84,19 @@ vi.mock('@lobehub/ui/mobile', () => ({
   ),
 }));
 vi.mock('@lobehub/ui', () => ({
-  Icon: () => <span data-testid="app-icon" />,
-  Skeleton: {
-    Avatar: () => <span data-testid="apps-loading-icon" />,
-    Input: () => <span data-testid="apps-loading-label" />,
-  },
-}));
-vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, htmlType, type, ...props }: any) => (
     <button data-button-type={type} type={htmlType} {...props}>
       {children}
     </button>
   ),
+  Icon: () => <span data-testid="app-icon" />,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+  Skeleton: {
+    Avatar: () => <span data-testid="apps-loading-icon" />,
+    Input: () => <span data-testid="apps-loading-label" />,
+  },
   SkeletonAvatar: () => <span data-testid="apps-loading-icon" />,
 }));
 vi.mock('../MobilePageLayout', () => ({

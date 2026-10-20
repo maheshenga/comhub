@@ -200,6 +200,7 @@ export class AiModelActionImpl {
     this.#get().internal_toggleAiModelLoading(params.id, true);
 
     try {
+      const aiModelService = await getAiModelService();
       await aiModelService.toggleModelEnabled(params);
       await this.#get().refreshAiProviderRuntimeState();
     } finally {
@@ -248,6 +249,7 @@ export class AiModelActionImpl {
     );
 
     try {
+      const aiModelService = await getAiModelService();
       await aiModelService.updateAiModelReasoningConfig(id, provider, value);
     } catch (error) {
       this.#set(
@@ -307,6 +309,7 @@ export class AiModelActionImpl {
     if (key in this.#get().modelReasoningConfigMap) return;
 
     try {
+      const aiModelService = await getAiModelService();
       const data = await aiModelService.getAiModelReasoningConfig(id, provider);
 
       const state = this.#get();
@@ -333,8 +336,13 @@ export class AiModelActionImpl {
   ): SWRResponse<AiModelReasoningConfig | null> => {
     return useClientDataSWR<AiModelReasoningConfig | null>(
       id && provider ? aiModelKeys.reasoningConfig(provider, id) : null,
-      async ([, provider, id]) =>
-        (await aiModelService.getAiModelReasoningConfig(id as string, provider as string)) ?? null,
+      async ([, provider, id]) => {
+        const aiModelService = await getAiModelService();
+        return (
+          (await aiModelService.getAiModelReasoningConfig(id as string, provider as string)) ??
+          null
+        );
+      },
       {
         onSuccess: (data) => {
           const key = modelReasoningConfigKey(provider!, id!);

@@ -1,4 +1,4 @@
-import { Form, useForm } from '@lobehub/ui/base-ui/form';
+import { Form, useForm } from '@lobehub/ui/form';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -26,8 +26,11 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
   Button: ({ children, type: _type, ...props }: any) => <button {...props}>{children}</button>,
+  // UI6 merges the former `@lobehub/ui/base-ui` import into the root barrel,
+  // so the root mock now also has to cover the layout primitive.
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
   Input: (props: any) => <input {...props} />,
   InputNumber: ({ onChange, ...props }: any) => (
     <input onChange={(event) => onChange?.(event.target.value)} {...props} />

@@ -133,7 +133,7 @@ ActionsDropdown.displayName = 'ActionsDropdown';
  * resource type, and running both would issue a wrong-type permission lookup
  * (NOT_FOUND) for every item in the list.
  */
-const AgentItemActions = memo<ItemActionsProps>(({ anchor, item, ...rest }) => {
+const AgentItemActions = memo<ItemActionsProps>(({ anchor: _anchor, item, ...rest }) => {
   const { t } = useTranslation('common');
   const { openCreateGroupModal } = useAgentModal();
   const { avatar, backgroundColor, id, pinned, slug, userId, visibility } = item;

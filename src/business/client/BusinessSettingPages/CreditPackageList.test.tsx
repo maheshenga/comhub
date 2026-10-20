@@ -19,19 +19,14 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   // shared.tsx 的 BusinessTableError 从这里取 Button；组件的空态 Empty 也在此桶。
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button {...props}>{children}</button>
   ),
   Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  Select: () => <div />,
-}));
-
-vi.mock('@lobehub/ui/base-ui', () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => (
-    <button {...props}>{children}</button>
-  ),
   Select: () => <div />,
   Tabs: ({ items }: { items?: { key: string; label: ReactNode }[] }) => (
     <div>

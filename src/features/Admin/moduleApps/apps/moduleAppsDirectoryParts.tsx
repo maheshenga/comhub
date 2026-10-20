@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, Select } from '@lobehub/ui/base-ui';
+import { Button, Input, Select } from '@lobehub/ui';
 import type { TableProps } from 'antd';
 import { Plus } from 'lucide-react';
 

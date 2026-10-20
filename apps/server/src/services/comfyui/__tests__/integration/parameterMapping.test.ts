@@ -13,11 +13,9 @@ import { buildSimpleSDWorkflow } from '@/server/services/comfyui/workflows/simpl
 
 describe('Parameter Mapping - Core Business Logic', () => {
   const { models } = parametersFixture;
-  let inputCalls: Map<string, any>;
 
   beforeEach(() => {
-    const mocks = setupAllMocks();
-    inputCalls = mocks.inputCalls;
+    setupAllMocks();
   });
 
   // Workflow builder mapping
@@ -98,7 +96,7 @@ describe('Parameter Mapping - Core Business Logic', () => {
   describe('Parameter Transformations', () => {
     it.each(parametersFixture.transformations.aspectRatio)(
       'should transform aspectRatio $input to width/height',
-      async ({ input, expected }) => {
+      async ({ input, expected: _expected }) => {
         const params = {
           prompt: 'test prompt',
           ...models['flux-dev'].defaults,

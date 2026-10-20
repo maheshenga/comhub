@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button,Flexbox } from '@lobehub/ui';
 
 import { PagerPositionLabel } from '../shared/PagerPositionLabel';
 

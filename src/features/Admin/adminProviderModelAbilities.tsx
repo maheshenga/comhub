@@ -1,4 +1,4 @@
-import { CheckboxGroup } from '@lobehub/ui/base-ui';
+import { CheckboxGroup } from '@lobehub/ui';
 
 const ABILITY_KEYS = [
   'vision',

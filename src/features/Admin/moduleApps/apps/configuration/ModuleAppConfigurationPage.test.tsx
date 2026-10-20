@@ -94,7 +94,10 @@ vi.mock('@lobechat/types', async (importOriginal) => ({
   hasAdminCapability: () => roleState.canWrite,
 }));
 vi.mock('../../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Input: ({ onChange, ...props }: any) => <input onChange={(e) => onChange?.(e)} {...props} />,
   InputNumber: ({ max, min, onChange, ...props }: any) => (
     <input

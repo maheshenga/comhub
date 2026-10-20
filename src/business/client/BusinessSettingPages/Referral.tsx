@@ -1,9 +1,7 @@
 'use client';
 
-import { Empty, Icon } from '@lobehub/ui';
-import { Button, Input, toast } from '@lobehub/ui/base-ui';
+import { Button, createStaticStyles, cx,Empty, Icon, Input, toast } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
-import { createStaticStyles, cx } from 'antd-style';
 import { Copy, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

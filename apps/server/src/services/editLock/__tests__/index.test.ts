@@ -19,7 +19,9 @@ const makeFakeRedis = () => {
         try {
           const parsed = JSON.parse(raw);
           matches = matches || (parsed.userId === userArg && parsed.ownerId === ownerArg);
-        } catch {}
+        } catch {
+          // Legacy raw values are not JSON; fall back to the string comparison.
+        }
         if (matches) {
           store.delete(key);
           return 1;

@@ -1,7 +1,7 @@
 'use client';
 
-import { AutoComplete, Input } from '@lobehub/ui/base-ui';
-import { Form, type FormInstance, useWatch } from '@lobehub/ui/base-ui/form';
+import { AutoComplete, Input } from '@lobehub/ui';
+import { Form, type FormInstance, useWatch } from '@lobehub/ui/form';
 import { memo, type ReactNode } from 'react';
 
 import {

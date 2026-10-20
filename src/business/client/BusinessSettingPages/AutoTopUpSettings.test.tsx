@@ -32,16 +32,15 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('@lobehub/ui/base-ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Alert: ({ message, title }: { message?: ReactNode; title?: ReactNode }) => (
     <div role="alert">{title ?? message}</div>
   ),
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button {...props}>{children}</button>
   ),
+  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   InputNumber: (props: Record<string, unknown>) => <input {...props} />,
   Switch: ({ disabled }: { disabled?: boolean }) => (
     <input readOnly aria-label="auto-top-up-switch" disabled={disabled} type="checkbox" />

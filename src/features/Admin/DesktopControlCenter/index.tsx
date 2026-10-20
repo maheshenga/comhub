@@ -1,7 +1,6 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
-import { confirmModal, Tabs } from '@lobehub/ui/base-ui';
+import { confirmModal, Icon, Tabs } from '@lobehub/ui';
 import { Laptop } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

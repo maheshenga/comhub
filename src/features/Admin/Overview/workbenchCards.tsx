@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Tag } from '@lobehub/ui';
 import { useNavigate } from 'react-router';
 
 import { ADMIN_BASE_PATH } from '@/features/Admin/adminNavigation';

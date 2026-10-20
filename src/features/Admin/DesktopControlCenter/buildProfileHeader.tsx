@@ -1,6 +1,6 @@
 'use client';
 
-import { Select, Text } from '@lobehub/ui/base-ui';
+import { Select, Text } from '@lobehub/ui';
 
 import AdminDangerousActionButton from '../AdminDangerousActionButton';
 import type { buildAdminDangerousActionEnvelope } from '../adminDangerousActions';

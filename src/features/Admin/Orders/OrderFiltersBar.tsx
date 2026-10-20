@@ -1,7 +1,6 @@
 'use client';
 
-import { Button, Input, Select } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles,Input, Select } from '@lobehub/ui';
 
 import type { OrderStatus } from './shared';
 

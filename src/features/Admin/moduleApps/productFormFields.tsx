@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input, InputNumber, Select } from '@lobehub/ui/base-ui';
-import { Form, type FormInstance, useWatch } from '@lobehub/ui/base-ui/form';
+import { Button, Flexbox, Input, InputNumber, Select } from '@lobehub/ui';
+import { Form, type FormInstance, useWatch } from '@lobehub/ui/form';
 import { Save } from 'lucide-react';
 
 type ProductType = 'free' | 'one_time' | 'subscription';

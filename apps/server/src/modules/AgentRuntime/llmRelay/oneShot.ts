@@ -119,6 +119,11 @@ const noClientRequestError = (provider: string) =>
 export interface InitModelRuntimeForRequestOptions {
   /** Shorter deadlines for a latency-sensitive call (input completion). */
   deadlines?: Partial<LlmRelayDeadlines>;
+  /**
+   * A relay decision the caller already resolved. Passing it avoids a second
+   * lookup for callers that branch on the decision before choosing a runtime.
+   */
+  relay?: Awaited<ReturnType<typeof resolveProviderRelay>>;
   workspaceId?: string;
 }
 
@@ -138,9 +143,10 @@ export const initModelRuntimeForRequest = async (
   db: LobeChatDatabase,
   userId: string,
   provider: string,
-  { deadlines, workspaceId }: InitModelRuntimeForRequestOptions = {},
+  { deadlines, relay: resolvedRelay, workspaceId }: InitModelRuntimeForRequestOptions = {},
 ): Promise<RequestModelRuntime> => {
-  const relay = await resolveProviderRelay({ db, provider, userId, workspaceId });
+  const relay =
+    resolvedRelay ?? (await resolveProviderRelay({ db, provider, userId, workspaceId }));
   if (!relay) return initModelRuntimeFromDB(db, userId, provider, workspaceId);
 
   const redis = getAgentRuntimeRedisClient();

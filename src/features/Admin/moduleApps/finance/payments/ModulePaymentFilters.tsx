@@ -1,6 +1,6 @@
 'use client';
 
-import { Input, Select } from '@lobehub/ui/base-ui';
+import { Input, Select } from '@lobehub/ui';
 
 import { modulePaymentStyles as styles } from './modulePaymentsShared';
 
