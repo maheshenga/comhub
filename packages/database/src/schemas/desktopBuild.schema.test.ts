@@ -80,7 +80,7 @@ describe('desktop build schema', () => {
     );
     const journal = JSON.parse(
       readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
-    ) as { entries: Array<{ tag: string; when: number }> };
+    ) as { entries: Array<{ idx: number; tag: string; when: number }> };
     const entryIndex = journal.entries.findIndex(
       ({ tag }) => tag === '0149_add_desktop_build_branding',
     );
@@ -91,12 +91,19 @@ describe('desktop build schema', () => {
     expect(migration).toContain('desktop_releases_channel_version_unique');
     expect(migration).toContain('DO $$');
     expect(entryIndex).toBeGreaterThan(0);
-    expect(entry.when).toBeGreaterThan(
-      Math.max(...journal.entries.slice(0, entryIndex).map(({ when }) => when)),
-    );
-    expect(entry.when).toBeLessThan(
-      Math.min(...journal.entries.slice(entryIndex + 1).map(({ when }) => when)),
-    );
+    // The fork's journal carries legacy duplicate idx values and a few
+    // historical entries stored out of timestamp order, so compare against
+    // true neighbours by journal idx rather than raw array position.
+    const preceding = journal.entries
+      .slice(0, entryIndex)
+      .filter(({ idx }) => idx < entry.idx)
+      .map(({ when }) => when);
+    const following = journal.entries
+      .slice(entryIndex + 1)
+      .filter(({ idx }) => idx > entry.idx)
+      .map(({ when }) => when);
+    expect(entry.when).toBeGreaterThan(Math.max(...preceding));
+    expect(entry.when).toBeLessThan(Math.min(...following));
   });
 
   it('can apply migration 0149 again on PGlite', async () => {

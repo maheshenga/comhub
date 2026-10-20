@@ -71,7 +71,7 @@ describe('TrashModel', () => {
 
   it('migration leaves existing trash rows null and is safe to replay', async () => {
     const migration = await readFile(
-      new URL('../../../migrations/0176_trash_project_context.sql', import.meta.url),
+      new URL('../../../migrations/0189_trash_project_context.sql', import.meta.url),
       'utf8',
     );
     await serverDB.transaction(async (tx) => {
