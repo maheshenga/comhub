@@ -60,7 +60,10 @@ const mockCreateHeaderWithAuth = vi.hoisted(() =>
 // renders in the user's timezone (browser fallback), so the expectation must
 // use the same source instead of assuming the CI machine runs in UTC.
 const getCurrentDateContent = () => {
-  const tz = userGeneralSettingsSelectors.currentTimezone(useUserStore.getState()) || 'UTC';
+  const tz =
+    userGeneralSettingsSelectors.currentTimezone(useUserStore.getState()) ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    'UTC';
   const today = new Date();
   const year = today.toLocaleString('en-US', { timeZone: tz, year: 'numeric' });
   const month = today.toLocaleString('en-US', { month: '2-digit', timeZone: tz });
@@ -1809,7 +1812,11 @@ describe('ChatService', () => {
         request({ channel: 'llmcall:user-1:abcdefgh', headers: {} }),
       );
       const relayedError = {
-        error: { message: "model 'gpt-oss:20b' not found", name: 'ResponseError', status_code: 404 },
+        error: {
+          message: "model 'gpt-oss:20b' not found",
+          name: 'ResponseError',
+          status_code: 404,
+        },
         errorType: 'OllamaBizError',
         provider: 'ollama',
       };

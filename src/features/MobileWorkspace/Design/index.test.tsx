@@ -82,7 +82,11 @@ vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
 vi.mock('@/business/client/hooks/useActiveWorkspaceId', () => ({
   useActiveWorkspaceId: () => workspaceState.activeWorkspaceId,
 }));
-vi.mock('@/store/page', () => ({ usePageStore: (selector: any) => selector({ createNewPage }) }));
+vi.mock('@/store/page', () => ({
+  pageActions: {
+    createNewPage: (...args: any[]) => createNewPage(...args),
+  },
+}));
 vi.mock('@lobehub/ui/mobile', () => {
   const ChatHeader = ({ center, left, right }: any) => (
     <header>

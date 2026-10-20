@@ -42,23 +42,31 @@ const discoverState = vi.hoisted(() => ({
   mcpResponse: { items: [] as any[] },
   mutateAssistants: vi.fn(),
   mutateMcps: vi.fn(),
-  useAssistantList: vi.fn(() => ({
-    data: discoverState.assistantResponse,
+  useFetchAssistantList: vi.fn(() => ({
     error: undefined,
     isLoading: false,
     mutate: discoverState.mutateAssistants,
+    queryKey: 'assistant-q',
   })),
   useFetchMcpList: vi.fn(() => ({
-    data: discoverState.mcpResponse,
     error: undefined,
     isLoading: false,
     mutate: discoverState.mutateMcps,
+    queryKey: 'mcp-q',
   })),
 }));
 
 vi.mock('../useMobileConfig', () => ({ useMobileConfig: () => mobileState }));
 vi.mock('@/store/discover', () => ({
   useDiscoverStore: (selector: (state: typeof discoverState) => unknown) => selector(discoverState),
+}));
+vi.mock('@/store/discover/selectors', () => ({
+  assistantSelectors: {
+    assistantList: () => () => discoverState.assistantResponse,
+  },
+  mcpSelectors: {
+    mcpList: () => () => discoverState.mcpResponse,
+  },
 }));
 vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => navigate,
@@ -202,7 +210,7 @@ describe('MobileDiscoverPage', () => {
 
     render(<MobileDiscoverPage />);
 
-    expect(discoverState.useAssistantList).toHaveBeenCalledWith(
+    expect(discoverState.useFetchAssistantList).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, pageSize: 4 }),
       { enabled: false },
     );

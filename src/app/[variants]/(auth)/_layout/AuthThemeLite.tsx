@@ -2,7 +2,7 @@
 
 import 'antd/dist/reset.css';
 
-import { ConfigProvider, ThemeProvider, ToastHost } from '@lobehub/ui';
+import { ConfigProvider, ThemeScope, ToastHost } from '@lobehub/ui';
 import { App } from 'antd';
 import { domMax, LazyMotion } from 'motion/react';
 import * as m from 'motion/react-m';
@@ -22,16 +22,7 @@ const AuthThemeLite = memo<AuthThemeLiteProps>(({ children, globalCDN }) => {
   const currentAppearance = isDark ? 'dark' : 'light';
 
   return (
-    <ThemeProvider
-      appearance={currentAppearance}
-      className={'auth-layout'}
-      defaultAppearance={currentAppearance}
-      defaultThemeMode={currentAppearance}
-      style={{ height: '100%' }}
-      theme={{
-        cssVar: { key: 'lobe-vars' },
-      }}
-    >
+    <ThemeScope appearance={currentAppearance} className={'auth-layout'} style={{ height: '100%' }}>
       <App style={{ height: '100%' }}>
         <ConfigProvider
           motion={m}
@@ -46,7 +37,7 @@ const AuthThemeLite = memo<AuthThemeLiteProps>(({ children, globalCDN }) => {
           <ToastHost />
         </ConfigProvider>
       </App>
-    </ThemeProvider>
+    </ThemeScope>
   );
 });
 

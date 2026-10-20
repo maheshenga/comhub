@@ -368,7 +368,6 @@ const AgentColumn = memo<AgentColumnProps>(({ column, status }) => {
 
   const chatKey = useMemo(() => messageMapKey(context), [context]);
   const messages = useChatStore((s) => s.dbMessagesMap[chatKey]);
-  const replaceMessages = useChatStore((s) => s.replaceMessages);
   const operationState = useOperationState(context);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -469,15 +468,7 @@ const AgentColumn = memo<AgentColumnProps>(({ column, status }) => {
 
       {/* Conversation body — ChatList, running-op tray, on-demand reply input */}
       <Flexbox className={styles.body}>
-        <ConversationProvider
-          context={context}
-          hasInitMessages={!!messages}
-          messages={messages}
-          operationState={operationState}
-          onMessagesChange={(next, ctx) => {
-            replaceMessages(next, { context: ctx });
-          }}
-        >
+        <ConversationProvider context={context} messages={messages} operationState={operationState}>
           <Flexbox className={styles.list}>
             <ChatList disableActionsBar />
           </Flexbox>

@@ -932,6 +932,16 @@ const MODULES = [
       ],
       ['p:src/features/ModuleAppRuntime/', 'owned', 'runtime UI'],
       ['p:src/features/ModuleAppMarket/', 'owned', 'marketplace UI (AppDetail upstream-modified)'],
+      [
+        'p:src/features/AgentSetting/AgentCategory/useCategory.tsx',
+        'upstream',
+        'agent category hook (fork-modified, exists upstream)',
+      ],
+      [
+        'p:src/features/AgentSetting/AgentSettingsContent.tsx',
+        'upstream',
+        'agent settings content (fork-modified, exists upstream)',
+      ],
       ['p:src/features/AgentSetting/', 'owned', 'agent chat settings panel'],
       ['p:src/features/AgentShareVisitor/', 'owned', 'share visitor composer guard'],
       ['p:src/features/CommunityRecommendations/', 'owned', 'community recommendations'],
@@ -1077,6 +1087,11 @@ const MODULES = [
       ['p:src/services/commercial.ts', 'owned', 'commercial client service'],
       ['p:src/services/discover.test.ts', 'owned', 'discover client tests'],
       ['p:src/services/docmee.ts', 'owned', 'docmee PPT client'],
+      [
+        'p:src/services/global.ts',
+        'upstream',
+        'lazy electron-store import breaks the chat-store evaluation cycle',
+      ],
       ['p:src/services/mobileDesign', 'owned', 'mobile design client + tests'],
       ['p:src/services/moduleApp', 'owned', 'module app client + tests'],
       ['p:src/services/redemption.ts', 'owned', 'redemption client'],
@@ -1200,7 +1215,11 @@ const MODULES = [
         'owned',
         'build/deploy/deploy-worker/pr-check/upstream-sync + comhubDeploymentWorkflows.test.mjs (upstream has no comhub* workflows)',
       ],
-      ['p:.github/workflows/codeql.yml', 'upstream', 'fork codeql workflow: fork-new through v2.2.19; upstream added its own codeql.yml in v2.2.20 (upstream commit e4bc131184), merge keeps the fork version — re-apply fork schedule/scope on upstream rewrites'],
+      [
+        'p:.github/workflows/codeql.yml',
+        'upstream',
+        'fork codeql workflow: fork-new through v2.2.19; upstream added its own codeql.yml in v2.2.20 (upstream commit e4bc131184), merge keeps the fork version — re-apply fork schedule/scope on upstream rewrites',
+      ],
       [
         'p:.github/workflows/dependency-review.yml',
         'owned',

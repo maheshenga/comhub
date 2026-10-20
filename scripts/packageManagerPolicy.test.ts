@@ -27,9 +27,11 @@ describe('package manager policy', () => {
   });
 
   it('routes app and server tests through Vitest projects', () => {
-    expect(vitestConfig).not.toContain('environmentMatchGlobs');
+    // The comment explaining the Vitest 4 removal mentions the option name;
+    // only an actual `environmentMatchGlobs:` option is forbidden.
+    expect(vitestConfig).not.toMatch(/environmentMatchGlobs\s*:/);
     expect(vitestConfig).toContain("name: 'app'");
     expect(vitestConfig).toContain("name: 'server'");
-    expect(vitestConfig).toContain("include: ['apps/server/**/*.{test,spec}.?(c|m)[jt]s?(x)']");
+    expect(vitestConfig).toContain("include: ['**/apps/server/**/*.{test,spec}.?(c|m)[jt]s?(x)']");
   });
 });

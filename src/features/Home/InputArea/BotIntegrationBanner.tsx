@@ -1,15 +1,15 @@
 'use client';
 
-import { ActionIcon, createStaticStyles,Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, createStaticStyles, Flexbox, Icon } from '@lobehub/ui';
 import { RadioTowerIcon, X } from 'lucide-react';
 import type { FC } from 'react';
 import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { getPlatformIcon } from '@/features/AgentChannel/const';
 import { useBrandName } from '@/features/Brand';
 import { replaceLegacyBrandTokens } from '@/features/Brand/brandText';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
-import { getPlatformIcon } from '@/routes/(main)/agent/channel/const';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors/builtinAgentSelectors';
 import { useGlobalStore } from '@/store/global';

@@ -15,7 +15,11 @@ vi.mock('@/server/services/docmee', () => ({
       this.code = code;
     }
   },
-  DocmeePptService: vi.fn(() => serviceMocks),
+  DocmeePptService: class {
+    constructor() {
+      return serviceMocks;
+    }
+  },
 }));
 
 const { docmeeRouter } = await import('./docmee');

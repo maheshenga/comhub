@@ -132,16 +132,20 @@ vi.mock('@/business/client/model-bank/loadModels', () => ({
 }));
 
 // model-bank is a TypeScript source file that cannot be dynamically imported in vitest
-vi.mock('model-bank', async (importOriginal) => ({
-  // serverCallLlmContextHints gates the model-instance reasoning-config DB
-  // read on the real MODEL_REASONING_EXTEND_PARAMS list
-  MODEL_REASONING_EXTEND_PARAMS: (await importOriginal<typeof ModelBank>())
-    .MODEL_REASONING_EXTEND_PARAMS,
-  LOBE_DEFAULT_MODEL_LIST: mockBuiltinModels,
-  ModelProvider: {
-    LobeHub: 'lobehub',
-  },
-}));
+vi.mock('model-bank', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelBank>();
+
+  return {
+    // serverCallLlmContextHints gates the model-instance reasoning-config DB
+    // read on the real MODEL_REASONING_EXTEND_PARAMS list
+    AiModelReasoningConfigSchema: actual.AiModelReasoningConfigSchema,
+    MODEL_REASONING_EXTEND_PARAMS: actual.MODEL_REASONING_EXTEND_PARAMS,
+    LOBE_DEFAULT_MODEL_LIST: mockBuiltinModels,
+    ModelProvider: {
+      LobeHub: 'lobehub',
+    },
+  };
+});
 
 // composioEnv uses @t3-oss/env-nextjs which throws in jsdom (treats it as client context)
 vi.mock('@/config/composio', () => ({

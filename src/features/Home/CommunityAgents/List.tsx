@@ -5,18 +5,21 @@ import { Link } from 'react-router';
 import urlJoin from 'url-join';
 
 import { useDiscoverStore } from '@/store/discover';
+import { assistantSelectors } from '@/store/discover/selectors';
 
 import GroupSkeleton from '../components/GroupSkeleton';
 import { RECENT_BLOCK_SIZE } from '../const';
 import CommunityAgentItem from './Item';
 
 const CommunityAgentsList = memo(() => {
-  const useAssistantList = useDiscoverStore((s) => s.useAssistantList);
+  const useAssistantList = useDiscoverStore((s) => s.useFetchAssistantList);
 
-  const { data: assistantList, isLoading } = useAssistantList({
+  const sync = useAssistantList({
     page: 1,
     pageSize: 12,
   });
+  const assistantList = useDiscoverStore(assistantSelectors.assistantList(sync.queryKey));
+  const isLoading = sync.isLoading;
 
   if (isLoading) {
     return (

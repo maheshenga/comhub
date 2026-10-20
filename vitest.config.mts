@@ -65,6 +65,9 @@ const exclude = [
   '**/apps/cli/**',
   '**/packages/**',
   '**/e2e/**',
+  // Node's test runner owns this suite (see comhub-pr-check); Vitest would
+  // report "No test suite found" for a `node:test` file.
+  '**/scripts/comhub-customizations/registry.test.mjs',
 ];
 
 export default defineConfig({

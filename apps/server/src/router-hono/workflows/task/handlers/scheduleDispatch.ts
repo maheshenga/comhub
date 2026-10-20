@@ -97,11 +97,17 @@ export async function scheduleDispatch(c: Context) {
       dryRun,
     );
 
+    // Module App schedules are governed separately from ordinary tasks, so
+    // they must run on every tick — including when no task is due. In a dry
+    // run the hook reports `skipped` without claiming anything.
+    const moduleApps = await dispatchModuleAppSchedules(db, dryRun);
+
     if (dryRun || due.length === 0) {
       return c.json({
         dispatched: 0,
         dryRun,
         due: due.length,
+        moduleApps,
         skipped: tasks.length - due.length,
         success: true,
         total: tasks.length,
@@ -118,8 +124,6 @@ export async function scheduleDispatch(c: Context) {
       await Promise.all(reserved.map((d) => release(db, d)));
       throw error;
     }
-
-    const moduleApps = await dispatchModuleAppSchedules(db, dryRun);
 
     return c.json({
       dispatched,

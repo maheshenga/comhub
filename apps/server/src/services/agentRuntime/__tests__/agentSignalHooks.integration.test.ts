@@ -15,8 +15,14 @@ const mockRedis = {
 
 const stubUiMessagesSnapshot = (service: unknown) => {
   (
-    service as { messageServiceInstance?: { queryMessages: ReturnType<typeof vi.fn> } }
+    service as {
+      messageServiceInstance?: {
+        prepareUiMessages: ReturnType<typeof vi.fn>;
+        queryMessages: ReturnType<typeof vi.fn>;
+      };
+    }
   ).messageServiceInstance = {
+    prepareUiMessages: vi.fn().mockResolvedValue([]),
     queryMessages: vi.fn().mockResolvedValue([]),
   };
 };

@@ -36,6 +36,12 @@ vi.mock('@/database/core/db-adaptor', () => ({
   }),
 }));
 
+// Billing is exercised elsewhere; a fresh test user has no credit balance and
+// the fork's runtime hooks would otherwise block every LLM call.
+vi.mock('@/business/server/model-runtime', () => ({
+  getBusinessModelRuntimeHooks: () => undefined,
+}));
+
 vi.mock('@/server/services/file', () => ({
   FileService: vi.fn().mockImplementation(function () {
     return {

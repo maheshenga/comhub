@@ -617,8 +617,7 @@ describe('imageRouter', () => {
       );
     });
 
-    it('does not fail the request or the tasks when the background call rejects', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it('marks the task failed when the background call rejects', async () => {
       const unhandled = vi.fn();
       process.on('unhandledRejection', unhandled);
       mockAsyncCallerCreateImage.mockRejectedValue(
@@ -631,16 +630,17 @@ describe('imageRouter', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(result.success).toBe(true);
-        expect(mockAsyncTaskModelUpdate).not.toHaveBeenCalled();
-        expect(unhandled).not.toHaveBeenCalled();
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          'Async image task %s request failed: %O',
+        // The fork compensates a startup failure per task: without the update
+        // the row would sit in `pending` and its billing handle would dangle
+        // until the reservation expired.
+        expect(mockAsyncTaskModelUpdate).toHaveBeenCalledTimes(2);
+        expect(mockAsyncTaskModelUpdate).toHaveBeenCalledWith(
           expect.any(String),
-          expect.any(Error),
+          expect.objectContaining({ status: AsyncTaskStatus.Error }),
         );
+        expect(unhandled).not.toHaveBeenCalled();
       } finally {
         process.off('unhandledRejection', unhandled);
-        consoleErrorSpy.mockRestore();
       }
     });
 

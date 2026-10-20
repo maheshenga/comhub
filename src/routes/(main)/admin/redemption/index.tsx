@@ -1,7 +1,6 @@
 'use client';
 
-import { Button, Flexbox, Input, Modal, Select, toast } from '@lobehub/ui';
-import TextArea from '@lobehub/ui/es/base-ui/Input/TextArea';
+import { Button, Flexbox, Input, Modal, Select, TextArea, toast } from '@lobehub/ui';
 // keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：antd 受控 Form（Form.useForm/validateFields）与 RedemptionGenerateFormFields 的受控表单契约绑定；base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，均无法行为不变替换；FormKit 迁移另行立项。
 import { Form } from 'antd';
 import { memo, useMemo, useState } from 'react';
@@ -9,11 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
 import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
-import {
-  AdminPageShell,
-  AdminSection,
-  AdminToolbar,
-} from '@/features/Admin/layout';
+import { AdminPageShell, AdminSection, AdminToolbar } from '@/features/Admin/layout';
 import {
   buildRedemptionGeneratePayload,
   RedemptionGenerateFormFields,

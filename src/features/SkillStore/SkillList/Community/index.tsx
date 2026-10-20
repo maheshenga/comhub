@@ -29,27 +29,21 @@ export const CommunityList = memo(() => {
 
   const [
     keywords,
-    isMcpListInit,
-    allItems,
-    currentPage,
-    totalPages,
-    searchLoading,
+    mcpPluginList,
     useFetchMCPPluginList,
     loadMoreMCPPlugins,
     resetMCPPluginList,
     useFetchAgentSkills,
   ] = useToolStore((s) => [
     s.mcpSearchKeywords,
-    s.isMcpListInit,
-    s.mcpPluginItems,
-    s.currentPage,
-    s.totalPages,
-    s.searchLoading,
+    s.mcpPluginList,
     s.useFetchMCPPluginList,
     s.loadMoreMCPPlugins,
     s.resetMCPPluginList,
     s.useFetchAgentSkills,
   ]);
+
+  const allItems = mcpPluginList?.items ?? [];
 
   const marketAgentSkills = useToolStore(agentSkillsSelectors.getMarketAgentSkills, isEqual);
   useFetchAgentSkills(true);
@@ -88,8 +82,7 @@ export const CommunityList = memo(() => {
     }
   }, [keywords, resetMCPPluginList]);
 
-  const { isLoading, error } = useFetchMCPPluginList({
-    page: currentPage,
+  const { error, isHydrated, isValidating } = useFetchMCPPluginList({
     pageSize: 20,
     q: keywords,
   });
@@ -98,7 +91,7 @@ export const CommunityList = memo(() => {
 
   const renderContent = () => {
     // Show loading when searching, not initialized, or first page is loading with no items
-    if (searchLoading || !isMcpListInit || (isLoading && allItems.length === 0)) return <Loading />;
+    if (!isHydrated || (isValidating && allItems.length === 0)) return <Loading />;
 
     if (error) {
       return (
@@ -112,10 +105,10 @@ export const CommunityList = memo(() => {
     if (combinedItems.length === 0) return <Empty search={hasSearchKeywords} />;
 
     // Check if we've reached the end of the list
-    const hasReachedEnd = totalPages !== undefined && currentPage >= totalPages;
+    const hasReachedEnd = mcpPluginList ? !mcpPluginList.hasMore : false;
 
     const renderFooter = () => {
-      if (isLoading) return <VirtuosoLoading />;
+      if (isValidating) return <VirtuosoLoading />;
       if (hasReachedEnd) return <WantMoreSkills />;
       return <div style={{ height: 16 }} />;
     };

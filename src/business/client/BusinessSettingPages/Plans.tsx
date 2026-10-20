@@ -1085,7 +1085,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
             <Table
               columns={comparisonColumns as any}
               dataSource={comparisonRows}
-              emptyText={<Empty description="暂无套餐对比数据" />}
+              locale={{ emptyText: <Empty description="暂无套餐对比数据" /> }}
               pagination={false}
               rowKey="key"
               scroll={{ x: Math.max(720, visiblePlans.length * 168 + 132) }}

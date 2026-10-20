@@ -97,6 +97,5 @@ overrides:
   'zod@^4': 4.6.5
 
 patchedDependencies:
-  '@upstash/qstash': patches/@upstash__qstash.patch
   micromark@4.0.3: patches/micromark@4.0.3.patch
   micromark-extension-gfm-autolink-literal@2.1.0: patches/micromark-extension-gfm-autolink-literal@2.1.0.patch

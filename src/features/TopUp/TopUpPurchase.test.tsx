@@ -90,6 +90,7 @@ vi.mock('@lobehub/ui', () => ({
   ),
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Icon: () => null,
+  QRCode: () => null,
   Alert: ({ action, message }: { action?: ReactNode; message?: ReactNode }) => (
     <div role="alert">
       {message}
