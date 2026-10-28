@@ -12,6 +12,7 @@ vi.mock('@/const/brand', () => ({
   DEFAULT_RUNTIME_BRAND: {
     authTitle: 'Default auth title',
     copyrightText: '2026 Default. All rights reserved.',
+    faviconUrl: null,
     loadingText: 'Loading',
     logoUrl: null,
     name: 'Default Brand',
@@ -37,6 +38,7 @@ describe('getServerBrand lazy database loading', () => {
       faviconUrl: null,
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: null,
+      loadingSvgUrl: null,
       loadingText: 'Loading',
       logoUrl: null,
       name: 'Default Brand',

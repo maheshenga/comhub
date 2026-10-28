@@ -1,7 +1,6 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
-import { Alert, Button, Text } from '@lobehub/ui/base-ui';
+import { Alert, Button, Icon, Text } from '@lobehub/ui';
 import { Space } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo } from 'react';

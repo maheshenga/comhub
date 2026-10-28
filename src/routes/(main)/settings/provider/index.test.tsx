@@ -9,7 +9,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
   Flexbox: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Skeleton: () => <div data-testid="skeleton" />,
 }));
 
 vi.mock('react-router', () => ({
@@ -17,7 +21,10 @@ vi.mock('react-router', () => ({
   useParams: () => ({ providerId: 'openai' }),
 }));
 
-vi.mock('@/const/version', () => ({ isCustomBranding: true }));
+vi.mock('@/const/version', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  isCustomBranding: true,
+}));
 
 vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => mocks.navigate,
@@ -39,7 +46,7 @@ vi.mock('./(list)/Footer', () => ({ default: () => null }));
 
 vi.mock('./ProviderMenu', () => ({ default: () => null }));
 
-vi.mock('./detail', () => ({
+vi.mock('@/features/Settings/provider/detail', () => ({
   default: ({ onProviderSelect }: { onProviderSelect: (providerKey: string) => void }) => (
     <button type="button" onClick={() => onProviderSelect('anthropic')}>
       Select provider

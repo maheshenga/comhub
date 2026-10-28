@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
       avatar: '/images/configured-agent.svg',
       title: 'Configured Agent',
     } as { avatar?: string; title?: string },
-    enableAgentGraphConfig: false,
+    preference: { lab: { enableAgentGraphConfig: false } },
   },
 }));
 
@@ -66,6 +66,7 @@ vi.mock('@/hooks/usePermission', () => ({
 vi.mock('@/features/Brand/BrandProvider', () => ({
   useBrand: () => ({ logoUrl: '/brand.svg', name: 'ComHub Brand' }),
 }));
+
 vi.mock('@/store/agent', () => {
   const useAgentStore = (selector: (state: typeof mocks.agentState) => unknown) =>
     selector(mocks.agentState);
@@ -98,30 +99,33 @@ vi.mock('@/store/user', () => ({
 
 vi.mock('@/store/user/selectors', () => ({
   labPreferSelectors: {
-    enableAgentGraphConfig: (state: typeof mocks.userState) => state.enableAgentGraphConfig,
+    enableAgentGraphConfig: (state: typeof mocks.userState) =>
+      state.preference.lab.enableAgentGraphConfig,
   },
   settingsSelectors: {
     defaultAgentMeta: (state: typeof mocks.userState) => state.defaultAgentMeta,
   },
 }));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
 }));
+
 describe('AgentSettings Content', () => {
   beforeEach(() => {
     mocks.agentState.isCurrentAgentHeterogeneous = false;
     mocks.agentState.isInbox = true;
     mocks.serverState.featureFlags.enableAgentSelfIteration = true;
-    mocks.userState.enableAgentGraphConfig = false;
+    mocks.userState.preference.lab.enableAgentGraphConfig = false;
     mocks.userState.defaultAgentMeta = {
       avatar: '/images/configured-agent.svg',
       title: 'Configured Agent',
     };
   });
 
-  it('exposes both tabs for inbox when feature is on', () => {
+  it('opens on the opening tab', () => {
     render(<Content />);
 
     const layout = screen.getByTestId('layout');
@@ -169,9 +173,32 @@ describe('AgentSettings Content', () => {
     expect(layout).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
   });
 
+  it('adds the graph tab for custom agents when its Labs switch is on', () => {
+    mocks.agentState.isInbox = false;
+    mocks.userState.preference.lab.enableAgentGraphConfig = true;
+
+    render(<Content />);
+
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration},${ChatSettingsTabs.Graph}`,
+    );
+  });
+
+  it('keeps the graph tab off for inbox even with its Labs switch on', () => {
+    mocks.userState.preference.lab.enableAgentGraphConfig = true;
+
+    render(<Content />);
+
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
+  });
+
   it('shows graph only for eligible agents when the lab preference is enabled', () => {
     mocks.agentState.isInbox = false;
-    mocks.userState.enableAgentGraphConfig = true;
+    mocks.userState.preference.lab.enableAgentGraphConfig = true;
 
     const { rerender } = render(<Content />);
 

@@ -23,6 +23,12 @@ vi.mock('@/server/globalConfig', () => ({
   }),
 }));
 
+vi.mock('@/server/globalConfig/parseMemoryExtractionConfig', () => ({
+  getResolvedMemoryExtractionConfig: vi.fn().mockResolvedValue({
+    embedding: { contextLimit: 8192, model: 'text-embedding-3-small', provider: 'openai' },
+  }),
+}));
+
 vi.mock('@/server/modules/ModelRuntime', () => ({
   initModelRuntimeFromDB: vi.fn(),
 }));

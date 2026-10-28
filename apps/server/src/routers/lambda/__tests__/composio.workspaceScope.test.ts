@@ -5,6 +5,7 @@ import { AgentModel } from '@/database/models/agent';
 import { ConnectorModel } from '@/database/models/connector';
 import { ConnectorToolModel } from '@/database/models/connectorTool';
 import { PluginModel } from '@/database/models/plugin';
+import type * as AppSettingsModule from '@/server/services/appSettings';
 
 import { composioRouter } from '../composio';
 
@@ -17,6 +18,18 @@ vi.mock('@/database/models/connectorTool', () => ({ ConnectorToolModel: vi.fn() 
 vi.mock('@/database/models/plugin', () => ({ PluginModel: vi.fn() }));
 // A pre-configured auth config short-circuits the discovery branch.
 vi.mock('@/config/composio', () => ({ getServerComposioAuthConfigId: () => 'auth-cfg-1' }));
+vi.mock('@/server/services/appSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof AppSettingsModule>();
+
+  return {
+    ...actual,
+    getServerComposioConfig: vi.fn().mockResolvedValue({
+      apiKey: 'test-key',
+      authConfigIds: undefined,
+      enabled: true,
+    }),
+  };
+});
 vi.mock('@/libs/composio', () => ({
   getComposioClient: () => ({
     connectedAccounts: { link: async () => ({ id: 'acc-1', redirectUrl: 'http://redirect' }) },

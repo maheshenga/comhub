@@ -1,7 +1,7 @@
 'use client';
 
-import { Flexbox, Icon, type MenuProps } from '@lobehub/ui';
-import { Tag } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon, Tag } from '@lobehub/ui';
+import type { MenuProps } from 'antd';
 import {
   Activity,
   BarChart3,

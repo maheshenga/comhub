@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Tag  } from '@lobehub/ui/base-ui';
+import { Button, Tag  } from '@lobehub/ui';
 import { Space } from 'antd';
 import { RotateCcw, ShieldCheck } from 'lucide-react';
 

@@ -1,3 +1,4 @@
+import type { LobeChatDatabase } from '@lobechat/database';
 import { EdgeConfig } from '@lobechat/edge-config';
 import debug from 'debug';
 
@@ -56,12 +57,28 @@ const getActiveBillboard = async (): Promise<GlobalBillboard | null> => {
   }
 };
 
-const getOptionalServerDB = async () => {
+/**
+ * A database handle for env-only config resolution. `getServerGlobalConfig`
+ * reads admin-managed settings through `db.query.appSettings`; when the
+ * database is unreachable those reads must resolve to "no override" and let
+ * the environment values stand, instead of failing the public config route.
+ */
+const createEnvOnlyServerDB = () =>
+  ({
+    query: {
+      appSettings: {
+        findFirst: async () => null,
+        findMany: async () => [],
+      },
+    },
+  }) as unknown as LobeChatDatabase;
+
+const getOptionalServerDB = async (): Promise<LobeChatDatabase> => {
   try {
     return await getServerDB();
   } catch (err) {
     log('[GlobalConfig] Failed to initialize server database, falling back to env config:', err);
-    return undefined;
+    return createEnvOnlyServerDB();
   }
 };
 

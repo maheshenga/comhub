@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Select } from '@lobehub/ui/base-ui';
+import { Select } from '@lobehub/ui';
 import { ClipboardCheck, CreditCard, PackageCheck, Play } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

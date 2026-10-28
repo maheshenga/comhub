@@ -1,7 +1,6 @@
 'use client';
 
-import { Button, Select, Tabs, Tag, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles,Select, Tabs, Tag, toast } from '@lobehub/ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

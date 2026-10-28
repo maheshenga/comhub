@@ -1,8 +1,15 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import type { ButtonProps } from '@lobehub/ui/base-ui';
-import { Alert, Button, Input, Modal, Text, TextArea } from '@lobehub/ui/base-ui';
+import {
+  Alert,
+  Button,
+  type ButtonProps,
+  Flexbox,
+  Input,
+  Modal,
+  Text,
+  TextArea,
+} from '@lobehub/ui';
 import { memo, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

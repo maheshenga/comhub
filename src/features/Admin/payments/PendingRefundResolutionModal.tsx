@@ -1,7 +1,6 @@
 'use client';
 
-import { Alert,Modal, Select, TextArea  } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Alert, createStaticStyles,Modal, Select, TextArea } from '@lobehub/ui';
 
 const styles = createStaticStyles(({ css }) => ({
   field: css`

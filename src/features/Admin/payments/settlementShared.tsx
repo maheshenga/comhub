@@ -1,9 +1,8 @@
 'use client';
 
-import { Button, Tag  } from '@lobehub/ui/base-ui';
+import { Button, createStaticStyles,Tag } from '@lobehub/ui';
 import type { TableProps } from 'antd';
 import { Space } from 'antd';
-import { createStaticStyles } from 'antd-style';
 import { RotateCcw } from 'lucide-react';
 
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';

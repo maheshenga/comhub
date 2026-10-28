@@ -83,13 +83,6 @@ import {
 } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { S3 } from '@/server/modules/S3';
-import {
-  type MemoryRuntimeModelType,
-  type MemoryRuntimeTargets,
-  getMemoryRuntimeCacheKey,
-  initMemoryRuntimeFromTarget,
-  resolveMemoryRuntimeTargets,
-} from './memoryRuntimeTargets';
 import { getUserScopedAiProviderRuntimeState } from '@/server/services/aiProviderAccess';
 import { createFtsSearchRepo } from '@/server/services/ftsSearch';
 import { recordUserMemoryLexicalSearchDecision } from '@/server/services/ftsSearch/observability';
@@ -107,6 +100,15 @@ import { type MergeStrategyEnum } from '@/types/userMemory';
 import { LayersEnum, MemorySourceType, TypesEnum } from '@/types/userMemory';
 import { trimBasedOnBatchProbe } from '@/utils/chunkers';
 import { encodeAsync } from '@/utils/tokenizer';
+import { resolveEmbeddingTokenLimit, trimEmbeddingInput } from '@/utils/tokenizer/embedding';
+
+import {
+  getMemoryRuntimeCacheKey,
+  initMemoryRuntimeFromTarget,
+  type MemoryRuntimeModelType,
+  type MemoryRuntimeTargets,
+  resolveMemoryRuntimeTargets,
+} from './memoryRuntimeTargets';
 
 const SOURCE_ALIAS_MAP: Record<string, MemorySourceType> = {
   benchmark_locomo: MemorySourceType.BenchmarkLocomo,
@@ -805,7 +807,9 @@ export class MemoryExtractionExecutor {
         gatekeeper,
         layerExtractor,
       },
-      embeddingContextLimit: embedding.contextLimit ?? layerExtractor.contextLimit,
+      embeddingContextLimit:
+        resolveEmbeddingTokenLimit(embedding.model, embedding.contextLimit) ??
+        layerExtractor.contextLimit,
       extractorContextLimit: layerExtractor.contextLimit,
       modelConfig: {
         embeddingsModel: embedding.model,
@@ -915,7 +919,7 @@ export class MemoryExtractionExecutor {
       for (const [index, text] of texts.entries()) {
         if (typeof text !== 'string') continue;
 
-        const trimmed = await this.trimTextToTokenLimit(text, tokenLimit);
+        const trimmed = await trimEmbeddingInput(text, model, tokenLimit);
         if (!trimmed.trim()) continue;
 
         requests.push({ index, text: trimmed });
@@ -1424,8 +1428,9 @@ export class MemoryExtractionExecutor {
     const userMemoryModel = new UserMemoryModel(db, userId, ftsSearchRepo);
     // TODO: make topK configurable
     const topK = 10;
-    const aggregatedContent = await this.trimTextToTokenLimit(
+    const aggregatedContent = await trimEmbeddingInput(
       conversations.map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n\n'),
+      embeddingModel,
       tokenLimit,
     );
 

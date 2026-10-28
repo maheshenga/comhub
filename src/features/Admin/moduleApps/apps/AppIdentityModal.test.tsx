@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import AppIdentityModal from './AppIdentityModal';
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Input: ({ ...props }: any) => <input data-component="base-input" {...props} />,
   Modal: ({ children, okButtonProps, onOk, open, title }: any) =>
     open ? (

@@ -1,7 +1,6 @@
 'use client';
 
-import { Button, type ButtonProps } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cx } from 'antd-style';
+import { Button, type ButtonProps, createStaticStyles, cx } from '@lobehub/ui';
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
 
 const MOBILE_SECTION_ACTION_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;

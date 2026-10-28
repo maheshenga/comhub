@@ -1,8 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button } from '@lobehub/ui/base-ui';
+import { Alert, Button,Flexbox } from '@lobehub/ui';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

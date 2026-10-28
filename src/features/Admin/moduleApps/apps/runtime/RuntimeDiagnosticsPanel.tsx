@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
+import { Button } from '@lobehub/ui';
 import { ArrowRight, Play, RefreshCw } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router';

@@ -8,6 +8,9 @@ import { AGENT_RUNTIME_ERROR_SET, type ChatCompletionErrorPayload } from '@lobec
 import { ChatErrorType } from '@lobechat/types';
 
 import { checkAuth } from '@/app/(backend)/middleware/auth';
+import { initModelRuntimeForRequest } from '@/server/modules/AgentRuntime/llmRelay/oneShot';
+import { runRouteWithLlmRelayRequest } from '@/server/modules/AgentRuntime/llmRelay/requestScope';
+import { resolveProviderRelay } from '@/server/modules/AgentRuntime/llmRelay/resolveLlmExecutionSite';
 import { createTraceOptions, initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { type ChatStreamPayload } from '@/types/openai/chat';
 import { createErrorResponse } from '@/utils/errorResponse';
@@ -43,30 +46,40 @@ export const POST = checkAuth(async (req: Request, { params, userId, serverDB })
     const data = (await req.json()) as ChatStreamPayload;
     const workspaceId = await resolveValidWorkspaceIdFromRequest({ req, serverDB, userId });
 
-    // ============  1. init chat model   ============ //
-    const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
-      model: data.model,
-      modelType: 'chat',
-      workspaceId,
-    });
+    // A provider only the user's device reaches is relayed back to the
+    // requesting tab (one-shot relay); the channel stays open while the
+    // response streams.
+    return await runRouteWithLlmRelayRequest(req, userId, async () => {
+      // ============  1. init chat model   ============ //
+      // Server-side calls keep the model so admin-managed NewAPI routing picks
+      // the instance that actually serves it.
+      const relay = await resolveProviderRelay({ db: serverDB, provider, userId, workspaceId });
+      const modelRuntime = relay
+        ? await initModelRuntimeForRequest(serverDB, userId, provider, { workspaceId })
+        : await initModelRuntimeFromDB(serverDB, userId, provider, {
+            model: data.model,
+            modelType: 'chat',
+            workspaceId,
+          });
 
-    // ============  2. create chat completion   ============ //
+      // ============  2. create chat completion   ============ //
 
-    const tracePayload = getTracePayload(req);
+      const tracePayload = getTracePayload(req);
 
-    let traceOptions = {};
-    // If user enable trace
-    if (tracePayload?.enabled) {
-      traceOptions = createTraceOptions(data, { provider, trace: tracePayload });
-    }
+      let traceOptions = {};
+      // If user enable trace
+      if (tracePayload?.enabled) {
+        traceOptions = createTraceOptions(data, { provider, trace: tracePayload });
+      }
 
-    const metadata = getRequestMetadata(req);
+      const metadata = getRequestMetadata(req);
 
-    return await modelRuntime.chat(data, {
-      ...(metadata && { metadata }),
-      user: userId,
-      ...traceOptions,
-      signal: req.signal,
+      return await modelRuntime.chat(data, {
+        ...(metadata && { metadata }),
+        user: userId,
+        ...traceOptions,
+        signal: req.signal,
+      });
     });
   } catch (e) {
     const {

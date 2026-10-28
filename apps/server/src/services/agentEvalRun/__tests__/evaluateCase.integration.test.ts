@@ -60,7 +60,7 @@ async function setupEvalChain(opts: {
     rubrics: opts.benchmarkRubrics ?? [],
   });
 
-  const datasetModel = new AgentEvalDatasetModel(serverDB, userId);
+  const _datasetModel = new AgentEvalDatasetModel(serverDB, userId);
   const [dataset] = await serverDB
     .insert(agentEvalDatasets)
     .values({
@@ -73,7 +73,7 @@ async function setupEvalChain(opts: {
     })
     .returning();
 
-  const testCaseModel = new AgentEvalTestCaseModel(serverDB, userId);
+  const _testCaseModel = new AgentEvalTestCaseModel(serverDB, userId);
   const [testCase] = await serverDB
     .insert(agentEvalTestCases)
     .values({
@@ -115,7 +115,7 @@ async function setupEvalChain(opts: {
 
 describe('evaluateCase - evalMode resolution', () => {
   it('should use dataset evalMode when testCase has no evalMode', async () => {
-    const { run, testCase, topic } = await setupEvalChain({
+    const { run, testCase, topic: _topic } = await setupEvalChain({
       datasetEvalMode: 'contains',
       expected: '42',
       output: 'The answer is 42.',

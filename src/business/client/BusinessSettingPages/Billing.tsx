@@ -1,9 +1,7 @@
 'use client';
 
-import { Empty, Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Tag } from '@lobehub/ui/base-ui';
+import { Alert, Button, createStaticStyles,Empty, Flexbox, Icon, Tag } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
-import { createStaticStyles } from 'antd-style';
 import { Check } from 'lucide-react';
 import { memo, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

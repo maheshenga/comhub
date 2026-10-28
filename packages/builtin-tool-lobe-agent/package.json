@@ -19,17 +19,14 @@
     "@lobechat/const": "workspace:*",
     "@lobechat/prompts": "workspace:*",
     "@lobechat/shared-tool-ui": "workspace:*",
-    "@lobechat/utils": "workspace:*",
-    "@lobehub/editor": "4.27.3"
+    "@lobechat/utils": "workspace:*"
   },
   "devDependencies": {
     "@lobechat/types": "workspace:*"
   },
   "peerDependencies": {
-    "@lobehub/editor": "^4",
-    "@lobehub/ui": "5.57.1",
-    "antd": "^6",
-    "antd-style": "*",
+    "@lobehub/editor": "^5.0.0",
+    "@lobehub/ui": "^6.0.4",
     "lucide-react": "*",
     "react": "*"
   }

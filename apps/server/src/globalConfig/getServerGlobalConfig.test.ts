@@ -1,3 +1,4 @@
+import type * as BusinessConst from '@lobechat/business-const';
 import { ModelProvider } from 'model-bank';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 interface MockGlobalConfigOptions {
   agentGatewayProtocol?: number;
   agentGatewayUrl?: string;
+  appUrl?: string;
   enableAgentGateway?: boolean;
   toolNameMaxLengthEnv?: string;
 }
@@ -32,7 +34,7 @@ const mockGlobalConfigDependencies = (
   options: MockGlobalConfigOptions = {},
 ) => {
   vi.doMock('@lobechat/business-const', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@lobechat/business-const')>()),
+    ...(await importOriginal<typeof BusinessConst>()),
     ENABLE_BUSINESS_FEATURES: enableBusinessFeatures,
   }));
 
@@ -50,6 +52,7 @@ const mockGlobalConfigDependencies = (
         ? {}
         : { AGENT_GATEWAY_PROTOCOL: options.agentGatewayProtocol }),
       ...(options.agentGatewayUrl ? { AGENT_GATEWAY_URL: options.agentGatewayUrl } : {}),
+      ...(options.appUrl ? { APP_URL: options.appUrl } : {}),
       ...(options.enableAgentGateway === undefined
         ? {}
         : { ENABLE_AGENT_GATEWAY: options.enableAgentGateway }),
@@ -182,6 +185,7 @@ const loadServerConfig = async (
 describe('getServerGlobalConfig', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('should only pre-enable ComHub admin-managed NewAPI in business feature mode', async () => {
@@ -296,5 +300,26 @@ describe('getServerGlobalConfig', () => {
         toolNameMaxLength: expected,
       });
     }
+  });
+
+  it('should expose DEVICE_GATEWAY_PUBLIC_URL without a device gateway service token', async () => {
+    vi.stubEnv('DEVICE_GATEWAY_PUBLIC_URL', 'https://device-gateway.example.com');
+    vi.stubEnv('DEVICE_GATEWAY_SERVICE_TOKEN', undefined);
+    vi.stubEnv('DEVICE_GATEWAY_URL', undefined);
+
+    await expect(loadServerConfig(false)).resolves.toHaveProperty(
+      'deviceGatewayUrl',
+      'https://device-gateway.example.com',
+    );
+  });
+
+  it('should expose the OIDC issuer derived from APP_URL, as the provider does', async () => {
+    await expect(
+      loadServerConfig(false, { appUrl: 'https://chat.example.com/' }),
+    ).resolves.toHaveProperty('oidcIssuer', 'https://chat.example.com/oidc');
+  });
+
+  it('should omit the OIDC issuer when APP_URL is not configured', async () => {
+    await expect(loadServerConfig(false)).resolves.not.toHaveProperty('oidcIssuer');
   });
 });

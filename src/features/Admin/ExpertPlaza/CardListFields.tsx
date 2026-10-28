@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input, Switch, TextArea, Tooltip } from '@lobehub/ui/base-ui';
-import { Form, type FormInstance } from '@lobehub/ui/base-ui/form';
+import { Button, Flexbox, Input, Switch, TextArea, Tooltip } from '@lobehub/ui';
+import { Form, type FormInstance } from '@lobehub/ui/form';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Card } from '@/components/antd-compat/Card';

@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/validateFields/setFieldsValue）与 PlanEditModal 的受控表单契约绑定；base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，均无法行为不变替换；FormKit 迁移另行立项。
+import { Alert, Button, confirmModal, Flexbox, toast } from '@lobehub/ui';
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：antd 受控 Form（Form.useForm/validateFields/setFieldsValue）与 PlanEditModal 的受控表单契约绑定；base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，均无法行为不变替换；FormKit 迁移另行立项。
 import { Form } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

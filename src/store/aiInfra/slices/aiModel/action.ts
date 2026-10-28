@@ -1,4 +1,4 @@
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import { t } from 'i18next';
 import type {
@@ -7,20 +7,33 @@ import type {
   AiProviderModelListItem,
   CreateAiModelParams,
   ToggleAiModelEnableParams,
+  UpdateAiModelParams,
 } from 'model-bank';
 import type { SWRResponse } from 'swr';
 
+import { createReplicaSlice, recordLens, type ReplicaSyncResult } from '@/libs/replica';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { aiModelKeys } from '@/libs/swr/keys';
-import { aiModelService } from '@/services/aiModel';
 import { type AiInfraStore } from '@/store/aiInfra/store';
 import { type StoreSetter } from '@/store/types';
 
 import { modelReasoningConfigKey } from './initialState';
+import { aiModelListEntity, aiModelListResource } from './projection';
 import { aiModelSelectors } from './selectors';
 import { deduplicateRemoteModels } from './utils';
 
 const MAX_DUPLICATE_MODEL_IDS_IN_WARNING = 3;
+
+/** Sync result of one provider's model list: replica flags plus the SWR-era aliases. */
+export interface AiProviderModelsSyncResult extends ReplicaSyncResult {
+  /** The provider's models, `undefined` until the first entry lands. */
+  data: AiProviderModelListItem[] | undefined;
+  /** A request is in flight and there is nothing to show for this provider yet. */
+  isLoading: boolean;
+  /** Alias of `revalidate`, kept for the existing "reload / retry" controls. */
+  mutate: () => Promise<unknown>;
+}
+
 type Setter = StoreSetter<AiInfraStore>;
 export const createAiModelSlice = (set: Setter, get: () => AiInfraStore, _api?: unknown) =>
   new AiModelActionImpl(set, get, _api);
@@ -29,12 +42,23 @@ const getAiModelService = async () => (await import('@/services/aiModel')).aiMod
 
 export class AiModelActionImpl {
   readonly #get: () => AiInfraStore;
+  readonly #list;
   readonly #set: Setter;
 
   constructor(set: Setter, get: () => AiInfraStore, _api?: unknown) {
     void _api;
     this.#set = set;
     this.#get = get;
+    this.#list = createReplicaSlice(aiModelListResource, {
+      actionPrefix: 'aiModelList',
+      entity: aiModelListEntity,
+      fetcher: async (providerId) =>
+        (await getAiModelService()).getAiProviderModelList(providerId),
+      get,
+      set,
+      stateKey: 'aiModelListReplica',
+      view: recordLens<AiInfraStore, AiProviderModelListItem[]>('aiModelListMap'),
+    });
   }
 
   batchToggleAiModels = async (ids: string[], enabled: boolean): Promise<void> => {
@@ -78,8 +102,10 @@ export class AiModelActionImpl {
 
     const data = await modelsService.getModels(providerId);
     if (data) {
+      // The provider's confirmed list is the replica view; keeping its enabled
+      // flags avoids re-disabling models the user has already turned on.
       const currentEnabledState = new Map(
-        this.#get().aiProviderModelList.map(({ enabled, id }) => [id, enabled]),
+        (this.#get().aiModelListMap[providerId] ?? []).map(({ enabled, id }) => [id, enabled]),
       );
       const remoteModels = data.map<AiProviderModelListItem>((model) => {
         const hasAnyAbility =
@@ -146,8 +172,15 @@ export class AiModelActionImpl {
     );
   };
 
+  /**
+   * Revalidate the loaded replica entries. Every write goes through here, so a
+   * mutation reflects on whichever provider's list is currently rendered —
+   * `revalidate()` with no key covers all loaded entries of the active scope,
+   * which also keeps a non-active provider's cached list (a delete or a config
+   * edit for another provider) from going stale.
+   */
   refreshAiModelList = async (): Promise<void> => {
-    await mutate(aiModelKeys.list(this.#get().activeAiProvider));
+    await this.#list.revalidate();
     // make refresh provide runtime state async, not block
     this.#get().refreshAiProviderRuntimeState();
   };
@@ -167,6 +200,7 @@ export class AiModelActionImpl {
     this.#get().internal_toggleAiModelLoading(params.id, true);
 
     try {
+      const aiModelService = await getAiModelService();
       await aiModelService.toggleModelEnabled(params);
       await this.#get().refreshAiProviderRuntimeState();
     } finally {
@@ -215,6 +249,7 @@ export class AiModelActionImpl {
     );
 
     try {
+      const aiModelService = await getAiModelService();
       await aiModelService.updateAiModelReasoningConfig(id, provider, value);
     } catch (error) {
       this.#set(
@@ -274,6 +309,7 @@ export class AiModelActionImpl {
     if (key in this.#get().modelReasoningConfigMap) return;
 
     try {
+      const aiModelService = await getAiModelService();
       const data = await aiModelService.getAiModelReasoningConfig(id, provider);
 
       const state = this.#get();
@@ -300,8 +336,13 @@ export class AiModelActionImpl {
   ): SWRResponse<AiModelReasoningConfig | null> => {
     return useClientDataSWR<AiModelReasoningConfig | null>(
       id && provider ? aiModelKeys.reasoningConfig(provider, id) : null,
-      async ([, provider, id]) =>
-        (await aiModelService.getAiModelReasoningConfig(id as string, provider as string)) ?? null,
+      async ([, provider, id]) => {
+        const aiModelService = await getAiModelService();
+        return (
+          (await aiModelService.getAiModelReasoningConfig(id as string, provider as string)) ??
+          null
+        );
+      },
       {
         onSuccess: (data) => {
           const key = modelReasoningConfigKey(provider!, id!);
@@ -326,7 +367,7 @@ export class AiModelActionImpl {
   updateAiModelsConfig = async (
     id: string,
     providerId: string,
-    data: Partial<AiProviderModelListItem>,
+    data: UpdateAiModelParams,
   ): Promise<void> => {
     const aiModelService = await getAiModelService();
     await aiModelService.updateAiModel(id, providerId, data);
@@ -339,24 +380,25 @@ export class AiModelActionImpl {
     await this.#get().refreshAiModelList();
   };
 
-  useFetchAiProviderModels = (id: string): SWRResponse<AiProviderModelListItem[]> => {
-    return useClientDataSWR<AiProviderModelListItem[]>(
-      aiModelKeys.list(id),
-      ([, id]) => aiModelService.getAiProviderModelList(id as string),
-      {
-        onSuccess: (data) => {
-          // no need to update list if the list have been init and data is the same
-          if (this.#get().isAiModelListInit && isEqual(data, this.#get().aiProviderModelList))
-            return;
+  /**
+   * Fetch orchestration for one provider's model list. Hydrates the persisted
+   * copy first (so a revisit paints without a skeleton), then lets the network
+   * confirm. Read the rows through `aiModelSelectors` /
+   * `aiModelListMap[providerId]`, not from this return value.
+   */
+  useFetchAiProviderModels = (id: string): AiProviderModelsSyncResult => {
+    const sync = this.#list.useSync(id || null);
+    const data = id ? this.#get().aiModelListMap[id] : undefined;
 
-          this.#set(
-            { aiProviderModelList: data, isAiModelListInit: true },
-            false,
-            `useFetchAiProviderModels/${id}`,
-          );
-        },
-      },
-    );
+    return {
+      data,
+      error: sync.error,
+      isHydrated: sync.isHydrated,
+      isLoading: sync.isValidating && data === undefined,
+      isValidating: sync.isValidating,
+      mutate: sync.revalidate,
+      revalidate: sync.revalidate,
+    };
   };
 }
 

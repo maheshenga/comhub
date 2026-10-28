@@ -5,13 +5,17 @@ import ModuleAppPackageUploader from './PackageUploader';
 
 const mockUploadPackage = vi.hoisted(() => vi.fn());
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
   Button: ({ children, htmlType, icon, ...props }: any) => (
     <button type={htmlType} {...props}>
       {icon}
       {children}
     </button>
   ),
+  // UI6 moved the base-ui import into the root barrel, so every root primitive
+  // the component pulls in has to exist on the mock.
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
+  Icon: () => <span data-testid="ui-icon" />,
 }));
 
 vi.mock('@/services/moduleApp', () => ({

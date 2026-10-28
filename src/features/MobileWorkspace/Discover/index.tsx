@@ -1,13 +1,13 @@
 'use client';
 
-import { Avatar } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Avatar, createStaticStyles } from '@lobehub/ui';
 import { RefreshCw } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useDiscoverStore } from '@/store/discover';
+import { assistantSelectors, mcpSelectors } from '@/store/discover/selectors';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
 import { AssistantSorts, McpSorts } from '@/types/discover';
 
@@ -175,7 +175,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const MobileDiscoverPage = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useWorkspaceAwareNavigate();
-  const useAssistantList = useDiscoverStore((state) => state.useAssistantList);
+  const useAssistantList = useDiscoverStore((state) => state.useFetchAssistantList);
   const useMcpList = useDiscoverStore((state) => state.useFetchMcpList);
   const { config, error, isLoading, isValidating, mutate } = useMobileConfig();
   const { rememberFocus } = useMobileSlotState({ scopeId: 'global', slotId: 'slot-3' });
@@ -184,12 +184,7 @@ const MobileDiscoverPage = memo(() => {
     () => buildFeaturedAssistantCards(config.discover.featuredAssistants ?? []),
     [config.discover.featuredAssistants],
   );
-  const {
-    data: communityAssistants,
-    error: communityAssistantError,
-    isLoading: communityAssistantLoading,
-    mutate: mutateCommunityAssistants,
-  } = useAssistantList(
+  const assistantSync = useAssistantList(
     {
       page: 1,
       pageSize: 4,
@@ -197,12 +192,10 @@ const MobileDiscoverPage = memo(() => {
     },
     { enabled: communityEnabled },
   );
-  const {
-    data: communityMcps,
-    error: communityMcpError,
-    isLoading: communityMcpLoading,
-    mutate: mutateCommunityMcps,
-  } = useMcpList(
+  const communityAssistants = useDiscoverStore(
+    assistantSelectors.assistantList(assistantSync.queryKey),
+  );
+  const mcpSync = useMcpList(
     {
       page: 1,
       pageSize: 4,
@@ -210,18 +203,18 @@ const MobileDiscoverPage = memo(() => {
     },
     { enabled: communityEnabled },
   );
+  const communityMcps = useDiscoverStore(mcpSelectors.mcpList(mcpSync.queryKey));
   const communityAssistantItems = communityAssistants?.items ?? [];
   const communityMcpItems = communityMcps?.items ?? [];
-  const communityLoading = communityAssistantLoading || communityMcpLoading;
-  const communityError = communityAssistantError || communityMcpError;
+  const communityLoading = assistantSync.isLoading || mcpSync.isLoading;
+  const communityError = assistantSync.error || mcpSync.error;
   const communityHasItems = communityAssistantItems.length > 0 || communityMcpItems.length > 0;
   const pageTitle =
     config.navigation.items.find((item) => item.id === 'slot-3')?.label || t('tab.discover');
   const communityTitle =
     config.discover.community.title ||
     t('mobile.discover.community', { defaultValue: 'Community' });
-  const refreshCommunity = () =>
-    void Promise.all([mutateCommunityAssistants(), mutateCommunityMcps()]);
+  const refreshCommunity = () => void Promise.all([assistantSync.mutate(), mcpSync.mutate()]);
 
   return (
     <MobilePageLayout

@@ -12,11 +12,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('@lobehub/ui/base-ui', () => {
+vi.mock('@lobehub/ui', () => {
   const Input = (props: { value?: string }) => <input readOnly value={props.value} />;
   const TextArea = (props: { value?: string }) => <textarea readOnly value={props.value} />;
 
@@ -24,6 +20,9 @@ vi.mock('@lobehub/ui/base-ui', () => {
     Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
       <button onClick={onClick}>{children}</button>
     ),
+    createStaticStyles: () => new Proxy({}, { get: () => '' }),
+    cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+    Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     Input,
     Modal: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TextArea,

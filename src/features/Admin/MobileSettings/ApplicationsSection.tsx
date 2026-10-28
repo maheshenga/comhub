@@ -1,5 +1,4 @@
-import { Flexbox } from '@lobehub/ui';
-import { Button, Input } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Input } from '@lobehub/ui';
 
 import {
   AccessibleSwitch,

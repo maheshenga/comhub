@@ -33,12 +33,14 @@ vi.mock('@/database/schemas', () => ({
   userSettings: { id: 'id' },
 }));
 
-vi.mock('@/server/globalConfig', () => ({
-  getServerDefaultFilesConfig: vi.fn(function () {
-    return {
-      embeddingModel: { model: 'default-embedding-model', provider: 'default-provider' },
-    };
-  }),
+vi.mock('@/server/globalConfig/parseMemoryExtractionConfig', () => ({
+  getResolvedMemoryExtractionConfig: vi.fn(async () => ({
+    embedding: {
+      contextLimit: 8192,
+      model: 'default-embedding-model',
+      provider: 'default-provider',
+    },
+  })),
 }));
 
 vi.mock('@/server/modules/ModelRuntime', () => ({

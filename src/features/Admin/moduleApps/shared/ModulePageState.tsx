@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles } from '@lobehub/ui';
 import { AlertTriangle, FilterX, Inbox, RefreshCw, SearchX } from 'lucide-react';
 import { isValidElement, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';

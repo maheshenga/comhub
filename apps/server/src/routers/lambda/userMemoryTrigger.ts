@@ -1,9 +1,9 @@
+import { type AsyncTaskModel } from '@/database/models/asyncTask';
+import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 import {
   MemoryExtractionExecutor,
   type MemoryExtractionNormalizedPayload,
 } from '@/server/services/memory/userMemory/extract';
-import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
-import { type AsyncTaskModel } from '@/database/models/asyncTask';
 import { AsyncTaskError, AsyncTaskErrorType, AsyncTaskStatus } from '@/types/asyncTask';
 
 const DIRECT_MEMORY_EXTRACTION_TOPIC_PAGE_SIZE = 25;

@@ -1,17 +1,19 @@
 'use client';
 
 import { formatElapsedClockTime } from '@lobechat/utils';
-import { Flexbox } from '@lobehub/ui';
 import {
   ActionIcon,
   Avatar,
   Button,
+  createStaticStyles,
+  cssVar,
+  Flexbox,
   Skeleton,
   SkeletonAvatar,
   Tag,
   Text,
-} from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar, useTheme } from 'antd-style';
+  useTheme,
+} from '@lobehub/ui';
 import { ListXIcon, PlusIcon } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

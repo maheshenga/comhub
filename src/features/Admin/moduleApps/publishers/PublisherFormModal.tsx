@@ -1,6 +1,6 @@
 'use client';
 
-import { Input, Modal } from '@lobehub/ui/base-ui';
+import { Input, Modal } from '@lobehub/ui';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

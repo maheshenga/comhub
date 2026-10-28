@@ -35,6 +35,9 @@ vi.mock('@/database/core/db-adaptor', () => ({
   }),
 }));
 
+vi.mock('@/business/server/model-runtime', () => ({
+  getBusinessModelRuntimeHooks: () => undefined,
+}));
 // Mock FileService to avoid S3 environment variable requirements
 vi.mock('@/server/services/file', () => ({
   FileService: vi.fn().mockImplementation(function () {
@@ -47,7 +50,6 @@ vi.mock('@/server/services/file', () => ({
 }));
 
 let mockResponsesCreate: any;
-
 let serverDB: LobeChatDatabase;
 let userId: string;
 let testAgentId: string;

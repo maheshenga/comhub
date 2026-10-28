@@ -240,6 +240,7 @@ describe('imageRouter', () => {
       return callback(tx);
     });
 
+    mockAsyncCallerCreateImage.mockResolvedValue(undefined);
     mockCreateAsyncCaller.mockResolvedValue({
       image: {
         createImage: mockAsyncCallerCreateImage,
@@ -614,6 +615,33 @@ describe('imageRouter', () => {
       expect(mockAsyncCallerCreateImage).toHaveBeenCalledWith(
         expect.objectContaining({ workspaceId: 'workspace-1' }),
       );
+    });
+
+    it('marks the task failed when the background call rejects', async () => {
+      const unhandled = vi.fn();
+      process.on('unhandledRejection', unhandled);
+      mockAsyncCallerCreateImage.mockRejectedValue(
+        new Error('Unexpected token \'<\', "<!DOCTYPE "... is not valid JSON'),
+      );
+
+      try {
+        const caller = imageRouter.createCaller(createMockCtx());
+        const result = await caller.createImage(createDefaultInput());
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(result.success).toBe(true);
+        // The fork compensates a startup failure per task: without the update
+        // the row would sit in `pending` and its billing handle would dangle
+        // until the reservation expired.
+        expect(mockAsyncTaskModelUpdate).toHaveBeenCalledTimes(2);
+        expect(mockAsyncTaskModelUpdate).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ status: AsyncTaskStatus.Error }),
+        );
+        expect(unhandled).not.toHaveBeenCalled();
+      } finally {
+        process.off('unhandledRejection', unhandled);
+      }
     });
 
     it('should handle async caller creation failure', async () => {

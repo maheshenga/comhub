@@ -1,8 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Input, Switch } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles,Flexbox, Input, Switch } from '@lobehub/ui';
 import { type ChangeEvent, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

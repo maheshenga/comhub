@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import {
   DEFAULT_MODULE_APP_PACKAGE_LIMITS,
   inspectModuleAppZipEntries,
+  type ModuleAppPackageArchiveLimits,
   ModuleAppPackageSafetyError,
   ModuleAppZipMetadataError,
   scanModuleAppPackage,
   unzipModuleAppPackage,
-  type ModuleAppPackageArchiveLimits,
 } from '@lobechat/module-app-build';
 import {
   moduleAppPackageManifestV1Schema,

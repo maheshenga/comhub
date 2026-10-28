@@ -25,7 +25,7 @@
  * - verify-only   no code to re-apply, but verify the invariant after a merge
  * - annotate-only pure documentation; never conflicts
  *
- * BASELINE: upstream tag `v2.2.19` (commit 234e0fc75). Advance via the
+ * BASELINE: upstream tag `v2.2.20` (commit 49204982c). Advance via the
  * upstream-sync flow — never by hand — or verify.mjs loses meaning.
  */
 
@@ -202,6 +202,11 @@ const MODULES = [
         'env.ts, updater, Browser, controllers, protocol.ts (see desktop-deep-links)',
       ],
       ['p:apps/desktop/src/', 'owned', 'remoteConfig module, tests, feature components'],
+      [
+        'p:apps/desktop/scripts/security-policy-runtime/',
+        'upstream',
+        'upstream package manifests + npm lockfile; fork pins fast-xml-parser 5.11.2 via npm overrides',
+      ],
       ['p:apps/desktop/scripts/update-test/', 'upstream', 'file-mode only changes'],
       ['p:apps/desktop/scripts/', 'owned', 'update-test scripts, tray generator'],
       ['p:src/features/Electron/titlebar/SimpleTitleBar.tsx', 'upstream', 'title prop'],
@@ -932,6 +937,16 @@ const MODULES = [
       ],
       ['p:src/features/ModuleAppRuntime/', 'owned', 'runtime UI'],
       ['p:src/features/ModuleAppMarket/', 'owned', 'marketplace UI (AppDetail upstream-modified)'],
+      [
+        'p:src/features/AgentSetting/AgentCategory/useCategory.tsx',
+        'upstream',
+        'agent category hook (fork-modified, exists upstream)',
+      ],
+      [
+        'p:src/features/AgentSetting/AgentSettingsContent.tsx',
+        'upstream',
+        'agent settings content (fork-modified, exists upstream)',
+      ],
       ['p:src/features/AgentSetting/', 'owned', 'agent chat settings panel'],
       ['p:src/features/AgentShareVisitor/', 'owned', 'share visitor composer guard'],
       ['p:src/features/CommunityRecommendations/', 'owned', 'community recommendations'],
@@ -1077,6 +1092,11 @@ const MODULES = [
       ['p:src/services/commercial.ts', 'owned', 'commercial client service'],
       ['p:src/services/discover.test.ts', 'owned', 'discover client tests'],
       ['p:src/services/docmee.ts', 'owned', 'docmee PPT client'],
+      [
+        'p:src/services/global.ts',
+        'upstream',
+        'lazy electron-store import breaks the chat-store evaluation cycle',
+      ],
       ['p:src/services/mobileDesign', 'owned', 'mobile design client + tests'],
       ['p:src/services/moduleApp', 'owned', 'module app client + tests'],
       ['p:src/services/redemption.ts', 'owned', 'redemption client'],
@@ -1193,14 +1213,18 @@ const MODULES = [
     name: 'CI / deploy workflows',
     sync: 're-apply',
     description:
-      'ComHub-owned workflows (build/deploy/pr-check/upstream-sync/codeql), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.',
+      'ComHub-owned workflows (build/deploy/pr-check/upstream-sync), fork codeql workflow (upstream added its own in v2.2.20), fork-secret tolerance in upstream workflows, deployment workflow contract test, Dockerfile build args.',
     ownershipRules: [
       [
         'p:.github/workflows/comhub',
         'owned',
         'build/deploy/deploy-worker/pr-check/upstream-sync + comhubDeploymentWorkflows.test.mjs (upstream has no comhub* workflows)',
       ],
-      ['p:.github/workflows/codeql.yml', 'owned', 'fork-new: codeql workflow'],
+      [
+        'p:.github/workflows/codeql.yml',
+        'upstream',
+        'fork codeql workflow: fork-new through v2.2.19; upstream added its own codeql.yml in v2.2.20 (upstream commit e4bc131184), merge keeps the fork version — re-apply fork schedule/scope on upstream rewrites',
+      ],
       [
         'p:.github/workflows/dependency-review.yml',
         'owned',
@@ -1573,11 +1597,6 @@ const MODULES = [
     ownershipRules: [
       [
         'p:.gemini/',
-        'upstream',
-        'v2.2.19 upstream-sync: new/changed upstream files absorbed by the merge (fork untouched)',
-      ],
-      [
-        'p:apps/desktop/patches/',
         'upstream',
         'v2.2.19 upstream-sync: new/changed upstream files absorbed by the merge (fork untouched)',
       ],
@@ -2739,11 +2758,11 @@ const MODULES = [
       'packages/replica/src/',
     ],
     notes:
-      'Created during the v2.2.19 upstream merge (commit 3ec81ae726) so verify.mjs kept every changed file registered while the v2.2.18 baseline was still in place; the baseline has since advanced to v2.2.19 and these exact-file rules carry forward as upstream coverage for future fork edits under these paths. If a later fork change touches a file under one of these dirs, add an explicit owned/exact rule in its real module BEFORE this module (first-match wins: earlier modules claim first).',
+      'Created during the v2.2.19 upstream merge (commit 3ec81ae726) so verify.mjs kept every changed file registered while the v2.2.18 baseline was still in place; the baseline has since advanced to v2.2.20 and these exact-file rules carry forward as upstream coverage for future fork edits under these paths. If a later fork change touches a file under one of these dirs, add an explicit owned/exact rule in its real module BEFORE this module (first-match wins: earlier modules claim first). Baseline v2.2.20 note: upstream deleted apps/desktop/patches/electron-sparkle-updater@0.5.2.patch in v2.2.20 (upstream commit 6aa2a0dd96), so the former p:apps/desktop/patches/ rule was removed — the directory no longer exists in the tree.',
   },
 ];
 
-export const UPSTREAM_BASELINE_TAG = 'v2.2.19';
+export const UPSTREAM_BASELINE_TAG = 'v2.2.20';
 
 export const registryModules = MODULES;
 

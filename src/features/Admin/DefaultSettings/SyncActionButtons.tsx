@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, confirmModal } from '@lobehub/ui/base-ui';
+import { Button, confirmModal } from '@lobehub/ui';
 
 import { AdminFormActions } from '../layout';
 

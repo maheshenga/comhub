@@ -2,19 +2,19 @@ import { ASYNC_TASK_TIMEOUT } from '@lobechat/business-config/server';
 import { resolveBusinessModelMapping } from '@lobechat/business-model-runtime';
 import { RequestTrigger, type SpendOrigin, type VideoGenerationRoute } from '@lobechat/types';
 import debug from 'debug';
-import type { RuntimeVideoGenParams } from 'model-bank';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
 import { trackProviderContentPolicyViolation } from '@/business/server/trackProviderContentPolicyViolation';
-import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { notifyVideoCompleted } from '@/business/server/video-generation/notifyVideoCompleted';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import { GenerationModel } from '@/database/models/generation';
 import type { LobeChatDatabase } from '@/database/type';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
+import { GenerationService } from '@/server/services/generation';
 import { VideoGenerationService } from '@/server/services/generation/video';
 import { buildVideoGenerationFilePayload } from '@/server/services/generation/videoFile';
+import { measureVideoOutputUsage } from '@/server/services/generation/videoOutputUsage';
 import {
   releaseVideoPollingCharge,
   settleVideoPollingCharge,
@@ -134,6 +134,12 @@ export async function processBackgroundVideoPolling(
       FileSource.VideoGeneration,
     );
 
+    // Before marking Success so the client's post-success topic refresh sees it
+    await new GenerationService(db, userId, workspaceId).ensureTopicCover(
+      generationTopicId,
+      processResult.thumbnailKey,
+    );
+
     const duration = Date.now() - asyncTaskCreatedAt.getTime();
 
     await asyncTaskModel.update(asyncTaskId, {
@@ -167,7 +173,7 @@ export async function processBackgroundVideoPolling(
         provider,
         routeMetadata,
         spendOrigin,
-        usage: pollResult.usage,
+        usage: pollResult.usage ?? measureVideoOutputUsage(resolvedModelId, processResult),
         userId,
         workspaceId,
       });

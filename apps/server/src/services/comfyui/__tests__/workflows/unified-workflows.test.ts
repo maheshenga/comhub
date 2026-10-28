@@ -132,7 +132,7 @@ const WORKFLOW_CONFIGS: WorkflowTestConfig[] = [
 ];
 
 describe('Unified Workflow Tests', () => {
-  const { inputCalls } = setupAllMocks();
+  setupAllMocks();
 
   beforeEach(() => {
     vi.clearAllMocks();

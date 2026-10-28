@@ -1,4 +1,4 @@
-import { Input } from '@lobehub/ui/base-ui';
+import { Input } from '@lobehub/ui';
 
 import {
   AccessibleSwitch,

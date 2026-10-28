@@ -1,7 +1,5 @@
 import type { ModuleAppInstallationReadiness } from '@lobechat/types';
-import { A } from '@lobehub/ui';
-import { Button, buttonStyles } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cx } from 'antd-style';
+import { A, Button, buttonStyles, createStaticStyles, cx } from '@lobehub/ui';
 import { memo, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 

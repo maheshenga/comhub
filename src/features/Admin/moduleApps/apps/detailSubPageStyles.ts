@@ -1,6 +1,6 @@
 'use client';
 
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles } from '@lobehub/ui';
 
 /**
  * 应用详情子页（configuration / entitlements）共享样式壳：对齐 overview /

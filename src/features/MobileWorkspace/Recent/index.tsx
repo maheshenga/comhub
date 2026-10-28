@@ -1,8 +1,6 @@
 'use client';
 
-import { Flexbox, SearchBar } from '@lobehub/ui';
-import { Button, Segmented, toast } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles,Flexbox, SearchBar, Segmented, toast } from '@lobehub/ui';
 import { RefreshCw } from 'lucide-react';
 import {
   type ChangeEvent,

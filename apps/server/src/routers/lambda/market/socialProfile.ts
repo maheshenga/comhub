@@ -77,7 +77,7 @@ export const socialProfileRouter = router({
               const error = await response.json().catch(() => ({}));
               errors.push(error.error || `Failed to claim skill ${skillId}`);
             }
-          } catch (err) {
+          } catch {
             errors.push(`Failed to claim skill ${skillId}`);
           }
         }
@@ -103,7 +103,7 @@ export const socialProfileRouter = router({
               const error = await response.json().catch(() => ({}));
               errors.push(error.error || `Failed to claim plugin ${pluginId}`);
             }
-          } catch (err) {
+          } catch {
             errors.push(`Failed to claim plugin ${pluginId}`);
           }
         }

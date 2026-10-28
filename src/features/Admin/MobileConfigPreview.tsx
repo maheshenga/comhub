@@ -1,7 +1,10 @@
 'use client';
 
-// eslint-disable-next-line no-restricted-imports -- base-ui Segmented 渲染为 toggle button（aria-pressed），antd Segmented 渲染 radio；MobileConfigPreview.test.tsx 的可访问性契约断言 getByRole('radio')，迁 base-ui 属可访问性语义变更（FormKit/B4 收敛批次另行处理）。
-import { Icon, Segmented } from '@lobehub/ui';
+// keep-antd 豁免：UI6 根桶的 Segmented 迁移到 base-ui 语义，渲染为 toggle button（aria-pressed）；
+// antd Segmented 渲染 radio。MobileConfigPreview.test.tsx 的可访问性契约断言 getByRole('radio')，
+// 迁 base-ui 属可访问性语义变更（FormKit/B4 收敛批次另行处理），因此这里保留 antd 实现。
+import { Icon } from '@lobehub/ui';
+import { Segmented } from 'antd';
 import { memo, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

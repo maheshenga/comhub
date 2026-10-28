@@ -1,5 +1,4 @@
-import { Button, confirmModal } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, confirmModal, createStaticStyles } from '@lobehub/ui';
 import { Trash2 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

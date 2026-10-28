@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag } from '@lobehub/ui/base-ui';
+import { Tag } from '@lobehub/ui';
 
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 

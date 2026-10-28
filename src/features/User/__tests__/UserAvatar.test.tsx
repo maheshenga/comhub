@@ -2,10 +2,15 @@ import { BRANDING_NAME } from '@lobechat/business-const';
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_USER_AVATAR_URL } from '@/const/meta';
 import { useUserStore } from '@/store/user';
 
 import UserAvatar from '../UserAvatar';
+
+// `useBrandName()` resolves the runtime default brand first and only falls back
+// to the build-time `BRANDING_NAME`.
+const defaultBrandName = DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME;
 
 describe('UserAvatar', () => {
   it('should show the username and avatar are displayed when the user is logged in', async () => {
@@ -40,13 +45,13 @@ describe('UserAvatar', () => {
     expect(screen.getByText('TE')).toBeInTheDocument();
   });
 
-  it('should show LobeChat and default avatar when the user is not logged in', () => {
+  it('should show the default brand and default avatar when the user is not logged in', () => {
     act(() => {
       useUserStore.setState({ isSignedIn: false, user: undefined });
     });
 
     render(<UserAvatar />);
-    expect(screen.getByAltText(BRANDING_NAME)).toBeInTheDocument();
-    expect(screen.getByAltText(BRANDING_NAME)).toHaveAttribute('src', DEFAULT_USER_AVATAR_URL);
+    expect(screen.getByAltText(defaultBrandName)).toBeInTheDocument();
+    expect(screen.getByAltText(defaultBrandName)).toHaveAttribute('src', DEFAULT_USER_AVATAR_URL);
   });
 });

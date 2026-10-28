@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Checkbox, Modal, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, Checkbox, Flexbox, Modal, Tag, Text } from '@lobehub/ui';
 import { memo, useMemo, useState } from 'react';
 
 import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';

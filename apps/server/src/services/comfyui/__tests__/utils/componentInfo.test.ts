@@ -250,7 +250,7 @@ describe('componentInfo.ts', () => {
 
     it('should handle concurrent access safely', async () => {
       // Test concurrent access to functions
-      const promises = Array.from({ length: 100 }, (_, i) =>
+      const promises = Array.from({ length: 100 }, (_, _i) =>
         Promise.all([
           Promise.resolve(getComponentInfo('clip-l.safetensors')),
           Promise.resolve(isSystemComponent('t5-xxl.safetensors')),

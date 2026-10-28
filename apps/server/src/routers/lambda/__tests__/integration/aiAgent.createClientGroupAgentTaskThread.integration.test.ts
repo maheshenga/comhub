@@ -229,7 +229,7 @@ describe('createClientGroupAgentTaskThread Integration', () => {
       });
 
       // Query thread messages again via API
-      const result2 = await caller.createClientGroupAgentTaskThread({
+      const _result2 = await caller.createClientGroupAgentTaskThread({
         groupId: testGroupId,
         instruction: 'Another task',
         parentMessageId,
@@ -239,7 +239,7 @@ describe('createClientGroupAgentTaskThread Integration', () => {
 
       // The key test: messages in a thread from different agents should all be queryable
       // This verifies the API doesn't filter by agentId
-      const [supervisorMsgInThread] = await serverDB
+      const [_supervisorMsgInThread] = await serverDB
         .select()
         .from(messages)
         .where(eq(messages.threadId, result.threadId));

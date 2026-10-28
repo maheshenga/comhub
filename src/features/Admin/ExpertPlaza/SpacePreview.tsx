@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Avatar, Text } from '@lobehub/ui/base-ui';
-import { type FormInstance, useWatch } from '@lobehub/ui/base-ui/form';
+import { Avatar, Flexbox, Text } from '@lobehub/ui';
+import { type FormInstance, useWatch } from '@lobehub/ui/form';
 
 import type { CardFormValue, FormValues } from './shared';
 

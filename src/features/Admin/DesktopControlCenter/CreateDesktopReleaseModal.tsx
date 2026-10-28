@@ -1,8 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Descriptions, Input, Modal, Segmented, TextArea, toast } from '@lobehub/ui/base-ui';
-import { Form, useForm, useWatch } from '@lobehub/ui/base-ui/form';
+import { Descriptions, Input, Modal, Segmented, TextArea, toast } from '@lobehub/ui';
+import { Form, useForm, useWatch } from '@lobehub/ui/form';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

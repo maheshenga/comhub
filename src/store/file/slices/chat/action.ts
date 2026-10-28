@@ -1,7 +1,7 @@
 import { SHARE_VISITOR_MAX_FILE_SIZE } from '@lobechat/const';
 import { type ChatContextContent } from '@lobechat/types';
 import { COMPRESSIBLE_IMAGE_TYPES, compressImageFile } from '@lobechat/utils/compressImage';
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 import { Buffer } from 'buffer.js';
 import { t } from 'i18next';
 
@@ -10,8 +10,6 @@ import { fileService } from '@/services/file';
 import { ragService } from '@/services/rag';
 import { shareChatService } from '@/services/shareChat';
 import { UPLOAD_NETWORK_ERROR } from '@/services/upload';
-import { getAgentStoreState } from '@/store/agent';
-import { agentByIdSelectors } from '@/store/agent/selectors';
 import { type UploadFileListDispatch } from '@/store/file/reducers/uploadFileList';
 import { uploadFileListReducer } from '@/store/file/reducers/uploadFileList';
 import { type StoreSetter } from '@/store/types';
@@ -119,8 +117,27 @@ export class FileActionImpl {
     this.#set({ chatContextSelectionsByContext: nextMap }, false, n('clearChatContextSelections'));
   };
 
-  clearChatUploadFileList = (): void => {
-    this.#set({ chatUploadFileList: [] }, false, n('clearChatUploadFileList'));
+  clearChatUploadFileList = (submittedIds?: string[]): void => {
+    const chatUploadFileList = submittedIds
+      ? this.#get().chatUploadFileList.filter((file) => !submittedIds.includes(file.id))
+      : [];
+    this.#set({ chatUploadFileList }, false, n('clearChatUploadFileList'));
+  };
+
+  /**
+   * Put captured upload items back into the composer list after a send was
+   * rejected before any message owned them (e.g. the server refused the turn
+   * up front). Items already in the list are skipped by id so a concurrent
+   * draft does not end up with duplicates.
+   */
+  restoreChatUploadFileList = (files: UploadFileItem[]): void => {
+    if (files.length === 0) return;
+
+    const currentIds = new Set(this.#get().chatUploadFileList.map((file) => file.id));
+    const restored = files.filter((file) => !currentIds.has(file.id));
+    if (restored.length === 0) return;
+
+    this.#get().dispatchChatUploadFileList({ files: restored, type: 'addFiles' });
   };
 
   dispatchChatUploadFileList = (payload: UploadFileListDispatch): void => {
@@ -280,6 +297,14 @@ export class FileActionImpl {
     // the selectors below would always say "plain chat" by accident. Make it
     // explicit: share uploads are parsed on the creator's account, so only the
     // parseable whitelist is ever accepted there.
+    // Dynamic imports: the file slice is created while `@/store/file` itself is
+    // initializing, and the agent store reaches back here through the chat
+    // store. Resolving the agent bindings at call time keeps the module graph
+    // acyclic so `createFileSlice` is defined when the file store builds.
+    const [{ getAgentStoreState }, { agentByIdSelectors }] = await Promise.all([
+      import('@/store/agent'),
+      import('@/store/agent/selectors'),
+    ]);
     const agentState = getAgentStoreState();
     const enforceFileTypeWhitelist =
       !!shareId ||

@@ -1,4 +1,4 @@
-// eslint-disable-next-line no-restricted-imports -- antd message 命令式反馈散布 3 处且 Input.Search（回车提交+内嵌按钮）在 base-ui 无渲染不变等价物；改 toast 并重排输入区属 UI 渲染变更，违反行为不变约束，整行豁免。
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：antd message 命令式反馈散布 3 处且 Input.Search（回车提交+内嵌按钮）在 base-ui 无渲染不变等价物；改 toast 并重排输入区属 UI 渲染变更，违反行为不变约束，整行豁免。
 import { Button, Input, message } from 'antd';
 import { useState } from 'react';
 

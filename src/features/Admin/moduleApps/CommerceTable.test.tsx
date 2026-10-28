@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import CommerceTable from './CommerceTable';
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   Checkbox: (props: any) => <input type="checkbox" {...props} />,
   Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, ...props }: any) => (

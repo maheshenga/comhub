@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles } from '@lobehub/ui';
 import { type CSSProperties, type ReactNode } from 'react';
 
 const MOBILE_STATE_ACTION_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;

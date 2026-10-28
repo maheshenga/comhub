@@ -65,7 +65,10 @@ describe('asrRouter.transcribe', () => {
       workspaceId: undefined,
     });
     expect(transcribeMock.mock.calls[0][1]).toEqual({
-      metadata: { operationId: expect.stringMatching(/^asr:/) },
+      metadata: {
+        operationId: expect.stringMatching(/^asr:/),
+        trigger: 'asr',
+      },
       user: 'u1',
     });
   });
@@ -78,7 +81,10 @@ describe('asrRouter.transcribe', () => {
     });
 
     expect(transcribeMock.mock.calls[0][1]).toEqual({
-      metadata: { trigger: 'asr' },
+      metadata: {
+        operationId: expect.stringMatching(/^asr:/),
+        trigger: 'asr',
+      },
       user: 'u1',
     });
   });

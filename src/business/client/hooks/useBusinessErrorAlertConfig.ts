@@ -1,6 +1,5 @@
 import { type ErrorType } from '@lobechat/types';
-import type { AlertProps } from '@lobehub/ui/base-ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { type AlertProps, Button } from '@lobehub/ui';
 import React from 'react';
 
 const ERROR_CONFIGS: Partial<Record<ErrorType, AlertProps>> = {

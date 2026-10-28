@@ -1,9 +1,15 @@
 'use client';
 
 import { isAdminRole } from '@lobechat/types';
-import { Flexbox, Icon } from '@lobehub/ui';
-import { ActionIcon, FloatingSheet, Skeleton } from '@lobehub/ui/base-ui';
-import { createStaticStyles, useResponsive } from 'antd-style';
+import {
+  ActionIcon,
+  createStaticStyles,
+  Flexbox,
+  FloatingSheet,
+  Icon,
+  Skeleton,
+  useResponsive,
+} from '@lobehub/ui';
 import { ChevronRight, Home, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

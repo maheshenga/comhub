@@ -1,7 +1,7 @@
 'use client';
 
-import { Alert, Button, Input, RadioGroup, Switch, TextArea } from '@lobehub/ui/base-ui';
-import { Form, type FormInstance } from '@lobehub/ui/base-ui/form';
+import { Alert, Button, Input, RadioGroup, Switch, TextArea } from '@lobehub/ui';
+import { Form, type FormInstance } from '@lobehub/ui/form';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 

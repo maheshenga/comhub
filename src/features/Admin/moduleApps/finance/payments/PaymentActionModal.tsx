@@ -1,6 +1,6 @@
 'use client';
 
-import { Input, Modal, TextArea } from '@lobehub/ui/base-ui';
+import { Input, Modal, TextArea } from '@lobehub/ui';
 
 import type { PaymentFormAction } from './modulePaymentsShared';
 import { modulePaymentStyles as styles } from './modulePaymentsShared';

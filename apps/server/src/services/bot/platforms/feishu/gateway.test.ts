@@ -45,7 +45,7 @@ describe('FeishuWSConnection', () => {
   });
 
   function createConnection(
-    overrides?: Partial<Parameters<(typeof FeishuWSConnection)['prototype']['start']>>,
+    _overrides?: Partial<Parameters<(typeof FeishuWSConnection)['prototype']['start']>>,
   ) {
     return new FeishuWSConnection({
       appId: 'cli_test',

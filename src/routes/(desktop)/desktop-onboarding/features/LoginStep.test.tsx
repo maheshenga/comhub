@@ -54,6 +54,13 @@ vi.mock('@lobehub/ui', () => {
     ),
     Button,
     Center: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    // UI6: cssVar and Divider are exported from the root barrel.
+    cssVar: {
+      colorFillSecondary: '#eee',
+      colorTextDescription: '#888',
+      colorTextSecondary: '#666',
+    },
+    Divider: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     Flexbox: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Icon: () => <span />,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
@@ -173,13 +180,17 @@ vi.mock('@/features/DesktopOnboarding/components/LobeMessage', () => ({
   ),
 }));
 
+const navigationMocks = vi.hoisted(() => ({ onBack: vi.fn(), onNext: vi.fn() }));
+
 const renderLoginStep = async () => {
   const { default: LoginStep } = await import('@/features/DesktopOnboarding/steps/LoginStep');
 
-  render(<LoginStep onBack={vi.fn()} onNext={vi.fn()} />);
+  render(<LoginStep onBack={navigationMocks.onBack} onNext={navigationMocks.onNext} />);
 };
 
 beforeEach(() => {
+  navigationMocks.onBack.mockClear();
+  navigationMocks.onNext.mockClear();
   mockElectronState.clearRemoteServerSyncError.mockClear();
   mockElectronState.connectRemoteServer.mockClear();
   mockElectronState.dataSyncConfig = { active: true, storageMode: 'cloud' };
@@ -195,10 +206,12 @@ afterEach(() => {
 });
 
 describe('Desktop onboarding LoginStep', () => {
-  it('renders a focused success state and returns to login methods without duplicate auth UI', async () => {
+  it('renders a focused success state and delegates Back without duplicate auth UI', async () => {
     await renderLoginStep();
 
-    expect(screen.getByText('Authorization Successful')).toBeInTheDocument();
+    // The focused success state reuses the configured login title instead of
+    // the legacy authResult.success copy.
+    expect(screen.getByText(/Sign in to sync across devices/)).toBeInTheDocument();
     expect(
       screen.queryByText('Please click the Start button below to continue using LobeHub Desktop'),
     ).not.toBeInTheDocument();
@@ -209,9 +222,11 @@ describe('Desktop onboarding LoginStep', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(screen.queryByText('Authorization Successful')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign in Cloud' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use self-hosted server' })).toBeInTheDocument();
+    // Back is owned by the wizard shell: the step only delegates, and it must
+    // not render a second copy of the login-method UI while doing so.
+    expect(navigationMocks.onBack).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Sign in Cloud' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
   });
 
   it('uses public desktop login configuration for the visible login copy and logo', async () => {

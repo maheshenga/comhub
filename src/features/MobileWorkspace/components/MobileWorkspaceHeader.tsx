@@ -1,8 +1,7 @@
 'use client';
 
-import { ActionIcon } from '@lobehub/ui/base-ui';
+import { ActionIcon, createStaticStyles } from '@lobehub/ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
-import { createStaticStyles } from 'antd-style';
 import { type LucideIcon } from 'lucide-react';
 import { type ComponentProps, type ReactNode } from 'react';
 

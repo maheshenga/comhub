@@ -1,6 +1,6 @@
 'use client';
 
-import { cssVar } from 'antd-style';
+import { cssVar } from '@lobehub/ui';
 
 const positionLabelStyle = {
   alignSelf: 'center',

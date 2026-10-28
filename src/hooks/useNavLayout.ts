@@ -49,6 +49,7 @@ export const useNavLayout = (): NavLayout => {
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
   const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
   const activeWorkspaceSlug = useActiveWorkspaceSlug();
+  const enableDashboard = useServerConfigStore(serverConfigSelectors.enableDashboard);
   const { data: expertPlazaConfig } = useClientDataSWR(
     enableBusinessFeatures ? PUBLIC_EXPERT_PLAZA_SWR_KEY : null,
     () => adminCommercialService.getPublicExpertPlaza(),
@@ -84,13 +85,29 @@ export const useNavLayout = (): NavLayout => {
           url: '/tasks',
         },
         {
+          // Personal boards only for now — workspace-level boards have no UI
+          // yet — and only while the `dashboard` feature flag is on.
+          hidden: !!activeWorkspaceSlug || !enableDashboard,
+          icon: getRouteById('dashboard')!.icon,
+          key: SidebarTabKey.Dashboard,
+          title: t('tab.dashboard'),
+          url: '/dashboard',
+        },
+        {
           icon: getRouteById('resource')!.icon,
           key: SidebarTabKey.Resource,
           title: t('tab.resource'),
           url: '/resource',
         },
       ] as NavItem[],
-    [brand.sidebarMemberLabel, brand.sidebarMemberUrl, t, toggleCommandMenu],
+    [
+      brand.sidebarMemberLabel,
+      brand.sidebarMemberUrl,
+      t,
+      toggleCommandMenu,
+      activeWorkspaceSlug,
+      enableDashboard,
+    ],
   );
 
   const bottomMenuItems = useMemo(

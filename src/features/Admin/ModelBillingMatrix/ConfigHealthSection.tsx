@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Tag, Text } from '@lobehub/ui/base-ui';
+import { Alert, Button, Flexbox, Tag, Text } from '@lobehub/ui';
 import { Space } from 'antd';
 
 import type { MatrixConfigHealthCheck } from '@/features/Admin/adminModelBillingMatrix';

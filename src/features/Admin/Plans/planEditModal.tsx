@@ -1,9 +1,8 @@
 'use client';
 
 import { Plans } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Modal } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules/valuePropName）与字段控件（Input/InputNumber/Switch 的 onChange 受控语义）绑定，无 base-ui 等价物：base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，无法行为不变替换；与 Redemption/generateForm 同一豁免（FormKit 迁移另行立项）。
+import { Flexbox, Modal } from '@lobehub/ui';
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：antd 受控 Form（Form.useForm/Form.Item name+rules/valuePropName）与字段控件（Input/InputNumber/Switch 的 onChange 受控语义）绑定，无 base-ui 等价物：base-ui Form 为非受控原生表单、base-ui/form 的 FormKit 是语义重写，无法行为不变替换；与 Redemption/generateForm 同一豁免（FormKit 迁移另行立项）。
 import { Form, Input, InputNumber, Select, Switch } from 'antd';
 
 import { ADMIN_PLANS_SWR_KEY, type PlanFormValues, type PlanRow } from './shared';

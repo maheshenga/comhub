@@ -1,8 +1,6 @@
 'use client';
 
-import { Block, Flexbox, Icon } from '@lobehub/ui';
-import { Text } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
+import { Block, cssVar,Flexbox, Icon, Text } from '@lobehub/ui';
 import { CornerRightUp } from 'lucide-react';
 import { memo, useCallback } from 'react';
 

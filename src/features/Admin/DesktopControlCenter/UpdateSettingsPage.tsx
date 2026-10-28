@@ -1,8 +1,8 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
 import {
   Button,
+  Icon,
   Input,
   InputNumber,
   Segmented,
@@ -10,8 +10,8 @@ import {
   Text,
   TextArea,
   toast,
-} from '@lobehub/ui/base-ui';
-import { Form } from '@lobehub/ui/base-ui/form';
+} from '@lobehub/ui';
+import { Form } from '@lobehub/ui/form';
 import { Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -1,6 +1,5 @@
 import { RequestTrigger } from '@lobechat/types';
 import { render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import InputEditor from './index';
@@ -120,10 +119,9 @@ vi.mock('@lobehub/editor/react', () => {
     useEditorState: vi.fn(() => ({ isEmpty: true })),
   };
 });
-vi.mock('@lobehub/ui', () => ({
-  Block: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+vi.mock('@lobehub/ui', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   combineKeys: vi.fn(() => 'alt+enter'),
-  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('fuse.js', () => ({
   default: class Fuse {
@@ -166,9 +164,12 @@ vi.mock('@/services/aiChat', () => ({
   },
 }));
 vi.mock('@/store/chat', () => ({
-  useChatStore: Object.assign(<T,>(selector: StoreSelector<T>) => selector({}), {
-    getState: () => ({ activeTopicId: undefined }),
-  }),
+  useChatStore: Object.assign(
+    <T,>(selector: StoreSelector<T>) => selector({ useFetchTopicDetail: () => {} }),
+    {
+      getState: () => ({ activeTopicId: undefined }),
+    },
+  ),
 }));
 vi.mock('@/store/serverConfig', () => ({
   useServerConfigStore: <T,>(selector: StoreSelector<T>) =>

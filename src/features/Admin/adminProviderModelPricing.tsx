@@ -1,6 +1,5 @@
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
-import { Flexbox } from '@lobehub/ui';
-import { InputNumber } from '@lobehub/ui/base-ui';
+import { Flexbox, InputNumber } from '@lobehub/ui';
 import { useEffect, useState } from 'react';
 
 export type AiProviderModelType =

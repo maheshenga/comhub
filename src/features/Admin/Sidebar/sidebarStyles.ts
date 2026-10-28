@@ -1,4 +1,4 @@
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles } from '@lobehub/ui';
 
 /**
  * Single source for sidebar icon sizing: the search icon, the footer back

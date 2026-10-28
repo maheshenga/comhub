@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Tag, toast } from '@lobehub/ui/base-ui';
-import { useForm, useWatch } from '@lobehub/ui/base-ui/form';
+import { Button, Flexbox, Modal, Tag, toast } from '@lobehub/ui';
+import { useForm, useWatch } from '@lobehub/ui/form';
 import { Pencil, Plus } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

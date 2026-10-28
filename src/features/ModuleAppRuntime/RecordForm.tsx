@@ -1,8 +1,16 @@
 import type { ModuleAppInputSchema, ModuleAppScopeType } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Input, InputNumber, Select, Switch, TextArea } from '@lobehub/ui/base-ui';
-import { Form, useForm } from '@lobehub/ui/base-ui/form';
-import { createStaticStyles } from 'antd-style';
+import {
+  Alert,
+  Button,
+  createStaticStyles,
+  Flexbox,
+  Input,
+  InputNumber,
+  Select,
+  Switch,
+  TextArea,
+} from '@lobehub/ui';
+import { Form, useForm } from '@lobehub/ui/form';
 import { RefreshCw, Save } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

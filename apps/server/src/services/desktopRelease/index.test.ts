@@ -260,7 +260,7 @@ describe('desktopRelease', () => {
     'https://127.0.0.1/ComHub-2.3.0-setup.exe',
   ])('rejects unsafe manifest artifact URL %s', async (artifactUrl) => {
     const fetcher = vi.fn(async () =>
-      Promise.resolve(new Response(manifest('2.3.0', [{ url: artifactUrl }]))),
+      new Response(manifest('2.3.0', [{ url: artifactUrl }])),
     );
 
     const result = await getDesktopReleaseDiagnostics({

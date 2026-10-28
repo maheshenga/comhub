@@ -52,7 +52,7 @@ function getLocalHour(date: Date, timeZone?: string): number {
     // Handle the possible edge case of '24' (extremely rare, but for robustness)
     const hour = parseInt(hourStr, 10);
     return hour === 24 ? 0 : hour;
-  } catch (e) {
+  } catch {
     // If the timezone is invalid, fall back to server time
     console.warn(`[getExtremeAck] Invalid timezone: ${timeZone}, falling back to server time.`);
     return date.getHours();

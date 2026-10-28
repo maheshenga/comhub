@@ -1,8 +1,6 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import { Button, createStaticStyles, Icon } from '@lobehub/ui';
 import { RefreshCw } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +9,7 @@ import useSWR from 'swr';
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { mobileDesignService } from '@/services/mobileDesign';
-import { usePageStore } from '@/store/page';
+import { pageActions } from '@/store/page';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
 
 import {
@@ -201,7 +199,6 @@ const MobileDesignPage = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useWorkspaceAwareNavigate();
   const activeWorkspaceId = useActiveWorkspaceId();
-  const createNewPage = usePageStore((state) => state.createNewPage);
   const { config } = useMobileConfig();
   const [creatingTool, setCreatingTool] = useState<MobileDesignTool['id']>();
   const [createError, setCreateError] = useState<string>();
@@ -231,7 +228,7 @@ const MobileDesignPage = memo(() => {
 
     setCreatingTool(tool.id);
     try {
-      const id = await createNewPage(t('mobile.design.untitled'), {
+      const id = await pageActions.createNewPage(t('mobile.design.untitled'), {
         suppressFailureNavigation: true,
       });
       navigate(`/page/${encodeURIComponent(id)}`);
@@ -361,7 +358,10 @@ const MobileDesignPage = memo(() => {
                         {item.title}
                       </span>
                       <span className={styles.itemMeta}>
-                        <span className={styles.itemMetaPart} data-testid="mobile-design-recent-kind">
+                        <span
+                          className={styles.itemMetaPart}
+                          data-testid="mobile-design-recent-kind"
+                        >
                           {t(`mobile.design.kind.${item.kind}`)}
                         </span>
                         {status ? (
@@ -386,7 +386,11 @@ const MobileDesignPage = memo(() => {
               })}
             </div>
           ) : (
-            <MobileStateView action={createAction} title={t('mobile.design.empty')} variant="empty" />
+            <MobileStateView
+              action={createAction}
+              title={t('mobile.design.empty')}
+              variant="empty"
+            />
           )}
         </MobileSection>
       </main>

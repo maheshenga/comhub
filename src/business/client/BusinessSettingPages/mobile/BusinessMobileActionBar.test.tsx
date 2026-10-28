@@ -8,7 +8,7 @@ import BusinessMobileActionBar, {
 
 // tests/setup.ts 把 base-ui Button 换成原生 <button>（不透传 href）。
 // 本测试断言链接 action 携带 href（role=link），恢复真实 Button 渲染 <Motion.a>。
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
 }));
 

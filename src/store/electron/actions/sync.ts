@@ -7,8 +7,6 @@ import useSWR from 'swr';
 import { mutate } from '@/libs/swr';
 import { electronKeys } from '@/libs/swr/keys';
 import { remoteServerService } from '@/services/electron/remoteServer';
-import { useChatStore } from '@/store/chat';
-import { useSessionStore } from '@/store/session';
 import { type StoreSetter } from '@/store/types';
 import { useUserStore } from '@/store/user';
 import { stores } from '@/store/utils/userDataStores';
@@ -99,6 +97,14 @@ export class ElectronRemoteServerActionImpl {
   refreshUserData = async (): Promise<void> => {
     await stores.reset();
 
+    // Dynamic imports: the session store reaches the agent-group store, which
+    // imports the chat store, and the chat store's agent-run slices import this
+    // electron store back while they are still initializing. Resolve both at
+    // call time so importing the electron store stays side-effect free for them.
+    const [{ useChatStore }, { useSessionStore }] = await Promise.all([
+      import('@/store/chat'),
+      import('@/store/session'),
+    ]);
     await useSessionStore.getState().refreshSessions();
     await useChatStore.getState().refreshMessages();
     await useChatStore.getState().refreshTopic();

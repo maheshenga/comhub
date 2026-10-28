@@ -1,5 +1,4 @@
-import { Tag, Tooltip } from '@lobehub/ui/base-ui';
-import { cx } from 'antd-style';
+import { cx,Tag, Tooltip } from '@lobehub/ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

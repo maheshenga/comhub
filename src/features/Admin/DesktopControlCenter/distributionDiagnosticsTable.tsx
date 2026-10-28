@@ -1,7 +1,6 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
-import { Button, Tag, Text, Tooltip } from '@lobehub/ui/base-ui';
+import { Button, Icon, Tag, Text, Tooltip } from '@lobehub/ui';
 import type { TableColumnsType } from 'antd';
 import { ExternalLink } from 'lucide-react';
 

@@ -16,7 +16,7 @@ export const changelogRouter = router({
   getIndex: changelogProcedure.query(async ({ ctx }) => {
     try {
       return await ctx.changelogService.getChangelogIndex();
-    } catch (e) {
+    } catch {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to fetch changelog index',
@@ -34,7 +34,7 @@ export const changelogRouter = router({
     .query(async ({ input, ctx }) => {
       try {
         return await ctx.changelogService.getPostById(input.id, { locale: input.locale as any });
-      } catch (e) {
+      } catch {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to fetch changelog post',

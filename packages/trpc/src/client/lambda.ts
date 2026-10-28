@@ -15,7 +15,6 @@ import superjson from 'superjson';
 
 import { isDesktop } from '@/const/version';
 import { type LambdaRouter } from '@/server/routers/lambda';
-import { createHeaderWithAuth } from '@/services/_auth';
 
 const log = debug('lobe-image:lambda-client');
 
@@ -173,6 +172,9 @@ const linkOptions = {
       log('Getting provider from store for image page: %s', provider);
     }
 
+    // dynamic import to avoid circular dependency
+    const { createHeaderWithAuth } = await import('@/services/_auth');
+
     // Only include provider in JWT for image operations
     // For other operations (like knowledge base embedding), let server use its own config
     const headers = await createHeaderWithAuth(provider ? { provider } : undefined);
@@ -239,8 +241,22 @@ const LARGE_INPUT_QUERY_PROCEDURES = new Set([
   'message.getToolResultPayloads',
 ]);
 
+/**
+ * Operation context key for the one-shot LLM relay headers (`withLlmRelay`):
+ * the tab subscribed a gateway channel for this call's LLM requests, and the
+ * server must see which. Per call, so such a call never shares a batch.
+ */
+export const LLM_RELAY_HEADERS_CONTEXT_KEY = 'llmRelayHeaders';
+
+const getLlmRelayHeaders = (op: { context: Record<string, unknown> }) =>
+  op.context?.[LLM_RELAY_HEADERS_CONTEXT_KEY] as Record<string, string> | undefined;
+
+/** TRPC call options carrying a one-shot relay's headers; none without a relay. */
+export const withLlmRelay = (relay?: { headers: Record<string, string> }) =>
+  relay ? { context: { [LLM_RELAY_HEADERS_CONTEXT_KEY]: relay.headers } } : undefined;
+
 // 3. splitLink to conditionally disable batching
-const buildHttpLinks = (options: typeof linkOptions) =>
+const buildBatchedHttpLinks = (options: typeof linkOptions) =>
   splitLink({
     condition: (op) => LARGE_INPUT_QUERY_PROCEDURES.has(op.path),
     false: splitLink({
@@ -256,6 +272,20 @@ const buildHttpLinks = (options: typeof linkOptions) =>
       true: httpLink(options),
     }),
     true: httpLink({ ...options, methodOverride: 'POST' }),
+  });
+
+const buildHttpLinks = (options: typeof linkOptions) =>
+  splitLink({
+    condition: (op) => !!getLlmRelayHeaders(op),
+    false: buildBatchedHttpLinks(options),
+    true: httpLink({
+      ...options,
+      headers: async ({ op }) => ({
+        ...(await options.headers()),
+        ...getLlmRelayHeaders(op),
+      }),
+      methodOverride: 'POST',
+    }),
   });
 
 const customSplitLink = splitLink({

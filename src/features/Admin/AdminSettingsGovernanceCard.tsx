@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, confirmModal, Input, List, Tag, Text, toast } from '@lobehub/ui/base-ui';
+import { Alert, Button, confirmModal, Flexbox, Input, List, Tag, Text, toast } from '@lobehub/ui';
 import { Space } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

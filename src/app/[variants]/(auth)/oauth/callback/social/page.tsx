@@ -1,7 +1,6 @@
 'use client';
 
-import { FluentEmoji } from '@lobehub/ui';
-import { Result, Text } from '@lobehub/ui/base-ui';
+import { FluentEmoji, Result, Text } from '@lobehub/ui';
 import { useSearchParams } from 'next/navigation';
 import React, { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';

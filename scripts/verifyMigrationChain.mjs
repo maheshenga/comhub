@@ -36,6 +36,18 @@ export const V2219_APPEND_TAGS = [
   '0187_environment_visibility_and_build_state',
 ];
 
+// Upstream v2.2.20 shipped these as 0176-0181; the fork renumbered them to
+// 0189-0194 (SQL and snapshot contents verbatim) because the fork already
+// used those numbers for its own migrations.
+export const V2220_APPEND_TAGS = [
+  '0189_trash_project_context',
+  '0190_agent_accounts_live_unique_and_goal_subscriptions',
+  '0191_workspace_teams',
+  '0192_distinct_intervention_callbacks',
+  '0193_task_archived_at',
+  '0194_linear_integration',
+];
+
 const LEGACY_CUTOFF_TAG = '0177_add_subscription_payments';
 const REPAIR_MIGRATION_TAG = '0178_repair_migration_chain';
 const LATEST_MERGED_MIGRATION_TAG = '0166_device_architecture';
@@ -279,6 +291,7 @@ export const verifyMigrationChain = ({
   verifyAppend('v2.2.17', V2217_APPEND_TAGS);
   verifyAppend('v2.2.18', V2218_APPEND_TAGS);
   verifyAppend('v2.2.19', V2219_APPEND_TAGS);
+  verifyAppend('v2.2.20', V2220_APPEND_TAGS);
 
   // Reverse orphan detection: SQL files on disk that no journal entry
   // references. These are expected to exist (the known 23 upstream originals
@@ -325,7 +338,7 @@ if (isMainModule) {
       process.exitCode = 1;
     } else {
       console.log(
-        `[migration-check] OK: ${result.summary.entryCount} journal entries and ${result.summary.fileCount} SQL files; v2.2.17, v2.2.18 and v2.2.19 appends verified`,
+        `[migration-check] OK: ${result.summary.entryCount} journal entries and ${result.summary.fileCount} SQL files; v2.2.17, v2.2.18, v2.2.19 and v2.2.20 appends verified`,
       );
     }
   } catch (error) {

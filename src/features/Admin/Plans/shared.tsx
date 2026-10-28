@@ -1,8 +1,7 @@
 'use client';
 
 import type { Plans } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Tag } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Tag } from '@lobehub/ui';
 
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';

@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 import type { TableProps } from 'antd';
 import type * as React from 'react';
 import { memo, useEffect, useMemo, useState } from 'react';

@@ -1,10 +1,9 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
+import { Button, createStaticStyles } from '@lobehub/ui';
 import type { TableProps } from 'antd';
-// eslint-disable-next-line no-restricted-imports -- Admin's unified table primitive is the sanctioned antd Table wrapper (blueprint §4.2-1): Admin pages stop importing Table directly and render this instead; the base-ui Table is a separate tanstack-based re-implementation (no rowSelection, mandatory rowKey) and blueprint §4.1 keeps interactive components on antd while base-ui phases out.
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：Admin's unified table primitive is the sanctioned antd Table wrapper (blueprint §4.2-1): Admin pages stop importing Table directly and render this instead; the base-ui Table is a separate tanstack-based re-implementation (no rowSelection, mandatory rowKey) and blueprint §4.1 keeps interactive components on antd while base-ui phases out.
 import { Table } from 'antd';
-import { createStaticStyles } from 'antd-style';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';

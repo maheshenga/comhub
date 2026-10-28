@@ -1,7 +1,7 @@
 'use client';
 
-import { Alert, Button, Select, toast } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- Input 为话题/文件/文档三个 tab 的筛选输入，迁 base-ui 属 B4 筛选器收敛批次统一处理。
+import { Alert, Button, Select, toast } from '@lobehub/ui';
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：Input 为话题/文件/文档三个 tab 的筛选输入，迁 base-ui 属 B4 筛选器收敛批次统一处理。
 import { Input } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';

@@ -1,7 +1,7 @@
 'use client';
 
-import { Button, Input, Modal } from '@lobehub/ui/base-ui';
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）与字段控件（InputNumber addonAfter 受控语义，base-ui InputNumber 无该属性）绑定，无 base-ui 等价物；与 Redemption/generateForm 同一豁免（FormKit 迁移另行立项）。
+import { Button, Input, Modal } from '@lobehub/ui';
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：antd 受控 Form（Form.useForm/Form.Item name+rules）与字段控件（InputNumber addonAfter 受控语义，base-ui InputNumber 无该属性）绑定，无 base-ui 等价物；与 Redemption/generateForm 同一豁免（FormKit 迁移另行立项）。
 import { Form, InputNumber } from 'antd';
 
 import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';

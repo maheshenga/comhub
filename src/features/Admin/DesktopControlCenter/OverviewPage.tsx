@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Tag, Text } from '@lobehub/ui/base-ui';
+import { Alert, Button, Flexbox, Icon, Tag, Text } from '@lobehub/ui';
 import { Settings2 } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

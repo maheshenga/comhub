@@ -1,1 +1,1 @@
-export { Result, type ResultProps } from '@lobehub/ui/base-ui';
+export { Result, type ResultProps } from '@lobehub/ui';

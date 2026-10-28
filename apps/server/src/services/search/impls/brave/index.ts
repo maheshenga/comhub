@@ -67,7 +67,7 @@ export class BraveImpl implements SearchServiceImpl {
         headers: {
           'Accept': 'application/json',
           'Accept-Encoding': 'gzip',
-          'X-Subscription-Token': this.apiKey ? this.apiKey : '',
+          'X-Subscription-Token': this.apiKey || '',
         },
         method: 'GET',
       });

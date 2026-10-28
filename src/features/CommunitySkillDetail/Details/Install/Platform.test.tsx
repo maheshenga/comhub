@@ -19,6 +19,10 @@ vi.mock('@lobehub/icons', () => {
 });
 
 vi.mock('@lobehub/ui', () => ({
+  Tabs: ({ items = [] }: any) => (<div>{items.map((item: any) => (<div key={item.key}>{item.label}</div>))}</div>),
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
   Avatar: () => <span data-testid="avatar" />,
   Block: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => (

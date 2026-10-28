@@ -1,6 +1,6 @@
 'use client';
 
-// eslint-disable-next-line no-restricted-imports -- antd 受控 Form（Form.useForm/Form.Item name+rules）无 base-ui 等价物：@lobehub/ui/base-ui 的 Form 是非受控原生表单（下一主版本移除），base-ui/form 的 FormKit 是 setValue/getValues 语义重写，无法行为不变替换；FormKit 迁移另行立项。
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：antd 受控 Form（Form.useForm/Form.Item name+rules）无 base-ui 等价物：@lobehub/ui/base-ui 的 Form 是非受控原生表单（下一主版本移除），base-ui/form 的 FormKit 是 setValue/getValues 语义重写，无法行为不变替换；FormKit 迁移另行立项。
 import { DatePicker, Form, Input, InputNumber, Select } from 'antd';
 
 import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';

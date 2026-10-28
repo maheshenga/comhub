@@ -37,7 +37,7 @@ vi.mock('@/envs/redis', () => ({
   getRedisConfig: redisMocks.getRedisConfig,
 }));
 
-vi.mock('@/libs/redis', () => ({
+vi.mock('@/server/modules/Redis', () => ({
   initializeRedis: redisMocks.initializeRedis,
   isRedisEnabled: redisMocks.isRedisEnabled,
 }));
@@ -46,6 +46,19 @@ vi.mock('@/libs/redis', () => ({
 vi.mock('@/server/modules/S3', () => ({
   FileS3: vi.fn().mockImplementation(function () {
     return {
+      // Read through the mutable env stub so tests can toggle S3_SET_ACL,
+      // S3_ENABLE_PATH_STYLE and S3_BUCKET between cases.
+      getConfig: vi.fn().mockImplementation(async () => ({
+        accessKeyId: 'test-key',
+        bucket: config.S3_BUCKET,
+        enablePathStyle: config.S3_ENABLE_PATH_STYLE,
+        endpoint: 'https://s3.example.com',
+        previewUrlExpireIn: config.S3_PREVIEW_URL_EXPIRE_IN,
+        publicDomain: config.S3_PUBLIC_DOMAIN,
+        region: 'us-east-1',
+        secretAccessKey: 'test-secret',
+        setAcl: config.S3_SET_ACL,
+      })),
       createPreSignedUrlForDownload: vi
         .fn()
         .mockResolvedValue('https://presigned.example.com/download'),
@@ -170,8 +183,10 @@ describe('S3StaticFileImpl', () => {
         'https://presigned.example.com/test.jpg',
       );
 
+      // The key carries a fingerprint of the active S3 config so two
+      // deployments sharing Redis cannot serve each other's presigned URLs.
       expect(redisMocks.redis.set).toHaveBeenCalledWith(
-        'file:presigned-preview:7200:path/to/redis-write-file.jpg',
+        'file:presigned-preview:7200:e15bc221ef7db52e:path/to/redis-write-file.jpg',
         'https://presigned.example.com/test.jpg',
         { ex: 3600 },
       );

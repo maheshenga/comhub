@@ -18,6 +18,8 @@ interface ChargeParams {
   model: string;
   params: CreateVideoServicePayload['params'];
   provider: string;
+  /** Params as sent to the provider, whose image URLs are the ones it fetches */
+  providerParams?: CreateVideoServicePayload['params'];
   routeMetadata?: AiUsageRouteMetadata;
   /** Origin of the request, preserved for deferred video spend attribution. */
   spendOrigin?: SpendOrigin;
@@ -57,11 +59,15 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
     db,
     model,
     params: generationParams,
+    providerParams,
     routeMetadata,
   } = params;
 
   const pricing = await getServerModelPricing({ db, model, provider, type: 'video', userId });
-  const { estimatedCredits, totalCost } = estimateVideoCharge(pricing, generationParams);
+  const { estimatedCredits, totalCost } = estimateVideoCharge(
+    pricing,
+    providerParams ?? generationParams,
+  );
   const operationId = `video:${randomUUID()}`;
   const reservation = await reserveCommercialAiUsage({
     db: db!,

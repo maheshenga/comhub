@@ -1,6 +1,5 @@
 import { MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES } from '@lobechat/types';
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
+import { Button,Flexbox, Icon } from '@lobehub/ui';
 import { LoaderCircle, Upload } from 'lucide-react';
 import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

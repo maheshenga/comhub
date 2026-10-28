@@ -82,7 +82,11 @@ vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
 vi.mock('@/business/client/hooks/useActiveWorkspaceId', () => ({
   useActiveWorkspaceId: () => workspaceState.activeWorkspaceId,
 }));
-vi.mock('@/store/page', () => ({ usePageStore: (selector: any) => selector({ createNewPage }) }));
+vi.mock('@/store/page', () => ({
+  pageActions: {
+    createNewPage: (...args: any[]) => createNewPage(...args),
+  },
+}));
 vi.mock('@lobehub/ui/mobile', () => {
   const ChatHeader = ({ center, left, right }: any) => (
     <header>
@@ -95,13 +99,6 @@ vi.mock('@lobehub/ui/mobile', () => {
 
   return { ChatHeader };
 });
-vi.mock('@lobehub/ui/base-ui', () => ({
-  Button: ({ children, onClick, ...props }: any) => (
-    <button type="button" {...props} onClick={onClick}>
-      {children}
-    </button>
-  ),
-}));
 vi.mock('@lobehub/ui', () => ({
   ActionIcon: ({ icon: Icon, onClick, ...props }: any) => (
     <button type="button" {...props} onClick={onClick}>
@@ -114,6 +111,9 @@ vi.mock('@lobehub/ui', () => ({
     </button>
   ),
   Icon: () => <span data-testid="design-icon" />,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
 }));
 vi.mock('../MobilePageLayout', () => ({
   default: ({ children, header }: any) => (

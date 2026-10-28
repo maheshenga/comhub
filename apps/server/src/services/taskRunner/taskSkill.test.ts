@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import path from 'node:path';
 
 import { builtinSkills, TaskIdentifier } from '@lobechat/builtin-skills';
 import { describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 // The vitest config stubs `.md` imports to an empty string, so read the skill
 // instructions straight from disk instead of through the package export.
 const builtinSkillsEntry = createRequire(import.meta.url).resolve('@lobechat/builtin-skills');
-const content = readFileSync(join(dirname(builtinSkillsEntry), 'task/SKILL.md'), 'utf8');
+const content = readFileSync(path.join(path.dirname(builtinSkillsEntry), 'task/SKILL.md'), 'utf8');
 
 /**
  * TaskRunnerService auto-activates the task skill for every task run, so its
@@ -38,5 +38,11 @@ describe('task skill instructions', () => {
     expect(content.indexOf('NEVER run `lh task complete`')).toBeGreaterThan(
       content.indexOf('Complete when done'),
     );
+  });
+
+  it('lets a tick retire the loop once the instruction end condition is met', () => {
+    expect(content).toContain('**End conditions**');
+    expect(content).toContain('Then run `lh task complete <id>` as your final step');
+    expect(content).toContain('Do not ask the user to stop it instead');
   });
 });

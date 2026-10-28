@@ -1,6 +1,6 @@
 'use client';
 
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 import { useState } from 'react';
 
 import {

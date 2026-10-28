@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, toast, Upload } from '@lobehub/ui/base-ui';
+import { Button, Input, toast, Upload } from '@lobehub/ui';
 import { Space } from 'antd';
 import { sha256 } from 'js-sha256';
 import { ImageUpIcon } from 'lucide-react';

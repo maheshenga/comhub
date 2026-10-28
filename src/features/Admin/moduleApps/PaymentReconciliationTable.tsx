@@ -1,8 +1,7 @@
 'use client';
 
 import type { PaymentMethodId, PaymentProvider } from '@lobechat/types';
-import { CopyButton, Flexbox } from '@lobehub/ui';
-import { Text } from '@lobehub/ui/base-ui';
+import { CopyButton, Flexbox, Text } from '@lobehub/ui';
 import { memo } from 'react';
 
 import { AdminDataTable } from '../shared';

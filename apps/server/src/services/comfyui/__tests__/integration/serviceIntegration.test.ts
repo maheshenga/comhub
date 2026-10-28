@@ -70,11 +70,6 @@ describe('Service Integration - Module Level', () => {
 
   describe('Context Passing', () => {
     it('should pass context between services correctly', async () => {
-      const context = {
-        clientService,
-        modelResolverService,
-      };
-
       // 验证 WorkflowBuilderService 接收正确的 context
       expect(workflowBuilderService).toBeDefined();
 
@@ -149,7 +144,7 @@ describe('Service Integration - Module Level', () => {
       // 这应该使用统一的 mocks
       try {
         await imageService.createImage(params);
-      } catch (error) {
+      } catch {
         // 预期在 mock 环境中可能有错误
       }
 

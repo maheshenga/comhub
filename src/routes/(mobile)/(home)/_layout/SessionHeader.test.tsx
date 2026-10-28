@@ -43,11 +43,15 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 vi.mock('@lobehub/ui', () => ({
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
   ActionIcon: ({ disabled, onClick, title }: any) => (
     <button aria-label={title} disabled={disabled} type="button" onClick={onClick} />
   ),
   Flexbox: ({ children }: any) => <div>{children}</div>,
   Icon: () => <span>loading</span>,
+  toast,
 }));
 vi.mock('@lobehub/ui/mobile', () => ({
   ChatHeader: ({ left, right }: any) => (
@@ -57,7 +61,6 @@ vi.mock('@lobehub/ui/mobile', () => ({
     </header>
   ),
 }));
-vi.mock('@lobehub/ui/base-ui', () => ({ toast }));
 
 describe('SessionHeader', () => {
   beforeEach(() => {

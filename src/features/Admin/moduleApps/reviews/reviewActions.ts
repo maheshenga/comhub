@@ -1,4 +1,4 @@
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 
 import { mutate } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';

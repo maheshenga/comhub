@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import MobileRefreshButton from './MobileRefreshButton';
 
-vi.mock('@lobehub/ui', () => ({ Icon: () => <span aria-hidden="true" /> }));
+vi.mock('@lobehub/ui', () => ({
+  Icon: () => <span aria-hidden="true" />,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+}));
 
 describe('MobileRefreshButton', () => {
   it('exposes refresh progress and prevents duplicate actions', () => {

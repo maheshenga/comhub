@@ -1,8 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { type ToolCallContent } from '@/libs/mcp';
+import type * as AppSettingsModule from '@/server/services/appSettings';
 
 import { contentBlocksToString, processContentBlocks } from './contentProcessor';
+
+vi.mock('@/server/services/appSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof AppSettingsModule>();
+
+  return {
+    ...actual,
+    getServerFileS3Config: vi.fn().mockResolvedValue({ filePath: 'files' }),
+  };
+});
 
 describe('contentProcessor', () => {
   describe('contentBlocksToString', () => {

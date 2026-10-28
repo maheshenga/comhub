@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Result } from '@lobehub/ui/base-ui';
+import { Button, Result } from '@lobehub/ui';
 import { memo } from 'react';
 import { useNavigate } from 'react-router';
 

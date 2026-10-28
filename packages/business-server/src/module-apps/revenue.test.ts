@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getTestDB } from '@/database/core/getTestDB';
 import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import {
+  moduleAppInstallations,
   moduleAppLicenses,
   moduleAppOrders,
   moduleAppPackages,
@@ -37,6 +38,7 @@ describe('module app revenue', () => {
     await serverDB.delete(moduleAppLicenses);
     await serverDB.delete(moduleAppPackages);
     await serverDB.delete(moduleAppOrders);
+    await serverDB.delete(moduleAppInstallations);
     await serverDB.delete(moduleAppPrices);
     await serverDB.delete(moduleAppProducts);
     await serverDB.delete(moduleAppVersions);

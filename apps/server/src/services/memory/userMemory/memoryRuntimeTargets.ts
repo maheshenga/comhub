@@ -1,6 +1,6 @@
-import type { AiProviderRuntimeState } from '@lobechat/types';
 import type { LobeChatDatabase } from '@lobechat/database';
 import type { ModelRuntime, ModelRuntimeHooks } from '@lobechat/model-runtime';
+import type { AiProviderRuntimeState } from '@lobechat/types';
 
 import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';

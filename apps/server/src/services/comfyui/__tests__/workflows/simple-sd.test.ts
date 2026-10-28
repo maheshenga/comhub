@@ -52,7 +52,7 @@ vi.mock('../utils/staticModelLookup', () => ({
   }),
 }));
 
-const { inputCalls } = setupAllMocks();
+setupAllMocks();
 
 // Extended mock context for SD testing
 const createSDMockContext = () => ({

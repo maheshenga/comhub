@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import PublisherFormModal from './PublisherFormModal';
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
   Input: (props: any) => <input {...props} />,
   Modal: ({ children, okButtonProps, okText, onOk, open }: any) =>
     open ? (

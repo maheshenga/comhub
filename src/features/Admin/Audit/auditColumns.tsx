@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag } from '@lobehub/ui/base-ui';
+import { Tag } from '@lobehub/ui';
 import { type KeyboardEvent } from 'react';
 
 import type { AuditRow } from '@/features/Admin/Audit/auditParts';

@@ -1,7 +1,7 @@
+import { createStaticStyles, cssVar, cx } from '@lobehub/ui';
 import { type TableProps } from 'antd';
-// eslint-disable-next-line no-restricted-imports -- InlineTable is the sanctioned antd Table wrapper for business settings pages (same role as Admin/shared/AdminDataTable): the base-ui Table is a separate tanstack-based re-implementation, and this wrapper's styles target the `.ant-table` class names its consumers rely on.
+// keep-antd 豁免（原 no-restricted-imports 行内豁免已随升级失效，保留原因）：InlineTable is the sanctioned antd Table wrapper for business settings pages (same role as Admin/shared/AdminDataTable): the base-ui Table is a separate tanstack-based re-implementation, and this wrapper's styles target the `.ant-table` class names its consumers rely on.
 import { ConfigProvider, Table } from 'antd';
-import { createStaticStyles, cssVar, cx } from 'antd-style';
 import { memo } from 'react';
 
 const prefixCls = 'ant';

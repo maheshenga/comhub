@@ -1,7 +1,6 @@
 'use client';
 
-import { CopyButton, Flexbox } from '@lobehub/ui';
-import { Button, InputNumber, Switch, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, CopyButton, Flexbox, InputNumber, Switch, Tag, Text } from '@lobehub/ui';
 import type { TableColumnsType } from 'antd';
 import { Space } from 'antd';
 

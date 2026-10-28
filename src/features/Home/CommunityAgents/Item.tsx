@@ -1,6 +1,4 @@
-import { Block, Flexbox } from '@lobehub/ui';
-import { Avatar, Text } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
+import { Avatar, Block, cssVar,Flexbox, Text } from '@lobehub/ui';
 import { memo } from 'react';
 
 import { DEFAULT_AVATAR } from '@/const/meta';

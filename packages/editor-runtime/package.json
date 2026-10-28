@@ -7,14 +7,13 @@
   },
   "main": "./src/index.ts",
   "dependencies": {
-    "@lobechat/prompts": "workspace:*",
-    "@lobehub/editor": "4.27.3"
+    "@lobechat/prompts": "workspace:*"
   },
   "devDependencies": {
     "lexical": "0.42.0"
   },
   "peerDependencies": {
-    "@lobehub/editor": "^4.17.1",
+    "@lobehub/editor": "^5.0.0",
     "debug": "*"
   }
 }

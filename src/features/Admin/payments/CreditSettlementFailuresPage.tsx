@@ -1,9 +1,8 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, confirmModal, Select, toast } from '@lobehub/ui/base-ui';
+import { Button, confirmModal, createStaticStyles,Select, toast } from '@lobehub/ui';
 import type { TableProps } from 'antd';
-import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

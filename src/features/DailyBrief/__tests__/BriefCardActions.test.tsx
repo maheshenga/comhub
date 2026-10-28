@@ -1,7 +1,7 @@
 import type * as LobechatConst from '@lobechat/const';
 import { RENDERER_HANDLED_LINK_ATTR } from '@lobechat/desktop-bridge';
 import type { BriefAction } from '@lobechat/types';
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router';
@@ -101,11 +101,11 @@ describe('BriefCardActions', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Primary link' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Primary link' })).toHaveAttribute(
       RENDERER_HANDLED_LINK_ATTR,
       'true',
     );
-    expect(screen.getByRole('button', { name: 'Secondary link' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Secondary link' })).toHaveAttribute(
       RENDERER_HANDLED_LINK_ATTR,
       'true',
     );
@@ -129,7 +129,7 @@ describe('BriefCardActions', () => {
       />,
     );
 
-    const link = screen.getByRole('button', { name: 'Review acceptance' });
+    const link = screen.getByRole('link', { name: 'Review acceptance' });
     expect(link).not.toHaveAttribute(RENDERER_HANDLED_LINK_ATTR);
     expect(fireEvent.click(link)).toBe(true);
   });
@@ -314,7 +314,7 @@ describe('BriefCardActions', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Review delivery' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Review delivery' })).toHaveAttribute(
       'href',
       '/acceptance/acceptance-1',
     );

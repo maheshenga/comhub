@@ -1,7 +1,7 @@
 'use client';
 
-import { Input, InputNumber, Switch } from '@lobehub/ui/base-ui';
-import { Form } from '@lobehub/ui/base-ui/form';
+import { Input, InputNumber, Switch } from '@lobehub/ui';
+import { Form } from '@lobehub/ui/form';
 import { useTranslation } from 'react-i18next';
 
 import { AdminFormGrid } from '../layout';

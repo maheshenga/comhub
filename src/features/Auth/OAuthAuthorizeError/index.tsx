@@ -1,8 +1,6 @@
 'use client';
 
-import { Block, Flexbox, FluentEmoji } from '@lobehub/ui';
-import { Button, Result, Text } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
+import { Block, Button, cssVar, Flexbox, FluentEmoji, Result, Text } from '@lobehub/ui';
 import Link from 'next/link';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui/base-ui';
+import { Button } from '@lobehub/ui';
 import { Space } from 'antd';
 import { RefreshCw } from 'lucide-react';
 

@@ -1,4 +1,4 @@
-import { Icon, type MenuProps } from '@lobehub/ui';
+import { type DropdownItem, Icon } from '@lobehub/ui';
 import { DiscordIcon, GithubIcon } from '@lobehub/ui/icons';
 import {
   Book,
@@ -51,7 +51,7 @@ const createMenuIcon = (icon: HelpMenuIcon) => <Icon icon={iconMap[icon] || Circ
 export const createConfiguredHelpMenuItems = (
   items: HelpMenuItem[],
   handlers: HelpMenuHandlers,
-): MenuProps['items'] =>
+): DropdownItem[] =>
   items
     // product-hunt 只在 admin 配了跳转 url 时渲染：action 本身没有运行时
     // 语义（F2 快修），无 url 的条目此前渲染成点击无反馈的死菜单项。

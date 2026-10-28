@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Descriptions, Tag } from '@lobehub/ui/base-ui';
+import { Descriptions, Flexbox, Tag } from '@lobehub/ui';
 import { useTranslation } from 'react-i18next';
 
 import { formatAdminCredits } from '../adminCreditUnits';

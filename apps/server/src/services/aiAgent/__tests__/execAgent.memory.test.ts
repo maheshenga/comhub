@@ -34,6 +34,13 @@ vi.mock('@/database/core/db-adaptor', () => ({
   }),
 }));
 
+// These tests exercise the memory-tool priority, not commercial billing. The
+// fork's runtime hooks reserve credits before every model call, and a fresh
+// test user has no balance, so the call would retry until the test times out.
+vi.mock('@/business/server/model-runtime', () => ({
+  getBusinessModelRuntimeHooks: () => undefined,
+}));
+
 vi.mock('@/server/services/file', () => ({
   FileService: vi.fn().mockImplementation(function () {
     return {

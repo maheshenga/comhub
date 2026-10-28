@@ -1,17 +1,24 @@
 import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { parseToolNameMaxLength } from '@lobechat/const/plugin';
 import { merge } from '@lobechat/utils';
+import { ModelProvider } from 'model-bank';
+import urlJoin from 'url-join';
 
+import { loadModels } from '@/business/client/model-bank/loadModels';
 import { isDesktop } from '@/const/version';
 import { type LobeChatDatabase } from '@/database/type';
 import { appEnv, getAppConfig } from '@/envs/app';
 import { authEnv } from '@/envs/auth';
+import { gatewayEnv } from '@/envs/gateway';
 import { imageEnv } from '@/envs/image';
 import { knowledgeEnv } from '@/envs/knowledge';
 import { langfuseEnv } from '@/envs/langfuse';
+import { sandboxEnv } from '@/envs/sandbox';
 import { toolsEnv } from '@/envs/tools';
 import { parseSSOProviders } from '@/libs/better-auth/utils/server';
+import { OIDC_ISSUER_PATH } from '@/libs/oidc-provider/routes';
 import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
+import { isLlmRelayDeploymentReady } from '@/server/modules/AgentRuntime/llmRelay/deployment';
 import {
   getServerComposioConfig,
   getServerDefaultAgentSettingOverrides,
@@ -25,15 +32,19 @@ import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
 
-import { genServerAiProvidersConfig } from './genServerAiProviderConfig';
+import {
+  type AdminManagedProviderConfig,
+  applyAdminManagedProviders,
+} from './adminManagedProviders';
+import {
+  genServerAiProvidersConfig,
+  type ProviderSpecificConfig,
+} from './genServerAiProviderConfig';
 import { parseAgentConfig } from './parseDefaultAgent';
 import { parseFilesConfig } from './parseFilesConfig';
 import { getResolvedPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
-import {
-  applyAdminManagedProviders,
-  type AdminManagedProviderConfig,
-} from './adminManagedProviders';
 import { getProviderSpecificConfig } from './providerSpecificConfig';
+import { getServerFetchOnClientOverride } from './serverFetchOnClient';
 
 /**
  * Get Better-Auth SSO providers list
@@ -59,6 +70,92 @@ const resolveAgentGatewayProtocol = (): 1 | 2 => {
   if (appEnv.AGENT_GATEWAY_PROTOCOL === 1) return 1;
 
   return ENABLE_BUSINESS_FEATURES ? 2 : 1;
+};
+
+const getAiProviderSpecificConfig = () => {
+  const aiProviderSpecificConfig: Record<string, ProviderSpecificConfig> = {
+    azure: {
+      enabledKey: 'ENABLED_AZURE_OPENAI',
+      withDeploymentName: true,
+    },
+    azureai: {
+      withDeploymentName: true,
+    },
+    bedrock: {
+      enabledKey: 'ENABLED_AWS_BEDROCK',
+      modelListKey: 'AWS_BEDROCK_MODEL_LIST',
+    },
+    deepseek: {
+      enabled: true,
+    },
+    giteeai: {
+      enabledKey: 'ENABLED_GITEE_AI',
+      modelListKey: 'GITEE_AI_MODEL_LIST',
+    },
+    kimicodingplan: {
+      withDeploymentName: true,
+    },
+    lmstudio: {
+      fetchOnClient: getServerFetchOnClientOverride('lmstudio'),
+    },
+    ollama: {
+      enabled: isDesktop ? true : undefined,
+      fetchOnClient: getServerFetchOnClientOverride('ollama'),
+    },
+    ollamacloud: {
+      enabledKey: 'ENABLED_OLLAMA_CLOUD',
+    },
+    qwen: {
+      withDeploymentName: true,
+    },
+    spark: {
+      withDeploymentName: true,
+    },
+    tencentcloud: {
+      enabledKey: 'ENABLED_TENCENT_CLOUD',
+      modelListKey: 'TENCENT_CLOUD_MODEL_LIST',
+    },
+    unsloth: {
+      fetchOnClient: getServerFetchOnClientOverride('unsloth'),
+    },
+    volcengine: {
+      withDeploymentName: true,
+    },
+    volcenginecodingplan: {
+      withDeploymentName: true,
+    },
+  };
+
+  // In business feature mode, keep the built-in provider as the only default-enabled
+  // provider while preserving provider-specific metadata such as fetch/model-list keys.
+  // Non-business builds keep the upstream defaults.
+  if (ENABLE_BUSINESS_FEATURES) {
+    for (const provider of Object.values(ModelProvider)) {
+      aiProviderSpecificConfig[provider] = {
+        ...aiProviderSpecificConfig[provider],
+        enabled: provider === ModelProvider.LobeHub,
+      };
+    }
+  }
+
+  return aiProviderSpecificConfig;
+};
+
+/** Resolve one provider without rebuilding the global config or reloading its catalog. */
+export const getServerAiProviderConfig = async (provider: ModelProvider) => {
+  const models = await loadModels();
+  const configs = await genServerAiProvidersConfig(
+    getAiProviderSpecificConfig(),
+    [provider],
+    models,
+  );
+  const config = configs[provider];
+
+  return {
+    ...config,
+    serverModelLists:
+      config.serverModelLists ?? models.filter((model) => model.providerId === provider),
+  };
 };
 
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
@@ -91,6 +188,10 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
       config: defaultAgentConfig,
       ...(Object.keys(defaultAgentMeta).length > 0 ? { meta: defaultAgentMeta } : {}),
     },
+    // Never fall back to the server-internal DEVICE_GATEWAY_URL.
+    ...(gatewayEnv.DEVICE_GATEWAY_PUBLIC_URL
+      ? { deviceGatewayUrl: gatewayEnv.DEVICE_GATEWAY_PUBLIC_URL }
+      : undefined),
     disableEmailPassword: authEnv.AUTH_DISABLE_EMAIL_PASSWORD,
     enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,
     enableEmailVerification: authEnv.AUTH_EMAIL_VERIFICATION,
@@ -123,6 +224,9 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     // Expose Agent Gateway URL to client (used by hetero agents; also required for queue mode)
     ...(appEnv.AGENT_GATEWAY_URL ? { agentGatewayUrl: appEnv.AGENT_GATEWAY_URL } : undefined),
     agentGatewayProtocol: resolveAgentGatewayProtocol(),
+    // Whether the server can relay an LLM call to a tab (gateway + Redis): only
+    // then does the browser drop its own provider fallback for the one-shot relay.
+    llmRelayAvailable: isLlmRelayDeploymentReady(),
 
     image: cleanObject({
       defaultModel: generationModelConfig.image?.model,
@@ -137,6 +241,8 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
       userMemory: cleanObject(await getResolvedPublicMemoryExtractionConfig(db)),
     },
     oAuthSSOProviders: getBetterAuthSSOProviders(),
+    // Same derivation as the provider's own issuer (`libs/oidc-provider/provider.ts`).
+    ...(appEnv.APP_URL ? { oidcIssuer: urlJoin(appEnv.APP_URL, OIDC_ISSUER_PATH) } : undefined),
     systemAgent: parseSystemAgent(appEnv.SYSTEM_AGENT),
     telemetry: {
       langfuse: langfuseEnv.ENABLE_LANGFUSE,
@@ -148,6 +254,10 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     // resolver's own function so both sides read the raw value identically —
     // unset/invalid stays `undefined`, i.e. the resolver's default 64.
     toolNameMaxLength: parseToolNameMaxLength(toolsEnv.TOOL_NAME_MAX_LENGTH),
+    // Lets the widget publish review match the sandbox's real egress contract:
+    // unless the Worker enforces per-host allowlists, declared hosts are
+    // advisory and the review must say any host is reachable.
+    widgetSandboxNetworkFormat: sandboxEnv.WIDGET_SANDBOX_NETWORK_FORMAT,
   };
 
   return config;

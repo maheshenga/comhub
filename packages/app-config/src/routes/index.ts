@@ -4,6 +4,7 @@ import {
   Compass,
   FilePenIcon,
   Image,
+  LayoutDashboardIcon,
   LibraryBigIcon,
   ListTodoIcon,
   Presentation,
@@ -128,6 +129,15 @@ export const NAVIGATION_ROUTES: NavigationRoute[] = [
     keywordsKey: 'cmdk.keywords.tasks',
     path: '/tasks',
     pathPrefix: '/tasks',
+  },
+  {
+    cmdkKey: 'tab.dashboard',
+    electronKey: 'navigation.dashboard',
+    icon: LayoutDashboardIcon,
+    id: 'dashboard',
+    keywords: ['dashboard', 'monitor', 'metrics', 'widget'],
+    path: '/dashboard',
+    pathPrefix: '/dashboard',
   },
   {
     cmdkKey: 'cmdk.settings',

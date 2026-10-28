@@ -1,4 +1,4 @@
-import { Form, type FormInstance, useForm } from '@lobehub/ui/base-ui/form';
+import { Form, type FormInstance, useForm } from '@lobehub/ui/form';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';

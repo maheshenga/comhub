@@ -16,9 +16,11 @@ vi.mock('@lobechat/model-runtime', () => ({
 }));
 
 vi.mock('@/database/repositories/aiInfra', () => ({
-  AiInfraRepos: vi.fn().mockImplementation(() => ({
-    getAiProviderModelList: mocks.getAiProviderModelList,
-  })),
+  // vi.fn().mockImplementation(() => …) is not constructible under vitest 5;
+  // use a function implementation so `new AiInfraRepos(db, userId, aiProvider)` works.
+  AiInfraRepos: vi.fn(function () {
+    return { getAiProviderModelList: mocks.getAiProviderModelList };
+  }),
 }));
 
 vi.mock('@/server/globalConfig', () => ({

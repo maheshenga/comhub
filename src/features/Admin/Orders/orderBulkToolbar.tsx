@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Alert, Button } from '@lobehub/ui/base-ui';
+import { Alert, Button,Flexbox } from '@lobehub/ui';
 import type * as React from 'react';
 import { useTranslation } from 'react-i18next';
 

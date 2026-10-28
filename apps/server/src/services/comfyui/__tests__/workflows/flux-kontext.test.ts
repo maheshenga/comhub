@@ -31,7 +31,7 @@ vi.mock('../utils/workflowUtils', () => ({
   }),
 }));
 
-const { inputCalls } = setupAllMocks();
+setupAllMocks();
 
 describe('buildFluxKontextWorkflow - Complex Dual-Mode Architecture', () => {
   beforeEach(() => {

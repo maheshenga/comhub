@@ -1,8 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Descriptions, Drawer, InputNumber, Modal, Tag, toast } from '@lobehub/ui/base-ui';
+import { Button, Descriptions, Drawer, Flexbox, InputNumber, Modal, Tag, toast } from '@lobehub/ui';
 import { Space } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

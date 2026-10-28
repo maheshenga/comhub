@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Tag, TextArea } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Modal, Tag, TextArea } from '@lobehub/ui';
 
 import { REASON_COLORS, STATUS_COLORS } from './shared';
 

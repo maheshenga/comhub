@@ -37,7 +37,7 @@ export class PlatformRegistry {
 
   /** List platform definitions serialized for frontend consumption. */
   listSerializedPlatforms(): SerializedPlatformDefinition[] {
-    return this.listPlatforms().map(({ clientFactory, ...rest }) => rest);
+    return this.listPlatforms().map(({ clientFactory: _clientFactory, ...rest }) => rest);
   }
 
   /**

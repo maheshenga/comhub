@@ -1,5 +1,5 @@
 import type { ModuleAppScopeType } from '@lobechat/types';
-import { Segmented } from '@lobehub/ui/base-ui';
+import { Segmented } from '@lobehub/ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

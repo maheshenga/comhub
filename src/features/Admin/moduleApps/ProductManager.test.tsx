@@ -22,7 +22,10 @@ vi.mock('@/libs/swr', () => ({
   })),
 }));
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  Flexbox: ({ children, gap: _gap, ...props }: any) => <div {...props}>{children}</div>,
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
   // 基线是 antd Select/InputNumber（role=combobox / aria-valuemax 由 antd
   // 渲染、onChange 收 number）；组件迁 base-ui 后桩按 antd 语义透传，
   // 保持断言面不变。

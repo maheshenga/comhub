@@ -1,8 +1,13 @@
 'use client';
 
-import { Empty } from '@lobehub/ui';
-import { ActionIcon, Button, FloatingSheet, Skeleton } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import {
+  ActionIcon,
+  Button,
+  createStaticStyles,
+  Empty,
+  FloatingSheet,
+  Skeleton,
+} from '@lobehub/ui';
 import { ChevronRight, X } from 'lucide-react';
 import { type Key, type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -1,11 +1,15 @@
 'use client';
 
 import { Plans as SubscriptionPlan, type SubscriptionCycleType } from '@lobechat/types';
-import { Empty, Flexbox, Icon } from '@lobehub/ui';
 import {
   Accordion,
   Alert,
   Button,
+  createStaticStyles,
+  cx,
+  Empty,
+  Flexbox,
+  Icon,
   Input,
   Modal,
   Segmented,
@@ -14,8 +18,7 @@ import {
   Tag,
   toast,
   Tooltip,
-} from '@lobehub/ui/base-ui';
-import { createStaticStyles, cx } from 'antd-style';
+} from '@lobehub/ui';
 import {
   BookOpen,
   Check,
@@ -1082,7 +1085,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
             <Table
               columns={comparisonColumns as any}
               dataSource={comparisonRows}
-              emptyText={<Empty description="暂无套餐对比数据" />}
+              locale={{ emptyText: <Empty description="暂无套餐对比数据" /> }}
               pagination={false}
               rowKey="key"
               scroll={{ x: Math.max(720, visiblePlans.length * 168 + 132) }}

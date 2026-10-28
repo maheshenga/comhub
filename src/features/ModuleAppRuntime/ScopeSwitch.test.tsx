@@ -25,8 +25,13 @@ describe('ScopeSwitch', () => {
   it('keeps workspace scope unavailable without a workspace context', () => {
     render(<ScopeSwitch scopeType="personal" onChange={vi.fn()} />);
 
-    expect(screen.getByText('moduleApps.runtime.scope.workspace').closest('label')).toHaveClass(
-      'ant-segmented-item-disabled',
-    );
+    // UI6's Segmented renders base-ui items (`data-segmented-item`) instead of
+    // antd's labelled items; the disabled state is carried by the item itself.
+    const workspaceItem = screen
+      .getByText('moduleApps.runtime.scope.workspace')
+      .closest('[data-segmented-item]');
+
+    expect(workspaceItem).not.toBeNull();
+    expect(workspaceItem).toBeDisabled();
   });
 });

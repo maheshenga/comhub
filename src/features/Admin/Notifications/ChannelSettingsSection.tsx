@@ -1,8 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Switch, Text } from '@lobehub/ui/base-ui';
-import { Form } from '@lobehub/ui/base-ui/form';
+import { Flexbox, Switch, Text } from '@lobehub/ui';
+import { Form } from '@lobehub/ui/form';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';

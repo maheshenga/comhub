@@ -1,8 +1,8 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Alert, Button, confirmModal, toast } from '@lobehub/ui/base-ui';
-import { useForm } from '@lobehub/ui/base-ui/form';
+import { Alert, Button, confirmModal, toast } from '@lobehub/ui';
+import { useForm } from '@lobehub/ui/form';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

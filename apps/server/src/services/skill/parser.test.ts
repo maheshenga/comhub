@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import path from 'node:path';
 
 import { unzip, zip } from 'fflate';
 import { sha256 } from 'js-sha256';
@@ -1073,7 +1073,7 @@ Root content`;
   });
 
   describe('parseZipFile', () => {
-    const testDir = join(tmpdir(), 'skill-parser-test');
+    const testDir = path.join(tmpdir(), 'skill-parser-test');
     let testZipPath: string;
 
     beforeAll(async () => {
@@ -1091,7 +1091,7 @@ Content from file`;
       };
 
       const zipped = await createZip(testFiles);
-      testZipPath = join(testDir, 'test-skill.zip');
+      testZipPath = path.join(testDir, 'test-skill.zip');
       await writeFile(testZipPath, zipped);
     });
 
@@ -1110,14 +1110,14 @@ Content from file`;
     });
 
     it('should throw SkillParseError for non-existent file', async () => {
-      const nonExistentPath = join(testDir, 'non-existent.zip');
+      const nonExistentPath = path.join(testDir, 'non-existent.zip');
 
       await expect(parser.parseZipFile(nonExistentPath)).rejects.toThrow(SkillParseError);
       await expect(parser.parseZipFile(nonExistentPath)).rejects.toThrow('Failed to read ZIP file');
     });
 
     it('should throw SkillParseError for invalid ZIP file', async () => {
-      const invalidZipPath = join(testDir, 'invalid.zip');
+      const invalidZipPath = path.join(testDir, 'invalid.zip');
       await writeFile(invalidZipPath, Buffer.from([1, 2, 3, 4]));
 
       await expect(parser.parseZipFile(invalidZipPath)).rejects.toThrow(SkillParseError);

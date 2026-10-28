@@ -478,10 +478,6 @@ describe('Agent Eval Router Integration Tests', () => {
           name: 'Import Test',
         });
 
-        // Mock file service
-        const jsonlContent = `{"input":"What is AI?","expected":"Artificial Intelligence"}
-{"input":"What is ML?","expected":"Machine Learning"}`;
-
         // Import via mock - note: this requires FileService to be properly mocked
         // For integration test, we can directly insert test cases instead
         await serverDB.insert(agentEvalTestCases).values([

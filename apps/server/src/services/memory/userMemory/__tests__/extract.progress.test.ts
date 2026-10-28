@@ -32,15 +32,15 @@ vi.mock('@/database/server', () => ({
 }));
 
 vi.mock('@/database/models/user', () => ({
-  UserModel: vi.fn().mockImplementation(() => ({
-    getUserState: mockGetUserState,
-  })),
+  UserModel: class {
+    getUserState = mockGetUserState;
+  },
 }));
 
 vi.mock('@/database/models/asyncTask', () => ({
-  AsyncTaskModel: vi.fn().mockImplementation(() => ({
-    incrementUserMemoryExtractionProgress: mockIncrementUserMemoryExtractionProgress,
-  })),
+  AsyncTaskModel: class {
+    incrementUserMemoryExtractionProgress = mockIncrementUserMemoryExtractionProgress;
+  },
 }));
 
 const { MemoryExtractionExecutor } = await import('../extract');

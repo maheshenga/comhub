@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { Button, SkeletonText, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, SkeletonText, Tag, Text } from '@lobehub/ui';
 import { memo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
@@ -11,6 +10,7 @@ import McpList from '@/routes/(main)/community/(list)/mcp/features/List';
 import SkillList from '@/routes/(main)/community/(list)/skill/features/List';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useDiscoverStore } from '@/store/discover';
+import { assistantSelectors, mcpSelectors, skillSelectors } from '@/store/discover/selectors';
 import { AssistantSorts, McpSorts, SkillSorts } from '@/types/discover';
 
 const normalizeSkillSort = (value?: string): SkillSorts => {
@@ -42,7 +42,7 @@ Section.displayName = 'CommunityRecommendationSection';
 const RecommendationContent = memo<{
   config: Awaited<ReturnType<typeof adminCommercialService.getPublicRecommendations>>;
 }>(({ config }) => {
-  const useAssistantList = useDiscoverStore((s) => s.useAssistantList);
+  const useAssistantList = useDiscoverStore((s) => s.useFetchAssistantList);
   const useMcpList = useDiscoverStore((s) => s.useFetchMcpList);
   const useSkillList = useDiscoverStore((s) => s.useFetchSkillList);
   const assistantCategory = config.assistantTags[0] || config.selectedTags[0] || undefined;
@@ -51,38 +51,47 @@ const RecommendationContent = memo<{
   const generalSkillCategory = config.generalSkillCategories[0] || undefined;
   const skillSort = normalizeSkillSort(config.hotSkillSort);
 
-  const { data: assistants, isLoading: assistantLoading } = useAssistantList({
+  const assistantSync = useAssistantList({
     category: assistantCategory,
     page: 1,
     pageSize: 8,
     sort: AssistantSorts.Recommended,
   });
-  const { data: mcps, isLoading: mcpLoading } = useMcpList({
+  const assistants = useDiscoverStore(assistantSelectors.assistantList(assistantSync.queryKey));
+  const mcpSync = useMcpList({
     category: mcpCategory,
     page: 1,
     pageSize: 8,
     sort: McpSorts.Recommended,
   });
-  const { data: skills, isLoading: skillLoading } = useSkillList({
+  const mcps = useDiscoverStore(mcpSelectors.mcpList(mcpSync.queryKey));
+  const skillSync = useSkillList({
     category: skillCategory,
     page: 1,
     pageSize: 8,
     sort: SkillSorts.InstallCount,
   });
-  const { data: generalSkills, isLoading: generalSkillLoading } = useSkillList({
+  const skills = useDiscoverStore(skillSelectors.skillList(skillSync.queryKey));
+  const generalSkillSync = useSkillList({
     category: generalSkillCategory,
     page: 1,
     pageSize: 8,
     sort: SkillSorts.InstallCount,
   });
-  const { data: hotSkills, isLoading: hotSkillLoading } = useSkillList({
+  const generalSkills = useDiscoverStore(skillSelectors.skillList(generalSkillSync.queryKey));
+  const hotSkillSync = useSkillList({
     page: 1,
     pageSize: 8,
     sort: skillSort,
   });
+  const hotSkills = useDiscoverStore(skillSelectors.skillList(hotSkillSync.queryKey));
 
   const loading =
-    assistantLoading || mcpLoading || skillLoading || generalSkillLoading || hotSkillLoading;
+    assistantSync.isLoading ||
+    mcpSync.isLoading ||
+    skillSync.isLoading ||
+    generalSkillSync.isLoading ||
+    hotSkillSync.isLoading;
   const hasAnyData =
     (config.assistantsEnabled && (assistants?.items?.length ?? 0) > 0) ||
     (config.mcpsEnabled && (mcps?.items?.length ?? 0) > 0) ||

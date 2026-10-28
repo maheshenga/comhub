@@ -53,6 +53,7 @@ const mockBrowserManager = {
 
 const mockGatewayConnectionSrv = {
   disconnect: vi.fn().mockResolvedValue({ success: true }),
+  updatePersonalToken: vi.fn(),
 };
 
 const mockApp = {
@@ -770,6 +771,12 @@ describe('RemoteServerConfigCtr', () => {
           lastRefreshAt: expect.any(Number),
         }),
       );
+    });
+
+    it('should hand the new access token to the live gateway connection', async () => {
+      await controller.saveTokens('fresh-access', 'refresh', 3600);
+
+      expect(mockGatewayConnectionSrv.updatePersonalToken).toHaveBeenCalledWith('fresh-access');
     });
   });
 

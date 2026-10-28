@@ -172,11 +172,14 @@ const rw = (read: ApiKeyScope | null, write: ApiKeyScope | null): TrpcNamespaceS
 export const TRPC_NAMESPACE_API_KEY_RULES: Record<string, TrpcNamespaceScopeRule> = {
   accountDeletion: 'blocked',
   acceptance: 'blocked',
+  // the admin console is never reachable by a restricted API key
+  admin: 'blocked',
   // the discussion on an acceptance follows the acceptance itself
   acceptanceComment: 'blocked',
   agent: rw('agent:read', 'agent:write'),
   // bot channel wiring carries channel credentials
   agentBotProvider: 'blocked',
+  agentCronJob: rw('agent:read', 'agent:write'),
   agentDocument: rw('knowledge:read', 'knowledge:write'),
   agentEval: 'blocked',
   agentEvalExternal: 'blocked',
@@ -217,6 +220,8 @@ export const TRPC_NAMESPACE_API_KEY_RULES: Record<string, TrpcNamespaceScopeRule
   dashboard: rw('agent:read', null),
   device: 'blocked',
   deviceMetric: 'blocked',
+  // PPT generation through the external Docmee service invokes a model
+  docmee: { any: 'model:invoke' },
   document: rw('knowledge:read', 'knowledge:write'),
   documentComment: rw('knowledge:read', 'knowledge:write'),
   documentLike: rw('knowledge:read', 'knowledge:write'),
@@ -249,16 +254,26 @@ export const TRPC_NAMESPACE_API_KEY_RULES: Record<string, TrpcNamespaceScopeRule
   // numeric telemetry attached to a goal / agent / task / project — same
   // domain as the subjects that own it
   metric: rw('agent:read', 'agent:write'),
+  // mobile-only surfaces; a restricted key has no reason to drive them
+  mobileDesign: 'blocked',
+  // module apps execute sandboxed user code and carry install/payment state
+  moduleApp: 'blocked',
   notebook: rw('knowledge:read', 'knowledge:write'),
   notification: rw('user:read', 'user:write'),
   oauthApp: 'blocked',
   oauthDeviceFlow: 'blocked',
   pageShare: rw('chat:read', 'chat:write'),
+  // billing administration is deliberately outside the restricted-key catalog
+  payment: 'blocked',
   plugin: rw('agent:read', 'agent:write'),
   project: rw('agent:read', 'agent:write'),
+  // project environments and working directories: same agent domain as `project`
+  projectWorkingDirectory: rw('agent:read', 'agent:write'),
   pushToken: 'blocked',
   ragEval: 'blocked',
   recent: rw('chat:read', null),
+  // admin redemption of plans / credits / top-up packages
+  redemption: 'blocked',
   referral: 'blocked',
   resourcePermission: 'blocked',
   // Member-to-member ownership handover: accepting/declining is an interactive
@@ -299,6 +314,8 @@ export const TRPC_NAMESPACE_API_KEY_RULES: Record<string, TrpcNamespaceScopeRule
   user: rw('user:read', 'user:write'),
   userMemories: rw('user:read', 'user:write'),
   userMemory: rw('user:read', 'user:write'),
+  // the user's own skill library — same scope as the agent skills it sits beside
+  userSkill: rw('agent:read', 'agent:write'),
   verify: 'blocked',
   video: { any: 'model:invoke' },
   waitlist: 'blocked',

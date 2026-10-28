@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as AppSettingsModule from '@/server/services/appSettings';
+
 import { composioToolsRouter } from './composio';
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +15,19 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/database/core/db-adaptor', () => ({ getServerDB: vi.fn(async () => ({})) }));
+
+vi.mock('@/server/services/appSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof AppSettingsModule>();
+
+  return {
+    ...actual,
+    getServerComposioConfig: vi.fn().mockResolvedValue({
+      apiKey: 'test-key',
+      authConfigIds: undefined,
+      enabled: true,
+    }),
+  };
+});
 
 vi.mock('@/database/models/connector', () => ({
   ConnectorModel: vi.fn().mockImplementation(function () {

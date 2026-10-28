@@ -20,7 +20,12 @@ vi.mock('react-router', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => (key === 'back' ? 'Back' : key) }),
 }));
-vi.mock('@lobehub/ui', () => ({ Icon: () => null }));
+vi.mock('@lobehub/ui', async (importOriginal) => ({
+  // Keep the real `createStaticStyles`: this suite asserts the header/content
+  // box styles (height, overflow), which only exist once the CSS is injected.
+  ...(await importOriginal<Record<string, unknown>>()),
+  Icon: () => null,
+}));
 
 describe('MobileDeepPageGuard', () => {
   beforeEach(() => {

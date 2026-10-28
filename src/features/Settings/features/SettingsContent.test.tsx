@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsTabs } from '@/store/global/initialState';
@@ -17,7 +18,9 @@ vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
 }));
 vi.mock('@/store/serverConfig', () => ({
   serverConfigSelectors: { enableBusinessFeatures: vi.fn() },
-  useServerConfigStore: () => false,
+  // The business tabs only receive the `mobile` forwarding when business
+  // features are enabled, which is the configuration these cases describe.
+  useServerConfigStore: () => true,
 }));
 vi.mock('./componentMap', () => {
   const businessPage = (tab: string) => (props: { mobile?: boolean }) => {
@@ -37,22 +40,31 @@ vi.mock('./componentMap', () => {
   };
 });
 
+// Plans/Credits/Billing/Referral are compact-header tabs, so the container also
+// suppresses their in-page header; Usage has a full header and only gets `mobile`.
 const businessTabs = [
-  SettingsTabs.Plans,
-  SettingsTabs.Credits,
-  SettingsTabs.Billing,
-  SettingsTabs.Referral,
-  SettingsTabs.Usage,
-];
+  [SettingsTabs.Plans, { mobile: true, showSettingHeader: false }],
+  [SettingsTabs.Credits, { mobile: true, showSettingHeader: false }],
+  [SettingsTabs.Billing, { mobile: true, showSettingHeader: false }],
+  [SettingsTabs.Referral, { mobile: true, showSettingHeader: false }],
+  [SettingsTabs.Usage, { mobile: true }],
+] as const;
 
 describe('SettingsContent mobile presentation', () => {
   beforeEach(() => {
     businessPageSpy.mockClear();
   });
 
-  it.each(businessTabs)('forwards mobile presentation to directly opened %s', (tab) => {
-    render(<SettingsContent mobile activeTab={tab} />);
+  it.each(businessTabs)(
+    'forwards mobile presentation to directly opened %s',
+    (tab, expectedProps) => {
+      render(
+        <MemoryRouter>
+          <SettingsContent mobile activeTab={tab} />
+        </MemoryRouter>,
+      );
 
-    expect(businessPageSpy).toHaveBeenCalledWith(tab, { mobile: true });
-  });
+      expect(businessPageSpy).toHaveBeenCalledWith(tab, expectedProps);
+    },
+  );
 });

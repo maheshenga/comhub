@@ -1,4 +1,4 @@
-import { toast } from '@lobehub/ui/base-ui';
+import { toast } from '@lobehub/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -40,14 +40,30 @@ interface ResolvedChatInputNotice {
   type: 'warning';
 }
 
+const NEWAPI_PROVIDER = 'newapi';
+
 const findEnabledChatModel = (
   enabledChatModelList: EnabledProviderWithModels[],
   model: string,
   provider: string,
 ) => {
-  return enabledChatModelList
+  const exact = enabledChatModelList
     .find((item) => item.id === provider)
     ?.children.find((item) => item.id === model);
+
+  if (exact) return exact;
+
+  // ComHub fork: a saved `newapi` selection is served by whichever managed
+  // provider the admin catalog bound the model to, so its provider id differs
+  // from `newapi`. Treat a model available from exactly one provider as
+  // available; an ambiguous match stays unavailable (the warning is correct).
+  if (provider !== NEWAPI_PROVIDER) return undefined;
+
+  const matches = enabledChatModelList.flatMap((item) =>
+    item.children.filter((child) => child.id === model),
+  );
+
+  return matches.length === 1 ? matches[0] : undefined;
 };
 
 /**

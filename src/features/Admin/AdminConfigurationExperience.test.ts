@@ -47,9 +47,8 @@ describe('admin configuration management experience', () => {
     for (const filePath of configurationPages) {
       const page = readRepoFile(filePath);
 
-      expect(page, filePath).toMatch(
-        /import \{[^}]*\bButton\b[^}]*\} from '@lobehub\/ui\/base-ui'/,
-      );
+      // UI6 merges the former `@lobehub/ui/base-ui` barrel into the root.
+      expect(page, filePath).toMatch(/import \{[^}]*\bButton\b[^}]*\} from '@lobehub\/ui'/);
       expect(page, filePath).not.toMatch(/import \{[^}]*\bButton\b[^}]*\} from 'antd'/);
       expect(page, filePath).toContain('if (!data) return;');
       expect(page, filePath).toContain('disabled={isLoading || !data');
@@ -59,7 +58,7 @@ describe('admin configuration management experience', () => {
   it('uses the Base UI select for PPT creator settings', () => {
     const page = readRepoFile('src/features/Admin/AdminPptSettingsPage.tsx');
 
-    expect(page).toMatch(/import \{[^}]*\bSelect\b[^}]*\} from '@lobehub\/ui\/base-ui'/);
+    expect(page).toMatch(/import \{[^}]*\bSelect\b[^}]*\} from '@lobehub\/ui'/);
     expect(page).not.toMatch(/import \{[^}]*\bSelect\b[^}]*\} from 'antd'/);
   });
 });

@@ -1,8 +1,6 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { ChatErrorType, type ChatMessageError } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar } from 'antd-style';
+import { Button, createStaticStyles, cssVar,Flexbox } from '@lobehub/ui';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';

@@ -115,6 +115,7 @@ interface TestBaseUIButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElem
   danger?: boolean;
   fill?: string;
   ghost?: boolean;
+  href?: string;
   htmlType?: NativeButtonType;
   icon?: TestButtonIcon;
   iconPosition?: 'end' | 'start';
@@ -122,6 +123,7 @@ interface TestBaseUIButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElem
   loading?: boolean;
   shadow?: boolean;
   size?: string;
+  target?: string;
   type?: string;
   variant?: string;
 }
@@ -164,6 +166,7 @@ const TestBaseUIButton = (props: TestBaseUIButtonProps) => {
     disabled,
     fill: _fill,
     ghost: _ghost,
+    href,
     htmlType,
     icon,
     iconPosition = 'start',
@@ -171,12 +174,36 @@ const TestBaseUIButton = (props: TestBaseUIButtonProps) => {
     loading,
     shadow: _shadow,
     size: _size,
+    target,
     type,
     variant: _variant,
     ...buttonProps
   } = props;
   const renderedIcon = renderTestButtonIcon(icon);
   const nativeType = htmlType ?? getNativeButtonType(type);
+
+  // UI6's Button renders an anchor when `href` is set. Keep that contract in
+  // the stub so link-button tests can still query `role="link"` (a native
+  // button would silently drop the href semantics).
+  if (href !== undefined) {
+    const interactionDisabled = disabled || loading;
+
+    return React.createElement(
+      'a',
+      {
+        ...buttonProps,
+        'aria-busy': loading || undefined,
+        'aria-disabled': interactionDisabled || undefined,
+        'href': interactionDisabled ? undefined : href,
+        'target': target,
+        'onClick': interactionDisabled
+          ? (event: React.MouseEvent<HTMLAnchorElement>) => event.preventDefault()
+          : buttonProps.onClick,
+      },
+      iconPosition === 'end' ? children : renderedIcon,
+      iconPosition === 'end' ? renderedIcon : children,
+    );
+  }
 
   return React.createElement(
     'button',
@@ -235,7 +262,7 @@ const TestBaseUISwitch = (props: TestBaseUISwitchProps) => {
 
 // base-ui Button requires the app-level motion provider. Unit tests exercise
 // consuming components, so a native button keeps interaction behavior stable.
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+vi.mock('@lobehub/ui', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
 
   return {

@@ -7,7 +7,7 @@ const blocker = vi.hoisted(() => ({ proceed: vi.fn(), reset: vi.fn(), state: 'un
 const confirmModalMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react-router', () => ({ useBlocker: () => blocker }));
-vi.mock('@lobehub/ui/base-ui', () => ({ confirmModal: confirmModalMock }));
+vi.mock('@lobehub/ui', () => ({ confirmModal: confirmModalMock }));
 
 const options = {
   cancelText: 'Keep editing',

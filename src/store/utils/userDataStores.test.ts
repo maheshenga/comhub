@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const resetGatewayMuxRegistry = vi.hoisted(() => vi.fn());
 const resetOrder = vi.hoisted(() => [] as string[]);
 const storeResets = vi.hoisted(() => [] as Array<() => void>);
+const pageReset = vi.hoisted(() => vi.fn());
 const fakeStore = vi.hoisted(() => () => ({
   getState: () => {
     const reset = vi.fn(() => resetOrder.push('store'));
@@ -27,7 +28,7 @@ vi.mock('@/store/image', () => ({ useImageStore: fakeStore() }));
 vi.mock('@/store/library', () => ({ useKnowledgeBaseStore: fakeStore() }));
 vi.mock('@/store/mention', () => ({ useMentionStore: fakeStore() }));
 vi.mock('@/store/notebook', () => ({ useNotebookStore: fakeStore() }));
-vi.mock('@/store/page', () => ({ usePageStore: fakeStore() }));
+vi.mock('@/store/page', () => ({ pageActions: { reset: pageReset } }));
 vi.mock('@/store/session', () => ({ useSessionStore: fakeStore() }));
 vi.mock('@/store/task', () => ({ useTaskStore: fakeStore() }));
 vi.mock('@/store/tool', () => ({ useToolStore: fakeStore() }));
@@ -40,6 +41,7 @@ describe('stores.reset', () => {
     resetGatewayMuxRegistry.mockClear();
     resetOrder.length = 0;
     storeResets.length = 0;
+    pageReset.mockClear();
   });
 
   it('tears down the gateway mux registry before wiping the user-data stores', async () => {
@@ -49,7 +51,8 @@ describe('stores.reset', () => {
     await stores.reset();
 
     expect(resetGatewayMuxRegistry).toHaveBeenCalledTimes(1);
-    expect(storeResets).toHaveLength(19);
+    expect(storeResets).toHaveLength(18);
+    expect(pageReset).toHaveBeenCalledTimes(1);
     for (const reset of storeResets) expect(reset).toHaveBeenCalledTimes(1);
     expect(resetOrder[0]).toBe('mux');
   });

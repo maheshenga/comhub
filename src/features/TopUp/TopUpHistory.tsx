@@ -1,5 +1,5 @@
 import type { TopUpOrderHistoryItem } from '@lobechat/types';
-import { Table, type TableColumn } from '@lobehub/ui/base-ui';
+import { Table, type TableColumn } from '@lobehub/ui';
 import useSWR from 'swr';
 
 import { commercialService } from '@/services/commercial';

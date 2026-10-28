@@ -1,4 +1,4 @@
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles } from '@lobehub/ui';
 
 /**
  * Workbench dashboard styles (ux-redesign-spec §5). Five-card grid + metric

@@ -3,13 +3,7 @@ import type { ChatModelCard } from '@lobechat/types';
 import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  LobeDeepSeekAI,
-  LobeDeepSeekAnthropicAI,
-  LobeDeepSeekOpenAI,
-  openAIParams,
-  params,
-} from './index';
+import { LobeDeepSeekAI, LobeDeepSeekAnthropicAI, LobeDeepSeekOpenAI, openAIParams } from './index';
 
 const defaultOpenAIBaseURL = 'https://api.deepseek.com/v1';
 const anthropicBaseURL = 'https://api.deepseek.com/anthropic';
@@ -712,7 +706,11 @@ describe('LobeDeepSeekAI - custom features', () => {
   });
 
   describe('models', () => {
-    const fetchModels = params.models as (params: { client: unknown }) => Promise<ChatModelCard[]>;
+    // `params.models` is the router-level handler, which builds a runtime from
+    // `options`; model-list processing lives on the OpenAI-compatible params.
+    const fetchModels = openAIParams.models as (params: {
+      client: unknown;
+    }) => Promise<ChatModelCard[]>;
     const mockClient = {
       models: {
         list: vi.fn(),

@@ -1,7 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
-import { InputNumber, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
+import { Flexbox, InputNumber, Modal, Select, TextArea } from '@lobehub/ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

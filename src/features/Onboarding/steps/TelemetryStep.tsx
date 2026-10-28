@@ -1,11 +1,20 @@
 'use client';
 
 import { type IconProps } from '@lobehub/ui';
-import { Block, Flexbox, Icon } from '@lobehub/ui';
+import {
+  Avatar,
+  Block,
+  Button,
+  createStaticStyles,
+  cssVar,
+  Flexbox,
+  Icon,
+  Steps,
+  Switch,
+  Text,
+} from '@lobehub/ui';
 import { TypewriterEffect } from '@lobehub/ui/awesome';
-import { Avatar, Button, Steps, Switch, Text } from '@lobehub/ui/base-ui';
 import { LoadingDots } from '@lobehub/ui/chat';
-import { createStaticStyles, cssVar } from 'antd-style';
 import { BrainIcon, HeartHandshakeIcon, PencilRulerIcon, ShieldCheck } from 'lucide-react';
 import { memo, useCallback, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';

@@ -1,6 +1,6 @@
 import type { AdminCommandId } from '@lobechat/types';
+import type * as LobeUIBaseModule from '@lobehub/ui';
 import { ConfigProvider } from '@lobehub/ui';
-import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { useState } from 'react';
@@ -47,7 +47,7 @@ const routeBlocker = vi.hoisted(() => ({
   state: 'unblocked' as 'blocked' | 'unblocked',
 }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof LobeUIBaseModule>()),
   confirmModal: confirmModalMock,
 }));

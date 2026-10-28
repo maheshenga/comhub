@@ -1,8 +1,7 @@
 'use client';
 
 import type { ModuleAppPayoutStatus } from '@lobechat/types';
-import { CopyButton, Flexbox } from '@lobehub/ui';
-import { Button, Tag, Text } from '@lobehub/ui/base-ui';
+import { Button, CopyButton, Flexbox, Tag, Text } from '@lobehub/ui';
 import { memo } from 'react';
 
 import { formatAdminAmount } from '@/features/Admin/adminAmountUnits';

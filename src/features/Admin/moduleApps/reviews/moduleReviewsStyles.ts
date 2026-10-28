@@ -1,6 +1,6 @@
 'use client';
 
-import { createStaticStyles } from 'antd-style';
+import { createStaticStyles } from '@lobehub/ui';
 
 export const moduleReviewsStyles = createStaticStyles(({ css, cssVar }) => ({
   controls: css`

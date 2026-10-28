@@ -9,7 +9,9 @@ export const submitPaymentCheckout = (input: PaymentCheckoutAction) => {
   }
   const form = document.createElement('form');
   form.action = checkout.url;
-  form.method = checkout.method;
+  // HTML form methods are lower-case keywords; normalise before reflecting so
+  // the attribute does not depend on the DOM implementation's casing rules.
+  form.method = checkout.method.toLowerCase();
   form.style.display = 'none';
   for (const [name, value] of Object.entries(checkout.fields)) {
     const field = document.createElement('input');

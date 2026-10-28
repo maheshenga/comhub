@@ -14,7 +14,15 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@lobehub/ui/base-ui', () => ({
+vi.mock('@lobehub/ui', () => ({
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  Flexbox: ({ children, gap }: { children: ReactNode; gap?: number }) => (
+    <div data-flex-gap={gap} data-testid="desktop-form-gap">
+      {children}
+    </div>
+  ),
   FormGroup: ({
     children,
     collapsible,
@@ -37,14 +45,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       {extra}
       {children}
     </section>
-  ),
-}));
-
-vi.mock('@lobehub/ui', () => ({
-  Flexbox: ({ children, gap }: { children: ReactNode; gap?: number }) => (
-    <div data-flex-gap={gap} data-testid="desktop-form-gap">
-      {children}
-    </div>
   ),
 }));
 

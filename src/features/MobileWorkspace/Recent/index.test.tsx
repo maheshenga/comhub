@@ -87,7 +87,21 @@ vi.mock('./MobilePendingInbox', () => ({
 vi.mock('@/features/AgentGroupAvatar', () => ({
   default: () => <span data-testid="group-avatar" />,
 }));
-vi.mock('@lobehub/ui', () => ({
+vi.mock('@lobehub/ui', () => {
+  const renderIcon = (icon: any) => {
+    if (!icon) return null;
+    if (typeof icon === 'function' || (typeof icon === 'object' && '$$typeof' in icon)) {
+      const IconComponent = icon;
+      return <IconComponent />;
+    }
+    return icon;
+  };
+
+  return {
+  createStaticStyles: () => new Proxy({}, { get: () => '' }),
+  cssVar: new Proxy({}, { get: (_target, token) => `var(--${String(token)})` }),
+  cx: (...args: any[]) => args.filter(Boolean).join(' '),
+
   ActionIcon: ({ 'aria-label': ariaLabel, disabled, loading, onClick }: any) => (
     <button
       aria-label={ariaLabel}
@@ -100,23 +114,7 @@ vi.mock('@lobehub/ui', () => ({
   Avatar: () => <span data-testid="agent-avatar" />,
   Button: ({ children, icon, onClick, ...props }: any) => (
     <button type="button" {...props} onClick={onClick}>
-      {icon}
-      {children}
-    </button>
-  ),
-  Empty: ({ description }: any) => <div>{description}</div>,
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Icon: () => null,
-  SearchBar: ({ 'aria-label': ariaLabel, onChange, value }: any) => (
-    <input aria-label={ariaLabel} value={value} onChange={onChange} />
-  ),
-  Skeleton: {
-    Paragraph: () => <div data-testid="recent-skeleton" />,
-  },
-}));
-vi.mock('@lobehub/ui/base-ui', () => ({
-  Button: ({ children, onClick, ...props }: any) => (
-    <button type="button" {...props} onClick={onClick}>
+      {renderIcon(icon)}
       {children}
     </button>
   ),
@@ -135,6 +133,12 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       ))}
     </div>
   ),
+  Empty: ({ description }: any) => <div>{description}</div>,
+  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  Icon: () => null,
+  SearchBar: ({ 'aria-label': ariaLabel, onChange, value }: any) => (
+    <input aria-label={ariaLabel} value={value} onChange={onChange} />
+  ),
   Segmented: ({ onChange, options, value }: any) => (
     <div>
       {options.map((option: any) => (
@@ -149,8 +153,12 @@ vi.mock('@lobehub/ui/base-ui', () => ({
       ))}
     </div>
   ),
+  Skeleton: {
+    Paragraph: () => <div data-testid="recent-skeleton" />,
+  },
   toast,
-}));
+  };
+});
 
 const conversation = (
   id: string,

@@ -666,7 +666,6 @@ describe('createOpenAICompatibleImage', () => {
       expect(result.imageUrl).toBe('data:image/png;base64,gptImage2Base64Result');
       expect(mockClient.images.generate).toHaveBeenCalledWith({
         model: 'gpt-image-2',
-        n: 1,
         prompt: 'Generate image with gpt-image-2',
         quality: 'auto',
         size: '1024x1024',
@@ -698,7 +697,6 @@ describe('createOpenAICompatibleImage', () => {
 
       expect(mockClient.images.generate).toHaveBeenCalledWith({
         model: 'gpt-image-2-2026-04-21',
-        n: 1,
         prompt: 'Generate image with gpt-image-2 snapshot',
         size: '1024x1024',
       });
@@ -744,7 +742,8 @@ describe('createOpenAICompatibleImage', () => {
       expect(editOptions.model).toBe('gpt-image-2');
       expect(editOptions.size).toBe('1024x1024');
       expect(editOptions.input_fidelity).toBeUndefined();
-      expect(editOptions.n).toBe(1);
+      // Upstream stopped injecting `n`; strict-schema gateways reject it.
+      expect(editOptions.n).toBeUndefined();
     });
 
     it('should map Nano Banana image parameters for compatible upstreams', async () => {
