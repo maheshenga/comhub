@@ -43,7 +43,8 @@ export const CommunityList = memo(() => {
     s.useFetchAgentSkills,
   ]);
 
-  const allItems = mcpPluginList?.items ?? [];
+  const mcpPluginItems = mcpPluginList?.items;
+  const allItems = useMemo(() => mcpPluginItems ?? [], [mcpPluginItems]);
 
   const marketAgentSkills = useToolStore(agentSkillsSelectors.getMarketAgentSkills, isEqual);
   useFetchAgentSkills(true);

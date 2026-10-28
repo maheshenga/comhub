@@ -59,10 +59,10 @@ describe('admin system management experience', () => {
     // UI6 merges the former `@lobehub/ui/base-ui` barrel into the root, and the
     // grouped import is shared with the page's other root primitives (Flexbox).
     expect(page).toMatch(
-      /import \{[^}]*\bAlert\b[^}]*\bButton\b[^}]*\bSelect\b[^}]*\btoast\b[^}]*\} from '@lobehub\/ui'/,
+      /import \{[^}]+\bAlert\b[^}]+\bButton\b[^}]+\bSelect\b[^}]+\btoast\b[^}]+\} from '@lobehub\/ui'/,
     );
     expect(readRepoFile('src/features/Admin/SystemMaintenance/RunResultModal.tsx')).toMatch(
-      /import \{[^}]*\bDescriptions\b[^}]*\bModal\b[^}]*\} from '@lobehub\/ui'/,
+      /import \{[^}]+\bDescriptions\b[^}]+\bModal\b[^}]+\} from '@lobehub\/ui'/,
     );
   });
 
@@ -73,7 +73,7 @@ describe('admin system management experience', () => {
     expect(page).toContain('AdminSection');
     // B4/B5 收敛：Alert 随全域 no-restricted-imports 收敛并入 base-ui 导入。
     // UI6 后 base-ui 与根桶合并，Flexbox 等根桶原语共享同一 import。
-    expect(page).toMatch(/import \{[^}]*\bAlert\b[^}]*\bButton\b[^}]*\} from '@lobehub\/ui'/);
+    expect(page).toMatch(/import \{[^}]+\bAlert\b[^}]+\bButton\b[^}]+\} from '@lobehub\/ui'/);
     expect(page).not.toContain('padding={24}');
     expect(page).not.toContain('style={{ maxWidth');
   });

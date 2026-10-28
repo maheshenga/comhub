@@ -44,9 +44,10 @@ import type { AgentStore } from '../../store';
 import { heteroAgentDefaultName } from '../../utils/heteroAgentDefaultName';
 import { setLocalAgentWorkingDirectory } from '../../utils/localAgentWorkingDirectoryStorage';
 import type { AgentSliceState, LoadingState, SaveStatus } from './initialState';
-import { agentConfigResource } from './projection';
-export { mergeAgentConfig } from './mergeAgentConfig';
 import { mergeAgentConfig } from './mergeAgentConfig';
+import { agentConfigResource } from './projection';
+
+export { mergeAgentConfig } from './mergeAgentConfig';
 
 const AGENT_META_KEYS = [
   'avatar',

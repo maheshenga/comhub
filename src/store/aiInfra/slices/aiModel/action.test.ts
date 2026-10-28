@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cacheScope } from '@/libs/replica';
 import type * as SwrModule from '@/libs/swr';
 import { mutate } from '@/libs/swr';
+import type * as AiModelServiceModule from '@/services/aiModel';
 import { aiModelService } from '@/services/aiModel';
 import { withSWR } from '~test-utils';
 
@@ -1006,9 +1007,7 @@ describe('AiModelAction', () => {
       // The slice resolves the service with `import('@/services/aiModel')` per
       // fetch. The second key's revalidation lands on the actual module instance,
       // so patch that one as well to keep both providers offline.
-      const actual = await vi.importActual<typeof import('@/services/aiModel')>(
-        '@/services/aiModel',
-      );
+      const actual = await vi.importActual<typeof AiModelServiceModule>('@/services/aiModel');
       vi.spyOn(actual.aiModelService, 'getAiProviderModelList').mockImplementation(implementation);
 
       renderHook(() => useStore.getState().useFetchAiProviderModels('provider-a'), { wrapper });
