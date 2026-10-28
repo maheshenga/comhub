@@ -31,7 +31,9 @@
       "@lobechat/types/*": ["./packages/types/src/*"],
       "@/*": ["./src/*"],
       "~base-ui-stubs": ["./tests/mocks/baseUiStubs.tsx"],
-      "~test-utils": ["./tests/utils.tsx"]
+      "~test-utils": ["./tests/utils.tsx"],
+      "drizzle-orm": ["./node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["./node_modules/drizzle-orm/*"]
     },
     "plugins": [
       {
