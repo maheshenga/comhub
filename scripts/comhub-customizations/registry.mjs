@@ -202,6 +202,11 @@ const MODULES = [
         'env.ts, updater, Browser, controllers, protocol.ts (see desktop-deep-links)',
       ],
       ['p:apps/desktop/src/', 'owned', 'remoteConfig module, tests, feature components'],
+      [
+        'p:apps/desktop/scripts/security-policy-runtime/',
+        'upstream',
+        'upstream package manifests + npm lockfile; fork pins fast-xml-parser 5.11.2 via npm overrides',
+      ],
       ['p:apps/desktop/scripts/update-test/', 'upstream', 'file-mode only changes'],
       ['p:apps/desktop/scripts/', 'owned', 'update-test scripts, tray generator'],
       ['p:src/features/Electron/titlebar/SimpleTitleBar.tsx', 'upstream', 'title prop'],
