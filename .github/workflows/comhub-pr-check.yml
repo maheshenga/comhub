@@ -39,11 +39,15 @@ jobs:
 
       # The upstream baseline tag must exist for the customization gate; fetch
       # the exact tag shallowly to avoid pulling full upstream history.
+      # The registry baseline advances with each upstream merge (v2.2.20 now),
+      # so fetch both the current and the previous tag: older branches still
+      # target v2.2.19, and verify.mjs resolves the one its registry declares.
       - name: Fetch upstream baseline tag
         run: |
           git remote add upstream https://github.com/lobehub/lobehub.git || true
-          git fetch --depth=1 upstream tag v2.2.19 --no-tags || \
-            echo "::warning::could not fetch upstream v2.2.19; gate will fail with a fetch hint"
+          git fetch --depth=1 upstream tag v2.2.20 --no-tags || \
+            echo "::warning::could not fetch upstream v2.2.20; gate will fail with a fetch hint"
+          git fetch --depth=1 upstream tag v2.2.19 --no-tags || true
 
       - name: Verify customization registry
         run: node --test scripts/comhub-customizations/registry.test.mjs && node scripts/comhub-customizations/verify.mjs
